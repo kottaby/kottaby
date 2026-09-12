@@ -22,13 +22,18 @@
  *    EXACTLY the two documented query parameters (pinned for a path-less
  *    prefix and for a legacy prefix with path + trailing slash); the
  *    descriptor carries the paymob enum value and echoes the correlation
- *    key it was handed (not the response's own echo field); a response
- *    missing the intention id or the client secret is a domain error.
- *  - Callback event: terminal success confirms; success-still-pending and
- *    declined both fail; cents become a two-fraction-digit decimal string
- *    (including sub-cent-scale values); the correlation reference comes
- *    from `order.merchant_order_id` (empty when the provider omits it) and
- *    the transaction id is stringified.
+ *    key from the handed-in request; a response missing the intention id
+ *    or the client secret, or whose echoed correlation key or
+ *    `intention_detail` amount/currency diverges from the request, is a
+ *    domain error.
+ *  - Callback event: terminal success confirms; declined fails; a success
+ *    still flagged pending returns `null` — the local payment stays open
+ *    for the later confirmed callback instead of being marked failed;
+ *    cents become a two-fraction-digit decimal string (including
+ *    sub-cent-scale values); the correlation reference comes from
+ *    `order.merchant_order_id` (empty when the provider omits it — the
+ *    adapter rejects such deliveries as malformed at its boundary) and the
+ *    transaction id is stringified.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -103,6 +108,18 @@ const BASE_RESPONSE: PaymobIntentionResponse = {
 
 function makeResponse(overrides: Partial<PaymobIntentionResponse> = {}): PaymobIntentionResponse {
   return { ...BASE_RESPONSE, ...overrides };
+}
+
+/**
+ * Asserts a mapped callback event is non-null and returns it — every
+ * non-pending fixture below settles, so a null would be a contract break
+ * caught as a test failure instead of a type error.
+ */
+function eventOf(event: PaymentWebhookEvent | null): PaymentWebhookEvent {
+  if (event === null) {
+    throw new Error("expected a settled webhook event");
+  }
+  return event;
 }
 
 /** A realistic processed-callback transaction object (card, terminal success). */
@@ -317,7 +334,7 @@ describe("toCheckoutDescriptor", () => {
     const descriptor = toCheckoutDescriptor(
       makeResponse({ client_secret: "egy_csk_test_bd49bb7f" }),
       makeConfig({ publicKey: "pk_test_unit" }),
-      SPECIAL_REFERENCE
+      makeInput()
     );
     expect(descriptor.checkoutUrl).toBe(
       "https://eg.checkout.paymob.com?publicKey=pk_test_unit&clientSecret=egy_csk_test_bd49bb7f"
@@ -328,7 +345,7 @@ describe("toCheckoutDescriptor", () => {
     const descriptor = toCheckoutDescriptor(
       makeResponse(),
       makeConfig({ checkoutBaseUrl: "https://accept.paymob.com/unifiedcheckout/" }),
-      SPECIAL_REFERENCE
+      makeInput()
     );
     expect(descriptor.checkoutUrl).toBe(
       "https://accept.paymob.com/unifiedcheckout/?publicKey=pk_test_unit&clientSecret=egy_csk_test_bd49bb7f"
@@ -336,25 +353,46 @@ describe("toCheckoutDescriptor", () => {
   });
 
   test("carries the paymob enum value as the provider", () => {
-    const descriptor = toCheckoutDescriptor(makeResponse(), makeConfig(), SPECIAL_REFERENCE);
+    const descriptor = toCheckoutDescriptor(makeResponse(), makeConfig(), makeInput());
     expect(descriptor.provider).toBe(PaymentGateway.Paymob);
   });
 
-  test("echoes the handed-in correlation key, not the response echo member", () => {
-    const descriptor = toCheckoutDescriptor(
-      makeResponse({ special_reference: "not-the-hands-value" }),
-      makeConfig(),
-      SPECIAL_REFERENCE
-    );
-    expect(descriptor.providerReference).toBe(SPECIAL_REFERENCE);
+  test("rejects a response whose echoed special_reference diverges from the request", () => {
+    // The response crosses the network boundary, so its echo members are
+    // trusted only when they match the request verbatim — a divergent
+    // `special_reference` would pair another intention's checkout secret
+    // with this purchase's correlation key.
+    const rejection = () =>
+      toCheckoutDescriptor(makeResponse({ special_reference: "not-the-hands-value" }), makeConfig(), makeInput());
+    expect(rejection).toThrow(DomainError);
+  });
+
+  test("rejects a response whose intention_detail amount diverges from the request", () => {
+    const rejection = () =>
+      toCheckoutDescriptor(
+        makeResponse({ intention_detail: { amount: 999, currency: "EGP" } }),
+        makeConfig(),
+        makeInput()
+      );
+    expect(rejection).toThrow(DomainError);
+  });
+
+  test("rejects a response whose intention_detail currency diverges from the request", () => {
+    const rejection = () =>
+      toCheckoutDescriptor(
+        makeResponse({ intention_detail: { amount: 25000, currency: "USD" } }),
+        makeConfig(),
+        makeInput()
+      );
+    expect(rejection).toThrow(DomainError);
   });
 
   test("rejects a response without an intention id", () => {
-    expect(() => toCheckoutDescriptor(makeResponse({ id: "" }), makeConfig(), SPECIAL_REFERENCE)).toThrow(DomainError);
+    expect(() => toCheckoutDescriptor(makeResponse({ id: "" }), makeConfig(), makeInput())).toThrow(DomainError);
   });
 
   test("rejects a response without a client secret", () => {
-    expect(() => toCheckoutDescriptor(makeResponse({ client_secret: "" }), makeConfig(), SPECIAL_REFERENCE)).toThrow(
+    expect(() => toCheckoutDescriptor(makeResponse({ client_secret: "" }), makeConfig(), makeInput())).toThrow(
       DomainError
     );
   });
@@ -362,7 +400,7 @@ describe("toCheckoutDescriptor", () => {
 
 describe("mapCallbackToEvent", () => {
   test("maps a terminal success to a confirmed event", () => {
-    const event: PaymentWebhookEvent = mapCallbackToEvent(makeTransactionObj({}));
+    const event = eventOf(mapCallbackToEvent(makeTransactionObj({})));
     expect(event).toEqual({
       reference: SPECIAL_REFERENCE,
       outcome: "confirmed",
@@ -372,34 +410,38 @@ describe("mapCallbackToEvent", () => {
     });
   });
 
-  test("maps a success still pending to a failed event", () => {
+  test("returns null for a success still flagged pending — the payment is not terminated", () => {
+    // A pending transaction has not moved money: mapping it to an event
+    // would make the local payment terminal and reject the later confirmed
+    // callback, so the mapper yields `null` instead.
     const event = mapCallbackToEvent(makeTransactionObj({ pending: true }));
-    expect(event.outcome).toBe("failed");
-    expect(event.reference).toBe(SPECIAL_REFERENCE);
+    expect(event).toBeNull();
   });
 
   test("maps a declined transaction to a failed event", () => {
-    const event = mapCallbackToEvent(makeTransactionObj({ success: false, pending: false, error_occured: true }));
+    const event = eventOf(
+      mapCallbackToEvent(makeTransactionObj({ success: false, pending: false, error_occured: true }))
+    );
     expect(event.outcome).toBe("failed");
   });
 
   test("converts the cents amount to a two-fraction-digit decimal string", () => {
-    expect(mapCallbackToEvent(makeTransactionObj({ amount_cents: 1 })).amount).toBe("0.01");
-    expect(mapCallbackToEvent(makeTransactionObj({ amount_cents: 5 })).amount).toBe("0.05");
-    expect(mapCallbackToEvent(makeTransactionObj({ amount_cents: 999999 })).amount).toBe("9999.99");
-    expect(mapCallbackToEvent(makeTransactionObj({ amount_cents: 0 })).amount).toBe("0.00");
+    expect(eventOf(mapCallbackToEvent(makeTransactionObj({ amount_cents: 1 }))).amount).toBe("0.01");
+    expect(eventOf(mapCallbackToEvent(makeTransactionObj({ amount_cents: 5 }))).amount).toBe("0.05");
+    expect(eventOf(mapCallbackToEvent(makeTransactionObj({ amount_cents: 999999 }))).amount).toBe("9999.99");
+    expect(eventOf(mapCallbackToEvent(makeTransactionObj({ amount_cents: 0 }))).amount).toBe("0.00");
   });
 
   test("carries the currency verbatim and stringifies the transaction id", () => {
-    const event = mapCallbackToEvent(makeTransactionObj({ id: 42, currency: "USD" }));
+    const event = eventOf(mapCallbackToEvent(makeTransactionObj({ id: 42, currency: "USD" })));
     expect(event.currency).toBe("USD");
     expect(event.providerTransactionId).toBe("42");
     expect(typeof event.providerTransactionId).toBe("string");
   });
 
   test("maps a callback without the merchant echo to an unresolvable empty reference", () => {
-    const event = mapCallbackToEvent(
-      makeTransactionObj({ order: { ...BASE_TRANSACTION_OBJ.order, merchant_order_id: null } })
+    const event = eventOf(
+      mapCallbackToEvent(makeTransactionObj({ order: { ...BASE_TRANSACTION_OBJ.order, merchant_order_id: null } }))
     );
     expect(event.reference).toBe("");
     expect(event.outcome).toBe("confirmed");

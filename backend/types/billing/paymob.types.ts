@@ -32,7 +32,7 @@ export interface PaymobBillingData {
 }
 
 /** One purchasable line item of a checkout intention. */
-export interface PaymobIntentionItem {
+interface PaymobIntentionItem {
   readonly name: string;
   readonly amount: number;
   readonly description?: string;
@@ -135,47 +135,6 @@ export interface PaymobTransactionCallbackObj {
 export interface PaymobProcessedCallbackBody {
   readonly type?: string;
   readonly obj: PaymobTransactionCallbackObj;
-}
-
-/**
- * Response-callback (GET redirect) query parameters — the flat,
- * string-valued counterparts of the processed-callback members (booleans
- * arrive as `"true"`/`"false"` strings; dotted member names are the
- * vendor's literal parameter names). Every member is optional: query
- * parameters may be absent. Display-only by domain ruling — settlement
- * never trusts the redirect.
- */
-export interface PaymobResponseCallbackParams {
-  readonly id?: string;
-  readonly pending?: string;
-  readonly amount_cents?: string;
-  readonly success?: string;
-  readonly is_auth?: string;
-  readonly is_capture?: string;
-  readonly is_standalone_payment?: string;
-  readonly is_voided?: string;
-  readonly is_refunded?: string;
-  readonly is_3d_secure?: string;
-  readonly is_void?: string;
-  readonly is_refund?: string;
-  readonly error_occured?: string;
-  readonly integration_id?: string;
-  readonly profile_id?: string;
-  readonly has_parent_transaction?: string;
-  readonly parent_transaction?: string;
-  readonly order?: string;
-  readonly order_id?: string;
-  readonly merchant_order_id?: string;
-  readonly owner?: string;
-  readonly created_at?: string;
-  readonly updated_at?: string;
-  readonly currency?: string;
-  readonly "source_data.type"?: string;
-  readonly "source_data.pan"?: string;
-  readonly "source_data.sub_type"?: string;
-  readonly acq_response_code?: string;
-  readonly txn_response_code?: string;
-  readonly hmac?: string;
 }
 
 /**

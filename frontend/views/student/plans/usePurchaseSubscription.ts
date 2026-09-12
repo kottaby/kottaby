@@ -35,7 +35,7 @@ import { randomUUID } from "@/frontend/views/student/plans/purchaseHelpers";
  */
 
 /** The purchase attempt's terminal outcome, resolved for the container. */
-export type PlanPurchaseOutcome = "redirected" | "completed" | "failed";
+type PlanPurchaseOutcome = "redirected" | "completed" | "failed";
 
 /** The purchase flow's surface consumed by the catalog container. */
 export interface PurchaseSubscription {

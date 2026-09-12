@@ -22,10 +22,15 @@
  *    verified with the shape-matched key list BEFORE any member is acted
  *    on — a tampered refund/void/token delivery is a 401-class denial, not
  *    a silent ignore. Verified TOKEN/refund/void/parent-transaction
- *    deliveries and the flat response-callback redirect (display-only)
- *    return `null`; a verified terminal transaction maps to the domain
- *    event. Malformed JSON, a missing `hmac`, and objects that fit no
- *    documented shape are the masked 400-class validation rejection.
+ *    deliveries (suppression reads the SIGNED `is_refunded` / `is_voided`
+ *    flags — the unsigned `is_refund` / `is_void` flags alone settle) and
+ *    the flat response-callback redirect (display-only) return `null`; a
+ *    verified still-pending transaction returns `null` (the payment is not
+ *    terminated); a verified terminal transaction maps to the domain
+ *    event; a verified delivery whose order carries no usable
+ *    `merchant_order_id` is the masked 400-class malformed rejection.
+ *    Malformed JSON, a missing `hmac`, and objects that fit no documented
+ *    shape are the same masked rejection.
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -489,13 +494,15 @@ describe("PaymobPaymentGateway.parseWebhookEvent — transaction-shaped deliveri
     expect(event?.outcome).toBe("confirmed");
   });
 
-  test("maps a success still flagged pending as failed — no money moved", () => {
+  test("returns null for a success still flagged pending — the payment is not terminated", () => {
+    // The pending delivery moves no money: the adapter acknowledges it as a
+    // no-op so the later confirmed callback can settle the purchase.
     const pendingSuccess = { ...TRANSACTION_OBJ, pending: true };
     const event = adapter.parseWebhookEvent({
       rawBody: JSON.stringify({ obj: pendingSuccess }),
       query: transactionQuery(pendingSuccess),
     });
-    expect(event?.outcome).toBe("failed");
+    expect(event).toBeNull();
   });
 
   test("maps a declined callback as failed", () => {
@@ -507,13 +514,18 @@ describe("PaymobPaymentGateway.parseWebhookEvent — transaction-shaped deliveri
     expect(event?.outcome).toBe("failed");
   });
 
-  test("carries a null merchant echo as an unresolvable empty reference", () => {
+  test("rejects a verified delivery whose order carries no merchant echo as malformed", () => {
+    // Without a usable `merchant_order_id` the callback cannot be resolved
+    // to any purchase — the adapter rejects it at the boundary instead of
+    // emitting an unrouteable event.
     const anonymousOrder = { ...TRANSACTION_OBJ, order: { ...TRANSACTION_OBJ.order, merchant_order_id: null } };
-    const event = adapter.parseWebhookEvent({
-      rawBody: JSON.stringify({ obj: anonymousOrder }),
-      query: transactionQuery(anonymousOrder),
-    });
-    expect(event?.reference).toBe("");
+    const caught = catchSync(() =>
+      adapter.parseWebhookEvent({
+        rawBody: JSON.stringify({ obj: anonymousOrder }),
+        query: transactionQuery(anonymousOrder),
+      })
+    );
+    malformedOf(caught);
   });
 });
 
@@ -605,7 +617,10 @@ describe("PaymobPaymentGateway.parseWebhookEvent — verified-but-ignored varian
   });
 
   test("ignores a verified refund transaction", () => {
-    const refund = { ...TRANSACTION_OBJ, is_refund: true };
+    // Suppression reads the HMAC-SIGNED state flags — the vendor signs
+    // `is_refunded`, not its unsigned `is_refund` counterpart — so the
+    // ignored delivery is always attested by the signature itself.
+    const refund = { ...TRANSACTION_OBJ, is_refunded: true };
     const event = adapter.parseWebhookEvent({
       rawBody: JSON.stringify({ obj: refund }),
       query: transactionQuery(refund),
@@ -614,12 +629,35 @@ describe("PaymobPaymentGateway.parseWebhookEvent — verified-but-ignored varian
   });
 
   test("ignores a verified void transaction", () => {
-    const voided = { ...TRANSACTION_OBJ, is_void: true };
+    const voided = { ...TRANSACTION_OBJ, is_voided: true };
     const event = adapter.parseWebhookEvent({
       rawBody: JSON.stringify({ obj: voided }),
       query: transactionQuery(voided),
     });
     expect(event).toBeNull();
+  });
+
+  test("settles a verified transaction whose UNSIGNED refund flag alone is flipped", () => {
+    // `is_refund` is NOT a signed member — flipping it alone keeps the
+    // signature valid, and the suppression condition reads the signed
+    // `is_refunded` flag, so this delivery is a first-party charge that
+    // SETTLES (a confirmed event, not a silent ignore).
+    const unsignedRefundFlag = { ...TRANSACTION_OBJ, is_refund: true };
+    const event = adapter.parseWebhookEvent({
+      rawBody: JSON.stringify({ obj: unsignedRefundFlag }),
+      query: transactionQuery(unsignedRefundFlag),
+    });
+    expect(event?.outcome).toBe("confirmed");
+    expect(event?.providerTransactionId).toBe(String(TRANSACTION_OBJ.id));
+  });
+
+  test("settles a verified transaction whose UNSIGNED void flag alone is flipped", () => {
+    const unsignedVoidFlag = { ...TRANSACTION_OBJ, is_void: true };
+    const event = adapter.parseWebhookEvent({
+      rawBody: JSON.stringify({ obj: unsignedVoidFlag }),
+      query: transactionQuery(unsignedVoidFlag),
+    });
+    expect(event?.outcome).toBe("confirmed");
   });
 
   test("ignores a verified parent-transaction callback", () => {

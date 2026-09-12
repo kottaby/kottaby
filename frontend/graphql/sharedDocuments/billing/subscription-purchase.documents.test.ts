@@ -111,13 +111,23 @@ function variableNames(operation: OperationDefinitionNode): string[] {
   return (operation.variableDefinitions ?? []).map(definition => definition.variable.name.value);
 }
 
-/** Variable names threaded as root-field arguments (`$x` → `x`), source order. */
+/**
+ * Variable names threaded as root-field arguments (`$x` → `x`), source order.
+ * Throws on any LITERAL argument so the "no literal arguments" contract fails
+ * here at the AST tier instead of being silently filtered away (a literal
+ * would freeze a server-derived value into the document).
+ */
 function argumentVariableNames(field: FieldNode): string[] {
   // graphql-js types `arguments` as optional; an absent one simply yields
   // zero arguments (e.g. the no-arg `mySubscriptions` root field).
-  return (field.arguments ?? []).flatMap(argument =>
-    argument.value.kind === "Variable" ? [argument.value.name.value] : []
-  );
+  return (field.arguments ?? []).flatMap(argument => {
+    if (argument.value.kind === "Variable") {
+      return [argument.value.name.value];
+    }
+    throw new Error(
+      `expected argument "${argument.name.value}" on field "${field.name.value}" to be a variable (no literal arguments)`
+    );
+  });
 }
 
 // ---------------------------------------------------------------------------

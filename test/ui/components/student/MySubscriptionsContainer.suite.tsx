@@ -16,7 +16,7 @@
  *   (lifecycle chip per key · failed-payment chip + guidance copy ·
  *   verbatim pending placeholders · formatted dates) · copy contract pin.
  *
- * FUNNEL-LEVEL coverage (task-owned additions on top of the 7.4 arms):
+ * FUNNEL-LEVEL coverage (additions on top of the base arms):
  *
  *   branch 7  the verified-pending row (payment stamp SET, still Pending —
  *             the activation path's honest settled shape) renders NO failed
@@ -49,12 +49,12 @@ import { mySubscriptionsQueryDocument } from "@/frontend/graphql/sharedDocuments
 import { STUDENT_PLANS_ROUTE } from "@/frontend/views/student/checkout/result/resultRoutes";
 import { MySubscriptionsContainer } from "@/frontend/views/student/subscriptions/MySubscriptionsContainer";
 import {
+  SUBSCRIPTION_ROW_STATUS_SUFFIX,
+  SUBSCRIPTION_ROW_TEST_ID_PREFIX,
   SUBSCRIPTIONS_EMPTY_TEST_ID,
   SUBSCRIPTIONS_ERROR_TEST_ID,
   SUBSCRIPTIONS_SKELETON_TEST_ID,
   SUBSCRIPTIONS_VIEW_TEST_ID,
-  SUBSCRIPTION_ROW_STATUS_SUFFIX,
-  SUBSCRIPTION_ROW_TEST_ID_PREFIX,
 } from "@/frontend/views/student/subscriptions/subscriptionsViewIds";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { Checkout as CheckoutNs } from "@/shared/locale/namespaces/checkout";
@@ -288,7 +288,9 @@ for (const locale of ["ar", "en"] as const) {
       );
       // First paint: no skeleton, the populated row is live under the chrome.
       expect(screen.queryByTestId(SUBSCRIPTIONS_SKELETON_TEST_ID)).toBeNull();
-      expect(screen.getByTestId(`${SUBSCRIPTION_ROW_TEST_ID_PREFIX}-${ACTIVE_ROW.id}${SUBSCRIPTION_ROW_STATUS_SUFFIX}`)).toBeDefined();
+      expect(
+        screen.getByTestId(`${SUBSCRIPTION_ROW_TEST_ID_PREFIX}-${ACTIVE_ROW.id}${SUBSCRIPTION_ROW_STATUS_SUFFIX}`)
+      ).toBeDefined();
       expect(screen.getByText(t.subscriptionsPageTitle)).toBeDefined();
       await waitFor(() => {
         expect(screen.getByText(t.statusActive)).toBeDefined();

@@ -18,6 +18,15 @@
  *    applying it, so its state is unknown and the safe recovery is the
  *    reconciliation sweep, not a second POST. A 4xx is a deterministic
  *    rejection and is never retried either.
+ *  - Intention creation is exempt from ALL unknown-state retries:
+ *    `special_reference` is a correlation field, NOT an idempotency key,
+ *    so a retried intention POST can mint duplicate intentions at the
+ *    vendor even when the first attempt seemed to fail. A transport
+ *    failure or 5xx on the intention path surfaces as a
+ *    `PaymobUnknownStateError` — the POST may already have been applied —
+ *    and the reconciliation sweep heals the order by its merchant
+ *    reference instead. Only the token mint (idempotent) and the
+ *    transaction inquiry (read-only) retry.
  *  - Failures surface as typed, sanitized errors: the error carries the
  *    upstream HTTP status (or null when no response arrived) and a fixed
  *    generic message — upstream body content never enters an error
@@ -63,6 +72,7 @@ const TRANSPORT_FAILURE_MESSAGE = "Payment provider could not be reached.";
 const UPSTREAM_REJECTION_MESSAGE = "Payment provider rejected the request.";
 const UNUSABLE_RESPONSE_MESSAGE = "Payment provider returned an unusable response.";
 const RESPONSE_TIMEOUT_MESSAGE = "Payment provider did not respond in time.";
+const UNKNOWN_STATE_MESSAGE = "Payment provider state is unknown; the request may have been applied.";
 
 /**
  * The minimal transport contract the client consumes: a fetch-like
@@ -92,6 +102,20 @@ export class PaymobUpstreamError extends DomainError {
   constructor(message: string, status: number | null) {
     super("SERVICE_UNAVAILABLE", message);
     this.status = status;
+  }
+}
+
+/**
+ * Typed unknown-state failure: the request was DELIVERED to the vendor but
+ * its outcome is unobservable — the provider may still be applying it, so
+ * the caller must never answer with a second POST (a retried intention
+ * creation would mint a duplicate). The safe recovery is the reconciliation
+ * sweep, which resolves the order by its merchant reference. The message is
+ * a fixed generic sentence — no upstream body ever reaches it.
+ */
+export class PaymobUnknownStateError extends PaymobUpstreamError {
+  constructor() {
+    super(UNKNOWN_STATE_MESSAGE, null);
   }
 }
 
@@ -258,17 +282,35 @@ export class PaymobHttpClient {
     this.doFetch = args.fetch ?? defaultFetch;
   }
 
-  /** Creates a payment intention for one checkout; returns the validated vendor response. */
+  /**
+   * Creates a payment intention for one checkout; returns the validated vendor response.
+   * The POST is NEVER retried: `special_reference` is a correlation field, not an
+   * idempotency key, so a retry after a delivered-but-unconfirmed attempt can mint a
+   * duplicate intention at the vendor. Transport failures and 5xx surface as a
+   * `PaymobUnknownStateError` — the reconciliation sweep heals the order by merchant
+   * reference.
+   */
   async createIntention(body: PaymobIntentionRequest): Promise<PaymobIntentionResponse> {
-    const { payload, httpStatus } = await this.post(INTENTION_PATH, body, {
-      Authorization: `Token ${this.config.secretKey}`,
-    });
+    const { payload, httpStatus } = await this.post(
+      INTENTION_PATH,
+      body,
+      {
+        Authorization: `Token ${this.config.secretKey}`,
+      },
+      { retryWhenStateUnknown: false }
+    );
     return validateIntentionResponse(payload, httpStatus);
   }
 
   /** Mints a fresh API auth token. Never cached — the vendor expires tokens hourly. */
   async mintAuthToken(): Promise<PaymobAuthTokenResponse> {
-    const { payload, httpStatus } = await this.post(AUTH_TOKEN_PATH, { api_key: this.config.apiKey }, {});
+    const { payload, httpStatus } = await this.post(
+      AUTH_TOKEN_PATH,
+      { api_key: this.config.apiKey },
+      {},
+      // Token minting is idempotent — a retry mints a fresh token, never a duplicate.
+      { retryWhenStateUnknown: true }
+    );
     return validateAuthTokenResponse(payload, httpStatus);
   }
 
@@ -283,7 +325,9 @@ export class PaymobHttpClient {
     const { payload, httpStatus } = await this.post(
       TRANSACTION_INQUIRY_PATH,
       { auth_token: token, merchant_order_id: merchantReference },
-      {}
+      {},
+      // The inquiry is read-only — a retry never mutates provider state.
+      { retryWhenStateUnknown: true }
     );
     return validateInquiryResult(payload, httpStatus);
   }
@@ -291,17 +335,20 @@ export class PaymobHttpClient {
   /**
    * Sends one POST and applies the bounded retry policy: retryable
    * failures (no response received, 5xx) are retried up to the attempt
-   * budget with a fixed pause; terminal failures (timeout on a delivered
-   * request, 4xx, unusable response) throw immediately. Exactly one
-   * sanitized log line accompanies each retried failure and the final
-   * failure.
+   * budget with a fixed pause — unless `retryWhenStateUnknown` is false
+   * (the intention path), where those unknown-state failures throw
+   * immediately as a `PaymobUnknownStateError`. Terminal failures (timeout
+   * on a delivered request, 4xx, unusable response) always throw
+   * immediately. Exactly one sanitized log line accompanies each retried
+   * failure and the final failure.
    */
   private async post(
     path: string,
     body: unknown,
-    headers: Record<string, string>
+    headers: Record<string, string>,
+    options: { retryWhenStateUnknown: boolean }
   ): Promise<{ payload: Record<string, unknown>; httpStatus: number }> {
-    const outcome = await this.sendWithRetries(path, body, headers, 1);
+    const outcome = await this.sendWithRetries(path, body, headers, 1, options.retryWhenStateUnknown);
     if (outcome.kind === "success") {
       return { payload: outcome.payload, httpStatus: outcome.httpStatus };
     }
@@ -319,19 +366,33 @@ export class PaymobHttpClient {
     path: string,
     body: unknown,
     headers: Record<string, string>,
-    attemptNumber: number
+    attemptNumber: number,
+    retryWhenStateUnknown: boolean
   ): Promise<AttemptOutcome> {
-    const outcome = await this.attempt(path, body, headers);
+    const outcome = await this.attempt(path, body, headers, retryWhenStateUnknown);
     if (outcome.kind !== "retryable" || attemptNumber >= MAX_HTTP_ATTEMPTS) {
       return outcome;
     }
     logUpstreamFailure(path, outcome.error.status, true);
     await pause(RETRY_DELAY_MS);
-    return this.sendWithRetries(path, body, headers, attemptNumber + 1);
+    return this.sendWithRetries(path, body, headers, attemptNumber + 1, retryWhenStateUnknown);
   }
 
-  /** Performs exactly one send and classifies its outcome (no retry logic here). */
-  private async attempt(path: string, body: unknown, headers: Record<string, string>): Promise<AttemptOutcome> {
+  /**
+   * Performs exactly one send and classifies its outcome (no retry logic
+   * here). When `retryWhenStateUnknown` is false (the intention path), a
+   * failure whose provider-side effect is unobservable — a no-response
+   * transport rejection or a 5xx — is classified TERMINAL as a
+   * `PaymobUnknownStateError` instead of retryable: the POST was delivered
+   * and `special_reference` is not an idempotency key, so a second POST
+   * could mint a duplicate intention.
+   */
+  private async attempt(
+    path: string,
+    body: unknown,
+    headers: Record<string, string>,
+    retryWhenStateUnknown: boolean
+  ): Promise<AttemptOutcome> {
     const signal = AbortSignal.timeout(this.config.httpTimeoutMs);
     let response: Response;
     try {
@@ -347,9 +408,19 @@ export class PaymobHttpClient {
         // provider-side state is unknown — never retried, the sweep heals.
         return { kind: "terminal", error: new PaymobUpstreamError(RESPONSE_TIMEOUT_MESSAGE, null) };
       }
+      if (!retryWhenStateUnknown) {
+        // Delivered but unobservable (no response arrived): never retried on
+        // the intention path — the sweep heals by merchant reference.
+        return { kind: "terminal", error: new PaymobUnknownStateError() };
+      }
       return { kind: "retryable", error: new PaymobUpstreamError(TRANSPORT_FAILURE_MESSAGE, null) };
     }
     if (response.status >= 500) {
+      if (!retryWhenStateUnknown) {
+        // A 5xx may have applied the intention server-side: unknown state,
+        // never retried on the intention path.
+        return { kind: "terminal", error: new PaymobUnknownStateError() };
+      }
       return { kind: "retryable", error: new PaymobUpstreamError(UPSTREAM_REJECTION_MESSAGE, response.status) };
     }
     if (response.status < 200 || response.status >= 300) {

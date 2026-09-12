@@ -130,6 +130,29 @@ const DEFAULT_PAYMOB_RECONCILE_PENDING_MINUTES = 30;
 const DEFAULT_NGROK_PORT = 3000;
 
 /**
+ * Parses an HTTPS-only URL env value. A configured value is accepted only
+ * when it parses as an absolute URL with the `https:` protocol — these
+ * members feed outbound Paymob requests and hosted-checkout URLs that carry
+ * API credentials and checkout client secrets, so an `http:` (or any other
+ * scheme) value would leak them in cleartext. Anything else — missing,
+ * empty, unparseable, or non-HTTPS — falls back to the provided default so
+ * a bad operator value degrades to the documented host instead of being
+ * cached and used upstream.
+ */
+function parseHttpsUrlEnv(raw: string | undefined, fallback: string): string {
+  const trimmed = trimmedEnvValue(raw);
+  if (!trimmed) {
+    return fallback;
+  }
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "https:" ? trimmed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
  * Trims an env value; empty and whitespace-only values count as "not set"
  * (same emptiness semantics as {@link optionalEnv}).
  */
@@ -172,17 +195,20 @@ function parsePositiveIntegerEnv(raw: string | undefined, fallback: number): num
 
 /**
  * Parses an optional integer env value (provider integration IDs). Accepts
- * plain non-negative decimal integers; ANYTHING else — missing, empty,
- * fractional, signed, or garbage — resolves to `null` so the receiving
- * configuration counts the key as unconfigured and provider guards fail
- * closed at request time instead of sending a guessed identifier upstream.
+ * plain non-negative decimal integers within the safe-integer range;
+ * ANYTHING else — missing, empty, fractional, signed, garbage, or a value
+ * beyond `Number.MAX_SAFE_INTEGER` (which `Number.parseInt` would round) —
+ * resolves to `null` so the receiving configuration counts the key as
+ * unconfigured and provider guards fail closed at request time instead of
+ * sending a guessed identifier upstream.
  */
 function parseOptionalIntegerEnv(raw: string | undefined): number | null {
   const trimmed = raw?.trim() ?? "";
   if (!/^\d+$/u.test(trimmed)) {
     return null;
   }
-  return Number.parseInt(trimmed, 10);
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 /**
@@ -377,8 +403,8 @@ function readEnvironment(): EnvironmentConfig {
       apiKey: nullableSecretEnvValue(process.env.PAYMOB_API_KEY),
       integrationIdCard: parseOptionalIntegerEnv(process.env.PAYMOB_INTEGRATION_ID_CARD),
       integrationIdWallet: parseOptionalIntegerEnv(process.env.PAYMOB_INTEGRATION_ID_WALLET),
-      apiBaseUrl: trimmedEnvValue(process.env.PAYMOB_API_BASE_URL) ?? DEFAULT_PAYMOB_API_BASE_URL,
-      checkoutBaseUrl: trimmedEnvValue(process.env.PAYMOB_CHECKOUT_BASE_URL) ?? DEFAULT_PAYMOB_CHECKOUT_BASE_URL,
+      apiBaseUrl: parseHttpsUrlEnv(process.env.PAYMOB_API_BASE_URL, DEFAULT_PAYMOB_API_BASE_URL),
+      checkoutBaseUrl: parseHttpsUrlEnv(process.env.PAYMOB_CHECKOUT_BASE_URL, DEFAULT_PAYMOB_CHECKOUT_BASE_URL),
       httpTimeoutMs: parsePositiveIntegerEnv(process.env.PAYMOB_HTTP_TIMEOUT_MS, DEFAULT_PAYMOB_HTTP_TIMEOUT_MS),
       reconcilePendingMinutes: parsePositiveIntegerEnv(
         process.env.PAYMOB_RECONCILE_PENDING_MINUTES,

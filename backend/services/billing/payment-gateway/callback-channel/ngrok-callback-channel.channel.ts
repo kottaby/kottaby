@@ -60,7 +60,7 @@ export interface NgrokAgentProcess {
  * abandoned tunnel channel (a failed acquisition, a re-resolution after
  * reset) cannot leak the child process.
  */
-export interface CallbackChannelDisposal {
+interface CallbackChannelDisposal {
   dispose(): void;
 }
 

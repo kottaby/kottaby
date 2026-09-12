@@ -92,18 +92,36 @@ export interface SimulatedCallbackPayload {
 /**
  * Decimal-amount validation for delivery arguments: non-negative, at most
  * two fraction digits — the same budget the plan price enforces, so the
- * cents round-trip through the receiver's normalization is exact.
+ * cents round-trip through the receiver's normalization is exact. The
+ * pattern alone allows arbitrarily large values, so the conversion below
+ * additionally fails closed on amounts whose cents exceed the safe-integer
+ * range instead of silently losing precision.
  */
 const DECIMAL_AMOUNT_PATTERN = /^\d+(?:\.\d{1,2})?$/;
 
-/** Parses a validated decimal amount into integer cents. */
+/**
+ * Parses a validated decimal amount into integer cents from its whole and
+ * fractional parts directly — never via float multiplication, which loses
+ * integer precision for large values and can produce Infinity.
+ *
+ * @throws ValidationError when the amount's cents exceed the safe-integer
+ *   range — the generated callback would otherwise carry a wrong amount or
+ *   serialize `amount_cents` as null.
+ */
 function parseAmountToCents(amount: string): number {
   if (!DECIMAL_AMOUNT_PATTERN.test(amount)) {
     throw new ValidationError(
       "Simulated callback amount must be a non-negative decimal amount with at most two fraction digits."
     );
   }
-  return Math.round(Number.parseFloat(amount) * 100);
+  const [whole, fraction = "0"] = amount.split(".");
+  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+  if (!Number.isSafeInteger(cents)) {
+    throw new ValidationError(
+      "Simulated callback amount exceeds the safe-integer cents range and cannot be represented exactly."
+    );
+  }
+  return cents;
 }
 
 /**

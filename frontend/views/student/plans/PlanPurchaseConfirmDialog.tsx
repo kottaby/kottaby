@@ -8,7 +8,7 @@ import { useAppTranslation } from "@/shared/locale/client";
 import { Checkout } from "@/shared/locale/namespaces/checkout";
 
 /** Accessible dialog title id (aria-labelledby target). */
-export const PURCHASE_CONFIRM_TITLE_ID = "purchase-confirm-title";
+const PURCHASE_CONFIRM_TITLE_ID = "purchase-confirm-title";
 
 export interface PlanPurchaseConfirmDialogProps {
   readonly open: boolean;

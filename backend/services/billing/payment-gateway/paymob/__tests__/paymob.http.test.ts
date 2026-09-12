@@ -11,10 +11,15 @@
  *    the Bearer-header form belongs to the by-transaction-id endpoint this
  *    integration does not use. Tokens are minted per inquiry and never
  *    cached.
- *  - Bounded retry policy: a 5xx and a no-response transport failure are
- *    retried inside the attempt budget; a timed-out request is NEVER
- *    retried (it was delivered — its provider-side state is unknown, the
- *    reconciliation sweep heals it); a 4xx and an unusable 2xx response
+ *  - Bounded retry policy: `special_reference` is a correlation field, NOT
+ *    an idempotency key, so the intention POST is NEVER retried — a 5xx or
+ *    a no-response transport failure on the intention path is TERMINAL as a
+ *    `PaymobUnknownStateError` (the request may have been applied; the
+ *    reconciliation sweep heals by merchant reference). The auth-token mint
+ *    (idempotent) and the transaction inquiry (read-only) DO retry a 5xx
+ *    and a no-response transport failure inside the attempt budget; a
+ *    timed-out request is NEVER retried on any path (it was delivered — its
+ *    provider-side state is unknown); a 4xx and an unusable 2xx response
  *    are terminal.
  *  - Sanitization: every failure surfaces as the typed upstream error with
  *    the sanitized HTTP status (null when no response arrived) and a fixed
@@ -29,6 +34,7 @@ import { DomainError } from "@/backend/lib/errors";
 import {
   type PaymobFetch,
   PaymobHttpClient,
+  PaymobUnknownStateError,
   PaymobUpstreamError,
 } from "@/backend/services/billing/payment-gateway/paymob/paymob.http";
 import type { PaymobIntentionRequest, PaymobResolvedConfig } from "@/backend/types";
@@ -315,19 +321,52 @@ describe("PaymobHttpClient auth token + transaction inquiry", () => {
 // ─── Bounded retry policy ────────────────────────────────────────────────────
 
 describe("PaymobHttpClient bounded retry policy", () => {
-  test("retries a 5xx inside the attempt budget and succeeds", async () => {
+  test("retries a 5xx inside the attempt budget and succeeds — on the read-only inquiry path", async () => {
+    const transport = makeTransport(call => {
+      if (call === 1) {
+        return jsonResponse(200, { token: "minted-token" });
+      }
+      // Two 5xx retries inside the attempt budget, then success.
+      if (call < 4) {
+        return jsonResponse(503, { error: "upstream marker" });
+      }
+      return jsonResponse(200, INQUIRY_RESPONSE);
+    });
+    const client = buildClient(transport);
+
+    const response = await client.transactionInquiryByMerchantRef("purchase-claim-key");
+
+    expect(response.order.merchant_order_id).toBe("purchase-claim-key");
+    // One mint + three inquiry attempts (two 5xx retries, then success).
+    expect(transport.calls).toHaveLength(4);
+    expect(transport.calls[0].url).toContain("/api/auth/tokens");
+  });
+
+  test("exhausts the attempt budget on persistent 5xx with the sanitized status — on the inquiry path", async () => {
     const transport = makeTransport(call =>
-      call < 3 ? jsonResponse(503, { error: "upstream marker" }) : jsonResponse(200, INTENTION_RESPONSE)
+      call === 1 ? jsonResponse(200, { token: "minted-token" }) : jsonResponse(500, { error: "upstream marker" })
     );
     const client = buildClient(transport);
 
-    const response = await client.createIntention(INTENTION_REQUEST);
+    let caught: unknown = null;
+    try {
+      await client.transactionInquiryByMerchantRef("purchase-claim-key");
+    } catch (error) {
+      caught = error;
+    }
 
-    expect(response.id).toBe(INTENTION_RESPONSE.id);
-    expect(transport.calls).toHaveLength(3);
+    const error = upstreamErrorOf(caught);
+    expect(error.status).toBe(500);
+    expect(error.message).toBe("Payment provider rejected the request.");
+    expect(error.message).not.toContain("upstream marker");
+    // One mint + three inquiry attempts (the attempt budget).
+    expect(transport.calls).toHaveLength(4);
   });
 
-  test("exhausts the attempt budget on persistent 5xx with the sanitized status", async () => {
+  test("NEVER retries the intention POST on a 5xx — the request may have been applied", async () => {
+    // `special_reference` is a correlation field, not an idempotency key, so
+    // a retried intention POST could mint a duplicate intention at the
+    // vendor even when the first attempt seemed to fail.
     const transport = makeTransport(() => jsonResponse(500, { error: "upstream marker" }));
     const client = buildClient(transport);
 
@@ -339,10 +378,11 @@ describe("PaymobHttpClient bounded retry policy", () => {
     }
 
     const error = upstreamErrorOf(caught);
-    expect(error.status).toBe(500);
-    expect(error.message).toBe("Payment provider rejected the request.");
+    expect(error).toBeInstanceOf(PaymobUnknownStateError);
+    expect(error.status).toBeNull();
+    expect(error.message).toBe("Payment provider state is unknown; the request may have been applied.");
     expect(error.message).not.toContain("upstream marker");
-    expect(transport.calls).toHaveLength(3);
+    expect(transport.calls).toHaveLength(1);
   });
 
   test("NEVER retries a 4xx — a deterministic rejection is terminal", async () => {
@@ -363,19 +403,43 @@ describe("PaymobHttpClient bounded retry policy", () => {
     expect(transport.calls).toHaveLength(1);
   });
 
-  test("retries a no-response transport failure — no response arrived", async () => {
+  test("retries a no-response transport failure — on the read-only inquiry path", async () => {
     const transport = makeTransport(call => {
       if (call === 1) {
+        return jsonResponse(200, { token: "minted-token" });
+      }
+      if (call === 2) {
         throw new Error("socket hang up");
       }
-      return jsonResponse(200, INTENTION_RESPONSE);
+      return jsonResponse(200, INQUIRY_RESPONSE);
     });
     const client = buildClient(transport);
 
-    const response = await client.createIntention(INTENTION_REQUEST);
+    const response = await client.transactionInquiryByMerchantRef("purchase-claim-key");
 
-    expect(response.id).toBe(INTENTION_RESPONSE.id);
-    expect(transport.calls).toHaveLength(2);
+    expect(response.order.merchant_order_id).toBe("purchase-claim-key");
+    // One mint + two inquiry attempts (one retry, then success).
+    expect(transport.calls).toHaveLength(3);
+  });
+
+  test("NEVER retries the intention POST on a no-response transport failure — single call, unknown state", async () => {
+    const transport = makeTransport(() => {
+      throw new Error("socket hang up");
+    });
+    const client = buildClient(transport);
+
+    let caught: unknown = null;
+    try {
+      await client.createIntention(INTENTION_REQUEST);
+    } catch (error) {
+      caught = error;
+    }
+
+    const error = upstreamErrorOf(caught);
+    expect(error).toBeInstanceOf(PaymobUnknownStateError);
+    expect(error.status).toBeNull();
+    expect(error.message).toBe("Payment provider state is unknown; the request may have been applied.");
+    expect(transport.calls).toHaveLength(1);
   });
 
   test("NEVER retries a timed-out request — it was SENT, its state is unknown", async () => {
@@ -402,7 +466,10 @@ describe("PaymobHttpClient bounded retry policy", () => {
     expect(calls).toHaveLength(1);
   });
 
-  test("retries only within the budget — a transport failure that exhausts it surfaces status null", async () => {
+  test("surfaces a transport failure that exhausts the intention path as a single unknown-state call with status null", async () => {
+    // Even at the attempt budget the intention POST never retries: the
+    // rejection is the unknown-state error (status null — no response
+    // arrived), surfaced after exactly one send.
     const transport = makeTransport(() => {
       throw new Error("connection refused");
     });
@@ -416,9 +483,10 @@ describe("PaymobHttpClient bounded retry policy", () => {
     }
 
     const error = upstreamErrorOf(caught);
+    expect(error).toBeInstanceOf(PaymobUnknownStateError);
     expect(error.status).toBeNull();
-    expect(error.message).toBe("Payment provider could not be reached.");
-    expect(transport.calls).toHaveLength(3);
+    expect(error.message).toBe("Payment provider state is unknown; the request may have been applied.");
+    expect(transport.calls).toHaveLength(1);
   });
 
   test("treats an unusable 2xx body as terminal — never retried", async () => {

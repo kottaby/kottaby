@@ -1214,7 +1214,7 @@ describe("SubscriptionActivationService — provider transaction reference + key
       // The receipt was STORED post-commit under the claim digest — the
       // value a later duplicate emission would read back.
       expect(cache.storedKeys).toEqual([claimDigest]);
-      expect(cache.get(claimDigest)).not.toBeNull();
+      expect(await cache.get(claimDigest)).not.toBeNull();
       // The realtime push ran exactly once, to the purchaser.
       expect(transport.recipientBatches).toEqual([[student.id]]);
     });

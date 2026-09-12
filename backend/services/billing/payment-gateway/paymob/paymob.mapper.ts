@@ -46,6 +46,14 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
 /** Placeholder the integration fills unknown billing members with. */
 const BILLING_PLACEHOLDER = "NA";
 
+/**
+ * Fixed, generic descriptor-validation messages — the upstream response
+ * body never enters an error message (the adapter logs the sanitized
+ * upstream status instead).
+ */
+const INCOMPLETE_CHECKOUT_MESSAGE = "Payment provider returned an incomplete checkout session.";
+const CHECKOUT_MISMATCH_MESSAGE = "Payment provider returned a checkout session that does not match the request.";
+
 /** Matches a non-negative decimal string with at most two fraction digits. */
 const DECIMAL_AMOUNT_PATTERN = /^\d+(\.\d{1,2})?$/;
 
@@ -165,19 +173,26 @@ export function buildIntentionRequest(args: {
 }
 
 /**
- * Validates the intention response and builds the checkout descriptor. The
- * response crosses the network boundary, so its identity members are
- * trusted only when present: a response lacking the intention id or the
- * hosted-checkout secret is a provider failure surfaced as a domain error
- * (the adapter logs the sanitized upstream status; the upstream body is
- * never rethrown). The descriptor's reference is the correlation key the
- * adapter sent as `special_reference` — NOT the intention id — because
- * fulfillment resolves purchases by that echoed reference alone.
+ * Validates the intention response against the original request and builds
+ * the checkout descriptor. The response crosses the network boundary, so
+ * its identity members are trusted only when present AND only when they
+ * echo the request: the intention id, the hosted-checkout secret, and the
+ * echoed `special_reference` must all be usable, and the echoed
+ * correlation key plus the `intention_detail` amount/currency must match
+ * the request verbatim — a response lacking or mismatching them pairs
+ * another intention's checkout secret with this purchase's correlation
+ * key, so it is a provider failure surfaced as a domain error (the
+ * existing incomplete-session rejection for missing members; the
+ * mismatched-echo rejection for divergent ones — the adapter logs the
+ * sanitized upstream status; the upstream body is never rethrown). The
+ * descriptor's reference is the correlation key the adapter sent as
+ * `special_reference` — NOT the intention id — because fulfillment
+ * resolves purchases by that echoed reference alone.
  */
 export function toCheckoutDescriptor(
   response: PaymobIntentionResponse,
   config: PaymobResolvedConfig,
-  specialReference: string
+  request: PaymentCheckoutInput
 ): PaymentCheckoutSession {
   if (
     typeof response.id !== "string" ||
@@ -185,30 +200,42 @@ export function toCheckoutDescriptor(
     typeof response.client_secret !== "string" ||
     response.client_secret.length === 0
   ) {
-    throw new DomainError("SERVICE_UNAVAILABLE", "Payment provider returned an incomplete checkout session.");
+    throw new DomainError("SERVICE_UNAVAILABLE", INCOMPLETE_CHECKOUT_MESSAGE);
+  }
+  const cents = convertAmountToCents(request.amount);
+  if (
+    response.special_reference !== request.specialReference ||
+    response.intention_detail.amount !== cents ||
+    response.intention_detail.currency !== request.currency
+  ) {
+    throw new DomainError("SERVICE_UNAVAILABLE", CHECKOUT_MISMATCH_MESSAGE);
   }
   return {
     provider: PaymentGateway.Paymob,
-    providerReference: specialReference,
+    providerReference: request.specialReference,
     checkoutUrl: `${config.checkoutBaseUrl}?publicKey=${config.publicKey}&clientSecret=${response.client_secret}`,
   };
 }
 
 /**
  * Normalizes a verified processed-callback transaction object into the
- * domain webhook event. The correlation reference is the echo of the
- * intention's `special_reference` (`order.merchant_order_id`); a callback
- * without it cannot be resolved to a purchase and maps to an empty
- * reference, which fulfillment treats as an unknown payment. Only a
- * terminal successful transaction confirms — a success still flagged as
- * pending has not moved money. The provider's cents amount becomes a
+ * domain webhook event, or `null` when the delivery must not terminate the
+ * local payment: a transaction still flagged `pending` has not moved money,
+ * so returning `null` keeps the payment open for the later confirmed
+ * callback instead of marking it failed. The correlation reference is the
+ * echo of the intention's `special_reference`
+ * (`order.merchant_order_id`). Only a terminal successful transaction
+ * confirms — a declined one fails. The provider's cents amount becomes a
  * two-fraction-digit decimal string, and the transaction id is carried as
  * its string form.
  */
-export function mapCallbackToEvent(obj: PaymobProcessedCallbackBody["obj"]): PaymentWebhookEvent {
+export function mapCallbackToEvent(obj: PaymobProcessedCallbackBody["obj"]): PaymentWebhookEvent | null {
+  if (obj.pending) {
+    return null;
+  }
   return {
     reference: obj.order.merchant_order_id ?? "",
-    outcome: obj.success && !obj.pending ? "confirmed" : "failed",
+    outcome: obj.success ? "confirmed" : "failed",
     amount: (obj.amount_cents / 100).toFixed(2),
     currency: obj.currency,
     providerTransactionId: String(obj.id),

@@ -9,9 +9,6 @@ export const PLAN_CARD_TEST_ID_PREFIX = "student-plan-card";
 /** Per-card Buy CTA testid suffix. */
 export const PLAN_CARD_BUY_SUFFIX = "-buy";
 
-/** Confirm-dialog testid anchor. */
-export const PURCHASE_CONFIRM_DIALOG_TEST_ID = "purchase-confirm-dialog";
-
 /** Catalog container testid anchor. */
 export const PLANS_CATALOG_TEST_ID = "student-plans-catalog";
 

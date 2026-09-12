@@ -3,23 +3,36 @@
 -- -----------------------------------------------------------------------------
 -- SQLite parity for 5-student-payments-provider-transaction.sql per
 -- docs/SQLITE_LOCAL_DEV.md. Adds the nullable provider_transaction_id column
--- to the student_payments ledger and re-arms the UPDATE guard so the provider
--- transaction reference may be written exactly once — only from NULL to a
--- value, and only inside the existing guarded status transition
--- (pending -> paid | failed) with every financial/identity column
--- (student_id, subscription_id, amount, currency, payment_gateway,
--- created_at) unchanged. An already-recorded reference can never be
--- overwritten or erased, and outside the guarded transition the column is
--- frozen like every other column. Every other UPDATE aborts.
+-- to the student_payments ledger, enforces the pending-insert invariant, and
+-- re-arms the UPDATE guard so the provider transaction reference may be
+-- written exactly once — only from NULL to a value, and only inside the
+-- existing guarded status transition (pending -> paid | failed) with every
+-- financial/identity column (student_id, subscription_id, amount, currency,
+-- payment_gateway, created_at) unchanged. An already-recorded reference can
+-- never be overwritten or erased, and outside the guarded transition the
+-- column is frozen like every other column. Every other UPDATE aborts.
 --
--- SQLite has no server-side stored functions, so the guard lives directly in
--- the trigger body (see 3-immutability-triggers-sqlite.sql). The strict
--- block-everything trigger must therefore be REPLACED here — `CREATE TRIGGER
--- IF NOT EXISTS` would silently keep the old version — hence DROP TRIGGER IF
--- EXISTS + CREATE TRIGGER.
+-- PENDING INSERT GUARD: the invariant holds at insertion too — a pending row
+-- may never be created with a provider_transaction_id already set. The
+-- reference is written only through the guarded pending -> paid | failed
+-- decision, so no insert path can seed an audit link outside the trigger's
+-- control. Decided rows keep the legacy behavior — reconciliation/backfill
+-- paths create paid | failed rows that legitimately carry the gateway's
+-- already-known transaction id. (The schema-level
+-- student_payments_pending_provider_transaction_check CHECK arrives for
+-- SQLite via drizzle-kit push from the shared Drizzle schema; this file adds
+-- the BEFORE INSERT trigger parity for the PG-side trigger.)
 --
--- Idempotency: ADD COLUMN IF NOT EXISTS + DROP TRIGGER IF EXISTS + CREATE
---              TRIGGER. Safe to re-run any number of times. Pure SQLite — NO
+-- SQLite has no server-side stored functions, so the guards live directly in
+-- the trigger bodies (see 3-immutability-triggers-sqlite.sql). The strict
+-- block-everything UPDATE trigger must therefore be REPLACED here — `CREATE
+-- TRIGGER IF NOT EXISTS` would silently keep the old version — hence DROP
+-- TRIGGER IF EXISTS + CREATE TRIGGER. The BEFORE INSERT trigger is new, so a
+-- plain CREATE TRIGGER IF NOT EXISTS is idempotent for it.
+--
+-- Idempotency: ADD COLUMN IF NOT EXISTS + CREATE TRIGGER IF NOT EXISTS (insert
+--              guard) + DROP TRIGGER IF EXISTS + CREATE TRIGGER (update
+--              guard). Safe to re-run any number of times. Pure SQLite — NO
 --              PostgreSQL dependencies (no plpgsql, no CREATE FUNCTION, no
 --              EXECUTE FUNCTION).
 --
@@ -35,6 +48,25 @@
 -- student_payments — provider transaction reference column (nullable)
 -- -----------------------------------------------------------------------------
 ALTER TABLE student_payments ADD COLUMN IF NOT EXISTS provider_transaction_id varchar(64);
+
+
+-- -----------------------------------------------------------------------------
+-- student_payments — BEFORE INSERT guard: a pending row starts undecided
+-- -----------------------------------------------------------------------------
+CREATE TRIGGER IF NOT EXISTS prevent_pending_student_payments_insert_trigger
+    BEFORE INSERT ON student_payments
+BEGIN
+    -- INV-PAY2, insert side: `provider_transaction_id` is NULL for every
+    -- pending (undecided) payment. A pending row created with a reference
+    -- would bypass the update guard's set-once allowance (which only admits
+    -- NULL -> value inside the pending -> paid | failed transition), so the
+    -- insert path must reject it up front. Decided rows keep the legacy
+    -- behavior — reconciliation/backfill paths create paid | failed rows
+    -- that legitimately carry the gateway's already-known transaction id.
+    SELECT RAISE(ABORT, 'a pending student_payments row must be created with provider_transaction_id null — the gateway transaction reference may only be recorded inside the pending to paid or failed transition')
+    WHERE NEW.status = 'pending'
+      AND NEW.provider_transaction_id IS NOT NULL;
+END;
 
 
 -- -----------------------------------------------------------------------------

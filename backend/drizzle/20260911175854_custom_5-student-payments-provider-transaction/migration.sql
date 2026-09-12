@@ -4,13 +4,19 @@
 -- -----------------------------------------------------------------------------
 -- Purpose: Give the immutable student_payments ledger an auditable link to the
 --          payment provider's own records, WITHOUT weakening the immutability
---          record (INV-PAY2). Two changes, layered onto
+--          record (INV-PAY2). Three changes, layered onto
 --          4-student-payments-status-transition.sql:
 --
 --            1. A new nullable column `provider_transaction_id varchar(64)`
 --               holds the gateway's transaction identifier once a payment is
 --               decided. It is NULL for every pending (undecided) payment.
---            2. The `prevent_student_payments_update()` guard is re-armed so
+--            2. A CHECK constraint enforces that invariant at the ledger's
+--               entry point: a pending row may only be created with
+--               provider_transaction_id NULL. Decided rows keep the legacy
+--               behavior — any reference is admissible at insert time, because
+--               decided rows are created by reconciliation/backfill paths that
+--               legitimately carry the gateway's already-known transaction id.
+--            3. The `prevent_student_payments_update()` guard is re-armed so
 --               that within the EXISTING guarded `pending → paid | failed`
 --               transition the provider transaction reference may be written
 --               exactly once, and only from NULL to a value. An
@@ -24,14 +30,18 @@
 -- Mechanics: The BEFORE UPDATE trigger on student_payments
 --            (prevent_student_payments_update_trigger) already exists and
 --            executes this function; replacing the function re-arms the
---            guard in place, so no trigger DDL is needed here. On a fresh
---            database 3-immutability-triggers.sql seeds the strict
+--            guard in place, so no UPDATE-trigger DDL is needed here. The
+--            pending-insert invariant is enforced by a named CHECK
+--            constraint that mirrors the Drizzle schema check of the same
+--            name (backend/db/schema/billing/student-payments.ts). On a
+--            fresh database 3-immutability-triggers.sql seeds the strict
 --            block-everything guard, then 4-...-status-transition.sql and
 --            this file amend it in alphabetical order, so both fresh and
 --            existing databases converge on the same guard.
 --
--- Idempotency: ADD COLUMN IF NOT EXISTS + CREATE OR REPLACE FUNCTION — safe
---              to re-run any number of times. NO CONCURRENTLY (per
+-- Idempotency: ADD COLUMN IF NOT EXISTS + DO-block-guarded ADD CONSTRAINT +
+--              CREATE OR REPLACE FUNCTION — safe to re-run any number of
+--              times. NO CONCURRENTLY (per
 --              docs/DATABASE_MIGRATIONS.md — Drizzle's migrator is always
 --              transactional).
 --
@@ -45,6 +55,32 @@
 -- -----------------------------------------------------------------------------
 ALTER TABLE student_payments
     ADD COLUMN IF NOT EXISTS provider_transaction_id varchar(64);--> statement-breakpoint
+-- -----------------------------------------------------------------------------
+-- student_payments — CHECK: a pending row starts undecided (INV-PAY2, insert
+--                     side — mirrors the Drizzle schema check of the same
+--                     name)
+-- -----------------------------------------------------------------------------
+DO $$
+BEGIN
+    -- INV-PAY2 at the ledger's entry point: `provider_transaction_id` is NULL
+    -- for every pending (undecided) payment. A pending row created with a
+    -- reference would bypass the update guard's set-once allowance (which
+    -- only admits NULL → value inside the pending → paid | failed
+    -- transition), so the constraint rejects it up front. Decided rows keep
+    -- the legacy behavior — reconciliation/backfill paths create paid |
+    -- failed rows that legitimately carry the gateway's already-known
+    -- transaction id. PostgreSQL has no `ADD CONSTRAINT IF NOT EXISTS`, so
+    -- the DO block checks pg_constraint first to stay idempotent.
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'student_payments_pending_provider_transaction_check'
+    ) THEN
+        ALTER TABLE student_payments
+            ADD CONSTRAINT student_payments_pending_provider_transaction_check
+            CHECK (status <> 'pending' OR provider_transaction_id IS NULL);
+    END IF;
+END$$;--> statement-breakpoint
 -- -----------------------------------------------------------------------------
 -- student_payments — payment ledger with one guarded status exception and a
 -- set-once provider transaction reference

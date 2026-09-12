@@ -142,9 +142,9 @@
   - CREATE `app/(dashboard)/subscriptions/page.tsx` + `frontend/views/student/subscriptions/MySubscriptionsContainer.tsx` (status chips active/pending/failed, empty state, failed-guidance copy); the existing `/subscriptions` nav link goes live.
   - [x] 7.4.QL · [x] 7.4.TE — all four state arms · [x] 7.4.SEC — tenancy: only own rows · [x] 7.4.SR · [x] 7.4.IV
   - _Requirements: REQ-045, REQ-054, REQ-064, REQ-065_
-- [ ] 7.5 Funnel component tests (Happy DOM)
+- [x] 7.5 Funnel component tests (Happy DOM)
   - CREATE suites under `test/ui/components/` per `test/ui/AGENTS.md` for the three containers (mocked Apollo).
-  - [ ] 7.5.QL · [ ] 7.5.TE · [ ] 7.5.SEC · [ ] 7.5.SR · [ ] 7.5.IV
+  - [x] 7.5.QL · [x] 7.5.TE · [x] 7.5.SEC · [x] 7.5.SR · [x] 7.5.IV
   - _Requirements: REQ-004, REQ-075_
 
 ---

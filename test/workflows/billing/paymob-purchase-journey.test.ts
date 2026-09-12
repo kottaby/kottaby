@@ -208,7 +208,9 @@ function recordingFetch(input: string | URL | Request, init?: BunFetchRequestIni
     const rawBody: unknown = initBag.body;
     const body = typeof rawBody === "string" ? rawBody : "";
     providerRequests.push({ url, headers: headerBag, body });
-    return Promise.resolve(new Response(JSON.stringify(intentionResponse()), { status: 201 }));
+    return Promise.resolve(
+      new Response(JSON.stringify(intentionResponse({ url, headers: headerBag, body })), { status: 201 })
+    );
   }
   return realFetch(input, init);
 }
@@ -216,16 +218,28 @@ recordingFetch.preconnect = (url: string | URL) => globalThis.fetch.preconnect(u
 
 const fetchSpy = spyOn(globalThis, "fetch").mockImplementation(recordingFetch);
 
-/** A valid intention response body — the members the transport validates. */
-function intentionResponse(): Record<string, unknown> {
+/**
+ * A valid intention response body — the members the transport validates.
+ * The vendor echoes the merchant's `special_reference` and the intention
+ * detail verbatim, so the mocked response carries the recorded request's
+ * correlation key and the requested amount/currency (the provider sees the
+ * same values the purchase service sends; a divergent echo is the mapper's
+ * mismatched-echo rejection, pinned in the adapter suite).
+ */
+function intentionResponse(request: RecordedProviderRequest): Record<string, unknown> {
+  const body: unknown = JSON.parse(request.body);
+  const echoed = isPlainJsonObject(body) ? body : {};
+  const echoedReference = typeof echoed.special_reference === "string" ? echoed.special_reference : "";
+  const echoedAmount = typeof echoed.amount === "number" ? echoed.amount : 0;
+  const echoedCurrency = typeof echoed.currency === "string" ? echoed.currency : "";
   return {
     id: `intention-${PREFIX}`,
     intention_order_id: 4242,
     client_secret: `client-secret-${PREFIX}`,
-    special_reference: `intention-${PREFIX}`,
+    special_reference: echoedReference,
     status: "unpaid",
     confirmed: false,
-    intention_detail: { amount: 20_000, currency: "EGP" },
+    intention_detail: { amount: echoedAmount, currency: echoedCurrency },
     created: "2099-01-01T00:00:00.000000",
     object: "intention.object",
   };

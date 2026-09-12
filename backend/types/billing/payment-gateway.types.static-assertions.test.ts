@@ -167,20 +167,12 @@ describe("Billing gateway types — Static Structural Assertions", () => {
     }
   });
 
-  test("5. Response-callback params are flat optional strings keyed by the vendor's names", () => {
+  test("5. Card-token body is a typed delivery envelope", () => {
     const code = codeLines(libCode(files, "paymob.types.ts")).join("\n");
-    const body = interfaceBody(code, /export interface PaymobResponseCallbackParams\b/);
+    const body = interfaceBody(code, /interface PaymobTokenCallbackBody\b/);
     expect(body).not.toBe("");
-
-    expect(body).toContain('readonly "source_data.type"?: string;');
-    expect(body).toContain('readonly "source_data.pan"?: string;');
-    expect(body).toContain('readonly "source_data.sub_type"?: string;');
-    expect(body).toContain("readonly order_id?: string;");
-    expect(body).toContain("readonly hmac?: string;");
-    // Query parameters are string-valued and optional — never typed as booleans.
-    expect(body).toContain("readonly success?: string;");
-    expect(body).toContain("readonly pending?: string;");
-    expect(body).not.toMatch(/readonly\s+\w+\s*:\s*boolean/);
+    expect(body).toContain("readonly type?: string;");
+    expect(body).toContain("readonly obj: PaymobTokenCallbackObj;");
   });
 
   test("6. Transaction inquiry result carries the reconciliation routing subset", () => {

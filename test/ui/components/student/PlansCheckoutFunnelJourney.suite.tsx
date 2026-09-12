@@ -15,9 +15,10 @@
  *   journey 1  instant-activation write → result-page read: the purchase
  *              mutation's payload writes the normalized `StudentSubscription:901`
  *              row into the shared cache; the payment-result container's
- *              authoritative `mySubscriptions` re-query then converges on
- *              THAT cache entry — the pending arm renders from the mutation's
- *              own write (zero fresh network mock needed for the read).
+ *              authoritative `mySubscriptions` re-query paints the pending
+ *              arm from THAT cache entry, then the network revalidation
+ *              settles the same list (the revalidation mock returns the
+ *              identical pending row — a settled, stable funnel state).
  *   journey 2  the catalog re-query converges on the SAME `Plan:<id>`
  *              entries across a fresh provider (the `cache-and-network`
  *              fetch policy's cache-hit convergence — the second render
@@ -37,19 +38,19 @@ import { InMemoryCache } from "@apollo/client";
 import type { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { cleanup, waitFor } from "@testing-library/react";
-import { mySubscriptionsQueryDocument, planCatalogQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import {
-  PLAN_CATALOG_ROWS,
-  planCatalogMock,
-} from "@/frontend/stories/pages/student/plans.fixtures";
+  type MySubscriptionsQuery_mySubscriptions,
+  SubscriptionStatus,
+} from "@/frontend/graphql/generated/gql/graphql";
+import { mySubscriptionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
+import { PLAN_CATALOG_ROWS, planCatalogMock } from "@/frontend/stories/pages/student/plans.fixtures";
 import { PaymentResultContainer } from "@/frontend/views/student/checkout/result/PaymentResultContainer";
-import { PAYMENT_RESULT_LOADING_TEST_ID } from "@/frontend/views/student/checkout/result/resultViewIds";
-import { PlansCatalogContainer } from "@/frontend/views/student/plans/PlansCatalogContainer";
 import {
-  PLAN_CARD_TEST_ID_PREFIX,
-  PLANS_CATALOG_TEST_ID,
-} from "@/frontend/views/student/plans/plansViewIds";
-import type { AppLocale } from "@/shared/locale/AppLocale";
+  PAYMENT_RESULT_LOADING_TEST_ID,
+  PAYMENT_RESULT_SUMMARY_TEST_ID,
+} from "@/frontend/views/student/checkout/result/resultViewIds";
+import { PlansCatalogContainer } from "@/frontend/views/student/plans/PlansCatalogContainer";
+import { PLAN_CARD_TEST_ID_PREFIX, PLANS_CATALOG_TEST_ID } from "@/frontend/views/student/plans/plansViewIds";
 import { Checkout as CheckoutNs } from "@/shared/locale/namespaces/checkout";
 import { getTranslations } from "@/shared/locale/server";
 import type { CheckoutLabels } from "@/shared/locale/types/checkout";
@@ -102,6 +103,16 @@ const INSTANT_ACTIVATION_PAYLOAD = {
   },
 };
 
+/**
+ * The normalized subscription row the payload writes (the revalidation
+ * truth): the payload literal's status widened to the codegen enum so the
+ * row satisfies the wire shape (fixture DATA — never locale copy).
+ */
+const PAYLOAD_PENDING_ROW: MySubscriptionsQuery_mySubscriptions = {
+  ...INSTANT_ACTIVATION_PAYLOAD.purchaseSubscription.subscription,
+  status: SubscriptionStatus.Pending,
+};
+
 // ---------------------------------------------------------------------------
 // Render + expectation helpers
 
@@ -112,8 +123,17 @@ const screen = liveScreen;
 function writePurchasePayloadToCache(cache: InMemoryCache): void {
   cache.writeQuery({
     query: mySubscriptionsQueryDocument,
-    data: { mySubscriptions: [INSTANT_ACTIVATION_PAYLOAD.purchaseSubscription.subscription] },
+    data: { mySubscriptions: [PAYLOAD_PENDING_ROW] },
   });
+}
+
+/** List mock resolving the payload's pending row (the revalidation truth). */
+function payloadPendingListMock(): MockLink.MockedResponse {
+  return {
+    request: { query: mySubscriptionsQueryDocument, variables: {} },
+    result: { data: { mySubscriptions: [PAYLOAD_PENDING_ROW] } },
+    maxUsageCount: Number.POSITIVE_INFINITY,
+  };
 }
 
 // ===========================================================================
@@ -128,13 +148,14 @@ describe("PlansCheckoutFunnelJourney (cross-container cache interplay)", () => {
     test(`[${locale}] journey 1 — mutation write → result-page cache read (pending arm)`, async () => {
       // ONE shared cache: the purchase mutation's payload writes the
       // normalized `StudentSubscription:901` row; the payment-result
-      // container's authoritative re-query converges on THAT entry —
-      // the pending arm renders from the mutation's own write.
+      // container's authoritative re-query paints the pending arm from
+      // THAT entry on the first render, then the network revalidation
+      // settles the SAME row (the funnel's stable pending state).
       const cache = new InMemoryCache();
       writePurchasePayloadToCache(cache);
       renderWithWrapper(
         <MockedProvider
-          mocks={[]}
+          mocks={[payloadPendingListMock()]}
           cache={cache}
           defaultOptions={{
             watchQuery: { errorPolicy: "none", notifyOnNetworkStatusChange: true },
@@ -148,13 +169,13 @@ describe("PlansCheckoutFunnelJourney (cross-container cache interplay)", () => {
       // The cached pending row resolves the pending arm on the FIRST paint
       // (the checking arm never flashes — the cache truth is settled).
       await waitFor(() => {
-        expect(screen.getByTestId("payment-result-summary")).toBeDefined();
+        expect(screen.getByTestId(PAYMENT_RESULT_SUMMARY_TEST_ID)).toBeDefined();
       });
       expect(screen.queryByTestId(PAYMENT_RESULT_LOADING_TEST_ID)).toBeNull();
       expect(screen.getByText(t.resultPendingTitle)).toBeDefined();
       expect(screen.queryByText(t.resultSuccessTitle)).toBeNull();
       // The summary rides the mutation's own write (the payload's plan id).
-      expect(screen.getByText(String(INSTANT_ACTIVATION_PAYLOAD.purchaseSubscription.subscription.planId))).toBeDefined();
+      expect(screen.getByText(String(PAYLOAD_PENDING_ROW.planId))).toBeDefined();
     });
 
     test(`[${locale}] journey 2 — catalog re-query converges on the same Plan entries across providers`, async () => {

@@ -30,7 +30,7 @@
  *   branch 12 failed arm shows the retry CTA (journey back to the catalog)
  *   branch 13 copy contract pin (rendered copy equals preloaded labels)
  *
- * FUNNEL-LEVEL coverage (task-owned additions on top of the 7.3 arms):
+ * FUNNEL-LEVEL coverage (additions on top of the base arms):
  *
  *   branch 14 cached-truth warm start: an Apollo cache pre-populated with
  *             an ACTIVE `StudentSubscription` row (the instant-activation
@@ -109,7 +109,7 @@ async function waitForSettled(): Promise<void> {
 // Cache-row fixtures (DATA — never locale copy)
 
 /**
- * The ACTIVE cache row the funnel-journey arms write into the Apollo cache
+ * The ACTIVE cache row the funnel-level arms write into the Apollo cache
  * (the instant-activation payload's normalized `StudentSubscription:<id>`
  * entry — the same id-first shape the catalog mutation writes).
  */

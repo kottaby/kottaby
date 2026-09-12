@@ -35,7 +35,7 @@ import type { CheckoutLabels } from "@/shared/locale/types/checkout";
  * redirect hint reaches nothing positive, because the success branch is
  * gated exclusively on the authoritative re-query returning an ACTIVE row.
  */
-export type PaymentResultHintParams = Readonly<Record<string, string | string[] | undefined>>;
+type PaymentResultHintParams = Readonly<Record<string, string | string[] | undefined>>;
 
 interface PaymentResultContainerProps {
   /** The raw gateway GET-redirect query params — display hints ONLY. */

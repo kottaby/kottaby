@@ -35,6 +35,13 @@ import { students } from "@/backend/db/schema/students/students";
  * Decided payments are therefore terminal, and the audit trail
  * for financial reconciliation is preserved.
  *
+ * PENDING INSERT GUARD: the invariant holds at insertion too — a pending
+ * row may never be created with a `provider_transaction_id` already set
+ * (`student_payments_pending_provider_transaction_check`: `status <>
+ * 'pending' OR provider_transaction_id IS NULL`). The reference is written
+ * only through the guarded `pending → paid | failed` decision, so no insert
+ * path can seed an audit link outside the trigger's control.
+ *
  * Indexes on `student_id` and `subscription_id`.
  */
 export const studentPayments = pgTable(
@@ -60,6 +67,10 @@ export const studentPayments = pgTable(
   },
   t => [
     check("student_payments_amount_check", sql`${t.amount} >= 0`),
+    check(
+      "student_payments_pending_provider_transaction_check",
+      sql`${t.status} <> 'pending' OR ${t.providerTransactionId} IS NULL`
+    ),
     index("student_payments_student_id_idx").on(t.studentId),
     index("student_payments_subscription_id_idx").on(t.subscriptionId),
   ]

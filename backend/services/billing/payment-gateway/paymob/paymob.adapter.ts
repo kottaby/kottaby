@@ -251,7 +251,13 @@ function presentedHmacOf(query: Record<string, string | undefined>): string {
  * Verifies a transaction-shaped object with the transaction key list, then
  * routes it. Refunds, voids, and child transactions of either are verified
  * then ignored: this integration settles first-party card/wallet charges
- * only, and no ignored variant may skip verification.
+ * only, and no ignored variant may skip verification. Suppression reads the
+ * HMAC-SIGNED state flags (`is_refunded` / `is_voided`) — the vendor signs
+ * those, not their unsigned counterparts (`is_refund` / `is_void`), so a
+ * suppressed delivery is always attested by the signature itself. A
+ * delivery whose order carries no usable `merchant_order_id` cannot be
+ * resolved to a purchase at all — rejected as malformed instead of
+ * emitting an unrouteable event.
  */
 function settleTransactionDelivery(
   obj: PaymobTransactionCallbackObj,
@@ -261,8 +267,11 @@ function settleTransactionDelivery(
   if (!verifyPaymobHmac(buildTransactionHmacMessage(obj), presentedHmac, hmacSecret)) {
     throw webhookUnauthorizedError();
   }
-  if (obj.is_refund || obj.is_void || obj.has_parent_transaction) {
+  if (obj.is_refunded || obj.is_voided || obj.has_parent_transaction) {
     return null;
+  }
+  if (obj.order.merchant_order_id === null || obj.order.merchant_order_id.length === 0) {
+    throw webhookMalformedError();
   }
   return mapCallbackToEvent(obj);
 }
@@ -324,7 +333,7 @@ export class PaymobPaymentGateway implements PaymentGatewayPort {
       redirectionUrl: urls.redirectionUrl,
     });
     const response = await client.createIntention(body);
-    return toCheckoutDescriptor(response, config, input.specialReference);
+    return toCheckoutDescriptor(response, config, input);
   }
 
   /**

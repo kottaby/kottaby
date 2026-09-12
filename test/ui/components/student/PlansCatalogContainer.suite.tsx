@@ -29,11 +29,17 @@
  *             activation) — success snackbar + dialog closed
  *   branch 12 copy contract pin (rendered copy equals preloaded labels)
  *
- * FUNNEL-LEVEL coverage (task-owned additions on top of the 7.2 arms):
+ * FUNNEL-LEVEL coverage (additions on top of the base arms):
  *
+ *   branch 8b dialog cancel keeps the attempt's idempotency key (the
+ *             cancel path resets only the dialog state — a later
+ *             re-opened attempt replays the same key)
+ *   branch 11b instant activation refetches the catalog (the mock-provider
+ *             branch's completed outcome closes the dialog AND re-queries
+ *             the grid)
  *   branch 13 the in-flight purchase CTA's busy state inside the dialog
  *             (the confirm copy swaps to the busy spinner while the
- *             mutation runs — the 7.2 outcome's named-untested arm)
+ *             mutation runs — the named-untested arm of the catalog flow)
  *
  * CROSS-CONTAINER funnel interplay (the catalog's role in the purchase
  * funnel) lives in the sibling `PlansCheckoutFunnelJourney.suite.tsx`:
@@ -159,10 +165,27 @@ const screen = liveScreen;
 /**
  * The dialog arms' selected catalog row (DATA — never locale copy): the
  * second fixture row, whose id the purchase-mutation fixtures key on.
- * Exported for the funnel-journey suite — the catalog's confirm dialog is
- * the funnel's entry point, so the journey arm opens THIS plan's dialog.
  */
 const DIALOG_PLAN_ROW = PLAN_CATALOG_ROWS[1];
+
+/** Renders the container under a capturing link that records each operation's name. */
+function renderPlansWithOperationLog(
+  mocks: ReadonlyArray<MockLink.MockedResponse>,
+  locale: AppLocale,
+  onOperationSent: (operationName: string) => void
+): RenderResult {
+  const capture = new ApolloLink((operation, forward) => {
+    onOperationSent(operation.operationName ?? "");
+    return forward(operation);
+  });
+  const link = ApolloLink.from([capture, new MockLink([...mocks])]);
+  return renderWithWrapper(
+    <MockedProvider link={link}>
+      <PlansCatalogContainer />
+    </MockedProvider>,
+    { locale }
+  );
+}
 
 /** Renders the container under MockedProvider(mocks) + TestWrapper (LocaleProvider → emotion → theme). */
 function renderPlans(mocks: ReadonlyArray<MockLink.MockedResponse>, locale: AppLocale): RenderResult {
@@ -223,12 +246,25 @@ async function renderPlansAndOpenDialog(
   });
 }
 
-/** Confirms the open dialog's purchase and resolves once the attempt settles (the journey prologue). */
-async function confirmOpenDialogPurchase(t: CheckoutLabels): Promise<void> {
-  fireEvent.click(screen.getByText(t.confirmButton));
+/** The idempotency-key arms' buy-testid selector (the captured plan's card). */
+function planBuyTestId(planId: string): string {
+  return `${PLAN_CARD_TEST_ID_PREFIX}-${planId}${PLAN_CARD_BUY_SUFFIX}`;
+}
+
+/** Clicks one plan's Buy CTA once its card is live (the idempotency-arm prologue). */
+async function clickBuyWhenLive(planId: string): Promise<void> {
   await waitFor(() => {
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByTestId(planBuyTestId(planId))).toBeDefined();
   });
+  fireEvent.click(screen.getByTestId(planBuyTestId(planId)));
+  await waitFor(() => {
+    expect(screen.getByRole("dialog")).toBeDefined();
+  });
+}
+
+/** Filters the captured keys to the mutation-carried (non-null) ones. */
+function nonNullKeys(sentKeys: ReadonlyArray<string | null>): string[] {
+  return sentKeys.filter((key): key is string => key !== null);
 }
 
 // ===========================================================================
@@ -341,29 +377,51 @@ describe("PlansCatalogContainer", () => {
       renderPlansWithCapture([POPULATED_MOCK, PURCHASE_FAILED_MOCK, PURCHASE_FAILED_MOCK], locale, key => {
         sentKeys.push(key);
       });
-      await waitFor(() => {
-        expect(screen.getByTestId(`${PLAN_CARD_TEST_ID_PREFIX}-402${PLAN_CARD_BUY_SUFFIX}`)).toBeDefined();
-      });
       // Query reads are captured too (null header) — only mutation carries keys.
-      const nonNullKeys = (): string[] => sentKeys.filter((key): key is string => key !== null);
-      expect(nonNullKeys()).toHaveLength(0);
-      fireEvent.click(screen.getByTestId(`${PLAN_CARD_TEST_ID_PREFIX}-402${PLAN_CARD_BUY_SUFFIX}`));
-      await waitFor(() => {
-        expect(screen.getByRole("dialog")).toBeDefined();
-      });
+      expect(nonNullKeys(sentKeys)).toHaveLength(0);
+      await clickBuyWhenLive("402");
       // First attempt.
       fireEvent.click(screen.getByText(t.confirmButton));
       await waitFor(() => {
         expect(screen.getByText(t.genericError)).toBeDefined();
       });
-      const firstAttempt = nonNullKeys();
+      const firstAttempt = nonNullKeys(sentKeys);
       expect(firstAttempt).toHaveLength(1);
       // Retry with the SAME key — failed submits keep the attempt key.
       fireEvent.click(screen.getByText(t.confirmButton));
       await waitFor(() => {
-        expect(nonNullKeys()).toHaveLength(2);
+        expect(nonNullKeys(sentKeys)).toHaveLength(2);
       });
-      expect(nonNullKeys()[1]).toBe(firstAttempt[0]);
+      expect(nonNullKeys(sentKeys)[1]).toBe(firstAttempt[0]);
+    });
+
+    test(`[${locale}] branch 8b — dialog cancel keeps the attempt's idempotency key`, async () => {
+      // The cancel path (dismiss without a submit) resets only the dialog
+      // state — the attempt key survives so a LATER re-opened attempt still
+      // replays the same key (the server-side replay dedupe stays effective
+      // across cancel/re-open windows).
+      const sentKeys: Array<string | null> = [];
+      renderPlansWithCapture([POPULATED_MOCK, PURCHASE_FAILED_MOCK], locale, key => {
+        sentKeys.push(key);
+      });
+      // Open the dialog and cancel — no key is consumed (no wire call).
+      await clickBuyWhenLive("402");
+      fireEvent.click(screen.getByText(t.cancelButton));
+      await waitFor(() => {
+        expect(screen.queryByRole("dialog")).toBeNull();
+      });
+      expect(nonNullKeys(sentKeys)).toHaveLength(0);
+      // Re-open and submit — the SAME key the dialog-cancel kept alive is
+      // the one the mutation carries (never rotated by a cancel).
+      await clickBuyWhenLive("402");
+      fireEvent.click(screen.getByText(t.confirmButton));
+      await waitFor(() => {
+        expect(screen.getByText(t.genericError)).toBeDefined();
+      });
+      // The single captured key is the cancel-survivor: one mint for the
+      // surface lifetime (the same ref the failed-submit arm pins).
+      expect(nonNullKeys(sentKeys)).toHaveLength(1);
+      expect(new Set(nonNullKeys(sentKeys)).size).toBe(1);
     });
 
     test(`[${locale}] branch 9 — purchase failure keeps the dialog open with the localized error`, async () => {
@@ -390,6 +448,40 @@ describe("PlansCatalogContainer", () => {
       });
     });
 
+    test(`[${locale}] branch 11b — instant activation refetches the catalog (mock-provider branch)`, async () => {
+      // The mock-provider branch (`checkoutUrl: null` → `completed`) closes
+      // the dialog AND refetches the catalog — the fresh-availability read
+      // that follows an instant-activation purchase (the session-credit
+      // balances change server-side, so the grid re-queries).
+      const sentOperations: string[] = [];
+      renderPlansWithOperationLog([POPULATED_MOCK, PURCHASE_COMPLETED_MOCK], locale, name => {
+        sentOperations.push(name);
+      });
+      await waitFor(() => {
+        expect(
+          screen.getByTestId(`${PLAN_CARD_TEST_ID_PREFIX}-${DIALOG_PLAN_ROW.id}${PLAN_CARD_BUY_SUFFIX}`)
+        ).toBeDefined();
+      });
+      // The mount's own query ran once.
+      expect(sentOperations.filter(name => name === "PlanCatalog")).toHaveLength(1);
+      fireEvent.click(screen.getByTestId(`${PLAN_CARD_TEST_ID_PREFIX}-${DIALOG_PLAN_ROW.id}${PLAN_CARD_BUY_SUFFIX}`));
+      await waitFor(() => {
+        expect(screen.getByRole("dialog")).toBeDefined();
+      });
+      fireEvent.click(screen.getByText(t.confirmButton));
+      await waitFor(() => {
+        expect(screen.getByText(t.purchaseCompletedNotice)).toBeDefined();
+      });
+      // The refetch: a SECOND PlanCatalog operation rides the completed
+      // outcome (the catalog grid re-queries after the instant activation).
+      await waitFor(() => {
+        expect(sentOperations.filter(name => name === "PlanCatalog").length).toBeGreaterThanOrEqual(2);
+      });
+      // The grid stays settled after the refetch (the shared fixture mock is
+      // re-usable — `maxUsageCount: Infinity` on the catalog builder).
+      expect(screen.getByTestId(`${PLAN_CARD_TEST_ID_PREFIX}-${DIALOG_PLAN_ROW.id}`)).toBeDefined();
+    });
+
     test(`[${locale}] branch 12 — copy contract pin (rendered copy equals preloaded labels)`, async () => {
       renderPlans([POPULATED_MOCK], locale);
       await waitFor(() => {
@@ -405,7 +497,7 @@ describe("PlansCatalogContainer", () => {
 
     test(`[${locale}] branch 13 — in-flight purchase shows the busy CTA inside the dialog`, async () => {
       // The never-resolving purchase mock holds the mutation in flight —
-      // the busy CTA state the 7.2 arms never asserted in isolation.
+      // the busy CTA state the base arms never asserted in isolation.
       await renderPlansAndOpenDialog(
         [POPULATED_MOCK, purchaseInFlightMock(DIALOG_PLAN_ROW.id)],
         locale,
@@ -450,31 +542,3 @@ describe.skip("PlansCatalogContainer — hosted-checkout redirect arm (D8-class)
     });
   });
 });
-
-// ---------------------------------------------------------------------------
-// Funnel-journey exports — consumed by `PlansCheckoutFunnelJourney.suite.tsx`
-// (the cross-container Apollo-cache interplay matrix). Declared AFTER the
-// suite bodies so the module-level fixture consts are initialized (the
-// journey suite exercises the funnel with the SAME fixtures + render helpers
-// the per-container suites pin — the test-tier counterpart of the view
-// modules' one-definition-site convention).
-
-/** The populated catalog mock (the journey arm's catalog side). */
-export const FUNNEL_CATALOG_MOCK: ReadonlyArray<MockLink.MockedResponse> = [POPULATED_MOCK];
-
-/** The dialog arms' selected catalog row (the funnel's dialog entry point). */
-export const FUNNEL_DIALOG_PLAN = DIALOG_PLAN_ROW;
-
-/**
- * The catalog funnel interaction: opens the dialog for the journey plan,
- * confirms, and resolves once the purchase attempt settles (the dialog
- * leaves the DOM) — the catalog side of the funnel-journey matrix.
- */
-export async function funnelOpenDialogAndConfirm(
-  locale: AppLocale,
-  t: CheckoutLabels,
-  extraMocks: ReadonlyArray<MockLink.MockedResponse> = []
-): Promise<void> {
-  await renderPlansAndOpenDialog([...FUNNEL_CATALOG_MOCK, ...extraMocks], locale, DIALOG_PLAN_ROW.id);
-  await confirmOpenDialogPurchase(t);
-}
