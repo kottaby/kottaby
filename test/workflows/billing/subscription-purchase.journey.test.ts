@@ -500,16 +500,17 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       .select()
       .from(subscriptionPurchaseIdempotency)
       .where(eq(subscriptionPurchaseIdempotency.idempotencyKey, KEY_PURCHASE));
+    // Track every service-created row for teardown before asserting
+    // cardinality — a duplicate row must not strand committed rows.
+    tracked.register(subscriptions, result.subscription.id);
+    tracked.register(studentPayments, result.payment.id);
+    for (const claimRow of claimRows) {
+      tracked.register(subscriptionPurchaseIdempotency, claimRow.id);
+    }
     expect(claimRows).toHaveLength(1);
     expect(claimRows[0]?.userId).toBe(studentA.userId);
     expect(claimRows[0]?.subscriptionId).toBe(result.subscription.id);
 
-    // Track every service-created row for teardown.
-    tracked.register(subscriptions, result.subscription.id);
-    tracked.register(studentPayments, result.payment.id);
-    if (claimRows[0]) {
-      tracked.register(subscriptionPurchaseIdempotency, claimRows[0].id);
-    }
     ledgerSubscriptionIds.push(result.subscription.id);
     ledgerPaymentIds.push(result.payment.id);
   });
@@ -674,10 +675,10 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       .select()
       .from(subscriptionPurchaseIdempotency)
       .where(eq(subscriptionPurchaseIdempotency.idempotencyKey, KEY_SECOND));
-    expect(claimRows).toHaveLength(1);
-    if (claimRows[0]) {
-      tracked.register(subscriptionPurchaseIdempotency, claimRows[0].id);
+    for (const claimRow of claimRows) {
+      tracked.register(subscriptionPurchaseIdempotency, claimRow.id);
     }
+    expect(claimRows).toHaveLength(1);
 
     const event: PaymentWebhookEvent = {
       reference: result.checkout.providerReference,
@@ -814,10 +815,10 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       .select()
       .from(subscriptionPurchaseIdempotency)
       .where(eq(subscriptionPurchaseIdempotency.idempotencyKey, KEY_REVIEWS));
-    expect(claimRows).toHaveLength(1);
-    if (claimRows[0]) {
-      tracked.register(subscriptionPurchaseIdempotency, claimRows[0].id);
+    for (const claimRow of claimRows) {
+      tracked.register(subscriptionPurchaseIdempotency, claimRow.id);
     }
+    expect(claimRows).toHaveLength(1);
 
     const event: PaymentWebhookEvent = {
       reference: result.checkout.providerReference,
@@ -858,9 +859,11 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       .select()
       .from(notifications)
       .where(eq(notifications.relatedEntityId, result.subscription.id));
+    for (const notification of reviewsNotifs) {
+      tracked.register(notifications, notification.id);
+    }
     expect(reviewsNotifs).toHaveLength(1);
     if (reviewsNotifs[0]) {
-      tracked.register(notifications, reviewsNotifs[0].id);
       expect(reviewsNotifs[0].type).toBe(NotificationType.PaymentConfirmation);
       expect(reviewsNotifs[0].userId).toBe(studentA.userId);
     }
@@ -891,10 +894,10 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       .select()
       .from(subscriptionPurchaseIdempotency)
       .where(eq(subscriptionPurchaseIdempotency.idempotencyKey, KEY_TAJWEED));
-    expect(claimRows).toHaveLength(1);
-    if (claimRows[0]) {
-      tracked.register(subscriptionPurchaseIdempotency, claimRows[0].id);
+    for (const claimRow of claimRows) {
+      tracked.register(subscriptionPurchaseIdempotency, claimRow.id);
     }
+    expect(claimRows).toHaveLength(1);
 
     const event: PaymentWebhookEvent = {
       reference: result.checkout.providerReference,
@@ -934,9 +937,11 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       .select()
       .from(notifications)
       .where(eq(notifications.relatedEntityId, result.subscription.id));
+    for (const notification of tajweedNotifs) {
+      tracked.register(notifications, notification.id);
+    }
     expect(tajweedNotifs).toHaveLength(1);
     if (tajweedNotifs[0]) {
-      tracked.register(notifications, tajweedNotifs[0].id);
       expect(tajweedNotifs[0].type).toBe(NotificationType.PaymentConfirmation);
       expect(tajweedNotifs[0].userId).toBe(studentA.userId);
       expect(tajweedNotifs[0].title).toBe(NOTIFS_EN.eventPaymentConfirmedTitle);

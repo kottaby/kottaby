@@ -275,6 +275,17 @@ describe("createSession — denied-payload security probe", () => {
       variables: { input: { teacherId: cast.teacher.userId, intent: "Hifz" } },
     });
     const combined = expectMutationError(result.error, "INSUFFICIENT_BALANCE");
+    // Allowlist over the raw GraphQL error entries: each error may carry
+    // only the standard fields, and extensions only the machine code — this
+    // also rejects renamed or nested balance metadata that a denylist of
+    // field names would miss.
+    const ALLOWED_ERROR_KEYS = new Set(["message", "locations", "path", "extensions"]);
+    for (const rawError of combined.errors) {
+      expect(Object.keys(rawError).every(key => ALLOWED_ERROR_KEYS.has(key))).toBe(true);
+      if (rawError.extensions !== undefined) {
+        expect([...Object.keys(rawError.extensions)].sort()).toEqual(["code", "requestId"]);
+      }
+    }
     const wireBody: unknown = JSON.parse(JSON.stringify(combined)) ?? combined;
     if (!isRecord(wireBody)) {
       throw new Error("expected record-shaped serialized denial body");
