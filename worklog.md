@@ -31,3 +31,22 @@ Work Log:
 Stage Summary:
 - Branch: feat/dispute-resolution-with-admin-arbitration; baseline CLEAN 0/0/0 → any future error is plan-caused
 - Next: Phase 2 (2.1 enums → 2.2 types → 2.3 repo → 2.4 journey ∥ 2.5 service → 2.6 notifications → 2.7 midpoint gate)
+
+---
+Task ID: 2.1-2.6
+Agent: Spec Implementation Orchestrator
+Task: Phase 2 backend foundation (per SKILL.md §Task Execution Protocol)
+
+Work Log:
+- 2.1 subagent: DisputeResolution += Refund/PartialRefund/Uphold; NotificationType += session_dispute_opened/resolved (TS mirror + pgEnum); db push applied (9 values); enum tests 29/0; stale pins updated (notification-type, schema-surface)
+- 2.2 subagent: backend/types/classes/session-arbitration.types.ts (SessionArbitrationProbeType via Pick<SessionSelectType,...>, ArbitrateDisputeInput DTO, AdminDisputeCaseReturnType); all composed ReturnTypes verified canonical; barrel export added
+- 2.3 subagent: repo primitives openPostConfirmationDisputeOnce / resolveConsumedDisputeOnce / findArbitrationProbe / debitForArbitrationOnce (+arbitration helpers file, shared guardedBalanceDebit); repo tests 83/0 + 10/0; races via Promise.allSettled
+- 2.4 subagent (parallel w/ 2.5): journey test test-first, 13 tests; expected-red measured 8/5 (all 5 = missing 2.6 waves); actor-context provisioning + zero-residue cleanup
+- 2.5 subagent (completion run after interrupt): service verified zero-gap; 21/0; regressions green; locale error keys partialRefundAmountInvalid/disputeResolutionMismatch landed early (en+ar+types; 4.4 keeps ownership)
+- 2.6 subagent (completion run after interrupt): notification waves service + seam wiring; 13/0; journey 13/0 GREEN; parity 127/0; publish-after-commit caller-owned
+
+Stage Summary:
+- Phase 2 implementation tasks all [x] with outcome files (2.1-2.6)
+- Journey suite green 13/0 BEFORE GraphQL surface (test-first paid off)
+- Carry-forward to 3.1: resolver binds flows WITHOUT outerTx (internal post-commit publish); dispatch Cancel/Complete→shipped resolve, Refund/PartialRefund/Uphold→arbitrateDispute; append partialAmount to resolve input; schema regen ships with dispatch
+- Flagged for 2.7 review gate: 5 knip dead exports (4 helpers in arbitration helpers, ArbitrateDisputeInput)

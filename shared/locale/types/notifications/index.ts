@@ -214,4 +214,21 @@ export interface NotificationsLabels {
   readonly eventSessionGovernanceTeacherReassignedTitle: string;
   /** Notification body for a governance teacher reassignment — plain factual copy, no participant names. */
   readonly eventSessionGovernanceTeacherReassignedBody: string;
+  // ─── Session dispute-wave event copy (consumed-generation arbitration) ─────
+  /** Admin title — a post-confirmation dispute was opened on a session. */
+  readonly eventSessionDisputeOpenedTitle: string;
+  /**
+   * Admin body for the dispute-opened wave — plain factual copy (no
+   * participant names, no reason content; the disputes console renders the
+   * case).
+   */
+  readonly eventSessionDisputeOpenedBody: string;
+  /** Participant title — the session's dispute arbitration was decided. */
+  readonly eventSessionDisputeResolvedTitle: string;
+  /** Participant body — the full-refund arbitration outcome. */
+  readonly eventSessionDisputeResolvedRefundBody: string;
+  /** Participant body — the partial-refund arbitration outcome. */
+  readonly eventSessionDisputeResolvedPartialRefundBody: string;
+  /** Participant body — the uphold arbitration outcome. */
+  readonly eventSessionDisputeResolvedUpholdBody: string;
 }

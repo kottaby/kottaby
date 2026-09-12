@@ -87,4 +87,13 @@ export const notificationsAr: NotificationsLabels = {
   eventSessionGovernanceTeacherReassignedTitle: "تم تغيير معلم الجلسة",
   eventSessionGovernanceTeacherReassignedBody:
     "قام أحد مشرفي المنصة بتغيير معلم جلستك. افتح الجلسة للاطلاع على التفاصيل.",
+  eventSessionDisputeOpenedTitle: "تم فتح نزاع على جلسة",
+  eventSessionDisputeOpenedBody: "تم فتح نزاع على جلسة مكتملة وهو بانتظار التحكيم. افتح شاشة النزاعات لمراجعة الحالة.",
+  eventSessionDisputeResolvedTitle: "تم حل نزاع الجلسة",
+  eventSessionDisputeResolvedRefundBody:
+    "تم حسم التحكيم الخاص بجلستك: تمت استعادة قيمة الجلسة بالكامل. افتح الجلسة للاطلاع على القرار المسجّل.",
+  eventSessionDisputeResolvedPartialRefundBody:
+    "تم حسم التحكيم الخاص بجلستك: تمت استعادة جزء من قيمة الجلسة. افتح الجلسة للاطلاع على القرار المسجّل.",
+  eventSessionDisputeResolvedUpholdBody:
+    "تم حسم التحكيم الخاص بجلستك: تم تأكيد اكتمال الجلسة كما هو. افتح الجلسة للاطلاع على القرار المسجّل.",
 };

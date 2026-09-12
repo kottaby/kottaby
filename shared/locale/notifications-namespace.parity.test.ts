@@ -17,8 +17,8 @@
  *      session-request lifecycle + session completion-handshake event copy +
  *      intent labels, parent-link lifecycle event copy, payment-confirmation
  *      event copy, session-governance event copy, session-report-ready
- *      event copy) exists on BOTH maps — a key
- *      deleted from both maps simultaneously still fails this suite.
+ *      event copy, session dispute-wave event copy) exists on BOTH maps — a
+ *      key deleted from both maps simultaneously still fails this suite.
  *   3. NO ENGLISH FALLTHROUGH — every ar STRING slot contains Arabic script
  *      (an accidentally English value in the ar map fails the sweep).
  *   4. PLURALIZATION PINS — `unreadCount` + `markAllResult` branch outputs
@@ -52,7 +52,7 @@ import { Notifications } from "@/shared/locale/namespaces/notifications";
 
 // ─── Mandated key inventory (the notification-feed surface ground truth) ────
 
-/** Every key the notifications UI namespace must carry (64 slots). */
+/** Every key the notifications UI namespace must carry (70 slots). */
 const MANDATED_KEYS = [
   "title",
   "emptyTitle",
@@ -118,6 +118,12 @@ const MANDATED_KEYS = [
   "eventSessionReportReadyTitle",
   "eventSessionReportReadyBody",
   "eventSessionReportReadyParentBody",
+  "eventSessionDisputeOpenedTitle",
+  "eventSessionDisputeOpenedBody",
+  "eventSessionDisputeResolvedTitle",
+  "eventSessionDisputeResolvedRefundBody",
+  "eventSessionDisputeResolvedPartialRefundBody",
+  "eventSessionDisputeResolvedUpholdBody",
 ] as const;
 
 /**
@@ -251,7 +257,7 @@ describe("compile-time parity mirror — ar/en key sets agree", () => {
     expect(Object.hasOwn(notificationsEn, key)).toBe(true);
   });
 
-  test("the mandated inventory is exhaustive (no silent key minting beyond the 64 slots)", () => {
+  test("the mandated inventory is exhaustive (no silent key minting beyond the 70 slots)", () => {
     const mandated = new Set<string>(MANDATED_KEYS);
     for (const key of Object.keys(notificationsAr)) {
       expect(mandated.has(key)).toBe(true);

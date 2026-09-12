@@ -42,8 +42,9 @@
  *    identity is only ever the caller's (a non-participant collapses to
  *    the not-found denial, never a state disclosure); arbitration accepts
  *    only the governance-clean ADMIN role (a student or teacher caller id,
- *    or a governed admin, fails closed); the notification seam stays
- *    closed (zero notification rows) until the wave service lands.
+ *    or a governed admin, fails closed); the wired dispute waves emit only
+ *    on the consumed generation's own seams (the opened wave to the admin
+ *    cohort, the resolved wave to the two participants).
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -64,6 +65,7 @@ import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setu
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
+import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
@@ -199,9 +201,25 @@ function readLedger(tx: DBTransaction, walletId: number) {
   return WalletRepository.listTransactionsByWalletId(walletId, tx);
 }
 
-/** Every notification row keyed to one session (the closed-seam oracle). */
-async function readNotificationsForSession(tx: DBTransaction, sessionId: number) {
-  return tx.select({ id: notifications.id }).from(notifications).where(eq(notifications.relatedEntityId, sessionId));
+/** One recipient's wave rows for one session and wave kind (the seam oracle). */
+async function countWaveRows(
+  tx: DBTransaction,
+  userId: number,
+  sessionId: number,
+  type: NotificationType
+): Promise<number> {
+  const rows = await tx
+    .select({ id: notifications.id })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        eq(notifications.type, type),
+        eq(notifications.relatedEntityType, "session"),
+        eq(notifications.relatedEntityId, sessionId)
+      )
+    );
+  return rows.length;
 }
 
 /**
@@ -247,9 +265,10 @@ async function assertSequentially<T>(items: readonly T[], run: (item: T) => Prom
 // ─── Tier 1/2/4: the post-confirmation dispute open flow ─────────────────
 
 describe("SessionArbitrationService — post-confirmation dispute open (runInRollback)", () => {
-  test("opens the student's dispute exactly once: row flips to disputed, the reason persists trimmed, escrow untouched, zero audit rows, zero notification rows", async () => {
+  test("opens the student's dispute exactly once: row flips to disputed, the reason persists trimmed, escrow untouched, zero audit rows, the admin opened wave rides the same transaction", async () => {
     await runInRollback(async tx => {
       const actors = await createArbitrationActors(tx);
+      const admin = await createTestUser(tx, { role: "admin" });
       const row = await insertArbitrationSessionRow(tx, actors);
 
       const disputed = await SessionArbitrationService.openPostConfirmationDispute(
@@ -268,10 +287,13 @@ describe("SessionArbitrationService — post-confirmation dispute open (runInRol
       expect(disputed.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
       expect(disputed.confirmedByStudentAt).not.toBeNull();
 
-      // Zero audit rows (a participant action) and a closed notification
-      // seam (zero rows until the wave service lands).
+      // Zero audit rows (a participant action); the opened wave reached the
+      // admin cohort on the SAME transaction (zero resolved rows).
       expect(await countAuditRowsForActor(tx, actors.studentUserId)).toBe(0);
-      expect(await readNotificationsForSession(tx, row.id)).toHaveLength(0);
+      expect(await countWaveRows(tx, admin.id, row.id, NotificationType.SessionDisputeOpened)).toBe(1);
+      expect(await countWaveRows(tx, admin.id, row.id, NotificationType.SessionDisputeResolved)).toBe(0);
+      expect(await countWaveRows(tx, actors.studentUserId, row.id, NotificationType.SessionDisputeOpened)).toBe(0);
+      expect(await countWaveRows(tx, actors.teacherUserId, row.id, NotificationType.SessionDisputeOpened)).toBe(0);
     });
   });
 
@@ -461,8 +483,13 @@ describe("SessionArbitrationService — arbitration outcomes (runInRollback)", (
         notePresent: false,
       });
 
-      // The notification seam stays closed.
-      expect(await readNotificationsForSession(tx, row.id)).toHaveLength(0);
+      // The wired dispute waves: the opened wave (from the dispute
+      // precondition) reached the admin; the resolved wave reached exactly
+      // the two participants — nobody else, and no admin resolved-wave rows.
+      expect(await countWaveRows(tx, admin.id, row.id, NotificationType.SessionDisputeOpened)).toBe(1);
+      expect(await countWaveRows(tx, admin.id, row.id, NotificationType.SessionDisputeResolved)).toBe(0);
+      expect(await countWaveRows(tx, actors.studentUserId, row.id, NotificationType.SessionDisputeResolved)).toBe(1);
+      expect(await countWaveRows(tx, actors.teacherUserId, row.id, NotificationType.SessionDisputeResolved)).toBe(1);
     });
   });
 

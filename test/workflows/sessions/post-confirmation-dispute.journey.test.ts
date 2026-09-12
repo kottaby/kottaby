@@ -345,6 +345,18 @@ function publicationCallCount(): number {
   return publication?.calls.length ?? 0;
 }
 
+/**
+ * Marks the flat recipient-id list's current length for a later
+ * `publishedUserIds().slice(marker)` — the publish DISPATCH count is a
+ * different series (one dispatch may carry several receipts, e.g. the
+ * shipped report-ready wave's student + parent pair), so slicing the id
+ * list by the dispatch count misaligns whenever an earlier wave published
+ * more than one receipt.
+ */
+function publishedIdCount(): number {
+  return publishedUserIds().length;
+}
+
 /** Registers one service-created idempotency claim (by key) for cleanup. */
 async function trackIdempotencyClaim(key: string, label: string): Promise<void> {
   const rows = await db
@@ -544,6 +556,7 @@ describe("Journey J1 — dispute → queue → case review → Refund arbitratio
       refundSession.id
     );
     const publishBefore = publicationCallCount();
+    const publishedIdsBefore = publishedIdCount();
 
     const disputed = await SessionArbitrationService.openPostConfirmationDispute(
       cast.primaryStudent.userId,
@@ -585,7 +598,7 @@ describe("Journey J1 — dispute → queue → case review → Refund arbitratio
       await countDisputeNotifications(cast.parent.userId, NotificationType.SessionDisputeOpened, refundSession.id)
     ).toBe(0);
     expect(publicationCallCount()).toBe(publishBefore + 1);
-    const published = publishedUserIds().slice(publishBefore);
+    const published = publishedUserIds().slice(publishedIdsBefore);
     expect(published).toContain(cast.admin.userId);
     expect(published).toContain(secondAdminUserId);
     expect(published).not.toContain(cast.teacher.userId);
@@ -619,6 +632,7 @@ describe("Journey J1 — dispute → queue → case review → Refund arbitratio
     const walletBefore = await readTeacherWalletRow(cast.teacher.userId);
     const lanesBefore = await readStudentLanes(cast.primaryStudent.student.id);
     const publishBefore = publicationCallCount();
+    const publishedIdsBefore = publishedIdCount();
 
     const resolved = await SessionArbitrationService.arbitrateDispute(
       cast.admin.userId,
@@ -691,7 +705,7 @@ describe("Journey J1 — dispute → queue → case review → Refund arbitratio
       await countDisputeNotifications(cast.parent.userId, NotificationType.SessionDisputeResolved, refundSession.id)
     ).toBe(0);
     expect(publicationCallCount()).toBe(publishBefore + 1);
-    const published = publishedUserIds().slice(publishBefore);
+    const published = publishedUserIds().slice(publishedIdsBefore);
     expect(published).toContain(cast.primaryStudent.userId);
     expect(published).toContain(cast.teacher.userId);
     expect(published).not.toContain(cast.admin.userId);

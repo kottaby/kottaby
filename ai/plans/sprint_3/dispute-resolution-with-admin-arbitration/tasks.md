@@ -96,11 +96,11 @@ Backend-first with a **test-first journey** authored right after repo primitives
   - Outcome: `outcome/2.5-arbitration-service-outcome.md`
   - _Requirements: REQ-1 … REQ-6, REQ-8, REQ-10_
 
-- [ ] 2.6 `SessionDisputeNotificationService` — dispute waves
+- [x] 2.6 `SessionDisputeNotificationService` — dispute waves
   - New `backend/services/classes/session-dispute-notification.service.ts`: `notifyAdminsOfDisputeOpened`, `notifyParticipantsOfDisputeResolved`; audience via `BroadcastAudienceRepository.resolveAudienceIds`; claim keys `session:<id>:dispute-opened|dispute-resolved`; per-recipient locale; publish-after-commit contract documented in callers
   - Wire into arbitration flows (open + resolve) for the CONSUMED generation only
   - Tests: recipient enumeration, claim-key determinism, in-tx receipts + post-commit publish ordering (spy), zero-emission for held-generation rows
-  - [ ] 2.6.QL / 2.6.TE / 2.6.SEC (recipient scoping) / 2.6.SR / 2.6.IV
+  - [x] 2.6.QL / 2.6.TE / 2.6.SEC (recipient scoping) / 2.6.SR / 2.6.IV
   - Outcome: `outcome/2.6-notification-waves-outcome.md`
   - _Requirements: REQ-7_
 

@@ -46,7 +46,10 @@
  *   5. exactly ONE `Override` audit row for the session entity, appended
  *      through the shared writer on the same transaction — its `details`
  *      carry the resolution, the refunded amount under the outcome's own
- *      key, and the note's PRESENCE, never the note's content.
+ *      key, and the note's PRESENCE, never the note's content;
+ *   6. the participants' dispute-resolved wave on the SAME transaction —
+ *      persisted receipts that share the arbitration's fate, pushed by the
+ *      transaction owner strictly after the commit.
  *
  * `getAdminDisputeCase` composes the evidence bundle for the arbitration
  * decision — the full session detail (through the admin browse/detail
@@ -55,12 +58,16 @@
  * with honest nulls wherever an artifact was never produced. The read is
  * strictly side-effect free.
  *
- * Notification seam: the dispute waves (admins on open; both participants
- * on resolution) are emitted by the dispute-notification service on the
- * flow's own transaction at the marked composition points, with the
- * publish-after-commit contract owned by the caller. Until that service
- * lands, this module writes no notification rows and publishes nothing —
- * the flows stay pure session/ledger/audit surfaces.
+ * Notification seam: the dispute waves (the admin cohort on open; both
+ * participants on resolution) are emitted by the dispute-notification
+ * service on the flow's own transaction at the marked composition points —
+ * the persisted receipts share the flow's single transaction and its fate.
+ * Publish-after-commit is the transaction owner's: each flow pushes its
+ * receipts strictly AFTER its own commit, and only when IT opened the
+ * transaction (on the caller-transaction path the caller publishes). The
+ * held dispute generation stays notification-silent (the shipped
+ * session-lifecycle ruling): this surface is the only dispute path that
+ * emits.
  *
  * All user-facing messages resolve through `getServerTranslations(locale)`;
  * rejections log via `logger.logDomainError` with `{code, entity,
@@ -92,12 +99,14 @@ import {
   debitTeacherWalletForArbitration,
   resolveArbitrationDebitAmount,
 } from "@/backend/services/classes/session-arbitration.service.helpers";
+import { SessionDisputeNotificationService } from "@/backend/services/classes/session-dispute-notification.service";
 import { assertAdminGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
 import {
   assertPositiveSafeSessionId,
   normalizeOptionalReasonText,
   normalizeRequiredReasonText,
 } from "@/backend/services/classes/session-lifecycle.guards";
+import { NotificationEngine } from "@/backend/services/notifications";
 import type { AdminDisputeCaseReturnType, DBTransaction, SessionReturnType } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
@@ -131,7 +140,10 @@ export namespace SessionArbitrationService {
    * full predicate atomically: a zero-row miss there is the double-submit
    * loser (or a row flipped between the probe and the write), never a
    * second dispute. The recorded reason, the dispute stamp, and the
-   * escrow are otherwise untouched; zero audit rows are written.
+   * escrow are otherwise untouched; zero audit rows are written. The
+   * admin dispute-opened wave rides the SAME transaction — its receipts
+   * share the dispute's fate, and the post-commit publish belongs to the
+   * transaction owner (this flow itself, on the own-commit path).
    *
    * @param callerUserId  The acting student's id (context-resolved
    *     server-side by the caller; shared PK with the users table).
@@ -161,7 +173,7 @@ export namespace SessionArbitrationService {
     // The reason is REQUIRED: trimmed non-empty, ≤500 — validated pre-DB.
     const disputeReason = normalizeRequiredReasonText(reason, t);
 
-    return withTransaction(outerTx, async tx => {
+    const committed = await withTransaction(outerTx, async tx => {
       // Classification read INSIDE the transaction: unknown id and a
       // non-student caller collapse to the same not-found denial; an owned
       // row in a non-disputable shape (not dual-confirmed `completed`, or
@@ -189,13 +201,28 @@ export namespace SessionArbitrationService {
         );
       }
 
-      // Dispute-wave seam: the admin `session_dispute_opened` wave is
-      // emitted HERE on this transaction by the dispute-notification
-      // service once it lands (persisted receipts in-tx; the
-      // publish-after-commit stays the caller's). Until then this flow
-      // writes no notification rows.
-      return disputed;
+      // Dispute-wave seam: the admin `session_dispute_opened` wave rides
+      // THIS transaction — the persisted receipts share the dispute's fate
+      // (they survive the commit, vanish on any rollback); the publish
+      // happens strictly after this transaction commits, below.
+      const waveReceipts = await SessionDisputeNotificationService.notifyAdminsOfDisputeOpened(
+        sessionId,
+        callerUserId,
+        locale,
+        tx
+      );
+      return { session: disputed, waveReceipts };
     });
+
+    // Publish-after-commit — the wave is pushed only once this flow's
+    // transaction has committed, and only when THIS call owns the commit
+    // (on the caller-transaction path the caller publishes). A publish
+    // failure degrades at the engine boundary; it never fails the
+    // committed dispute.
+    if (outerTx === undefined) {
+      await NotificationEngine.publishReceipts(committed.waveReceipts, locale);
+    }
+    return committed.session;
   }
 
   /**
@@ -228,7 +255,10 @@ export namespace SessionArbitrationService {
    * shortfall is the typed insufficient-funds conflict that rolls the
    * whole arbitration back — zero financial writes survive); and exactly
    * ONE `Override` audit row is appended through the shared writer, its
-   * `details` free of the note's content.
+   * `details` free of the note's content. The participants'
+   * dispute-resolved wave rides the SAME transaction — its receipts share
+   * the arbitration's fate, and the post-commit publish belongs to the
+   * transaction owner (this flow itself, on the own-commit path).
    *
    * @param adminId  The acting admin's id (context-resolved server-side by
    *     the caller; shared PK with the users table).
@@ -274,7 +304,7 @@ export namespace SessionArbitrationService {
     // governance-clean ADMIN (defense in depth over the scope gate).
     await assertAdminGovernanceClean(adminId, t, outerTx);
 
-    return withTransaction(outerTx, async tx => {
+    const committed = await withTransaction(outerTx, async tx => {
       // Classification read INSIDE the transaction (no TOCTOU — the
       // guarded write below re-asserts the same classification).
       const probe = await SessionRepository.findArbitrationProbe(sessionId, tx);
@@ -330,12 +360,30 @@ export namespace SessionArbitrationService {
       }
 
       // Dispute-wave seam: the participants' `session_dispute_resolved`
-      // wave is emitted HERE on this transaction by the dispute-
-      // notification service once it lands (persisted receipts in-tx; the
-      // publish-after-commit stays the caller's). Until then this flow
-      // writes no notification rows.
-      return current;
+      // wave rides THIS transaction — the persisted receipts share the
+      // arbitration's fate (they survive the commit, vanish on any
+      // rollback, including the insufficient-funds one); the publish
+      // happens strictly after this transaction commits, below.
+      const waveReceipts = await SessionDisputeNotificationService.notifyParticipantsOfDisputeResolved(
+        sessionId,
+        resolved.studentId,
+        resolved.teacherId,
+        resolution,
+        locale,
+        tx
+      );
+      return { session: current, waveReceipts };
     });
+
+    // Publish-after-commit — the wave is pushed only once this flow's
+    // transaction has committed, and only when THIS call owns the commit
+    // (on the caller-transaction path the caller publishes). A publish
+    // failure degrades at the engine boundary; it never fails the
+    // committed arbitration.
+    if (outerTx === undefined) {
+      await NotificationEngine.publishReceipts(committed.waveReceipts, locale);
+    }
+    return committed.session;
   }
 
   /**
