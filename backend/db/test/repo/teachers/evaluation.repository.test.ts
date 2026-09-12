@@ -62,6 +62,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { and, eq, sql } from "drizzle-orm";
+import { Pool } from "pg";
 import { db } from "@/backend/db";
 import { EvaluationRepository } from "@/backend/db/repo";
 import { session } from "@/backend/db/schema/classes/session";
@@ -385,7 +386,7 @@ describe("EvaluationRepository — transactional paths (runInRollback)", () => {
 
   test("an insert made with the explicit tx inside runInRollback rolls back with the block", async () => {
     let doomedEvaluatorId = 0;
-    let doomedSessionId = 0;
+    let doomedSessionId: number | null = 0;
     await runInRollback(async tx => {
       const cast = await createRatingCast(tx);
       const ratedSession = await createConfirmedSession(tx, cast);
