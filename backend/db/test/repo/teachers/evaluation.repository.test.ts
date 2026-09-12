@@ -66,8 +66,8 @@ import { Pool } from "pg";
 import { db } from "@/backend/db";
 import { EvaluationRepository } from "@/backend/db/repo";
 import { session } from "@/backend/db/schema/classes/session";
-import { evaluations } from "@/backend/db/schema/teachers/evaluations";
 import { students } from "@/backend/db/schema/students/students";
+import { evaluations } from "@/backend/db/schema/teachers/evaluations";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import {
@@ -411,7 +411,9 @@ describe("EvaluationRepository — transactional paths (runInRollback)", () => {
 
   test("an enormous evaluator id lists empty; an absurd negative id lists empty too", async () => {
     await runInRollback(async tx => {
-      expect(await EvaluationRepository.listByEvaluator(Number.MAX_SAFE_INTEGER, tx)).toEqual([]);
+      // The id column is int4, so the enormous probe stays inside the
+      // column's domain — far past any real sequential id, still bindable.
+      expect(await EvaluationRepository.listByEvaluator(2_147_483_647, tx)).toEqual([]);
       expect(await EvaluationRepository.listByEvaluator(-1, tx)).toEqual([]);
     });
   });
@@ -480,7 +482,7 @@ describe("EvaluationRepository — concurrency tier (committed fixtures, indepen
 
       // The loser received the RAW 23505 naming the write-once arbiter.
       const rejection = rejected[0];
-      if (!rejection || rejection.status !== "rejected") throw new Error("expected one rejected outcome");
+      if (rejection?.status !== "rejected") throw new Error("expected one rejected outcome");
       expect(hasPostgresErrorCode(rejection.reason, PG_UNIQUE_VIOLATION)).toBe(true);
       expect(constraintNameOf(rejection.reason)).toBe("evaluations_session_evaluator_unique");
     }
@@ -492,22 +494,25 @@ describe("EvaluationRepository — standalone executor paths (committed fixtures
     const cast = await createCommittedCast();
     const earlier = new Date(1_700_000_000_000);
     const later = new Date(1_700_000_060_000);
+    // The three fixtures share one evaluator but carry NULL session ids:
+    // NULLs are distinct under the unique arbiter, so several rows for the
+    // same evaluator can coexist without colliding (the applicant shape).
     const live = await db.transaction(tx =>
-      createTestEvaluation(tx, cast.evaluatedId, cast.evaluatorId, cast.sessionId, {
+      createTestEvaluation(tx, cast.evaluatedId, cast.evaluatorId, null, {
         isDeleted: false,
         score: 60,
         createdAt: earlier,
       })
     );
     const nullFlag = await db.transaction(tx =>
-      createTestEvaluation(tx, cast.evaluatedId, cast.evaluatorId, cast.sessionId, {
+      createTestEvaluation(tx, cast.evaluatedId, cast.evaluatorId, null, {
         isDeleted: null,
         score: 70,
         createdAt: later,
       })
     );
     const softDeleted = await db.transaction(tx =>
-      createTestEvaluation(tx, cast.evaluatedId, cast.evaluatorId, cast.sessionId, {
+      createTestEvaluation(tx, cast.evaluatedId, cast.evaluatorId, null, {
         isDeleted: true,
         deletedAt: new Date(),
         score: 80,
@@ -525,8 +530,8 @@ describe("EvaluationRepository — standalone executor paths (committed fixtures
     expect(rows.map(row => row.isDeleted)).toEqual([null, false]);
     expect(Object.keys(rows[0] ?? {}).toSorted((a, b) => a.localeCompare(b))).toEqual([...EVALUATION_ROW_KEYS]);
 
-    // Miss on the same standalone path.
-    const miss = await EvaluationRepository.listByEvaluator(Number.MAX_SAFE_INTEGER);
+    // Miss on the same standalone path (int4-domain enormous id).
+    const miss = await EvaluationRepository.listByEvaluator(2_147_483_647);
     expect(miss).toEqual([]);
   });
 
@@ -555,13 +560,26 @@ describe("EvaluationRepository — standalone executor paths (committed fixtures
   test("source: executor discipline — REQUIRED tx write, two-branch read, tx last on every signature", () => {
     expect(repoSource.includes("const executor = tx ?? db;")).toBe(false);
     expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(1);
-    const signatures = repoSource.match(/export async function [a-zA-Z]+\([^)]*\)/gs) ?? [];
+    // Slice each `export async function` signature out up to its parameter
+    // list's closing paren (linear scan — no backtracking-prone regex over
+    // the whole source).
+    const signatures: string[] = [];
+    let start = repoSource.indexOf("export async function ");
+    while (start !== -1) {
+      const close = repoSource.indexOf(")", start);
+      if (close === -1) {
+        break;
+      }
+      signatures.push(repoSource.slice(start, close));
+      start = repoSource.indexOf("export async function ", close);
+    }
     expect(signatures).toHaveLength(2);
-    const flattened = signatures.map(signature => signature.replace(/\s+/g, " ").trim());
-    expect(flattened[0]?.startsWith("export async function insertOnce(")).toBe(true);
-    expect(flattened[0]?.endsWith("tx: DBTransaction)")).toBe(true);
-    expect(flattened[1]?.startsWith("export async function listByEvaluator(")).toBe(true);
-    expect(flattened[1]?.endsWith("tx?: DBQueryExecutor)")).toBe(true);
+    expect(signatures[0]?.startsWith("export async function insertOnce(")).toBe(true);
+    // The write's tx is REQUIRED and is the LAST parameter.
+    expect(signatures[0]?.trimEnd().endsWith("tx: DBTransaction")).toBe(true);
+    expect(signatures[1]?.startsWith("export async function listByEvaluator(")).toBe(true);
+    // The read's executor is OPTIONAL and is the LAST parameter.
+    expect(signatures[1]?.trimEnd().endsWith("tx?: DBQueryExecutor")).toBe(true);
   });
 
   test("source: bound parameters only, no wildcard select, no prepared statements, no SQL line comments", () => {

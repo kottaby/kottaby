@@ -91,18 +91,18 @@
 
 ## Phase 2 — Backend (repository → journey-first → service)
 
-### - [ ] 2.1 Repository — `backend/db/repo/teachers/evaluation.repository.ts` (NEW) + `backend/db/repo/classes/session.repository.ts` (EXTEND) + `backend/db/repo/teachers/index.ts` (barrel)
+### - [x] 2.1 Repository — `backend/db/repo/teachers/evaluation.repository.ts` (NEW) + `backend/db/repo/classes/session.repository.ts` (EXTEND) + `backend/db/repo/teachers/index.ts` (barrel)
 - Create `EvaluationRepository` namespace with `insertOnce(values: Pick<EvaluationInsertType, "evaluatedId" | "evaluatorId" | "sessionId" | "score">, tx)` (typed payload — precedent `insertReport(insert: ReportInsertType, …)` at `backend/db/repo/classes/report.repository.ts:54`) and `listByEvaluator(evaluatorId, tx?)` exactly as specified in `plan.md` §4.2 (soft-delete exclusion mirroring `platform-analytics.repository.ts:384`, order `createdAt DESC, id DESC`). The non-transactional `listByEvaluator` path MUST go through `queryDb` raw SQL per `backend/AGENTS.md:24` (precedent `report.repository.ts:63-72`); the tx path stays Drizzle.
 - Extend `SessionRepository` with `findRatingEligibilityProbe(sessionId, tx)` (non-locking; projection = `SessionRatingEligibilityProbeType`; `tx` REQUIRED).
 - Add the barrel export; keep the repo free of business logic, translations, and error translation.
 - Tests: NEW `backend/db/test/repo/teachers/evaluation.repository.test.ts` — happy-path insert (FK columns + converted score), unique-index 23505 via `expectRepoError` + `constraintNameOf(err) === "evaluations_session_evaluator_unique"`, soft-delete exclusion (soft-deleted row filtered; NULL `is_deleted` rows still returned), ordering with 3 rows, `sessionId: null` rows unaffected by the unique index. Probe coverage added in the closest session repo test file's style (six-column projection, unknown id → null).
 - Run: `bun run test/scripts/run-test.ts backend/db/test/repo/teachers/evaluation.repository.test.ts`.
 - _Requirements: REQ-005, REQ-012, REQ-013.1_
-- [ ] 2.1.QL **Quality Loop**: sub-loop on all three edited/created files (exit 0).
-- [ ] 2.1.TE **Test Engineering**: Tier 1 100% branch coverage of both functions; Tier 2 boundaries (_nullable_ `sessionId`, `isDeleted` tri-state false/null/true); Tier 3 concurrent `insertOnce` pair under `Promise.allSettled`; Tier 4 enormous/absurd ids.
-- [ ] 2.1.SEC **Security & Tenancy Audit**: `listByEvaluator` is caller-scoped (no teacherId/evaluatedId filter parameter that could widen reads); raw 23505 surfaces untranslated for the service to own.
-- [ ] 2.1.SR **Semantic Review**: no SELECT-then-INSERT helpers; `tx` unoptional on writes; probe never feeds a guarded update.
-- [ ] 2.1.IV **Instruction Verification**: read `backend/db/repo/AGENTS.md`, `backend/AGENTS.md` + printed instructions.
+- [x] 2.1.QL **Quality Loop**: sub-loop on all three edited/created files (exit 0).
+- [x] 2.1.TE **Test Engineering**: Tier 1 100% branch coverage of both functions; Tier 2 boundaries (_nullable_ `sessionId`, `isDeleted` tri-state false/null/true); Tier 3 concurrent `insertOnce` pair under `Promise.allSettled`; Tier 4 enormous/absurd ids.
+- [x] 2.1.SEC **Security & Tenancy Audit**: `listByEvaluator` is caller-scoped (no teacherId/evaluatedId filter parameter that could widen reads); raw 23505 surfaces untranslated for the service to own.
+- [x] 2.1.SR **Semantic Review**: no SELECT-then-INSERT helpers; `tx` unoptional on writes; probe never feeds a guarded update.
+- [x] 2.1.IV **Instruction Verification**: read `backend/db/repo/AGENTS.md`, `backend/AGENTS.md` + printed instructions.
 
 ### - [ ] 2.2 Journey Test (test-first, RED) — `test/workflows/teachers/student-teacher-rating.journey.test.ts` (NEW dir)
 - Author the journey for REQ-J1..J4 BEFORE the service exists (RED by failure): new directory `test/workflows/teachers/`.

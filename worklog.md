@@ -78,3 +78,21 @@ Stage Summary:
 - 11 keys shipped en+ar with type layer; both parity suites + all sibling suites green; sub-loop exit 0 ×7; tsgo 0
 - Carry-forward: exact key inventory for task 2.3 (errorsTranslations.*) and 4.2/4.4 (sessionsTranslations.* incl. ratingStarAriaLabel(position)); function-key ritual for FUNCTION_LABEL_KEYS
 - Nothing committed/pushed (constraints); concurrent 1.1/1.2 working-tree edits observed, untouched
+---
+Task ID: 2.1
+Agent: Phase 2 Repository Finalizer
+Task: Verification + deliverables for repository task (EvaluationRepository / findRatingEligibilityProbe / gate.helpers)
+
+Work Log:
+- Read worklog, all outcome/ files, task 2.1 + REQ-005/REQ-012/REQ-013.1, plan.md §4.2, backend/db/repo/AGENTS.md, backend/AGENTS.md + printed instruction files
+- Verified .env DB_PROVIDER=postgres intact; HEAD on feat/student-evaluation-submission-teacher-rating
+- Wrote outcome/2.1-outcome.md early (resilience); flipped tasks.md 2.1 header checkbox to [-]
+- Prior-agent work inherited uncommitted: evaluation.repository.ts + teachers/index.ts barrel, session.repository.ts probe + verbatim gate.helpers extraction, both test files
+- Verification COMPLETE: Postgres up (PID 1855); repo suite 18 pass/0 fail (80 expect) + session/probe suite 71 pass/0 fail (462 expect), both exit 0 on attempt 1 via mandated runner (logs /tmp/task21-tests-repo.log, /tmp/task21-tests-probe.log); sub-loop duplicates exit 0 x6 files, attempt 1, no fixes needed (log /tmp/task21-qloop.log)
+- Extraction proof: git diff HEAD shows gate reads reduced to delegation; gate.helpers bodies statement-identical to removed ones
+- Completed SR/SEC/IV attestations in outcome/2.1-outcome.md; flipped tasks.md 2.1 header + all 2.1.* sub-checkboxes to [x]
+
+Stage Summary:
+- Task 2.1 VERIFIED GREEN: EvaluationRepository.insertOnce (tx-required, raw 23505 untranslated) + listByEvaluator (caller-scoped, tx/queryDb dual path, NULL-safe soft-delete, createdAt DESC/id DESC) + teachers/index.ts barrel + SessionRepository.findRatingEligibilityProbe (non-locking six-column probe, tx REQUIRED) via verbatim gate.helpers extraction
+- Tests: 18/0 (evaluation repo, covers Tier 1-4 incl. Promise.allSettled race and 23505 constraintNameOf pin) and 71/0 (session repo incl. 2 probe tests); sub-loop exit 0 on all 6 touched files; zero plan-artifact refs in comments; no commits/pushes
+- Carry-forward for 2.3 in outcome/2.1-outcome.md: catch 23505 (constraint evaluations_session_evaluator_unique) → ConflictError EVALUATION_ALREADY_SUBMITTED; listByEvaluator returns EvaluationSelectType rows for service-side mapping
