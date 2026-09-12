@@ -186,7 +186,7 @@ export namespace SubscriptionExpiryService {
       // gap: the flip stands, the zeroing is skipped with one correlated
       // warning (fail-safe, not fail-silent). A missing plan row is an
       // invariant breach and aborts the cohort closed.
-      const zeroingPairs = new Map<string, { studentId: number; lane: SubscriptionCreditLane }>();
+      const zeroingPairs = new Map<string, ZeroingPair>();
       for (const row of due) {
         const correlation = { subscriptionId: row.id, userId: row.userId, planId: row.planId };
         const storedLane = storedLaneByPlanId.get(row.planId);

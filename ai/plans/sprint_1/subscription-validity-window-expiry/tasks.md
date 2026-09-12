@@ -118,7 +118,7 @@ Foundation-first: schema index → types → locale key → **journey test FIRST
 
 ## Phase 6.5: Mid-Point Backend Review Gate (MANDATORY — plan has >10 tasks)
 
-- [ ] 6.5 Backend review checkpoint (after 6.1, before lock-in/final gates)
+- [x] 6.5 Backend review checkpoint (after 6.1, before lock-in/final gates)
   - Dispatch backend-scoped review subagents (`review-backend`, `review-types`, `review-config`) over ALL `backend/` + `app/api/cron/expire-subscriptions/` + `backend/db/schema/billing/subscriptions.ts` + `shared/locale/` files touched in Phases 2–6; aggregate backend-only findings; fix-per-file with `sub-loop.ts`; re-review until zero backend-specific findings.
   - Write `outcome/midpoint-review-R1.md`.
   - _Requirements: REQ-001, REQ-002_
