@@ -30,8 +30,8 @@
  * `app/api/cron/sweep-sessions/route.ts` (envelope — externally triggered
  * sweep job with the bearer gate + bare-404 kill switch documented on the
  * route) and `app/api/payments/webhook/route.ts` (provider-ack-exempt —
- * gateway callback surface whose disabled kill switch answers a bare 404,
- * registered in the exemptions inventory).
+ * gateway callback surface whose disabled kill switch and inactive paymob
+ * branch both answer a bare 404, registered in the exemptions inventory).
  * `/api/webhooks/*` and `/api/logs` remain PHANTOM routes (dropped pre-seeds)
  * and MUST NOT be listed until their files physically exist.
  */
@@ -60,7 +60,8 @@ export const ROUTE_INVENTORY: readonly RouteInventoryEntry[] = [
   // the disabled mode answers a bare 404 (documented on the route).
   { path: "/api/cron/sweep-sessions", classification: "envelope" },
   // Gateway callback ack — enveloped success/failure replies; the disabled
-  // kill switch answers a bare 404 (exemption row in the error-handling
-  // contract's exemptions inventory).
+  // kill switch and the inactive paymob-branch mode gate both answer a bare
+  // 404 (exemption row in the error-handling contract's exemptions
+  // inventory).
   { path: "/api/payments/webhook", classification: "provider-ack-exempt" },
 ] as const;

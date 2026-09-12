@@ -193,3 +193,20 @@ Work Log:
 Stage Summary:
 - Environment ready; Phase 0 baseline (0.1) already valid at eb7be4b — NOT re-executed per continuation rules
 - Subagents MUST commit+push after each task (sandbox reset defense); work on feat branch only
+
+---
+Task ID: 4.1
+Agent: general-purpose subagent (completion pass)
+Task: Provider-dispatched webhook route (paymob branch)
+
+Work Log:
+- Reviewed prior agent's 4 uncommitted files line-by-line against task 4.1 + specs (REQ-053 matrix, REQ-029 burst, REQ-041 per-branch 404 ruling from plan-review R2/F5) + 2.3/3.3 carry-forward contracts (WebhookParseInput, error-type mapping table): implementation was COMPLETE and correct — no functional gaps; this pass verified, ruled the one plan-vs-landed divergence, and closed the pipeline
+- Route: paymob dispatch by `hmac` QUERY-param presence; inactive-branch bare 404 BEFORE body read (kill switch still first, mock branch untouched); paymob-active skips mock header gate, verification delegated to adapter.parseWebhookEvent({rawBody, query}); null → 200 {processed:false}; UnauthorizedError → 401 + one correlated logDomainError; masked envelopes + 64_000-byte three-layer bounded read preserved verbatim; PaymentGateway.Paymob VALUE import (no string literals); per-request provider read (mid-flight flip honored)
+- Tests: +30 (34 pre-existing preserved byte-for-byte — comm-verified zero removals/renames): REQ-053 matrix, N=6 REQ-029 burst (one settlement, rest replayed, all 200), TOKEN/refund/void/child/flat no-ops (+ forged twins still 401), unknown-merchant-ref 200, missing/empty hmac 400, forged/tampered/uppercase/randomized×12 hmac 401, cap-exact/cap+1, provider≠paymob 404 (+ before size gate), kill-switch-first, mock-untouched twin, static source pins (no HMAC machinery in route, POST-only, no console)
+- RULING (deferred-items D-413, 📅 Forward): plan §3.4/REQ-053 "413" for over-cap vs landed committed masked 400 PAYMENT_WEBHOOK_BODY_TOO_LARGE → keep 400 on both branches (task's own "keep the bounded body read + masked envelopes" mandate + committed exemption contract + F5 mock freeze; one transport gate cannot split status per provider); 5.6/9.1 adjudicate
+- route-inventory.ts + error-handling-contract.md: comments/row updated for the SECOND bare-404 gate (inactive paymob branch) — classification unchanged (provider-ack-exempt), no new row (plan's VERIFY instruction satisfied); A4 static-assertions 17/17
+- Verification: sub-loop --lifecycle duplicates exit 0 ×3 (route.ts, route test, route-inventory.ts; docs .md is code-scoped tooling — oxlint "No files found to lint", content-review verified instead, prior-tasks precedent); run-test route suite 64 pass / 0 fail (279 expect()); plan-meta grep over all 4 files: zero matches; TODO/FIXME scan: zero
+
+Stage Summary:
+- Task 4.1 COMPLETE: single provider-dispatched receiver extended with the paymob branch (REQ-020/021/022/023/024/025/026/041/043/053/071 + REQ-004 surface); committing on feat/paymob-gateway-integration
+- Carry-forward: 4.2 receives {reference, outcome, amount, currency, providerTransactionId} + "en" locale; once-only/replay ack is the SERVICE's guarded transition (route always dispatches); 5.4 simulation channel signs the 20-key POST concat into ?hmac= (route test oracle is the reference); provider flips in tests MUST go through resetPaymentGateway() (drops adapter + env snapshot)

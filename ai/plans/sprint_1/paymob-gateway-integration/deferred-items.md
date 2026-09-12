@@ -17,6 +17,7 @@ This ledger tracks all work deferred from one task to another to ensure no defer
 | ID | Deferred Item | Source Task | Target Task | Status | Verified By | Notes |
 |---|---|---|---|---|---|---|
 | — | *(none at plan-authoring time)* | — | — | — | — | Ledger initialized empty per protocol; every in-flight deferral during implementation MUST land here the moment it is identified. |
+| D-413 | Plan §3.4 / REQ-053 / tasks.md 4.1.TE prescribe **413** for over-cap webhook bodies; the landed route (subscription-purchase plan) + its committed exemption row (`docs/graphql/error-handling-contract.md`: "parse/oversize rejections 400 through `apiErrorResponse`") answer a masked **400 `PAYMENT_WEBHOOK_BODY_TOO_LARGE`**, and task 4.1 mandates KEEPING the landed bounded-read/envelope surfaces while plan-review R2/F5 freezes the mock branch's semantics — one shared transport gate cannot split its status per provider, so 400 is kept on BOTH branches | 4.1 | 5.6 (mid-point review) / 9.1 (final gate) — plan-owner adjudication; a literal 413 means rewriting the committed exemption-contract row + both branches' landed tests as a deliberate contract change (future ticket if wanted) | 📅 Forward | `outcome/4.1-outcome.md` §"REQ-053 status matrix — coverage + one deviation ruling" (test-pinned: cap-exact accepted, cap+1 masked 400, mode-gate 404 before size gate) | Same ruling class as §3.4's literal `{"received": false}` bodies vs the landed enveloped acks — committed contract wins; non-blocking by ledger semantics |
 
 ---
 

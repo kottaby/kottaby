@@ -13,6 +13,19 @@
  *    no requestId. Any structured body would prove THIS path exists and is
  *    special — the existence oracle a disabled deployment must never leak
  *    (a truly unknown path answers no envelope either).
+ *  - **Provider dispatch by signature placement** — exactly one receiver
+ *    serves every provider, and the delivery's signature location names the
+ *    branch: the paymob provider signs EVERY delivery (the server-to-server
+ *    processed callback and the customer redirect alike) into the `hmac`
+ *    QUERY parameter, while the built-in mock provider signs the
+ *    `x-payment-signature` header. A query-signed delivery arriving while
+ *    the active provider is not paymob is answered the SAME bare 404 as the
+ *    kill switch — the inactive provider's callback surface does not exist,
+ *    and no envelope may prove otherwise. The gate runs before a single
+ *    body byte is read, and the provider value is re-read per request, so a
+ *    mid-flight mode flip is honored on the very next delivery (the mock
+ *    branch's own availability is untouched: it keeps its kill-switch
+ *    semantics regardless of the paymob gate).
  *  - **Bounded body, read ONCE, bounded THREE ways** — the raw body is
  *    consumed exactly once (the signature is computed over these bytes, so no
  *    re-serialization may occur) and capped at
@@ -34,13 +47,22 @@
  *    reader and answer the same masked unreadable-body envelope — a slow
  *    POST can never hold the connection for the platform's full request
  *    budget.
- *  - **Signature gate** — the `x-payment-signature` header must equal the
- *    lowercase-hex HMAC-SHA256 of the raw body under
- *    `PAYMENT_WEBHOOK_SECRET`, compared by the constant-time digest idiom
- *    inside `verifyWebhookSignature`. A missing/empty secret config, a
- *    missing header, and a failed compare all collapse into the SAME masked
- *    401: a misconfigured deployment is indistinguishable from a forged
- *    callback, and the gate can never be bypassed.
+ *  - **Signature gates are per-branch** — the mock branch requires the
+ *    `x-payment-signature` header to equal the lowercase-hex HMAC-SHA256 of
+ *    the raw body under `PAYMENT_WEBHOOK_SECRET`, compared by the
+ *    constant-time digest idiom inside `verifyWebhookSignature`. The paymob
+ *    branch never passes through that gate: its HMAC-SHA512 verification
+ *    (the 20-value query-signed concat, timing-safe compare) lives INSIDE
+ *    the active adapter's `parseWebhookEvent`, and the route must neither
+ *    bypass nor duplicate it. A missing/empty secret config, a missing
+ *    header, and a failed compare all collapse into the SAME masked 401: a
+ *    misconfigured deployment is indistinguishable from a forged callback,
+ *    and the gate can never be bypassed. The adapter's typed rejections
+ *    surface through the shared envelope machinery: a malformed or
+ *    hmac-less delivery maps to the masked 400 family, a failed HMAC maps
+ *    to the masked 401 (with exactly one correlated domain-error log line —
+ *    verification failures are expected rejections, never crash noise), and
+ *    an unconfigured gateway maps to the service-unavailable envelope.
  *  - **Envelope** — success `{ data: { processed, replayed? }, requestId }`;
  *    replays ack 200 like first deliveries (gateways retry on non-2xx),
  *    verified-but-unknown references / quarantined mismatches ack
@@ -59,9 +81,10 @@
  */
 
 import type { NextRequest } from "next/server";
+import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { apiErrorResponse, apiSuccessResponse, resolveRequestId } from "@/backend/lib/api";
-import { getPaymentWebhookSecret, isPaymentWebhookEnabled } from "@/backend/lib/env";
-import { DomainError, ValidationError } from "@/backend/lib/errors";
+import { getPaymentGatewayProvider, getPaymentWebhookSecret, isPaymentWebhookEnabled } from "@/backend/lib/env";
+import { DomainError, UnauthorizedError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { getPaymentGateway, verifyWebhookSignature } from "@/backend/services/billing/payment-gateway";
 import { SubscriptionActivationService } from "@/backend/services/billing/subscription-activation.service";
@@ -110,11 +133,34 @@ export const BODY_READ_DEADLINE_MS = { current: 30_000 };
  */
 export const BODY_READ_TOTAL_DEADLINE_MS = { current: 60_000 };
 
-/** Header the gateway signs its deliveries with. */
+/** Header the built-in mock provider signs its deliveries with. */
 const SIGNATURE_HEADER = "x-payment-signature";
+
+/**
+ * Query parameter carrying the paymob callback signature. The provider
+ * signs every delivery — the server-to-server processed callback and the
+ * customer-facing redirect alike — into the query string, so the
+ * parameter's presence is the documented marker that a delivery claims the
+ * paymob branch of the provider dispatch; its VALUE is verified only inside
+ * the paymob adapter's parser (never here).
+ */
+const PAYMOB_HMAC_QUERY_PARAM = "hmac";
+
+/** The paymob provider's wire value, held as the plain env string it is compared against. */
+const PAYMOB_PROVIDER_VALUE: string = PaymentGateway.Paymob;
 
 /** Locale-free server-to-server surface: envelopes resolve in the deployment default. */
 const ENVELOPE_LOCALE = "en";
+
+/**
+ * Whether a delivery claims the paymob branch of the dispatch while that
+ * provider is not the deployment's active one — the inactive-callback
+ * condition the route answers with the endpoint-gone 404: no envelope, no
+ * oracle, and not a single body byte read.
+ */
+function claimsInactivePaymobBranch(query: Record<string, string | undefined>, isPaymobProvider: boolean): boolean {
+  return query[PAYMOB_HMAC_QUERY_PARAM] !== undefined && !isPaymobProvider;
+}
 
 /**
  * Signature-gate denial — classified to 401 (UNAUTHORIZED family). One
@@ -296,12 +342,28 @@ export async function POST(request: NextRequest): Promise<Response> {
     return new Response(null, { status: ENDPOINT_GONE_STATUS });
   }
 
+  // Provider dispatch — resolved BEFORE the body is read: the delivery's
+  // signature placement names the branch. The query record is later handed
+  // to the active adapter verbatim; the route itself interprets no payload
+  // member beyond this one documented marker. The active provider is a
+  // plain env string, so it is compared against the paymob wire value held
+  // as the same primitive.
+  const query: Record<string, string | undefined> = Object.fromEntries(request.nextUrl.searchParams);
+  const isPaymobProvider = getPaymentGatewayProvider() === PAYMOB_PROVIDER_VALUE;
+
+  // Paymob-branch mode gate: a query-signed delivery against a deployment
+  // whose active provider is not paymob is a callback surface that does not
+  // exist — the SAME bare 404 the kill switch answers, fired before a single
+  // body byte is consumed (no oracle, no size-answer, no envelope).
+  if (claimsInactivePaymobBranch(query, isPaymobProvider)) {
+    return new Response(null, { status: ENDPOINT_GONE_STATUS });
+  }
+
   // The raw body is read EXACTLY once — signatures are computed over these
   // bytes — and bounded BEFORE any crypto work happens: a declared
   // Content-Length over the cap is rejected up-front (no byte buffered),
   // and every other delivery is read incrementally under the byte budget.
-  const declaredContentLength = request.headers.get("content-length");
-  const declaredLength = declaredContentLength === null ? Number.NaN : Number.parseInt(declaredContentLength, 10);
+  const declaredLength = Number.parseInt(request.headers.get("content-length") ?? "", 10);
   if (Number.isSafeInteger(declaredLength) && declaredLength > MAX_PAYMENT_WEBHOOK_BODY_BYTES) {
     return apiErrorResponse(webhookBodyTooLargeError(), { requestId, locale: ENVELOPE_LOCALE });
   }
@@ -330,25 +392,31 @@ export async function POST(request: NextRequest): Promise<Response> {
     return apiErrorResponse(webhookBodyTooLargeError(), { requestId, locale: ENVELOPE_LOCALE });
   }
 
-  // Signature gate — fail closed: no configured secret, no presented header,
-  // and a failed digest compare all land on the same masked 401.
-  const secret = getPaymentWebhookSecret();
-  const presentedSignature = request.headers.get(SIGNATURE_HEADER);
-  if (secret === undefined || secret.length === 0 || !verifyWebhookSignature(rawBody, presentedSignature, secret)) {
-    return apiErrorResponse(webhookUnauthorizedError(), { requestId, locale: ENVELOPE_LOCALE });
+  // Mock-branch signature gate — fail closed, and ONLY for the mock-style
+  // branch: no configured secret, no presented header, and a failed digest
+  // compare all land on the same masked 401. A deployment whose active
+  // provider is paymob skips this gate entirely — that branch's deliveries
+  // are verified by the adapter's parser (the query-signed HMAC), and this
+  // route must neither bypass nor duplicate that verification.
+  if (!isPaymobProvider) {
+    const secret = getPaymentWebhookSecret();
+    const presentedSignature = request.headers.get(SIGNATURE_HEADER);
+    if (secret === undefined || secret.length === 0 || !verifyWebhookSignature(rawBody, presentedSignature, secret)) {
+      return apiErrorResponse(webhookUnauthorizedError(), { requestId, locale: ENVELOPE_LOCALE });
+    }
   }
 
   // Parse through the active gateway port, then delegate settlement. The
   // service never throws for outcome content — unknown references,
   // quarantines, and replays all come back as honest acks — so only true
-  // infrastructure failures reach the masked envelope below. The request's
-  // query parameters ride along as a plain record: query-signed providers
-  // carry their signature and correlation fields in the URL, not the body.
-  // A null event is a verified-but-ignored delivery (nothing to settle) —
-  // acked like a replay so the provider's retry schedule stops, with zero
-  // state change.
+  // infrastructure failures reach the masked envelope below. A null event
+  // is a verified-but-ignored delivery (nothing to settle) — acked like a
+  // replay so the provider's retry schedule stops, with zero state change.
+  // An unauthorized rejection from the parser gets exactly ONE correlated
+  // domain-error log line: a failed verification is an expected rejection
+  // (debug-level in test mode, warn in production), never crash noise, and
+  // the log carries only the fixed diagnostic and correlation id.
   try {
-    const query: Record<string, string | undefined> = Object.fromEntries(request.nextUrl.searchParams);
     const event = getPaymentGateway(ENVELOPE_LOCALE).parseWebhookEvent({ rawBody, query });
     if (event === null) {
       return apiSuccessResponse({ processed: false }, { requestId });
@@ -359,6 +427,13 @@ export async function POST(request: NextRequest): Promise<Response> {
       { requestId }
     );
   } catch (error: unknown) {
+    if (error instanceof UnauthorizedError) {
+      logger.logDomainError("Payment webhook signature verification failed", {
+        code: "PAYMENT_WEBHOOK_SIGNATURE_INVALID",
+        entity: "payment_webhook",
+        requestId,
+      });
+    }
     return apiErrorResponse(error, { requestId, locale: ENVELOPE_LOCALE });
   }
 }
