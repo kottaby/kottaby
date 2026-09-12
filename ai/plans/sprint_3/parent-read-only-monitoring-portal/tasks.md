@@ -201,7 +201,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - Write outcome: `outcome/3.1-pothos-objects-outcome.md`
   - _Requirements: REQ-002, REQ-030_
 
-- [ ] 3.2 Query field registration + side-effect barrel
+- [x] 3.2 Query field registration + side-effect barrel
   - CREATE `backend/graphql/query/parents/parent-monitoring.query.ts`: registers the five root fields by side effect (NO named exports) — `myLinkedChildren` (zero-arg, identity from `ctx.user.id` only) and `parentChildProgress` / `parentChildSessions` / `parentChildReports` / `parentChildHomework` (args `studentId: Int!` + optional `page`/`pageSize`). EVERY field carries `authScopes: { $all: { authenticated: true, role: [UserRole.Parent] } }` ($all conjunction load-bearing; `UserRole` VALUE import). Resolvers delegate to `ParentMonitoringService` passing `ctx.user.id`, args, `ctx.locale`; the `if (!ctx.user)` narrowing branch throws `UnauthorizedError` via `await ctx.t("errorsTranslations")` (localized) exactly per plan §3.2 template. ZERO new mutation fields (INV-P2).
   - UPDATE `backend/graphql/query/parents/index.ts`: append `import "./parent-monitoring.query";` (side-effect chain into `query/index.ts` → `gqlSchema.ts` flows without further edits — verify).
   - [ ] 3.2.QL **Quality Loop**: sub-loop exit 0 on the query module + barrel
