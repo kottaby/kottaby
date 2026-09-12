@@ -101,6 +101,9 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  * Canonical retargets:
  *  - Sessions → `/student/sessions` / `/teacher/sessions` (a
  *    RETARGET of the former shared `/sessions` catch-all link)
+ *  - Student Plans → `/student/plans` (a pure ADD to the student list:
+ *    the student-guarded catalog page ships at the route; the `plans`
+ *    label key is shared with the admin entry — both `DashboardLabels`-owned)
  *  - Admin Users → `/admin/users` (the directory page exists)
  *  - Admin Plans → `/admin/plans`
  *  - Admin Broadcasts → `/admin/broadcasts` (a pure ADD, not a
@@ -117,6 +120,9 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
     { route: "/student/dashboard", labelKey: "dashboard", Icon: DashboardIcon },
     { route: "/notifications", labelKey: "notifications", Icon: NotificationsIcon },
     { route: "/student/sessions", labelKey: "sessions", Icon: SessionsIcon },
+    // Targets the student-guarded plan catalog at
+    // `app/(dashboard)/student/plans/page.tsx` — browse + purchase CTA.
+    { route: "/student/plans", labelKey: "plans", Icon: PlansIcon },
     { route: "/subscriptions", labelKey: "subscriptions", Icon: SubscriptionsIcon },
     { route: "/homework", labelKey: "homework", Icon: HomeworkIcon },
     { route: STUDENT_LINK_REQUESTS_ROUTE, labelKey: "linkRequests", Icon: LinkChildIcon },

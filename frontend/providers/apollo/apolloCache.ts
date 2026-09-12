@@ -28,6 +28,14 @@ import { InMemoryCache } from "@apollo/client";
  * the `AdminAuditLogEntry` rows inside `items` (each carries `id`), so the
  * wrapper itself never needs an identity.
  *
+ * `PurchaseSubscriptionPayload` and `PaymentCheckout` are the purchase
+ * funnel's embedded value objects (no `id` by design — the normalizable
+ * entities are the nested `StudentSubscription` / `StudentPayment` rows each
+ * carrying `id`): the mutation wrapper and the gateway checkout descriptor
+ * are read back inline under the mutation field, so identifying them by
+ * their own fields is unnecessary and a standalone cache key would be
+ * meaningless.
+ *
  * The `PlatformAnalytics*` family is the admin analytics-dashboard read
  * model: one root `adminPlatformAnalytics` query field whose section and
  * trend-row objects are scalar-only snapshots (no `id` anywhere in the
@@ -72,6 +80,17 @@ export function createApolloCache(): InMemoryCache {
         keyFields: false,
       },
       OnlineMeetingInfo: {
+        keyFields: false,
+      },
+      // Purchase-funnel embedded value objects (no `id` by design): the
+      // mutation wrapper's normalizable entities are the nested
+      // `StudentSubscription` / `StudentPayment` rows, and the checkout
+      // descriptor is a scalar-only triple — both cached inline under the
+      // mutation field, never normalized into standalone cache ids.
+      PurchaseSubscriptionPayload: {
+        keyFields: false,
+      },
+      PaymentCheckout: {
         keyFields: false,
       },
       // Admin analytics-dashboard snapshot family — scalar-only sections of
