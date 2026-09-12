@@ -33,7 +33,7 @@ Foundation-first: schema index → types → locale key → **journey test FIRST
 
 ## Phase 0: Pre-Implementation Baseline (MANDATORY)
 
-- [x] 0.1 Record baseline & confirm ledger
+- [ ] 0.1 Record baseline & confirm ledger
   - Run `bun tsgo 2>&1 | grep "error TS" | wc -l`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline`; store counts in `/tmp/baseline-*.txt`.
   - Confirm `deferred-items.md` exists (authored at spec time, closed at the Phase 1.5 gate: D1 ✅ and D3 ✅ ratified by `outcome/plan-review-R1.md`; D2 ❌ is the sanctioned open item — its resolution is the 9.1 documented ops handoff; all other statuses must be ✅ before 8.1's gate).
   - Write `outcome/0.1-baseline-outcome.md` with counts + environment notes.
@@ -41,39 +41,39 @@ Foundation-first: schema index → types → locale key → **journey test FIRST
 
 ## Phase 1.5: Plan Review Gate (MANDATORY — executed at planning time)
 
-- [x] 1.1 Plan review via `@plan-review` skill
+- [ ] 1.1 Plan review via `@plan-review` skill
   - Verdict + fixes recorded in `outcome/plan-review-R1.md` BEFORE any implementation task starts; the gate ratifies plan.md Decisions D1–D7 verbatim (no redesign) — this closes ledger **D1** (O1 semantic ratified) and **D3** (no wired booking-UI surface exists; the snackbar arm is deferred to the ticket that lands it, per corrected Decision D7).
   - _Requirements: REQ-001_
 
 ## Phase 2: Foundation (Schema · Types · Locale)
 
-- [x] 2.1 Partial index on `subscriptions` (Decision D5)
+- [ ] 2.1 Partial index on `subscriptions` (Decision D5)
   - EXTEND `backend/db/schema/billing/subscriptions.ts` index list with `index("subscriptions_active_end_date_idx").on(t.endDate).where(sql`…status = 'active'…`)` — same `.where(sql\`…\`)` idiom as the existing partial unique index in that file; NO `--` comments inside any `sql` template.
   - Apply DDL via `bun run db` (push path per schema AGENTS + tasks-template convention); verify drift-free; NO custom SQL migration (guarded UPDATEs are app-level parameterized statements).
-  - [x] 2.1.QL · [x] 2.1.TE (schema-shape compile + push verification; index present in reflected schema) · [x] 2.1.SEC · [x] 2.1.SR · [x] 2.1.IV (`/home/ahmed/Projects/kottaby_kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/db/schema/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md`)
+  - [ ] 2.1.QL · [ ] 2.1.TE (schema-shape compile + push verification; index present in reflected schema) · [ ] 2.1.SEC · [ ] 2.1.SR · [ ] 2.1.IV (`/home/ahmed/Projects/kottaby_kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/db/schema/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md`)
   - Write `outcome/2.1-outcome.md`
   - _Requirements: REQ-002, REQ-022_
 
-- [x] 2.2 Canonical types EXTEND
+- [ ] 2.2 Canonical types EXTEND
   - EXTEND `backend/types/billing/subscription.types.ts` with `ExpiredDueSubscriptionRow` (`{ readonly id; readonly userId; readonly planId }` — batch-flip RETURNING projection) and `SubscriptionExpirySweepReturnType` (`{ readonly expired; readonly lanesZeroed }` — counts-only contract); barrel via existing `export *`; NO service-layer `.types.ts`.
-  - [x] 2.2.QL · [x] 2.2.TE (type-level compile: whole-repo tsgo green) · [x] 2.2.SEC · [x] 2.2.SR · [x] 2.2.IV (`/home/ahmed/Projects/kottaby_kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/types/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md`)
+  - [ ] 2.2.QL · [ ] 2.2.TE (type-level compile: whole-repo tsgo green) · [ ] 2.2.SEC · [ ] 2.2.SR · [ ] 2.2.IV (`/home/ahmed/Projects/kottaby_kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/backend/types/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/backend.instructions.md`)
   - Write `outcome/2.2-outcome.md`
   - _Requirements: REQ-002, REQ-021_
 
-- [x] 2.3 Locale key `subscriptionExpired` (3 files — REQ-032 recipe)
+- [ ] 2.3 Locale key `subscriptionExpired` (3 files — REQ-032 recipe)
   - (1) Type: `shared/locale/types/errors/labels.ts` — `ErrorsLabels` flat entry beside `insufficientBalance` (docblock: self-contained sentence, no identifiers); (2) `shared/locale/en/errors/index.ts`; (3) `shared/locale/ar/errors/index.ts` (RTL-safe). Errors namespace already wired — NO `message.ts` registration, NO new namespace.
   - FORBIDDEN: `Translation.*` enum, two-arg `getTranslations`, `next-intl`, `getBackendTranslations`, `shared/messages/`, hardcoded strings.
-  - [x] 2.3.QL · [x] 2.3.TE (`shared/locale/errors-namespace.parity.test.ts` via `bun run test/scripts/run-test.ts shared/locale/errors-namespace.parity.test.ts` green — 21 pass / 0 fail) · [x] 2.3.SEC · [x] 2.3.SR · [x] 2.3.IV (`/home/ahmed/Projects/kottaby_kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/shared/AGENTS.md`)
+  - [ ] 2.3.QL · [ ] 2.3.TE (`shared/locale/errors-namespace.parity.test.ts` via `bun run test/scripts/run-test.ts shared/locale/errors-namespace.parity.test.ts` green) · [ ] 2.3.SEC · [ ] 2.3.SR · [ ] 2.3.IV (`/home/ahmed/Projects/kottaby_kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/shared/AGENTS.md`)
   - Write `outcome/2.3-outcome.md`
   - _Requirements: REQ-002, REQ-003, REQ-032_
 
 ## Phase 3: Journey Test FIRST (RED skeleton → GREEN after Phase 5)
 
-- [ ] 3.1 Journey suite `test/workflows/billing/subscription-expiry.journey.test.ts` (CREATE — test-first)
+- [x] 3.1 Journey suite `test/workflows/billing/subscription-expiry.journey.test.ts` (CREATE — test-first)
   - Encode plan.md §5.3 state machine + side-effect matrix end-to-end: activate (existing activation path) → assert window arithmetic `endDate - startDate === PLAN_INTERVAL_DAYS * MS_PER_DAY` via `secondPrecisionMs` (`test/workflows/helpers/second-precision.ts:21`) → backdate `endDate` (expired-row fixture precedent `backend/db/test/entity-setup.ts:208-218`, direct Drizzle backdate) → `SubscriptionExpiryService.expireDue()` → assert `status = Expired` + original `startDate`/`endDate` unchanged + lane zeroed (uncovered case) + `balance_trial` intact → booking denial `extensions.code === "SUBSCRIPTION_EXPIRED"` via `expectSingleDenial`-shape assertion + zero writes on denial → trial-lane booking SUCCEEDS (INV-B3) → Student B probe byte-identical (direct read-back oracles) → sweep replay ⇒ `{ expired: 0, lanesZeroed: 0 }` honest zero counts.
   - Rules per `test/workflows/AGENTS.md`: ONE committing `beforeAll` transaction; `TrackedFixtures` teardown with post-teardown re-probes (`test/workflows/helpers/tracked-fixtures.ts`); `journeyPrefix("billing")`; `provisionStudentActor` (`test/workflows/helpers/actor-context.ts`); NO `runInRollback`; `catchJourneyError` + translated substrings; side effects spied at the seam (`spyOn(NotificationEngine, "publishReceipts").mockImplementation(...)` precedent — billing journey `subscription-purchase.journey.test.ts:142`).
   - Run: `bun run test/scripts/run-test.ts test/workflows/billing/subscription-expiry.journey.test.ts` — expected RED until 5.2 ships; checkpoint re-run GREEN.
-  - [ ] 3.1.QL · [ ] 3.1.TE (this IS the Tier-4 capstone for the whole ticket) · [ ] 3.1.SEC (cross-student isolation probe is part of the suite) · [ ] 3.1.SR · [ ] 3.1.IV (`/home/ahmed/Projects/kottaby_kottaby/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/test/workflows/AGENTS.md`, `/home/ahmed/Projects/kottaby_kottaby/.agents/instructions/tests.instructions.md`)
+  - [x] 3.1.QL · [x] 3.1.TE (this IS the Tier-4 capstone for the whole ticket — test-first artifact landed with verified CLEAN RED: sole whole-repo tsgo error is the missing `subscription-expiry.service` TS2307; the GREEN run is EXPECTED at the 5.2 checkpoint per `outcome/3.1-outcome.md`) · [x] 3.1.SEC (cross-student isolation probe is part of the suite) · [x] 3.1.SR · [x] 3.1.IV
   - Write `outcome/3.1-outcome.md`
   - _Requirements: REQ-002, REQ-004, REQ-010, REQ-011, REQ-024, REQ-025, REQ-031, REQ-033, REQ-034, REQ-040, REQ-053, REQ-061, REQ-074_
 

@@ -90,3 +90,19 @@ Work Log:
 Stage Summary:
 - Canonical sweep contracts now exist for Phases 4–6: 4.1 `expireDueActive → Promise<ExpiredDueSubscriptionRow[]>`; 5.1 `expireDue → Promise<SubscriptionExpirySweepReturnType>`; 6.1 route envelope `apiSuccessResponse({ expired, lanesZeroed })`
 - Carry-forward: consumers import from `@/backend/types`; replay of a settled sweep must honestly report `{ expired: 0, lanesZeroed: 0 }`
+
+---
+Task ID: 3-1
+Agent: Subagent (journey)
+Task: Journey test-first suite subscription-expiry.journey.test.ts (RED skeleton)
+
+Work Log:
+- Created test/workflows/billing/subscription-expiry.journey.test.ts (702 lines) encoding plan §5.3 end-to-end: activate → window arithmetic pin → backdate → expireDue() → status/lane/trial asserts → booking denial SUBSCRIPTION_EXPIRED (service + wire surfaces, zero writes) → trial booking success → Student B byte-identical → replay zero counts
+- Journey rules honored: one committing beforeAll tx, TrackedFixtures + zero-residue re-probes, journeyPrefix("billing"), provisionStudentActor, publishReceipts spy, catchJourneyError, no runInRollback, enum value imports
+- Verified CLEAN RED: sole whole-repo tsgo error = TS2307 missing subscription-expiry.service (sanctioned); biome clean; jscpd 0; deterministic failure x2
+- Sandbox git-restore warfare hit mid-task (branch reset to main twice); files recovered via stash + /tmp copies; worklog rebuilt from f137a27 committed version
+
+Stage Summary:
+- 3.1 artifact landed RED; GREEN expected at 5.2 checkpoint
+- outcome/3.1-outcome.md written; tasks.md 3.1 + sub-checkboxes [x]
+- NOTE: outcome flags Phase 2 files "absent" — that was the sandbox reset mid-flight; f137a27 has them (verified)
