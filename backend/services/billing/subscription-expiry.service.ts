@@ -52,7 +52,6 @@ import { StudentRepository, SubscriptionRepository } from "@/backend/db/repo";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
-import { ConflictError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import type { DBTransaction, PlanSelectType, SubscriptionExpirySweepReturnType } from "@/backend/types";
 
@@ -68,11 +67,15 @@ const SWEEP_ABORTED_MESSAGE = "Subscription expiry could not be completed.";
  * Fail-closed abort for an unreachable mid-sweep state — one bounded
  * diagnostic log (the exact breach, correlated ids only) plus the
  * client-safe copy. Throwing from inside the sweep transaction rolls the
- * whole cohort back.
+ * whole cohort back. The thrown value is deliberately a NON-domain `Error`
+ * (sibling precedent: the raw-throw aborts in
+ * `session-lifecycle.transitions.ts`): the scheduled caller masks every
+ * thrown failure to a generic 500 `INTERNAL_SERVER_ERROR` envelope — a
+ * domain class would instead pass its own code through `apiErrorResponse`.
  */
 function abortSweep(detail: string, context: Record<string, unknown>): never {
   logger.error(`Subscription expiry sweep aborted: ${detail} — cohort rolled back`, context);
-  throw new ConflictError(SWEEP_ABORTED_MESSAGE);
+  throw new Error(SWEEP_ABORTED_MESSAGE);
 }
 
 /**

@@ -68,3 +68,26 @@ Work Log:
 
 Stage Summary:
 - 9.1 complete — docs-only, verified against the implemented tree; Ledger Table fully ✅; plan's final task done; NOT committed (per orchestrator instruction), finals preserved at /tmp/9-1-final/
+
+---
+Task ID: R1-FIX
+Agent: Fix Subagent
+Task: R1 review wave — 3 adjudicated LOW findings (plan: subscription-validity-window-expiry)
+
+Work Log:
+- STEP-0 recovery re-run several times (sandbox HEAD drifted to main@2bdea32 repeatedly, twice immediately after recovery) — countered with the authorized recovery + a dirty-tree guard + /tmp copies: pre-edit backups at /tmp/r1fix-backup-*, post-edit finals at /tmp/r1fix-final-*
+- F1 [LOW] `backend/services/billing/subscription-expiry.service.ts` — `abortSweep` now throws a NON-domain `Error` (client-safe `SWEEP_ABORTED_MESSAGE` unchanged; correlated `logger.error` kept) so the cron route masks internal sweep failures to 500 `INTERNAL_SERVER_ERROR` per plan.md §4.4 + the route docblock (was: `ConflictError` → 409 pass-through); abortSweep docblock records the non-domain rationale with the `session-lifecycle.transitions.ts` raw-throw sibling precedent; now-unused `ConflictError` import removed
+- F1 test audit — service suite has NO ConflictError/409 pins: its `expectSweepFailure` already pins the new contract (`instanceof Error`; throws, cohort rolled back via the Tier-3 rollback probe) and the route masked-500 test already mocks a plain `Error` → both test files untouched and green
+- F1 route docblock re-verify — route.ts failure row already reads "a THROWN sweep failure … caught and masked through `apiErrorResponse` (500 `INTERNAL_SERVER_ERROR` …)" → accurate as-is under the new contract; NO wording change needed; sweep-sessions NOT touched
+- F3 [LOW] tracked-status report only (no git writes): `scripts/recover-branch.sh` IS tracked in HEAD (added in 5f88744, present in the main...HEAD branch diff) → orchestrator to `git rm` + commit; `scripts/one-shot-5.2.sh` and `scripts/one-shot-6.1.sh` are NOT tracked (untracked working-tree debris, `??` in git status)
+- F2 [LOW] 401 timing asymmetry on the unconfigured-secret branch — adjudicated fix-both-or-neither with the out-of-scope sibling → NEITHER; no change made
+
+Verification:
+- Service suite `bun run test/scripts/run-test.ts backend/services/billing/subscription-expiry.service.test.ts` → 8 pass / 0 fail (exit 0)
+- Route suite `app/api/cron/expire-subscriptions/test/expire-subscriptions-route.test.ts` → 11 pass / 0 fail (exit 0)
+- Journey suite `test/workflows/billing/subscription-expiry.journey.test.ts` → 7 pass / 0 fail (exit 0)
+- Sub-loop `--lifecycle duplicates` on the one edited code file (`subscription-expiry.service.ts`): tsgo / oxlint / biome:check / lint:type-aware / check:duplicates all pass, exit 0
+
+Stage Summary:
+- F1 fixed (non-domain abort + import cleanup), F2 adjudicated-neither (no change), F3 reported (removal delegated to orchestrator); all three suites green; NOT committed (per orchestrator instruction); finals preserved at /tmp/r1fix-final-*
+
