@@ -102,4 +102,8 @@ export const errorsEn: ErrorsLabels = {
   homeworkAssignmentBlocksRequired: "Provide at least one homework assignment block (new portion or revision).",
   sessionRescheduleWindowInvalid: "The start time must be before the end time.",
   sessionRescheduleStartInPast: "The start time cannot be more than 5 minutes in the past.",
+  evaluationSessionNotCompleted:
+    "This session cannot be rated because it has not been completed and confirmed by both participants.",
+  evaluationAlreadySubmitted: "You have already submitted a rating for this session.",
+  teacherRatingInvalid: "The teacher rating must be a whole number between 1 and 5.",
 };

@@ -128,10 +128,11 @@ const MANDATED_SESSIONS_KEYS = [
 /**
  * Keys whose values are TEMPLATE FUNCTIONS (the `DashboardLabels.welcome`
  * precedent) instead of plain strings — the arbitration count line
- * interpolates the honest total. Resolved by INVOKING them with a sample
+ * interpolates the honest total, and the per-star rating aria label
+ * interpolates the star position. Resolved by INVOKING them with a sample
  * argument rather than the string path.
  */
-const FUNCTION_LABEL_KEYS: ReadonlySet<string> = new Set(["adminDisputesCountLine"]);
+const FUNCTION_LABEL_KEYS: ReadonlySet<string> = new Set(["adminDisputesCountLine", "ratingStarAriaLabel"]);
 
 /** Keys resolved through `getTranslations(locale)` in the sync-resolution tier. */
 const SYNC_SAMPLE_ERROR_KEYS = ["sessionNotFound", "teacherNotFound", "insufficientBalance"] as const;

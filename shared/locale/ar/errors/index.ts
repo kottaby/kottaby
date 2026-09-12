@@ -101,4 +101,7 @@ export const errorsAr: ErrorsLabels = {
   homeworkAssignmentBlocksRequired: "يجب تحديد جزء الحفظ أو جزء المراجعة على الأقل في الواجب.",
   sessionRescheduleWindowInvalid: "يجب أن يكون وقت البدء قبل وقت الانتهاء.",
   sessionRescheduleStartInPast: "لا يمكن أن يكون وقت البدء في الماضي بأكثر من 5 دقائق.",
+  evaluationSessionNotCompleted: "لا يمكن تقييم هذه الجلسة لأنها لم تكتمل ولم يتم تأكيدها من قبل الطرفين.",
+  evaluationAlreadySubmitted: "لقد أرسلت تقييمك لهذه الجلسة بالفعل.",
+  teacherRatingInvalid: "يجب أن يكون تقييم المعلم رقماً صحيحاً بين 1 و5.",
 };

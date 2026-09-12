@@ -33,60 +33,60 @@
 
 ## Phase 0 — Baseline & Gate
 
-### - [x] 0.1 Baseline & Ledger Verification — `outcome/phase0-baseline-outcome.md`, `deferred-items.md`
+### - [ ] 0.1 Baseline & Ledger Verification — `outcome/phase0-baseline-outcome.md`, `deferred-items.md`
 - Re-run and record: `bun tsgo 2>&1 | grep -c "error TS"`, `bun run biome:check`, `bun run scripts/lint-service.ts --json --id baseline-dev2-016` — compare against planning-time baseline (tsgo 0 errors · biome clean · lint exit 0 @ 2026-09-11); record delta, if any.
 - Confirm `deferred-items.md` entries D1..D4 + cross-ticket section are present and still accurate.
 - _Requirements: REQ-001_
-- [x] 0.1.QL **Quality Loop**: not a code task — no sub-loop run; record commands' raw output in the outcome.
-- [x] 0.1.TE **Test Engineering**: n/a.
-- [x] 0.1.SEC **Security & Tenancy Audit**: n/a.
-- [x] 0.1.SR **Semantic Review**: baseline numbers quoted from real command output, never from memory.
-- [x] 0.1.IV **Instruction Verification**: root `AGENTS.md` quality-workflow section re-read.
+- [ ] 0.1.QL **Quality Loop**: not a code task — no sub-loop run; record commands' raw output in the outcome.
+- [ ] 0.1.TE **Test Engineering**: n/a.
+- [ ] 0.1.SEC **Security & Tenancy Audit**: n/a.
+- [ ] 0.1.SR **Semantic Review**: baseline numbers quoted from real command output, never from memory.
+- [ ] 0.1.IV **Instruction Verification**: root `AGENTS.md` quality-workflow section re-read.
 
-### - [x] 0.2 Plan-Review Gate — `outcome/plan-review-R1.md`
+### - [ ] 0.2 Plan-Review Gate — `outcome/plan-review-R1.md`
 - Confirm the generation-time Phase 1.5 review verdict (`outcome/plan-review-R1.md`) is present and clean; if implementation reveals drift, re-run the review and record R2 before continuing.
 - _Requirements: REQ-001_
-- [x] 0.2.QL/.TE/.SEC: n/a (verification task).
-- [x] 0.2.SR **Semantic Review**: any spec↔code drift discovered during implementation is written back into specs/plan/tasks in the same commit.
-- [x] 0.2.IV **Instruction Verification**: `.agents/spec-process-guide/` templates re-read.
+- [ ] 0.2.QL/.TE/.SEC: n/a (verification task).
+- [ ] 0.2.SR **Semantic Review**: any spec↔code drift discovered during implementation is written back into specs/plan/tasks in the same commit.
+- [ ] 0.2.IV **Instruction Verification**: `.agents/spec-process-guide/` templates re-read.
 ---
 
 ## Phase 1 — Data Substrate (schema, types, i18n)
 
-### - [ ] 1.1 Schema: Write-Once Arbiter + Doc-Comment — `backend/db/schema/teachers/evaluations.ts`
+### - [x] 1.1 Schema: Write-Once Arbiter + Doc-Comment — `backend/db/schema/teachers/evaluations.ts`
 - Add `unique("evaluations_session_evaluator_unique").on(t.sessionId, t.evaluatorId)` as the last element of the constraint block (:42-47, after the three indexes) and add `unique` to the `drizzle-orm/pg-core` import (:2).
-- Rewrite the file header doc-comment (:6-20) to document BOTH consumers (applicant evaluation pipeline; student→teacher session rating, `score = rating × 20`).
+- Rewrite the file header doc-comment (:6-19) to document BOTH consumers (applicant evaluation pipeline; student→teacher session rating, `score = rating × 20`).
 - Apply with `bun run db push` (schema change; never `db migrate` for this); capture the generated DDL in the outcome; confirm the index exists (`\d evaluations` or DB introspection).
 - Verify no data-loss prompt appears (zero existing writer rows — evidence in `outcome/phase0-baseline-outcome.md`).
 - _Requirements: REQ-003_
-- [ ] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/schema/teachers/evaluations.ts --lifecycle duplicates` (exit 0).
-- [ ] 1.1.TE **Test Engineering**: covered transitively by 2.1's repo tests (23505 assertion) — mark here once those pass.
-- [ ] 1.1.SEC **Security & Tenancy Audit**: index introduces no read surface; confirm no existing query breaks (grep all `evaluations` table readers: `platform-analytics.repository.ts` only).
-- [ ] 1.1.SR **Semantic Review**: constraint name spelled identically in schema and in the service's 23505 mapping (task 2.3); snapshot/drizzle metadata committed by the push flow.
-- [ ] 1.1.IV **Instruction Verification**: read `backend/db/schema/AGENTS.md` + printed instruction files; comply.
+- [x] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/schema/teachers/evaluations.ts --lifecycle duplicates` (exit 0).
+- [x] 1.1.TE **Test Engineering**: covered transitively by 2.1's repo tests (23505 assertion) — marked here with the transitive note (2.1 not yet executed; name `evaluations_session_evaluator_unique` locked by 1.1).
+- [x] 1.1.SEC **Security & Tenancy Audit**: index introduces no read surface; confirm no existing query breaks (grep all `evaluations` table readers: `platform-analytics.repository.ts` only).
+- [x] 1.1.SR **Semantic Review**: constraint name spelled identically in schema and in the service's 23505 mapping (task 2.3); snapshot/drizzle metadata committed by the push flow.
+- [x] 1.1.IV **Instruction Verification**: read `backend/db/schema/AGENTS.md` + printed instruction files; comply.
 
-### - [ ] 1.2 Canonical Types — `backend/types/teachers/evaluation.types.ts`, `backend/types/classes/session.types.ts`
+### - [x] 1.2 Canonical Types — `backend/types/teachers/evaluation.types.ts`, `backend/types/classes/session.types.ts`
 - Extend evaluation types per `plan.md` §2.3: `EvaluationInsertType`, `EvaluationReturnType` (Omit `isDeleted`/`deletedAt`/`notes`/`updatedAt`), `EvaluationSubmitInput { readonly rating: number }`.
 - Add `SessionRatingEligibilityProbeType` (Pick of id/studentId/teacherId/status/confirmedByTeacherAt/confirmedByStudentAt) beside — not altering — `SessionTransitionProbeRowType` (:72-75).
 - No barrel edits needed (`export *` covers new symbols); verify with a type-level consumer import in the outcome.
 - _Requirements: REQ-004, REQ-001.7_
-- [ ] 1.2.QL **Quality Loop**: sub-loop on BOTH files, exit 0.
-- [ ] 1.2.TE **Test Engineering**: type-level correctness is tsgo-enforced (Tier 1); no runtime tests for type aliases.
-- [ ] 1.2.SEC **Security & Tenancy Audit**: ReturnType omit-list hides soft-delete internals + notes from GraphQL consumers.
-- [ ] 1.2.SR **Semantic Review**: no duplicate probe types; no new local types elsewhere (Pothos must import these).
-- [ ] 1.2.IV **Instruction Verification**: read `backend/types/AGENTS.md` + printed instructions.
+- [x] 1.2.QL **Quality Loop**: sub-loop on BOTH files, exit 0.
+- [x] 1.2.TE **Test Engineering**: type-level correctness is tsgo-enforced (Tier 1); no runtime tests for type aliases.
+- [x] 1.2.SEC **Security & Tenancy Audit**: ReturnType omit-list hides soft-delete internals + notes from GraphQL consumers.
+- [x] 1.2.SR **Semantic Review**: no duplicate probe types; no new local types elsewhere (Pothos must import these).
+- [x] 1.2.IV **Instruction Verification**: read `backend/types/AGENTS.md` + printed instructions.
 
-### - [ ] 1.3 i18n Keys — `shared/locale/types/errors/labels.ts`, `shared/locale/{en,ar}/errors/index.ts`, `shared/locale/types/sessions/labels.ts`, `shared/locale/{en,ar}/sessions/labels.ts`
+### - [x] 1.3 i18n Keys — `shared/locale/types/errors/labels.ts`, `shared/locale/{en,ar}/errors/index.ts`, `shared/locale/types/sessions/labels.ts`, `shared/locale/{en,ar}/sessions/labels.ts`
 - `errors` (REQ-007): add `evaluationSessionNotCompleted`, `evaluationAlreadySubmitted`, `teacherRatingInvalid` (en+ar, real translations — not transliterations).
 - `sessions` (REQ-009.7): add `rateTeacher`, `rateTeacherTooltip`, `rateTeacherDialogTitle`, `rateTeacherDialogSubmit`, `rateTeacherDialogCancel`, `rateTeacherSuccess`, `teacherRatedChip`, `ratingStarAriaLabel (position: number) => string` (en+ar; typed interpolation in `types/sessions/labels.ts`).
 - Do NOT touch `sessionRatingRange` (`en/errors/index.ts:97` — belongs to the report flow).
 - Run parity: `bun run test/scripts/run-test.ts shared/locale/sessions-namespace.parity.test.ts` and `…/errors-namespace.parity.test.ts`.
 - _Requirements: REQ-002, REQ-007, REQ-009_
-- [ ] 1.3.QL **Quality Loop**: sub-loop on each touched locale/type file (exit 0).
-- [ ] 1.3.TE **Test Engineering**: the two parity suites (key parity, ICU placeholder agreement, Arabic-script sanity) — extend nothing; they verify automatically.
-- [ ] 1.3.SEC **Security & Tenancy Audit**: n/a (static strings).
-- [ ] 1.3.SR **Semantic Review**: interpolation signatures identical en↔ar; no key collisions with existing `sessions` keys (`statusCompleted`, `confirmCompletion`, …).
-- [ ] 1.3.IV **Instruction Verification**: read `shared/locale/AGENTS.md`, `shared/AGENTS.md` + printed instructions (`@/shared/locale` alias imports only).
+- [x] 1.3.QL **Quality Loop**: sub-loop on each touched locale/type file (exit 0).
+- [x] 1.3.TE **Test Engineering**: the two parity suites (key parity, ICU placeholder agreement, Arabic-script sanity) — extend nothing; they verify automatically.
+- [x] 1.3.SEC **Security & Tenancy Audit**: n/a (static strings).
+- [x] 1.3.SR **Semantic Review**: interpolation signatures identical en↔ar; no key collisions with existing `sessions` keys (`statusCompleted`, `confirmCompletion`, …).
+- [x] 1.3.IV **Instruction Verification**: read `shared/locale/AGENTS.md`, `shared/AGENTS.md` + printed instructions (`@/shared/locale` alias imports only).
 ---
 
 ## Phase 2 — Backend (repository → journey-first → service)

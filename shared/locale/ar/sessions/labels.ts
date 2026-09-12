@@ -71,4 +71,12 @@ export const sessionsAr: SessionsLabels = {
   disputeReasonCollapse: "عرض أقل",
   pagerPreviousLabel: "الصفحة السابقة",
   pagerNextLabel: "الصفحة التالية",
+  rateTeacher: "تقييم المعلم",
+  rateTeacherTooltip: "قيّم معلمك في هذه الجلسة. لا يمكن إرسال التقييم إلا مرة واحدة.",
+  rateTeacherDialogTitle: "قيّم معلمك",
+  rateTeacherDialogSubmit: "إرسال التقييم",
+  rateTeacherDialogCancel: "إلغاء",
+  rateTeacherSuccess: "تم إرسال تقييمك للمعلم.",
+  teacherRatedChip: "تم التقييم",
+  ratingStarAriaLabel: (position: number) => `النجمة ${position} من 5`,
 };
