@@ -497,3 +497,47 @@ Stage Summary:
 - Project-wide tsgo exit 0 — zero new errors introduced.
 - Schema introspection confirms all five fields register with correct arg shapes + return types; the sibling parent-link queries survive intact (no drift); the ten parent-portal Pothos object types transitively register through the side-effect chain.
 - Carry-forward: task 3.3 runs `bun run generate:gqlSchema` + `bun codegen` to refresh the SDL + typed-document-node types, then extends the schema-surface assertion suite (pin the five field names + arg shapes + the INV-P2 mutation lock + the REQ-031 byte-unchanged participant-fields pin); task 6.3 authors the wire-level coverage (BFLA, BOLA, TOCTOU, pagination clamp, happy path, INV-P2 mutation-type assertion); tasks 5.1/5.2/5.3 consume the generated typed-document-nodes.
+
+---
+
+Task ID: 3.3
+Agent: Backend GraphQL Codegen Subagent (general-purpose)
+Task: GraphQL codegen checkpoint + SDL surface lock
+
+Work Log:
+- Read SKILL.md in FULL (mandatory hard rule #1) — task execution protocol, per-file quality verification, semantic review checklist, instruction verification.
+- Read ALL outcome files in `outcome/` (especially 3.1 + 3.2 — the ten object names + five field names that should now surface in the SDL).
+- Read specs.md (REQ-023 read-only posture, REQ-030 SDL surface, REQ-031 participant-only queries byte-unchanged), plan.md (§3.3 — codegen + SDL lock requirements; §3.4 codegen), tasks.md (task 3.3 section, lines 215-224).
+- Read applicable AGENTS.md + instruction files: root AGENTS.md, backend/AGENTS.md, backend/graphql/AGENTS.md, .agents/instructions/backend.instructions.md, .agents/instructions/tests.instructions.md.
+- Discovered the `feat/parent-read-only-monitoring-portal` branch was 1 commit behind `main` (the 3.2 commit `eab5658` had landed on `main` but not on `feat` due to the sandbox's between-invocation HEAD reset). Resolved via `git merge main --ff-only` — `feat` now sits at `eab5658` before this task's commit.
+- Ran `bun run generate:gqlSchema` — regenerated `frontend/graphql/generated/schema.graphql` (33017 → 36055 bytes, +98 lines = the ten new parent-portal object types + the five new root query field definitions with descriptions + arg shapes). Verified zero unintended churn via `git diff --stat HEAD`.
+- Ran `bun codegen` — the typed-document-node output `frontend/graphql/generated/gql/graphql.ts` is byte-unchanged because no portal GraphQL documents exist yet (task 5.1 will add them and trigger a second codegen refresh).
+- Inspected the regenerated SDL: confirmed all ten parent object types present (`ParentLinkedChild`, `ParentAttendanceEntry`, `ParentAttendancePage`, `ParentReportEntry`, `ParentReportPage`, `ParentHomeworkTrack`, `ParentHomeworkEntry`, `ParentHomeworkPage`, `ParentHomeworkPosition`, `ParentChildProgress`); all five root query fields present with correct arg shapes (`myLinkedChildren` zero-arg, `parentChildProgress(studentId: Int!)`, `parentChildSessions/Reports/Homework(page: Int, pageSize: Int, studentId: Int!)`); ZERO new Mutation fields referencing the portal service/names.
+- Extended `backend/graphql/test/schema-surface.test.ts` (the live schema-surface assertion suite matching parent queries) with:
+  - Two new constants (`PARENT_PORTAL_QUERY_FIELDS`, `PARENT_PORTAL_TYPE_NAMES`) added to the root-query additions pin + the whole-schema named-type additions pin.
+  - Ten `PARENT_*_FIELD_TYPES` maps pinning every object's exact field set + per-field type strings (BOPLA projection boundary).
+  - Two frozen participant-only SDL snippet constants (`PARTICIPANT_SESSION_REPORT_SDL`, `PARTICIPANT_SESSION_HOMEWORK_SDL`).
+  - A module-scope `rootQueryField` helper (sibling to the existing `mutationField` — extracted to satisfy `sonarjs/no-identical-functions`).
+  - A new describe block with 10 tests pinning every dimension of the portal surface (field names + arg shapes, `$all` authScopes conjunction, smuggled-args validation rejection, ten object types' exact field sets, `id: ID!` on entity shapes, zero-mutation lock on Mutation root + committed SDL Mutation block, participant-only byte-unchanged SDL snippets, SEC public-operations allowlist exclusion).
+  - Codegen-sync belt-and-braces checks for the five fields + ten type-block headers inside the committed SDL artifact.
+- Ran the test suite via `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts` — all 53 tests pass (10 new + 43 pre-existing).
+- Tier 4 rename-drift probe: three probes (field-name, return-type, arg-shape) all caught the deliberate rename; all probes reverted; the suite returned to green.
+- Ran `bun run scripts/health/sub-loop.ts backend/graphql/test/schema-surface.test.ts --lifecycle duplicates` — exit 0 (tsgo + oxlint + biome:check + lint:type-aware + check:duplicates all passed). One fix iteration: extracted the module-scope `rootQueryField` helper to resolve a `sonarjs/no-identical-functions` error (the initial closure-scoped `portalQueryField` was identical to the Notification describe block's `queryField`).
+- 3.3.SEC: verified `backend/lib/gateway/public-operations.ts` needs NO new entries — the closed 6-member allowlist (`login`, `refreshToken`, `logout`, `registerUser`, `recitationReadings`, `_health`) excludes all five portal fields. Grep-verified zero matches for `myLinkedChildren` / `parentChild*` / `parentMonitoring` in the allowlist. The SEC test in the new describe block asserts NONE of the five portal names is a member of `PUBLIC_OPERATION_NAMES` / `PUBLIC_OPERATIONS`.
+- 3.3.SR: full semantic review checklist verified — no dead branches, no cross-layer imports, no manual ReturnType construction, clean comments (ZERO plan-artifact references in my new additions, verified by grep scoped to lines > 1650), nullability EXACTLY matches the TS ReturnType shapes, `id: ID!` on entity shapes, scope boundary honored.
+- 3.3.IV: read ALL applicable AGENTS.md + instruction files (root AGENTS.md, backend/AGENTS.md, backend/graphql/AGENTS.md, .agents/instructions/backend.instructions.md, .agents/instructions/tests.instructions.md). All rules validated — no in-file violations, no cross-file blockers.
+- Committed `bfe2452 feat(parents): graphql codegen checkpoint + SDL surface lock` on `feat/parent-read-only-monitoring-portal` (staged only plan-related files — excluded the pre-existing `Caddyfile` sandbox artifact).
+- Wrote `outcome/3.3-codegen-sdl-lock-outcome.md` (summary, generated files committed, five field names + arg shapes pinned, ten object types pinned, INV-P2 zero-mutation lock proof, REQ-031 byte-unchanged proof, public-operations allowlist proof, verification results, carry-forward for 5.1/5.4/6.3/7.1, cross-file dependencies).
+- Marked `- [x] 3.3 GraphQL codegen checkpoint + SDL surface lock` in tasks.md (only the main task line — subtask checkboxes left as-is per task instructions).
+
+Stage Summary:
+- Branch: `feat/parent-read-only-monitoring-portal` (3 commits ahead of `origin/main`: 2fdf5e2 + eab5658 + bfe2452).
+- Generated files committed: `frontend/graphql/generated/schema.graphql` (regenerated, +98 lines). The `gql/graphql.ts` codegen output is byte-unchanged (no portal documents exist yet — task 5.1 will trigger a second codegen refresh).
+- Five field names + arg shapes pinned in SDL assertions: `myLinkedChildren` (zero-arg, `[ParentLinkedChild!]!`), `parentChildProgress(studentId: Int!): ParentChildProgress!`, `parentChildSessions(page: Int, pageSize: Int, studentId: Int!): ParentAttendancePage!`, `parentChildReports(page: Int, pageSize: Int, studentId: Int!): ParentReportPage!`, `parentChildHomework(page: Int, pageSize: Int, studentId: Int!): ParentHomeworkPage!`.
+- Ten object types pinned: `ParentLinkedChild`, `ParentAttendanceEntry`, `ParentAttendancePage`, `ParentReportEntry`, `ParentReportPage`, `ParentHomeworkTrack`, `ParentHomeworkEntry`, `ParentHomeworkPage`, `ParentHomeworkPosition`, `ParentChildProgress` — each with exact field set + per-field type strings.
+- INV-P2 zero-mutation lock proof: two complementary assertions (live Mutation root field-name iteration + committed SDL Mutation block slice) both confirm ZERO portal-named fields on the Mutation root.
+- REQ-031 byte-unchanged proof: the participant-only `sessionReport(sessionId: ID!): SessionReport` and `sessionHomework(sessionId: ID!): SessionHomeWork` SDL snippets match the frozen pre-portal baseline verbatim (git diff shows zero changes to those lines).
+- Test result: 53 pass / 0 fail / 595 expect() calls.
+- Sub-loop exit 0 at the deepest lifecycle stage (duplicates).
+- Tier 4 rename-drift probe: three probes (field-name, return-type, arg-shape) all caught the deliberate rename; all reverted.
+- Carry-forward for task 5.1: a SECOND codegen refresh is required after the portal GraphQL documents land (the `gql/graphql.ts` output is byte-unchanged in THIS task because no documents existed yet).

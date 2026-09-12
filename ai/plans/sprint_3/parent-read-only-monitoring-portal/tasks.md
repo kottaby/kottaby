@@ -212,7 +212,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - Write outcome: `outcome/3.2-query-registration-outcome.md`
   - _Requirements: REQ-020, REQ-022, REQ-023, REQ-024, REQ-030_
 
-- [ ] 3.3 GraphQL codegen checkpoint + SDL surface lock
+- [x] 3.3 GraphQL codegen checkpoint + SDL surface lock
   - Run `bun run generate:gqlSchema` then `bun codegen`; COMMIT the regenerated `frontend/graphql/generated/` output (required after every schema/document change — rerun later after Phase 5 documents too).
   - UPDATE the schema-surface assertion suites (precedents: `backend/graphql/test/session-sdl.test.ts`, `backend/graphql/test/schema-surface.test.ts` — inspect and extend the live one matching parent queries): pin all five field names + arg shapes; ADD the INV-P2 lock assertion proving ZERO new fields exist on root `Mutation` referencing the portal service/names; pin that the participant-only `sessionReport`/`sessionHomework` field definitions are byte-unchanged (REQ-031).
   - [ ] 3.3.QL **Quality Loop**: sub-loop exit 0 on the touched test file(s) (generated output is excluded from lint by config — verify, do not hand-edit)
