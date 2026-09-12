@@ -126,6 +126,28 @@ export namespace WalletRepository {
   }
 
   /**
+   * The guarded balance debit shared by both debit primitives: ONE UPDATE
+   * whose predicate carries the funds guard (`balance >= amount`) and whose
+   * SET clause touches ONLY the balance and the audit stamp —
+   * `total_earning` is deliberately untouched (a debit spends the balance;
+   * it never rewrites the gross lifetime earnings counter). The DB-side
+   * `wallet_balance_check >= 0` CHECK is the concurrent-overdraw backstop
+   * behind the predicate.
+   *
+   * @returns Whether the debit landed — `false` means zero rows matched
+   *          (insufficient funds; the caller classifies).
+   */
+  async function guardedBalanceDebit(walletId: number, amount: string, tx?: DBTransaction): Promise<boolean> {
+    const executor = tx ?? db;
+    const debited = await executor
+      .update(wallet)
+      .set({ balance: sql`${wallet.balance} - ${amount}`, updatedAt: new Date() })
+      .where(and(eq(wallet.id, walletId), gte(wallet.balance, amount)))
+      .returning({ id: wallet.id });
+    return debited.length > 0;
+  }
+
+  /**
    * The withdrawal debit slice (R-302), on the caller's
    * transaction: inserts ONE `pending` `withdrawal` ledger row (the
    * in-flight payout record; the append-only contract means settlement is
@@ -166,15 +188,56 @@ export namespace WalletRepository {
     if (!ledger) {
       throw new Error("WalletRepository.debitForWithdrawalOnce: ledger INSERT returned zero rows");
     }
-    const debited = await executor
-      .update(wallet)
-      .set({ balance: sql`${wallet.balance} - ${insert.amount}`, updatedAt: new Date() })
-      .where(and(eq(wallet.id, insert.walletId), gte(wallet.balance, insert.amount)))
-      .returning({ id: wallet.id });
-    if (debited.length === 0) {
-      return null;
+    const debited = await guardedBalanceDebit(insert.walletId, insert.amount, tx);
+    return debited ? ledger : null;
+  }
+
+  /**
+   * The arbitration reversal debit slice (the consumed-dispute outcomes'
+   * teacher leg), on the caller's transaction: inserts ONE `completed`
+   * `withdrawal` ledger row — the compensating record, keyed to the
+   * disputed session through the ledger's session FK so the reversal stays
+   * traceable end to end — and debits the wallet `balance` by exactly
+   * `amount` via the shared guarded UPDATE (the funds guard lives in the
+   * statement's predicate, `balance >= amount`). The amount is a decimal
+   * STRING bound verbatim (never re-parsed or re-rounded — money
+   * discipline; the decimal columns own the two-fraction storage). Both
+   * effects are one statement sequence on the caller's transaction: a
+   * `null` miss means the caller fails that transaction, so a denied
+   * arbitration commits neither the compensating row nor the debit —
+   * either both effects commit or neither does.
+   *
+   * @returns The inserted ledger row, or `null` when the guarded UPDATE
+   *     matched zero rows (insufficient funds — the caller classifies and
+   *     fails the transaction, rolling the compensating row back with it).
+   */
+  export async function debitForArbitrationOnce(
+    insert: {
+      readonly walletId: number;
+      readonly sessionId: number;
+      readonly amount: string;
+      readonly description: string;
+    },
+    tx?: DBTransaction
+  ): Promise<TeacherTransactionSelectType | null> {
+    const executor = tx ?? db;
+    const ledgerRows = await executor
+      .insert(teacherTransaction)
+      .values({
+        walletId: insert.walletId,
+        sessionId: insert.sessionId,
+        description: insert.description,
+        amount: insert.amount,
+        type: TransactionType.Withdrawal,
+        status: TransactionStatus.Completed,
+      })
+      .returning();
+    const ledger = ledgerRows[0];
+    if (!ledger) {
+      throw new Error("WalletRepository.debitForArbitrationOnce: ledger INSERT returned zero rows");
     }
-    return ledger;
+    const debited = await guardedBalanceDebit(insert.walletId, insert.amount, tx);
+    return debited ? ledger : null;
   }
 
   /**

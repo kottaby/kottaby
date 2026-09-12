@@ -101,4 +101,7 @@ export const errorsAr: ErrorsLabels = {
   homeworkAssignmentBlocksRequired: "يجب تحديد جزء الحفظ أو جزء المراجعة على الأقل في الواجب.",
   sessionRescheduleWindowInvalid: "يجب أن يكون وقت البدء قبل وقت الانتهاء.",
   sessionRescheduleStartInPast: "لا يمكن أن يكون وقت البدء في الماضي بأكثر من 5 دقائق.",
+  disputeResolutionMismatch: "لا يُسمح بهذا القرار للنزاع في حالة الضمان الحالية.",
+  partialRefundAmountInvalid:
+    "أدخل مبلغ استرداد جزئي صالحاً (أكبر من صفر وأقل من رسوم الجلسة، بخانتين عشريتين كحد أقصى).",
 };

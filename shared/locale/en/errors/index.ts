@@ -102,4 +102,7 @@ export const errorsEn: ErrorsLabels = {
   homeworkAssignmentBlocksRequired: "Provide at least one homework assignment block (new portion or revision).",
   sessionRescheduleWindowInvalid: "The start time must be before the end time.",
   sessionRescheduleStartInPast: "The start time cannot be more than 5 minutes in the past.",
+  disputeResolutionMismatch: "This resolution is not allowed for the dispute in its current escrow state.",
+  partialRefundAmountInvalid:
+    "Enter a valid partial refund amount (greater than zero, less than the session fee, with up to 2 decimal places).",
 };

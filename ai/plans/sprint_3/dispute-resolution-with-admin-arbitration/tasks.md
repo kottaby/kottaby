@@ -71,28 +71,28 @@ Backend-first with a **test-first journey** authored right after repo primitives
   - Outcome: `outcome/2.2-types-outcome.md`
   - _Requirements: REQ-5, REQ-6_
 
-- [ ] 2.3 Repository primitives + 100% repo tests
+- [x] 2.3 Repository primitives + 100% repo tests
   - `backend/db/repo/classes/session.repository.ts` (+ helpers): `openPostConfirmationDisputeOnce`, `resolveConsumedDisputeOnce`, `findArbitrationProbe`
   - `backend/db/repo/billing/wallet.repository.ts`: `debitForArbitrationOnce` (INSERT compensating `withdrawal`/`completed` row + guarded `balance >= amount` UPDATE, same tx)
   - Tests: extend `backend/db/test/repo/classes/session.repository.test.ts` and the wallet repo suite — happy paths, wrong-state/non-participant/double-fire null-miss matrix, insufficient-balance null, verified column effects, provenance lane NULL no-op path (repo-level via crafted row)
   - Tests use `runInRollback` + `tx` everywhere + try/catch error helpers; run via `bun run test/scripts/run-test.ts <test-path>`
-  - [ ] 2.3.QL / 2.3.TE (Tiers 1-4: boundary on amounts 0/large/2dp, chaos double-fire races, security deny matrix) / 2.3.SEC (predicate tenancy, mass-assignment shape) / 2.3.SR (atomicity, no read-then-write drift) / 2.3.IV
+  - [x] 2.3.QL / 2.3.TE (Tiers 1-4: boundary on amounts 0/large/2dp, chaos double-fire races, security deny matrix) / 2.3.SEC (predicate tenancy, mass-assignment shape) / 2.3.SR (atomicity, no read-then-write drift) / 2.3.IV
   - Outcome: `outcome/2.3-repo-primitives-outcome.md`
   - _Requirements: REQ-1, REQ-2, REQ-3, REQ-4, REQ-10_
 
-- [ ] 2.4 Journey test authored TEST-FIRST (expected red until 2.5/2.6 land)
+- [x] 2.4 Journey test authored TEST-FIRST (expected red until 2.5/2.6 land)
   - Create `test/workflows/sessions/post-confirmation-dispute.journey.test.ts`: J1 Refund, J2 Partial, J3 Uphold + denials (non-admin resolve, teacher post-confirmation open, classification mismatch, insufficient wallet) + concurrent double-arbitration race
   - Provision the actor cast via the shared `actor-context` factory with a per-run prefix `` `jrn_sessions_${randomUUID().slice(0,8)}` `` (test/workflows/AGENTS.md rules 3–4)
   - Committed fixtures + tracked `afterAll` cleanup with zero-residue re-probes; NO `runInRollback`; notifications spied at the engine boundary
-  - [ ] 2.4.QL / 2.4.TE / 2.4.SEC / 2.4.SR / 2.4.IV
+  - [x] 2.4.QL / 2.4.TE / 2.4.SEC / 2.4.SR / 2.4.IV
   - Outcome: `outcome/2.4-journey-test-first-outcome.md`
   - _Requirements: REQ-1 … REQ-10 (journey is the acceptance harness)_
 
-- [ ] 2.5 `SessionArbitrationService` — open, arbitrate, case review
+- [x] 2.5 `SessionArbitrationService` — open, arbitrate, case review
   - New `backend/services/classes/session-arbitration.service.ts` (+ `.helpers.ts`): `openPostConfirmationDispute`, `arbitrateDispute` (classification dispatch, partial-amount validation, wallet reversal + lane credit orchestration, audit contract `buildArbitrationAuditContract`), `getAdminDisputeCase` (compose repo primitives + `AuditTrailService.listAuditTrail`, admin re-asserted via `assertAdminGovernanceClean`)
   - All mutations single-tx; notification receipts collected in-tx (publish deferred to caller in 3.1) OR emitted via the notification service from 2.6 once both land (wire at integration point; keep service pure-returning receipts)
   - Service tests: probe-chain matrix, all three outcomes, classification mismatches, audit-row assertions ({resolution, amounts, notePresent}), insufficient-funds rollback, note-content exclusion
-  - [ ] 2.5.QL / 2.5.TE (Tiers 1-4 incl. Promise.allSettled double-arbitrate) / 2.5.SEC (BOLA/BFLA/BOPLA + wildcard hygiene N/A-no-LIKE) / 2.5.SR / 2.5.IV
+  - [x] 2.5.QL / 2.5.TE (Tiers 1-4 incl. Promise.allSettled double-arbitrate) / 2.5.SEC (BOLA/BFLA/BOPLA + wildcard hygiene N/A-no-LIKE) / 2.5.SR / 2.5.IV
   - Outcome: `outcome/2.5-arbitration-service-outcome.md`
   - _Requirements: REQ-1 … REQ-6, REQ-8, REQ-10_
 

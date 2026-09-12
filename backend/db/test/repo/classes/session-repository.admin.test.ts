@@ -889,11 +889,12 @@ describe("SessionRepository — admin governance surface (runInRollback)", () =>
   // ─── Tier 4: admin-surface source pins ──────────────────────────────
 
   // The repository implementation is split across the public namespace file
-  // and its sibling helpers module: every source pin below scans BOTH files
-  // as one implementation unit (mirroring the main repository suite).
+  // and its sibling helpers modules: every source pin below scans them as
+  // one implementation unit (mirroring the main repository suite).
   const REPO_FILES = [
     join(import.meta.dir, "../../../repo/classes/session.repository.ts"),
     join(import.meta.dir, "../../../repo/classes/session.repository.helpers.ts"),
+    join(import.meta.dir, "../../../repo/classes/session.repository.arbitration.helpers.ts"),
   ];
   const repoSource = REPO_FILES.map(file => readFileSync(file, "utf8")).join("\n");
 
