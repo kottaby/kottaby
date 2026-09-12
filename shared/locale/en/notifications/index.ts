@@ -12,6 +12,8 @@ export const notificationsEn: NotificationsLabels = {
   typeSessionRequest: "Session Request",
   typeSessionCompletion: "Session Completion",
   typeSessionCancellation: "Session Cancellation",
+  typeSessionDisputeOpened: "Session Dispute Opened",
+  typeSessionDisputeResolved: "Session Dispute Resolved",
   typeParentLinkRequest: "Parent Link Request",
   typeSystemBroadcast: "System Announcement",
   typePaymentConfirmation: "Payment Confirmation",

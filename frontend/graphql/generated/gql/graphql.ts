@@ -156,7 +156,10 @@ export type CreateSessionInput = {
 
 export enum DisputeResolution {
   Cancel = 'Cancel',
-  Complete = 'Complete'
+  Complete = 'Complete',
+  PartialRefund = 'PartialRefund',
+  Refund = 'Refund',
+  Uphold = 'Uphold'
 }
 
 export enum Gender {
@@ -201,6 +204,8 @@ export enum NotificationType {
   PaymentConfirmation = 'PaymentConfirmation',
   SessionCancellation = 'SessionCancellation',
   SessionCompletion = 'SessionCompletion',
+  SessionDisputeOpened = 'SessionDisputeOpened',
+  SessionDisputeResolved = 'SessionDisputeResolved',
   SessionRequest = 'SessionRequest',
   SystemBroadcast = 'SystemBroadcast'
 }

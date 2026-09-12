@@ -12,6 +12,8 @@ export const notificationsAr: NotificationsLabels = {
   typeSessionRequest: "طلب جلسة",
   typeSessionCompletion: "اكتمال الجلسة",
   typeSessionCancellation: "إلغاء الجلسة",
+  typeSessionDisputeOpened: "تم فتح نزاع جلسة",
+  typeSessionDisputeResolved: "تم حل نزاع الجلسة",
   typeParentLinkRequest: "طلب ربط ولي الأمر",
   typeSystemBroadcast: "إعلان النظام",
   typePaymentConfirmation: "تأكيد الدفع",

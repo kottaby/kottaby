@@ -65,3 +65,18 @@ Work Log:
 Stage Summary:
 - Gate PASSED; outcome/midpoint-review-R1.md written; checkbox 2.7 [x]
 - 3.1 note: schema regen MUST ship with resolver dispatch; resolver omits outer tx (flows own publish-after-commit)
+
+---
+Task ID: 3.1 (+branch recovery)
+Agent: Spec Implementation Orchestrator
+Task: Phase 3 GraphQL surface + working-tree recovery (per SKILL.md §Task Execution)
+
+Work Log:
+- Interrupted-run hazards: zombie agents from timed-out dispatches ran `git checkout main` twice, scattering state; recovered via blob-level reconciliation from snapshot commit ebce175 (all work verified present, feat branch repointed, main reset to origin/main)
+- 3.1 implementation (in-flight from interrupted agent) verified complete: openPostConfirmationDispute mutation, resolveSessionDispute partialAmount + family dispatch, adminDisputeCase query + AdminDisputeCase type, codegen byte-identical, notification presentation keys
+- Full verification: wire 21/0, schema-surface 46/0, sdl-static 39/0, regressions all 0-fail, parity 131/0, journey 13/0, knip 0, tsgo 0, sub-loop 16/16 exit 0
+
+Stage Summary:
+- Phase 3 complete: outcome/3.1-graphql-surface-outcome.md; checkbox 3.1 [x]
+- 4.1 carry-forward: OpenPostConfirmationDisputeMutation / AdminDisputeCaseQuery generated types; partialAmount InputMaybe<string>; DisputeResolution 5 members
+- All future subagent prompts carry explicit no-git-checkout clause (zombie hazard closed)

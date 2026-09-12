@@ -14,8 +14,9 @@
  *  - The notifications server page shell (`getTranslations(locale)` →
  *    `notificationsTranslations` slice).
  *
- * The per-type display labels cover exactly the seven notification-type
+ * The per-type display labels cover exactly the nine notification-type
  * values (`session_request`, `session_completion`, `session_cancellation`,
+ * `session_dispute_opened`, `session_dispute_resolved`,
  * `parent_link_request`, `system_broadcast`, `payment_confirmation`,
  * `evaluation_result`) — one label key per value.
  *
@@ -44,6 +45,10 @@ export interface NotificationsLabels {
   readonly typeSessionCompletion: string;
   /** Type display label — session_cancellation (a session was cancelled). */
   readonly typeSessionCancellation: string;
+  /** Type display label — session_dispute_opened (a post-confirmation dispute was opened). */
+  readonly typeSessionDisputeOpened: string;
+  /** Type display label — session_dispute_resolved (a dispute arbitration was decided). */
+  readonly typeSessionDisputeResolved: string;
   /** Type display label — parent_link_request (a parent asked to link an account). */
   readonly typeParentLinkRequest: string;
   /** Type display label — system_broadcast (platform-wide announcement). */

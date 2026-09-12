@@ -9,7 +9,11 @@
  *  - The top-level `backend/graphql/mutation/index.ts` imports THIS barrel;
  *    `gqlSchema.ts` imports that top-level barrel exactly once.
  *  - `session-lifecycle.mutation.ts` registers `createSession`,
- *    `startSession`, `completeSession`, and `cancelSession`.
+ *    `startSession`, `completeSession`, and `cancelSession` (plus the
+ *    `resolveSessionDispute` arbitration entry, which dispatches the two
+ *    dispute generations by outcome family).
+ *  - `session-arbitration.mutation.ts` registers
+ *    `openPostConfirmationDispute`.
  *  - `session-report.mutation.ts` registers `submitSessionReport`.
  *  - `admin-session-governance.mutation.ts` registers
  *    `adminRescheduleSession`, `adminCancelSession`,
@@ -18,5 +22,6 @@
  */
 import "./admin-session-governance.mutation";
 import "./recitation.mutation";
+import "./session-arbitration.mutation";
 import "./session-lifecycle.mutation";
 import "./session-report.mutation";

@@ -22,7 +22,7 @@
  *  - `PaymentGateway`, `PaymentStatus`, `SubscriptionStatus`,
  *    `SubscriptionCreditLane` (subscription purchase + settlement vocabulary)
  *  - `AdminUserGovernanceFilter` (active|suspended|blocked|deleted — admin directory filter)
- *  - `NotificationType` (the seven notification kinds)
+ *  - `NotificationType` (the nine notification kinds)
  *  - `BroadcastAudienceType` (all|role|country|plan — admin broadcast cohort kinds)
  *  - `AppLocale` (the per-user UI/copy preference — "ar" | "en")
  *  - `LinkStatus` (pending|confirmed|rejected|expired — parent-child link request lifecycle)
@@ -124,14 +124,20 @@ export const SessionStatusPothosEnum = gqlSchemaBuilder.enumType(SessionStatus, 
 });
 
 /**
- * GraphQL `DisputeResolution` enum (Cancel|Complete) — the admin arbitration
- * outcome vocabulary that exits the non-terminal `disputed` state into
- * exactly one terminal state.
+ * GraphQL `DisputeResolution` enum (Cancel|Complete|Refund|PartialRefund|
+ * Uphold) — the admin arbitration outcome vocabulary that exits the
+ * non-terminal `disputed` state into exactly one terminal state. The
+ * members serve the two dispute generations, discriminated by the row's
+ * escrow marker: `Cancel`/`Complete` resolve held-escrow disputes (the
+ * shipped lifecycle service), `Refund`/`PartialRefund`/`Uphold` resolve
+ * consumed-escrow disputes (the post-confirmation arbitration service) —
+ * the `resolveSessionDispute` mutation dispatches the two families.
  *
  * Registered ONCE from the canonical TS enum
- * (`backend/enum/scheduling/dispute-resolution.enum.ts`). There is NO
- * pgEnum backing this vocabulary — it is a pure transition selector on the
- * arbitration mutation, never a stored column value.
+ * (`backend/enum/scheduling/dispute-resolution.enum.ts`, which derives the
+ * registered members dynamically). There is NO pgEnum backing this
+ * vocabulary — it is a pure transition selector on the arbitration
+ * mutation, never a stored column value.
  */
 export const DisputeResolutionPothosEnum = gqlSchemaBuilder.enumType(DisputeResolution, {
   name: "DisputeResolution",
@@ -265,7 +271,7 @@ export const AuditActionTypePothosEnum = gqlSchemaBuilder.enumType(AuditActionTy
 });
 
 /**
- * GraphQL `NotificationType` enum (the seven notification kinds).
+ * GraphQL `NotificationType` enum (the nine notification kinds).
  *
  * Registered ONCE from the canonical TS enum
  * (`backend/enum/notifications/notification-type.enum.ts`), which mirrors the

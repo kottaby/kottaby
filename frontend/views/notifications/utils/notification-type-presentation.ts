@@ -3,6 +3,7 @@ import {
   CancelOutlined,
   CheckCircleOutlined,
   FamilyRestroomOutlined,
+  GavelOutlined,
   GradeOutlined,
   PaymentsOutlined,
   ScheduleOutlined,
@@ -18,7 +19,7 @@ import type { NotificationsLabels } from "@/shared/locale/types/notifications";
  * Enum-keyed `Record` lookup (the sanctioned `no-unsafe-enum-comparison`
  * pattern from `frontend/AGENTS.md`) — every accessor is a property access on
  * the `notifications` namespace labels handle, never call-by-key. Covers all
- * seven notification-type values; exhaustiveness is compiler-enforced by the
+ * nine notification-type values; exhaustiveness is compiler-enforced by the
  * `Record<NotificationType, …>` key type.
  */
 export const NOTIFICATION_TYPE_LABEL_ACCESSORS: Readonly<
@@ -27,6 +28,8 @@ export const NOTIFICATION_TYPE_LABEL_ACCESSORS: Readonly<
   [NotificationType.SessionRequest]: labels => labels.typeSessionRequest,
   [NotificationType.SessionCompletion]: labels => labels.typeSessionCompletion,
   [NotificationType.SessionCancellation]: labels => labels.typeSessionCancellation,
+  [NotificationType.SessionDisputeOpened]: labels => labels.typeSessionDisputeOpened,
+  [NotificationType.SessionDisputeResolved]: labels => labels.typeSessionDisputeResolved,
   [NotificationType.ParentLinkRequest]: labels => labels.typeParentLinkRequest,
   [NotificationType.SystemBroadcast]: labels => labels.typeSystemBroadcast,
   [NotificationType.PaymentConfirmation]: labels => labels.typePaymentConfirmation,
@@ -41,6 +44,8 @@ export const NOTIFICATION_TYPE_ICONS: Readonly<Record<NotificationType, SvgIconC
   [NotificationType.SessionRequest]: ScheduleOutlined,
   [NotificationType.SessionCompletion]: CheckCircleOutlined,
   [NotificationType.SessionCancellation]: CancelOutlined,
+  [NotificationType.SessionDisputeOpened]: GavelOutlined,
+  [NotificationType.SessionDisputeResolved]: GavelOutlined,
   [NotificationType.ParentLinkRequest]: FamilyRestroomOutlined,
   [NotificationType.SystemBroadcast]: CampaignOutlined,
   [NotificationType.PaymentConfirmation]: PaymentsOutlined,
@@ -56,6 +61,8 @@ export const NOTIFICATION_TYPE_CHIP_ORDER: readonly NotificationType[] = [
   NotificationType.SessionRequest,
   NotificationType.SessionCompletion,
   NotificationType.SessionCancellation,
+  NotificationType.SessionDisputeOpened,
+  NotificationType.SessionDisputeResolved,
   NotificationType.ParentLinkRequest,
   NotificationType.SystemBroadcast,
   NotificationType.PaymentConfirmation,

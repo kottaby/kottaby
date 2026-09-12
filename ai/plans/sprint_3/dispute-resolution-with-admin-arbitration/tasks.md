@@ -114,11 +114,11 @@ Backend-first with a **test-first journey** authored right after repo primitives
 
 ### Phase 3: GraphQL Surface
 
-- [ ] 3.1 Pothos mutations + query + schema/codegen
+- [x] 3.1 Pothos mutations + query + schema/codegen
   - `backend/graphql/mutation/classes/` + query dirs: `openPostConfirmationDispute` field; extend `resolveSessionDispute` input with `partialAmount`; new `adminDisputeCase` query + `AdminDisputeCase` object type (types from `@/backend/types`, single canonical object types)
   - Resolver dispatch: Cancel/Complete → shipped `resolveSessionDispute`; Refund/PartialRefund/Uphold → `arbitrateDispute`; publish notification receipts post-commit in the resolver/service shell per `docs/notifications/realtime-engine.md` contract
   - `bun run generate:gqlSchema && bun codegen`
-  - [ ] 3.1.QL / 3.1.TE (GraphQL tests via `setupTestServerLifecycle` + `testClient`: SDL surface pinning, denial bytes, dispatch matrix) / 3.1.SEC (scope gates, depth no-op) / 3.1.SR / 3.1.IV
+  - [x] 3.1.QL / 3.1.TE (GraphQL tests via `setupTestServerLifecycle` + `testClient`: SDL surface pinning, denial bytes, dispatch matrix) / 3.1.SEC (scope gates, depth no-op) / 3.1.SR / 3.1.IV
   - Outcome: `outcome/3.1-graphql-surface-outcome.md`
   - _Requirements: REQ-1 … REQ-8, REQ-10_
 

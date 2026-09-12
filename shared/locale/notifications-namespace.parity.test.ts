@@ -64,6 +64,8 @@ const MANDATED_KEYS = [
   "typeSessionRequest",
   "typeSessionCompletion",
   "typeSessionCancellation",
+  "typeSessionDisputeOpened",
+  "typeSessionDisputeResolved",
   "typeParentLinkRequest",
   "typeSystemBroadcast",
   "typePaymentConfirmation",
@@ -127,9 +129,11 @@ const MANDATED_KEYS = [
 ] as const;
 
 /**
- * One display-label key per each of the seven notification-type values —
+ * One display-label key per each of the nine notification-type values —
  * `session_request` ↔ typeSessionRequest, `session_completion` ↔
  * typeSessionCompletion, `session_cancellation` ↔ typeSessionCancellation,
+ * `session_dispute_opened` ↔ typeSessionDisputeOpened,
+ * `session_dispute_resolved` ↔ typeSessionDisputeResolved,
  * `parent_link_request` ↔ typeParentLinkRequest, `system_broadcast` ↔
  * typeSystemBroadcast, `payment_confirmation` ↔ typePaymentConfirmation,
  * `evaluation_result` ↔ typeEvaluationResult. (Pinned as a test fixture —
@@ -139,6 +143,8 @@ const TYPE_LABEL_KEYS = [
   "typeSessionRequest",
   "typeSessionCompletion",
   "typeSessionCancellation",
+  "typeSessionDisputeOpened",
+  "typeSessionDisputeResolved",
   "typeParentLinkRequest",
   "typeSystemBroadcast",
   "typePaymentConfirmation",
@@ -267,7 +273,7 @@ describe("compile-time parity mirror — ar/en key sets agree", () => {
 
 // ===========================================================================
 describe("type-label coverage — one display label per notification-type value", () => {
-  test("exactly SEVEN type-label keys exist (all 7 NotificationType values covered)", () => {
+  test("exactly NINE type-label keys exist (all 9 NotificationType values covered)", () => {
     const typeKeysOnMap = Object.keys(notificationsEn).filter(key => key.startsWith("type"));
     expect(typeKeysOnMap).toEqual([...TYPE_LABEL_KEYS]);
   });
