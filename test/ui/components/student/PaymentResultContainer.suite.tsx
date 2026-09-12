@@ -30,6 +30,20 @@
  *   branch 12 failed arm shows the retry CTA (journey back to the catalog)
  *   branch 13 copy contract pin (rendered copy equals preloaded labels)
  *
+ * FUNNEL-LEVEL coverage (task-owned additions on top of the 7.3 arms):
+ *
+ *   branch 14 cached-truth warm start: an Apollo cache pre-populated with
+ *             an ACTIVE `StudentSubscription` row (the instant-activation
+ *             payload's write) resolves the success arm on the FIRST paint
+ *             — the checking arm never flashes for the redirect-returning
+ *             student whose activation already landed in the cache
+ *   branch 15 stale-truth revalidation: a pre-populated PENDING row flips
+ *             to the ACTIVE success arm once the network revalidation
+ *             settles (`cache-and-network` post-settlement truth)
+ *   branch 16 hint-form robustness: an array-valued hint record (the
+ *             server page's `searchParams` multi-value shape) refines
+ *             nothing — the pending arm stays
+ *
  * Translation discipline: assertions reference ONLY the PRELOADED label
  * objects resolved through `Checkout.getLabels(getTranslations(locale))` —
  * ZERO hardcoded Arabic/English copy. The exception class is fixture DATA
@@ -37,9 +51,11 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
+import { InMemoryCache } from "@apollo/client";
 import type { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { cleanup, type RenderResult, waitFor } from "@testing-library/react";
+import { SubscriptionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { mySubscriptionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import {
   RESULT_ACTIVE_ROW,
@@ -88,6 +104,40 @@ async function waitForSettled(): Promise<void> {
     expect(screen.queryByTestId(PAYMENT_RESULT_LOADING_TEST_ID)).toBeNull();
   });
 }
+
+// ---------------------------------------------------------------------------
+// Cache-row fixtures (DATA — never locale copy)
+
+/**
+ * The ACTIVE cache row the funnel-journey arms write into the Apollo cache
+ * (the instant-activation payload's normalized `StudentSubscription:<id>`
+ * entry — the same id-first shape the catalog mutation writes).
+ */
+const ACTIVE_CACHE_ROW = {
+  __typename: "StudentSubscription",
+  id: "sub-cache-active",
+  planId: 3,
+  status: SubscriptionStatus.Active,
+  startDate: "2099-01-10T08:45:00.000Z",
+  endDate: "2099-02-10T08:45:00.000Z",
+  paymentMethod: null,
+  paymentReference: "purchase-claim-cache-active",
+  paymentVerifiedAt: "2099-01-10T08:46:00.000Z",
+  createdAt: "2099-01-10T08:45:00.000Z",
+  updatedAt: "2099-01-10T08:46:00.000Z",
+};
+
+/** The STALE PENDING cache row (the pre-webhook state the revalidation supersedes). */
+const STALE_PENDING_CACHE_ROW = {
+  ...ACTIVE_CACHE_ROW,
+  id: "sub-cache-stale",
+  status: SubscriptionStatus.Pending,
+  startDate: null,
+  endDate: null,
+  paymentReference: "purchase-claim-cache-stale",
+  paymentVerifiedAt: null,
+  updatedAt: "2099-01-10T08:45:00.000Z",
+};
 
 // ===========================================================================
 describe("PaymentResultContainer", () => {
@@ -227,6 +277,72 @@ describe("PaymentResultContainer", () => {
       expect(screen.getByText(t.resultSuccessTitle)).toBeDefined();
       expect(screen.getByText(t.resultSuccessBody)).toBeDefined();
       expect(screen.getByText(t.viewSubscriptionsButton)).toBeDefined();
+    });
+
+    test(`[${locale}] branch 14 — cached-truth warm start resolves the success arm on first paint`, async () => {
+      // The Apollo cache pre-populated with the ACTIVE row (the
+      // instant-activation payload's normalized write — the mutation's
+      // `StudentSubscription:<id>` entry): the redirect-returning student
+      // whose activation already landed in the cache gets the success arm
+      // on the FIRST paint, before the network settles.
+      const cache = new InMemoryCache();
+      cache.writeQuery({
+        query: mySubscriptionsQueryDocument,
+        data: { mySubscriptions: [ACTIVE_CACHE_ROW] },
+      });
+      renderWithWrapper(
+        <MockedProvider mocks={[subscriptionsListMock(RESULT_ACTIVE_ROW)]} cache={cache}>
+          <PaymentResultContainer hintParams={{}} />
+        </MockedProvider>,
+        { locale }
+      );
+      // First paint: no checking arm flash, the success arm is live.
+      expect(screen.queryByTestId(PAYMENT_RESULT_LOADING_TEST_ID)).toBeNull();
+      expect(screen.getByTestId(PAYMENT_RESULT_SUMMARY_TEST_ID)).toBeDefined();
+      await waitFor(() => {
+        expect(screen.getByText(t.resultSuccessTitle)).toBeDefined();
+      });
+      expect(screen.queryByText(t.resultPendingTitle)).toBeNull();
+    });
+
+    test(`[${locale}] branch 15 — stale cached truth revalidates to the active arm`, async () => {
+      // The cache pre-populated with a STALE PENDING row (the
+      // pre-webhook state): `cache-and-network` paints the pending arm from
+      // the stale truth, then the network revalidation flips the display to
+      // the ACTIVE success arm — the post-settlement truth the
+      // redirect-returning student always gets.
+      const cache = new InMemoryCache();
+      cache.writeQuery({
+        query: mySubscriptionsQueryDocument,
+        data: { mySubscriptions: [STALE_PENDING_CACHE_ROW] },
+      });
+      renderWithWrapper(
+        <MockedProvider mocks={[subscriptionsListMock(RESULT_ACTIVE_ROW)]} cache={cache}>
+          <PaymentResultContainer hintParams={{}} />
+        </MockedProvider>,
+        { locale }
+      );
+      // First paint resolves from the stale cache (pending), the network
+      // revalidation then settles the display to the success arm.
+      await waitFor(() => {
+        expect(screen.getByText(t.resultSuccessTitle)).toBeDefined();
+      });
+      expect(screen.queryByTestId(PAYMENT_RESULT_LOADING_TEST_ID)).toBeNull();
+      expect(screen.queryByText(t.resultPendingTitle)).toBeNull();
+      // The summary rides the settled truth (the ACTIVE row's values).
+      expect(screen.getByTestId(PAYMENT_RESULT_SUMMARY_TEST_ID)).toBeDefined();
+    });
+
+    test(`[${locale}] branch 16 — array-valued hints refine nothing (multi-value searchParams shape)`, async () => {
+      // The server page's promise-resolved `searchParams` carries
+      // array values for repeated keys — the hint record's shape the
+      // refinement must survive: an array-valued `success` hint is neither
+      // `success=false` nor `pending=true`, so it refines nothing.
+      renderResult([subscriptionsListMock(RESULT_PENDING_ROW)], locale, { success: ["true"] });
+      await waitForSettled();
+      expect(screen.getByText(t.resultPendingTitle)).toBeDefined();
+      expect(screen.queryByText(t.resultSuccessTitle)).toBeNull();
+      expect(screen.queryByText(t.resultFailedTitle)).toBeNull();
     });
   }
 });

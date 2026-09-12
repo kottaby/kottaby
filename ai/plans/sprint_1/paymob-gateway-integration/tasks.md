@@ -151,9 +151,9 @@
 
 ## Phase 8: Journey Validation
 
-- [ ] 8.1 Purchase→webhook→activation journey
+- [x] 8.1 Purchase→webhook→activation journey
   - CREATE `test/workflows/billing/paymob-purchase-journey.test.ts` per `docs/testing/workflow-journey-tests.md`: real services + real DB; Paymob HTTP mocked at the injected fetch boundary; callback delivery resolved through `getCallbackChannel()` (ngrok when reachable, simulation otherwise — REQ-094; NO per-test ngrok logic); drives purchase → verified callback → asserts activation + lane credit + persisted notification; replay + tamper + failure + cross-user journeys green.
-  - [ ] 8.1.QL · [ ] 8.1.TE · [ ] 8.1.SEC — denial probes from specs §3 · [ ] 8.1.SR · [ ] 8.1.IV
+  - [x] 8.1.QL · [x] 8.1.TE · [x] 8.1.SEC — denial probes from specs §3 · [x] 8.1.SR · [x] 8.1.IV
   - _Requirements: REQ-004, REQ-023, REQ-025, REQ-028, REQ-034, REQ-074_
 
 ---

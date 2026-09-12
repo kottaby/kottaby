@@ -29,6 +29,20 @@
  *             activation) — success snackbar + dialog closed
  *   branch 12 copy contract pin (rendered copy equals preloaded labels)
  *
+ * FUNNEL-LEVEL coverage (task-owned additions on top of the 7.2 arms):
+ *
+ *   branch 13 the in-flight purchase CTA's busy state inside the dialog
+ *             (the confirm copy swaps to the busy spinner while the
+ *             mutation runs — the 7.2 outcome's named-untested arm)
+ *
+ * CROSS-CONTAINER funnel interplay (the catalog's role in the purchase
+ * funnel) lives in the sibling `PlansCheckoutFunnelJourney.suite.tsx`:
+ * the instant-activation payload's normalized `StudentSubscription:901`
+ * row IS the cache entry the payment-result container's authoritative
+ * `mySubscriptions` re-query converges on, and the catalog re-query
+ * converges on the same `Plan:<id>` entries across a fresh provider —
+ * both exercised end-to-end there through the helpers this file exports.
+ *
  * Translation discipline: assertions reference ONLY the PRELOADED label
  * objects resolved through `Checkout.getLabels(getTranslations(locale))` —
  * ZERO hardcoded Arabic/English copy. The exception class is fixture DATA
@@ -40,7 +54,7 @@ import { ApolloLink } from "@apollo/client";
 import { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { cleanup, fireEvent, type RenderResult, waitFor } from "@testing-library/react";
-import { planCatalogQueryDocument } from "@/frontend/graphql/sharedDocuments";
+import { planCatalogQueryDocument, purchaseSubscriptionMutationDocument } from "@/frontend/graphql/sharedDocuments";
 import {
   PLAN_CATALOG_LOADING_MOCK,
   PLAN_CATALOG_ROWS,
@@ -75,6 +89,57 @@ const CATALOG_VARIABLES = {};
 const POPULATED_MOCK = planCatalogMock(PLAN_CATALOG_ROWS);
 
 /**
+ * The in-flight purchase arm's never-resolving mutation mock — held open
+ * with `delay: Infinity` so the busy CTA state is observable (the funnel's
+ * in-flight arm; the plans fixtures carry no in-flight builder).
+ */
+function purchaseInFlightMock(planId: string): MockLink.MockedResponse {
+  return {
+    request: { query: purchaseSubscriptionMutationDocument, variables: { input: { planId } } },
+    result: {
+      data: {
+        purchaseSubscription: {
+          subscription: {
+            __typename: "StudentSubscription",
+            id: "901",
+            planId: 402,
+            status: "Pending",
+            startDate: null,
+            endDate: null,
+            paymentMethod: null,
+            paymentReference: "purchase-claim-901",
+            paymentVerifiedAt: null,
+            createdAt: IN_FLIGHT_STAMP,
+            updatedAt: IN_FLIGHT_STAMP,
+          },
+          payment: {
+            __typename: "StudentPayment",
+            id: "951",
+            subscriptionId: 901,
+            amount: "300.00",
+            currency: "EGP",
+            paymentGateway: "mock-provider",
+            status: "Pending",
+            createdAt: IN_FLIGHT_STAMP,
+            updatedAt: IN_FLIGHT_STAMP,
+          },
+          checkout: {
+            __typename: "PaymentCheckout",
+            provider: "mock-provider",
+            providerReference: "purchase-claim-901",
+            checkoutUrl: null,
+          },
+        },
+      },
+    },
+    delay: Number.POSITIVE_INFINITY,
+  };
+}
+
+/** Deterministic fixture moment shared by the in-flight arm (DATA — never locale copy). */
+const IN_FLIGHT_STAMP = "2099-01-10T08:45:00.000Z";
+
+/**
  * Wire lane value → checkout label key: the fixture rows carry the enum's
  * wire string; assertions resolve the label through the PRELOADED label
  * objects only (zero hardcoded copy).
@@ -90,6 +155,14 @@ const LANE_LABEL_KEYS = {
 
 /** Alias for the scaffold's lazily-bound live-DOM screen (see its module docs). */
 const screen = liveScreen;
+
+/**
+ * The dialog arms' selected catalog row (DATA — never locale copy): the
+ * second fixture row, whose id the purchase-mutation fixtures key on.
+ * Exported for the funnel-journey suite — the catalog's confirm dialog is
+ * the funnel's entry point, so the journey arm opens THIS plan's dialog.
+ */
+const DIALOG_PLAN_ROW = PLAN_CATALOG_ROWS[1];
 
 /** Renders the container under MockedProvider(mocks) + TestWrapper (LocaleProvider → emotion → theme). */
 function renderPlans(mocks: ReadonlyArray<MockLink.MockedResponse>, locale: AppLocale): RenderResult {
@@ -147,6 +220,14 @@ async function renderPlansAndOpenDialog(
   fireEvent.click(screen.getByTestId(`${PLAN_CARD_TEST_ID_PREFIX}-${planId}${PLAN_CARD_BUY_SUFFIX}`));
   await waitFor(() => {
     expect(screen.getByRole("dialog")).toBeDefined();
+  });
+}
+
+/** Confirms the open dialog's purchase and resolves once the attempt settles (the journey prologue). */
+async function confirmOpenDialogPurchase(t: CheckoutLabels): Promise<void> {
+  fireEvent.click(screen.getByText(t.confirmButton));
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 }
 
@@ -235,7 +316,7 @@ describe("PlansCatalogContainer", () => {
     });
 
     test(`[${locale}] branch 6 — Buy opens the confirm dialog with summary + price`, async () => {
-      await renderPlansAndOpenDialog([POPULATED_MOCK], locale, "402");
+      await renderPlansAndOpenDialog([POPULATED_MOCK], locale, DIALOG_PLAN_ROW.id);
       expect(screen.getByText(t.confirmDialogTitle)).toBeDefined();
       expect(screen.getByText(t.amountDueLabel)).toBeDefined();
       expect(screen.getByText(t.confirmDialogSecureNote)).toBeDefined();
@@ -248,7 +329,7 @@ describe("PlansCatalogContainer", () => {
     });
 
     test(`[${locale}] branch 7 — dialog dismiss closes without a wire call`, async () => {
-      await renderPlansAndOpenDialog([POPULATED_MOCK], locale, "402");
+      await renderPlansAndOpenDialog([POPULATED_MOCK], locale, DIALOG_PLAN_ROW.id);
       fireEvent.click(screen.getByText(t.cancelButton));
       await waitFor(() => {
         expect(screen.queryByRole("dialog")).toBeNull();
@@ -286,7 +367,7 @@ describe("PlansCatalogContainer", () => {
     });
 
     test(`[${locale}] branch 9 — purchase failure keeps the dialog open with the localized error`, async () => {
-      await renderPlansAndOpenDialog([POPULATED_MOCK, PURCHASE_FAILED_MOCK], locale, "402");
+      await renderPlansAndOpenDialog([POPULATED_MOCK, PURCHASE_FAILED_MOCK], locale, DIALOG_PLAN_ROW.id);
       fireEvent.click(screen.getByText(t.confirmButton));
       await waitFor(() => {
         expect(screen.getByText(t.genericError)).toBeDefined();
@@ -299,7 +380,7 @@ describe("PlansCatalogContainer", () => {
     });
 
     test(`[${locale}] branch 11 — instant activation (checkoutUrl null) shows the success notice`, async () => {
-      await renderPlansAndOpenDialog([POPULATED_MOCK, PURCHASE_COMPLETED_MOCK], locale, "402");
+      await renderPlansAndOpenDialog([POPULATED_MOCK, PURCHASE_COMPLETED_MOCK], locale, DIALOG_PLAN_ROW.id);
       fireEvent.click(screen.getByText(t.confirmButton));
       await waitFor(() => {
         expect(screen.getByText(t.purchaseCompletedNotice)).toBeDefined();
@@ -321,6 +402,27 @@ describe("PlansCatalogContainer", () => {
       expect(screen.getByText(t.laneCreditLine(t.laneHifz))).toBeDefined();
       expect(screen.getByText(t.laneCreditLine(t.laneTajweed))).toBeDefined();
     });
+
+    test(`[${locale}] branch 13 — in-flight purchase shows the busy CTA inside the dialog`, async () => {
+      // The never-resolving purchase mock holds the mutation in flight —
+      // the busy CTA state the 7.2 arms never asserted in isolation.
+      await renderPlansAndOpenDialog(
+        [POPULATED_MOCK, purchaseInFlightMock(DIALOG_PLAN_ROW.id)],
+        locale,
+        DIALOG_PLAN_ROW.id
+      );
+      fireEvent.click(screen.getByText(t.confirmButton));
+      // The confirm affordance swaps to its busy copy while the mutation
+      // runs and the cancel affordances leave (disabled is not a text
+      // query) — the dialog stays open for the in-flight window.
+      await waitFor(() => {
+        expect(screen.getByText(t.confirmBusyButton)).toBeDefined();
+      });
+      expect(screen.getByRole("dialog")).toBeDefined();
+      // The attempt settles nowhere — no notice, no error while in flight
+      // (the arm pins the in-flight state, not the outcome).
+      expect(screen.queryByText(t.purchaseCompletedNotice)).toBeNull();
+    });
   }
 });
 
@@ -340,7 +442,7 @@ describe.skip("PlansCatalogContainer — hosted-checkout redirect arm (D8-class)
     await renderPlansAndOpenDialog(
       [POPULATED_MOCK, purchaseRedirectMock("https://eg.checkout.paymob.com/")],
       locale,
-      "402"
+      DIALOG_PLAN_ROW.id
     );
     fireEvent.click(screen.getByText(t.confirmButton));
     await waitFor(() => {
@@ -348,3 +450,31 @@ describe.skip("PlansCatalogContainer — hosted-checkout redirect arm (D8-class)
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Funnel-journey exports — consumed by `PlansCheckoutFunnelJourney.suite.tsx`
+// (the cross-container Apollo-cache interplay matrix). Declared AFTER the
+// suite bodies so the module-level fixture consts are initialized (the
+// journey suite exercises the funnel with the SAME fixtures + render helpers
+// the per-container suites pin — the test-tier counterpart of the view
+// modules' one-definition-site convention).
+
+/** The populated catalog mock (the journey arm's catalog side). */
+export const FUNNEL_CATALOG_MOCK: ReadonlyArray<MockLink.MockedResponse> = [POPULATED_MOCK];
+
+/** The dialog arms' selected catalog row (the funnel's dialog entry point). */
+export const FUNNEL_DIALOG_PLAN = DIALOG_PLAN_ROW;
+
+/**
+ * The catalog funnel interaction: opens the dialog for the journey plan,
+ * confirms, and resolves once the purchase attempt settles (the dialog
+ * leaves the DOM) — the catalog side of the funnel-journey matrix.
+ */
+export async function funnelOpenDialogAndConfirm(
+  locale: AppLocale,
+  t: CheckoutLabels,
+  extraMocks: ReadonlyArray<MockLink.MockedResponse> = []
+): Promise<void> {
+  await renderPlansAndOpenDialog([...FUNNEL_CATALOG_MOCK, ...extraMocks], locale, DIALOG_PLAN_ROW.id);
+  await confirmOpenDialogPurchase(t);
+}

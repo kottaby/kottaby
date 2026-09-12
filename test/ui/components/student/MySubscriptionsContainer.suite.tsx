@@ -16,6 +16,20 @@
  *   (lifecycle chip per key · failed-payment chip + guidance copy ·
  *   verbatim pending placeholders · formatted dates) · copy contract pin.
  *
+ * FUNNEL-LEVEL coverage (task-owned additions on top of the 7.4 arms):
+ *
+ *   branch 7  the verified-pending row (payment stamp SET, still Pending —
+ *             the activation path's honest settled shape) renders NO failed
+ *             chip: the failed derivation keys off the UNSET verification
+ *             stamp, so a verified pending row stays the amber in-flight
+ *             chip (the activation/pending boundary the failed-payment
+ *             contract rests on)
+ *   branch 8  cached-truth warm start: an Apollo cache pre-populated with
+ *             the funnel's rows (the instant-activation payload's write)
+ *             renders the populated list on the FIRST paint — the checking
+ *             skeleton never flashes for the returning student whose rows
+ *             already landed in the cache
+ *
  * Translation discipline: assertions reference ONLY the labels resolved
  * through `Checkout.getLabels(getTranslations(locale))` — ZERO hardcoded
  * Arabic/English copy. Fixture DATA (ids, ISO timestamps, statuses) is
@@ -23,7 +37,9 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
+import { InMemoryCache } from "@apollo/client";
 import type { MockLink } from "@apollo/client/testing";
+import { MockedProvider } from "@apollo/client/testing/react";
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import {
   type MySubscriptionsQuery_mySubscriptions,
@@ -37,12 +53,15 @@ import {
   SUBSCRIPTIONS_ERROR_TEST_ID,
   SUBSCRIPTIONS_SKELETON_TEST_ID,
   SUBSCRIPTIONS_VIEW_TEST_ID,
+  SUBSCRIPTION_ROW_STATUS_SUFFIX,
+  SUBSCRIPTION_ROW_TEST_ID_PREFIX,
 } from "@/frontend/views/student/subscriptions/subscriptionsViewIds";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { Checkout as CheckoutNs } from "@/shared/locale/namespaces/checkout";
 import { getTranslations } from "@/shared/locale/server";
 import type { CheckoutLabels } from "@/shared/locale/types/checkout";
 import { liveScreen, renderWithMocks } from "@/test/ui/components/helpers";
+import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 
 // ---------------------------------------------------------------------------
 // Namespace warming — missing-key drift surfaces at LOAD, not in an arm.
@@ -221,6 +240,59 @@ for (const locale of ["ar", "en"] as const) {
       // constant (single-source route discipline).
       fireEvent.click(cta);
       expect(STUDENT_PLANS_ROUTE).toBe("/student/plans");
+    });
+
+    test("branch 7 — verified pending row (stamp set) renders NO failed chip", async () => {
+      // The activation path's honest settled shape: the subscription row
+      // stays Pending with the verification stamp SET (the activation
+      // landed) — the failed derivation keys off the UNSET stamp, so this
+      // row keeps the amber in-flight chip and carries no failed guidance.
+      const VERIFIED_PENDING_ROW = subscriptionFixture({
+        id: "6105",
+        status: SubscriptionStatus.Pending,
+        startDate: CREATED_ISO,
+        endDate: "2099-02-10T08:45:00.000Z",
+        paymentVerifiedAt: "2099-01-10T08:46:00.000Z",
+      });
+      renderSubscriptions([listMock([VERIFIED_PENDING_ROW])], locale);
+
+      await waitFor(() => {
+        expect(screen.getByText(t.statusPending)).toBeDefined();
+      });
+      // The pending chip renders; the derived failed chip + guidance do NOT
+      // (the failure signal is the UNSET verification stamp, not the row's
+      // pending lifecycle).
+      expect(screen.queryByText(t.statusFailed)).toBeNull();
+      expect(screen.queryByText(t.failedPaymentGuidance)).toBeNull();
+      // The period renders (the verified row's stamps are set — no
+      // placeholder).
+      expect(screen.queryAllByText(t.emptyValue)).toHaveLength(0);
+    });
+
+    test("branch 8 — cached-truth warm start renders the populated list on first paint", async () => {
+      // The Apollo cache pre-populated with the funnel's rows (the
+      // instant-activation payload's normalized `StudentSubscription:<id>`
+      // write): the returning student whose rows already landed in the
+      // cache gets the populated list on the FIRST paint — the skeleton
+      // never flashes.
+      const cache = new InMemoryCache();
+      cache.writeQuery({
+        query: mySubscriptionsQueryDocument,
+        data: { mySubscriptions: [ACTIVE_ROW] },
+      });
+      renderWithWrapper(
+        <MockedProvider mocks={[listMock([ACTIVE_ROW])]} cache={cache}>
+          <MySubscriptionsContainer />
+        </MockedProvider>,
+        { locale }
+      );
+      // First paint: no skeleton, the populated row is live under the chrome.
+      expect(screen.queryByTestId(SUBSCRIPTIONS_SKELETON_TEST_ID)).toBeNull();
+      expect(screen.getByTestId(`${SUBSCRIPTION_ROW_TEST_ID_PREFIX}-${ACTIVE_ROW.id}${SUBSCRIPTION_ROW_STATUS_SUFFIX}`)).toBeDefined();
+      expect(screen.getByText(t.subscriptionsPageTitle)).toBeDefined();
+      await waitFor(() => {
+        expect(screen.getByText(t.statusActive)).toBeDefined();
+      });
     });
   });
 }
