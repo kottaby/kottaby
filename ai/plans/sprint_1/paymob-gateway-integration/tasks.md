@@ -92,9 +92,9 @@
 
 ## Phase 5: Reconciliation Backstop
 
-- [ ] 5.1 Reconcile service
+- [x] 5.1 Reconcile service
   - CREATE `backend/services/billing/payment-gateway/paymob/paymob.reconcile.ts` — `reconcilePendingPaymobPayments({ now, batchLimit })`: provider/API-key gating; stale-pending query via A4 repo method; per row: `mintAuthToken` → `transactionInquiryByMerchantRef`; PAID/UNPAID outcomes funneled through `SubscriptionActivationService.processWebhookEvent` (no bespoke update); bounded batch; per-row summary log.
-  - [ ] 5.1.QL · [ ] 5.1.TE — gating (returns zero-count when unconfigured), inquiry mapping, handoff identity with webhook path, batch cap honored · [ ] 5.1.SEC — inquiry token never logged · [ ] 5.1.SR — no token caching (D7) · [ ] 5.1.IV
+  - [x] 5.1.QL · [x] 5.1.TE — gating (returns zero-count when unconfigured), inquiry mapping, handoff identity with webhook path, batch cap honored · [x] 5.1.SEC — inquiry token never logged · [x] 5.1.SR — no token caching (D7) · [x] 5.1.IV
   - _Requirements: REQ-004, REQ-033, REQ-035, REQ-036_
 - [ ] 5.2 Cron route
   - CREATE `app/api/cron/reconcile-paymob-payments/route.ts` following `app/api/cron/sweep-sessions/route.ts` (GET-only, `CRON_SECRET` timing-safe compare, 404 when inactive, `apiSuccessResponse`/`apiErrorResponse`, `resolveRequestId`); register in `ROUTE_INVENTORY` (A4 assertion green).
