@@ -9,11 +9,40 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
+import { session } from "@/backend/db/schema/classes/session";
+import { sessionRequestIdempotency } from "@/backend/db/schema/classes/session-request-idempotency";
+import { students } from "@/backend/db/schema/students/students";
+import {
+  createTestPlan,
+  createTestStudent,
+  createTestSubscription,
+  createTestTeacherRow,
+  createTestUser,
+} from "@/backend/db/test/entity-setup";
+import { runInRollback } from "@/backend/db/test/test-utils";
+import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
+import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
+import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
+import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { ValidationError } from "@/backend/lib/errors";
-import { assertBookingBoundary } from "@/backend/services/classes/session-lifecycle.booking";
+import { SubscriptionExpiryService } from "@/backend/services/billing/subscription-expiry.service";
+import {
+  assertBookingBoundary,
+  bookSessionInTx,
+} from "@/backend/services/classes/session-lifecycle.booking";
 import { MAX_IDEMPOTENCY_KEY_LENGTH } from "@/backend/services/classes/session-lifecycle.guards";
-import type { SessionSubmitInput } from "@/backend/types";
+import type {
+  DBTransaction,
+  SessionReturnType,
+  SessionStudentIntentType,
+  SessionSubmitInput,
+  StudentSelectType,
+  SubscriptionSelectType,
+} from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 function t() {
@@ -364,6 +393,266 @@ describe("assertBookingBoundary", () => {
       expect(en.validation).not.toBe(ar.validation);
       expect(en.idempotencyKeyRequired).not.toBe(ar.idempotencyKeyRequired);
       expect(en.invalidSessionIntent).not.toBe(ar.invalidSessionIntent);
+    });
+  });
+});
+
+/**
+ * Booking debit-ladder expiry gate — DB-backed integration tier.
+ *
+ * The ladder is exercised through the real transactional booking body on
+ * real repositories inside `runInRollback` (the `tx` joins every call):
+ * the fixture subscription's window close is backdated with a direct
+ * Drizzle update, the expiry sweep runs on the SAME transaction (flip +
+ * guarded zeroing), and the booking then walks the real ladder —
+ * trial debit, intent-lane debit, the one-shot uncovered-expired-lane
+ * probe, and the insufficient-balance denial, in that fixed order.
+ *
+ * Per the DB-test rules: no `.rejects.toThrow()` inside the rollback —
+ * denials are captured with a try/catch helper; read-back oracles assert
+ * the zero-write contract on every denial.
+ */
+describe("debitBookingLadder expiry gate — DB-backed ladder denials", () => {
+  /** One hour in milliseconds — the fixture backdate lag (window-vs-status). */
+  const BACKDATE_LAG_MS = 60 * 60 * 1000;
+
+  /** One day in milliseconds — the subscription window fixture unit. */
+  const MS_PER_DAY = 86_400_000;
+
+  /** The live balance lanes read back after a booking attempt. */
+  interface LaneSnapshot {
+    readonly trial: number;
+    readonly hifz: number | null;
+    readonly tajweed: number | null;
+    readonly reviews: number | null;
+  }
+
+  /** Student + certified teacher — the booking ladder's row dependencies. */
+  interface BookingActor {
+    readonly studentId: number;
+    readonly teacherId: number;
+  }
+
+  /** Creates one student actor and one certified teacher actor. */
+  async function createBookingActor(
+    tx: DBTransaction,
+    studentOverrides: Partial<StudentSelectType> = {}
+  ): Promise<BookingActor> {
+    const studentUser = await createTestUser(tx, { role: "student" });
+    const student = await createTestStudent(tx, studentUser.id, studentOverrides);
+    const teacherUser = await createTestUser(tx, { role: "teacher" });
+    await createTestTeacherRow(tx, teacherUser.id);
+    return { studentId: student.id, teacherId: teacherUser.id };
+  }
+
+  /** Seeds a LIVE in-window subscription on the lane via a credited plan. */
+  async function createLiveLaneSubscription(
+    tx: DBTransaction,
+    userId: number,
+    lane: SubscriptionCreditLane
+  ): Promise<SubscriptionSelectType> {
+    const plan = await createTestPlan(tx, { balanceLane: lane, sessionCount: 5, intervalDays: 30 });
+    return createTestSubscription(tx, userId, plan.id, {
+      status: SubscriptionStatus.Active,
+      startDate: new Date(Date.now() - MS_PER_DAY),
+      endDate: new Date(Date.now() + 29 * MS_PER_DAY),
+    });
+  }
+
+  /** Backdates the window close past now, then runs the expiry sweep in-tx. */
+  async function sweepWindowClosed(
+    tx: DBTransaction,
+    subscription: SubscriptionSelectType
+  ): Promise<{ expired: number; lanesZeroed: number }> {
+    await tx
+      .update(subscriptions)
+      .set({ endDate: new Date(Date.now() - BACKDATE_LAG_MS) })
+      .where(eq(subscriptions.id, subscription.id));
+    return SubscriptionExpiryService.expireDue(tx);
+  }
+
+  /** Read-back oracle: the student's live balance lanes (on the tx). */
+  async function readLanes(tx: DBTransaction, studentId: number): Promise<LaneSnapshot> {
+    const rows = await tx.select().from(students).where(eq(students.id, studentId)).limit(1);
+    const row = rows[0];
+    if (!row) {
+      throw new Error("fixture vanished: student row not found");
+    }
+    return {
+      trial: row.balanceTrial,
+      hifz: row.balanceHifz,
+      tajweed: row.balanceTajweed,
+      reviews: row.balanceReviews,
+    };
+  }
+
+  /** Read-back oracle: the student's booked sessions count (on the tx). */
+  async function countStudentSessions(tx: DBTransaction, studentId: number): Promise<number> {
+    const rows = await tx.select({ id: session.id }).from(session).where(eq(session.studentId, studentId));
+    return rows.length;
+  }
+
+  /** Read-back oracle: the student's burned claim keys count (on the tx). */
+  async function countStudentClaims(tx: DBTransaction, studentId: number): Promise<number> {
+    const rows = await tx
+      .select({ id: sessionRequestIdempotency.id })
+      .from(sessionRequestIdempotency)
+      .where(eq(sessionRequestIdempotency.userId, studentId));
+    return rows.length;
+  }
+
+  /** Books through the real transactional body with a unique claim key. */
+  function book(
+    tx: DBTransaction,
+    actor: BookingActor,
+    intent: SessionStudentIntentType,
+    claimKey: string = `gate-${randomUUID()}`
+  ): Promise<SessionReturnType> {
+    return bookSessionInTx(actor.studentId, { teacherId: actor.teacherId, intent }, claimKey, new Date(), tx, t());
+  }
+
+  /** Try/catch denial capture — never a pinned rejection inside the rollback. */
+  async function expectBookingDenial(attempt: () => Promise<unknown>): Promise<ValidationError> {
+    let errorCaught: unknown = null;
+    try {
+      await attempt();
+    } catch (error) {
+      errorCaught = error;
+    }
+    expect(errorCaught).toBeInstanceOf(ValidationError);
+    if (!(errorCaught instanceof ValidationError)) {
+      throw new Error("expected the booking to deny with a ValidationError");
+    }
+    return errorCaught;
+  }
+
+  test("expired + zeroed lane: denied with SUBSCRIPTION_EXPIRED before any write", async () => {
+    await runInRollback(async tx => {
+      const actor = await createBookingActor(tx, { balanceHifz: 3 });
+      const subscription = await createLiveLaneSubscription(tx, actor.studentId, SubscriptionCreditLane.Hifz);
+      expect(await sweepWindowClosed(tx, subscription)).toEqual({ expired: 1, lanesZeroed: 1 });
+
+      const lanesBefore = await readLanes(tx, actor.studentId);
+      const sessionsBefore = await countStudentSessions(tx, actor.studentId);
+      const claimsBefore = await countStudentClaims(tx, actor.studentId);
+
+      const denial = await expectBookingDenial(() => book(tx, actor, SessionIntent.Hifz));
+      expect(denial.code).toBe("SUBSCRIPTION_EXPIRED");
+      expect(denial.message).toBe(t().subscriptionExpired);
+
+      // Zero rows written on denial: the ladder's debit attempts missed,
+      // the probe only read, and neither a session nor a claim was born.
+      expect(await readLanes(tx, actor.studentId)).toEqual(lanesBefore);
+      expect(await countStudentSessions(tx, actor.studentId)).toBe(sessionsBefore);
+      expect(await countStudentClaims(tx, actor.studentId)).toBe(claimsBefore);
+    });
+  });
+
+  test("expired subscription with trial credit: the booking SUCCEEDS via the trial lane", async () => {
+    await runInRollback(async tx => {
+      const actor = await createBookingActor(tx, { balanceHifz: 3, balanceTrial: 2 });
+      const subscription = await createLiveLaneSubscription(tx, actor.studentId, SubscriptionCreditLane.Hifz);
+      expect(await sweepWindowClosed(tx, subscription)).toEqual({ expired: 1, lanesZeroed: 1 });
+
+      const booked = await book(tx, actor, SessionIntent.Hifz, "gate-trial-success-key");
+      expect(booked.status).toBe(SessionStatus.Scheduled);
+      expect(booked.feeHeld).toBe(true);
+      expect(booked.heldBalanceLane).toBe(HeldBalanceLane.Trial);
+
+      // The trial lane funded the hold; the expired lane stays zeroed.
+      const lanes = await readLanes(tx, actor.studentId);
+      expect(lanes.trial).toBe(1);
+      expect(lanes.hifz).toBe(0);
+
+      // The claim was born and points at the booked session.
+      const claims = await tx
+        .select({ id: sessionRequestIdempotency.id, sessionId: sessionRequestIdempotency.sessionId })
+        .from(sessionRequestIdempotency)
+        .where(eq(sessionRequestIdempotency.idempotencyKey, "gate-trial-success-key"));
+      expect(claims).toHaveLength(1);
+      expect(claims[0]?.sessionId).toBe(booked.id);
+    });
+  });
+
+  test("in-window subscription on an empty lane: the probe answers false — unchanged INSUFFICIENT_BALANCE denial", async () => {
+    await runInRollback(async tx => {
+      const actor = await createBookingActor(tx, { balanceHifz: 0 });
+      await createLiveLaneSubscription(tx, actor.studentId, SubscriptionCreditLane.Hifz);
+      // The sweep runs and finds nothing due — the lane is legitimately
+      // empty while coverage is live; the gate must NOT fire.
+      expect(await SubscriptionExpiryService.expireDue(tx)).toEqual({ expired: 0, lanesZeroed: 0 });
+
+      const lanesBefore = await readLanes(tx, actor.studentId);
+
+      const denial = await expectBookingDenial(() => book(tx, actor, SessionIntent.Hifz));
+      expect(denial.code).toBe("INSUFFICIENT_BALANCE");
+      expect(denial.message).toBe(t().insufficientBalance);
+
+      expect(await readLanes(tx, actor.studentId)).toEqual(lanesBefore);
+      expect(await countStudentSessions(tx, actor.studentId)).toBe(0);
+      expect(await countStudentClaims(tx, actor.studentId)).toBe(0);
+    });
+  });
+
+  test("in-window subscription with credited lane: unchanged ladder behavior — the intent lane funds the booking", async () => {
+    await runInRollback(async tx => {
+      const actor = await createBookingActor(tx, { balanceHifz: 2 });
+      await createLiveLaneSubscription(tx, actor.studentId, SubscriptionCreditLane.Hifz);
+
+      const booked = await book(tx, actor, SessionIntent.Hifz);
+      expect(booked.status).toBe(SessionStatus.Scheduled);
+      expect(booked.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
+
+      const lanes = await readLanes(tx, actor.studentId);
+      expect(lanes.hifz).toBe(1);
+      expect(lanes.trial).toBe(0);
+    });
+  });
+
+  test("never-subscribed empty lane: INSUFFICIENT_BALANCE regression intact", async () => {
+    await runInRollback(async tx => {
+      const actor = await createBookingActor(tx);
+      const lanesBefore = await readLanes(tx, actor.studentId);
+
+      const denial = await expectBookingDenial(() => book(tx, actor, SessionIntent.Hifz));
+      expect(denial.code).toBe("INSUFFICIENT_BALANCE");
+      expect(denial.message).toBe(t().insufficientBalance);
+
+      // Zero rows written on denial — the classic regression shape.
+      expect(await readLanes(tx, actor.studentId)).toEqual(lanesBefore);
+      expect(await countStudentSessions(tx, actor.studentId)).toBe(0);
+      expect(await countStudentClaims(tx, actor.studentId)).toBe(0);
+    });
+  });
+
+  test("expired-over-insufficient precedence on the Tajweed lane: the expiry denial wins", async () => {
+    await runInRollback(async tx => {
+      const actor = await createBookingActor(tx, { balanceTajweed: 3 });
+      const subscription = await createLiveLaneSubscription(tx, actor.studentId, SubscriptionCreditLane.Tajweed);
+      expect(await sweepWindowClosed(tx, subscription)).toEqual({ expired: 1, lanesZeroed: 1 });
+
+      const denial = await expectBookingDenial(() => book(tx, actor, SessionIntent.Tajweed));
+      expect(denial.code).toBe("SUBSCRIPTION_EXPIRED");
+      expect(denial.code).not.toBe("INSUFFICIENT_BALANCE");
+    });
+  });
+
+  test("GraphQL denial shape: extensions.code === SUBSCRIPTION_EXPIRED on the single thrown denial", async () => {
+    await runInRollback(async tx => {
+      const actor = await createBookingActor(tx, { balanceHifz: 3 });
+      const subscription = await createLiveLaneSubscription(tx, actor.studentId, SubscriptionCreditLane.Hifz);
+      await sweepWindowClosed(tx, subscription);
+
+      const denial = await expectBookingDenial(() => book(tx, actor, SessionIntent.Hifz));
+
+      // expectSingleDenial shape, mirrored at the error-object level: the
+      // single denial carries the domain code where the GraphQL transport
+      // surfaces it (errors[].extensions.code), plus the server-localized
+      // message — never the raw key, never empty.
+      expect(denial.extensions?.code).toBe("SUBSCRIPTION_EXPIRED");
+      expect(denial.message.length).toBeGreaterThan(0);
+      expect(denial.message).not.toBe("subscriptionExpired");
+      expect(denial.message).toBe(t().subscriptionExpired);
     });
   });
 });

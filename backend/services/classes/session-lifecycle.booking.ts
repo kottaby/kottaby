@@ -6,9 +6,12 @@
  *   1. the teacher certification lock (a `SELECT … FOR UPDATE` read whose
  *      certification value is the one the booking commits against);
  *   2. the guarded trial-first balance debit ladder (the trial lane is
- *      attempted first, then the intent's own lane; an all-miss booking
- *      throws and the transaction rolls back — the rollback is the only
- *      cleanup, no compensating writes exist);
+ *      attempted first, then the intent's own lane; on a double miss the
+ *      intent lane's subscription coverage is probed once — an uncovered
+ *      expired lane denies with the expiry error before the
+ *      insufficient-balance denial — and an all-miss booking throws so the
+ *      transaction rolls back; the rollback is the only cleanup, no
+ *      compensating writes exist);
  *   3. the idempotency claim insert (savepoint-bracketed so a duplicate key
  *      rolls back only the claim statement and keeps the surrounding
  *      transaction readable for the replay lookup);
@@ -34,8 +37,10 @@ import {
   SessionRepository,
   SessionRequestIdempotencyRepository,
   StudentRepository,
+  SubscriptionRepository,
   TeacherRepository,
 } from "@/backend/db/repo";
+import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
@@ -58,6 +63,29 @@ import type {
 } from "@/backend/types";
 import { SESSION_CONFIRMATION_WINDOW_MS } from "@/shared/constants/session-fees.constants";
 import type { getServerTranslations } from "@/shared/locale/server-graphql";
+
+/**
+ * The plan credit lane that backs each subscription-funded held booking
+ * lane. The trial lane is structurally absent from the map — it is never
+ * subscription-funded, so it has no credit-lane counterpart to probe.
+ * Frozen: the mapping is closed over the enum vocabulary.
+ */
+const HELD_LANE_TO_CREDIT_LANE: Readonly<
+  Record<HeldBalanceLane.Hifz | HeldBalanceLane.Tajweed, SubscriptionCreditLane>
+> = Object.freeze({
+  [HeldBalanceLane.Hifz]: SubscriptionCreditLane.Hifz,
+  [HeldBalanceLane.Tajweed]: SubscriptionCreditLane.Tajweed,
+});
+
+/**
+ * Whether a held lane is subscription-funded — exactly the vocabulary the
+ * lane map covers. The trial lane is exempt: it is never funded by a
+ * subscription, so a trial-miss booking denies as insufficient balance
+ * without probing subscription state.
+ */
+function isSubscriptionFundedHeldLane(lane: HeldBalanceLane): lane is HeldBalanceLane.Hifz | HeldBalanceLane.Tajweed {
+  return lane in HELD_LANE_TO_CREDIT_LANE;
+}
 
 /**
  * Pre-DB boundary validation — the client-controlled whitelist and the
@@ -88,7 +116,11 @@ export function assertBookingBoundary(
 
 /**
  * Trial-first debit ladder: the trial lane is always attempted first, then
- * the intent's own lane. An all-miss booking throws — the transaction
+ * the intent's own lane. On a double miss, the intent lane's subscription
+ * coverage is probed once — an uncovered expired lane denies with the
+ * expiry error, taking precedence over the insufficient-balance denial
+ * (the trial lane is structurally exempt: a trial debit succeeds before
+ * the gate is ever reached). An all-miss booking throws — the transaction
  * rollback is the only cleanup. Returns the provenance lane that funded
  * the hold.
  */
@@ -105,6 +137,17 @@ async function debitBookingLadder(
   const intentLane = intentLaneFor(intent);
   const intentDebited = await StudentRepository.decrementLaneIfAvailable(studentId, intentLane, tx);
   if (!intentDebited) {
+    if (
+      isSubscriptionFundedHeldLane(intentLane) &&
+      (await SubscriptionRepository.hasUncoveredExpiredLane(studentId, HELD_LANE_TO_CREDIT_LANE[intentLane], tx))
+    ) {
+      logger.logDomainError("Session booking rejected: subscription expired", {
+        code: "SUBSCRIPTION_EXPIRED",
+        entity: "session",
+        entityId: studentId,
+      });
+      throw new ValidationError("SUBSCRIPTION_EXPIRED", t.subscriptionExpired);
+    }
     logger.logDomainError("Session booking rejected: insufficient balance", {
       code: "INSUFFICIENT_BALANCE",
       entity: "session",
