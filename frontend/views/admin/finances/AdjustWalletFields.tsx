@@ -50,6 +50,7 @@ export function AdjustWalletFields({
             key={direction}
             type="button"
             variant={drafts.direction === direction ? "contained" : "outlined"}
+            aria-pressed={drafts.direction === direction}
             onClick={() => {
               onDirectionPick(direction);
             }}

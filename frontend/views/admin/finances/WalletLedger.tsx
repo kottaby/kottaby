@@ -48,10 +48,19 @@ export function WalletLedger({
   // renders the empty copy too (the honest no-wallet posture, never a
   // fabricated value).
   const noWallet = wallet !== null && wallet.balance === null && wallet.totalEarning === null;
-  const balanceDisplay =
-    wallet === null || noWallet || wallet.balance === null ? t.inspectorEmpty : formatMoneyAmount(wallet.balance);
-  const totalEarningsDisplay =
-    wallet === null || noWallet || wallet.totalEarning === null
+  // Loading copy while the wallet read is unresolved — the empty copy is
+  // reserved for the RESOLVED no-wallet state (the honest posture: a
+  // loading query never claims "no wallet transactions").
+  const unresolved = wallet === null && loading;
+  const loadingDisplay = t.loadingLabel;
+  const balanceDisplay = unresolved
+    ? loadingDisplay
+    : noWallet || wallet?.balance == null || wallet === null
+      ? t.inspectorEmpty
+      : formatMoneyAmount(wallet.balance);
+  const totalEarningsDisplay = unresolved
+    ? loadingDisplay
+    : noWallet || wallet?.totalEarning == null || wallet === null
       ? t.inspectorEmpty
       : formatMoneyAmount(wallet.totalEarning);
 

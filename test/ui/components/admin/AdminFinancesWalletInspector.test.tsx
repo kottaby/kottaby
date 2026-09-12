@@ -246,8 +246,11 @@ describe("AdminFinancesWalletInspector (en / LTR)", () => {
     renderInspector([teachersMock(), teachersMock(), walletMock(NO_WALLET), walletMock(NO_WALLET)]);
 
     await waitFor(() => expect(screen.getByTestId("admin-finances-balance-card")).toBeDefined());
-    // The null-pair renders the namespace's empty copy on BOTH cards.
-    expect(screen.getAllByText(t.inspectorEmpty).length).toBeGreaterThanOrEqual(2);
+    await waitFor(() =>
+      // The resolved null-pair renders the namespace's empty copy on BOTH
+      // cards (the loading copy only shows while the query is unresolved).
+      expect(screen.getAllByText(t.inspectorEmpty).length).toBeGreaterThanOrEqual(2)
+    );
     expect(screen.queryByText("0.00")).toBeNull();
   });
 
