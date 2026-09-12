@@ -117,7 +117,7 @@
 - [x] 2.2.SEC **Security & Tenancy Audit**: REQ-J4 oracle identity asserted byte-identically (same code + message for unknown id and foreign session).
 - [x] 2.2.SR **Semantic Review**: fixtures are committed (not rollback); every row tracked; no seed-data usage.
 - [x] 2.2.IV **Instruction Verification**: read `test/workflows/AGENTS.md` + tests instructions.
-### - [ ] 2.3 Service — `backend/services/teachers/student-evaluation.service.ts` (NEW) + `backend/services/teachers/index.ts`
+### - [x] 2.3 Service — `backend/services/teachers/student-evaluation.service.ts` (NEW) + `backend/services/teachers/index.ts`
 - Implement `StudentEvaluationService.submitTeacherEvaluation` and `listMyTeacherEvaluations` exactly per `plan.md` §4.1 (guard order, `withTransaction`, probe gate, oracle collapse, 23505 mapping, one `logDomainError` per denial, success logs nothing).
 - Reuse `assertPositiveSafeSessionId` (`backend/services/classes/session-lifecycle.guards.ts:123`) — do not re-implement id guards.
 - Service tests `backend/services/teachers/student-evaluation.service.test.ts` (template: `backend/services/classes/recitation.service.test.ts`): every REQ-006/REQ-007 denial; rating matrix 1..5 → score 20..100; rating 0 / 6 / 2.5 / NaN / non-integer string-coerced values → `VALIDATION` with `fields[]`; `outerTx` SAVEPOINT propagation; log-spy per denial; `listMyTeacherEvaluations` scoping (two students, each sees only their own).
