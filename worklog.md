@@ -35,3 +35,18 @@ Work Log:
 Stage Summary:
 - Task 7.1 complete: AC1 pinned verify-only (1 file changed, service untouched), QL exit 0, 9/9 orchestrator pin targets green at expected counts, 4/6 blocking-ticket suites green with 2 pre-existing reds diagnosed (CF-1/CF-2) and carried forward
 - 8.1 and 9.1 remain open per tasks.md
+
+---
+Task ID: 8-1
+Agent: Spec Implementation Orchestrator
+Task: 8.1 final quality gate + deferred-items enforcement
+
+Work Log:
+- Baseline trio re-run: tsgo 0 / biome 0 (1777 files) / lint-service green — zero new vs outcome/0.1-baseline-outcome.md
+- Full bun quality-gate OOMs in sandbox (eslint SIGABRT, 4GB — prior-session precedent); sanctioned per-file equivalent gate run: 22/22 plan-diff files sub-loop --lifecycle duplicates exit 0 (first pass hit mid-run branch reset; atomic retry 5/5 on the affected test files)
+- db push re-run: no changes (drift-free); test-layer coverage table completed (repo/service/journey/route/i18n all green; GraphQL/UI n/a by design D4/REQ-060)
+- Deferred gate: Ledger Table = D1 ✅ / D2 ❌ (sanctioned) / D3 ✅ — exactly 1 at this checkpoint as specified
+- Non-blocking pre-existing items documented: health-probe 3-route pin (fails identically on pristine main — worktree-verified), lane-debit inArray pin (same), blocking-ticket's unshipped session-booking-balance graphql test
+
+Stage Summary:
+- 8.1 GREEN — cleared for 9.1; outcome/8.1-outcome.md written; 8.1 + 8.1.IV [x]

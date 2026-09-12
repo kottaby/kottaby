@@ -134,11 +134,11 @@ Foundation-first: schema index → types → locale key → **journey test FIRST
 
 ## Phase 8: Final Quality Gate & Deferred-Items Enforcement (MANDATORY)
 
-- [ ] 8.1 Baseline comparison + deferred gate + full quality gate
+- [x] 8.1 Baseline comparison + deferred gate + full quality gate
   - Re-run baseline trio; confirm zero NEW errors vs `/tmp/baseline-*.txt` (compare against `outcome/0.1-baseline-outcome.md`).
   - Deferred gate: `grep -c "❌\|⚠️" ai/plans/sprint_1/subscription-validity-window-expiry/deferred-items.md` counts the Ledger Table rows (the ❌/⚠️ icons in the "Status Values" legend are definitional and excluded). At THIS checkpoint the expected count is exactly 1 — D2's sanctioned ❌, which closes ONLY when 9.1's canonical doc records the external-trigger ops handoff (D1 closed ✅ at 1.1 via plan-review R1; D3 closed ✅ at 1.1). After 9.1 the count MUST be 0 (re-run the grep there; a non-zero post-9.1 count blocks completion).
   - `bun quality-gate` green end-to-end (tsgo → oxlint → biome → lint → duplicates); caches NEVER cleared.
-  - [ ] 8.1.IV (instructions re-verified against every touched file)
+  - [x] 8.1.IV (instructions re-verified against every touched file)
   - Write `outcome/8.1-outcome.md`
   - _Requirements: REQ-001, REQ-002, REQ-075_
 
