@@ -125,9 +125,9 @@
 
 ## Phase 7: Student Purchase Funnel
 
-- [ ] 7.1 GraphQL documents + codegen
+- [x] 7.1 GraphQL documents + codegen
   - CREATE `frontend/graphql/sharedDocuments/billing/subscription-purchase.documents.ts` (`purchaseSubscriptionMutationDocument`, `mySubscriptionsQueryDocument`; `TypedDocumentNode`; `id` in every selection set); export through `frontend/graphql/sharedDocuments/billing/index.ts`; run `bun run generate:gqlSchema && bun codegen` (the `purchaseSubscription`/`mySubscriptions` resolvers are already landed).
-  - [ ] 7.1.QL · [ ] 7.1.TE — document snapshot/type compile checks · [ ] 7.1.SEC · [ ] 7.1.SR · [ ] 7.1.IV
+  - [x] 7.1.QL · [x] 7.1.TE — document snapshot/type compile checks · [x] 7.1.SEC · [x] 7.1.SR · [x] 7.1.IV
   - _Requirements: REQ-060, REQ-075_
 
 - [ ] 7.2 Student plan catalog + checkout initiation
