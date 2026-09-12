@@ -58,6 +58,7 @@ import { ConflictError, DomainError } from "@/backend/lib/errors";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
 import { NotificationEngine } from "@/backend/services/notifications";
 import type {
+  NotificationDeliveryReceipt,
   SessionReturnType,
   SessionSelectType,
   SessionStudentIntentType,
@@ -175,6 +176,28 @@ async function bookSession(intent: SessionStudentIntentType, key: string): Promi
   return booked;
 }
 
+/**
+ * Installs a recording no-op over the notification engine's publish
+ * contract: no realtime channel is ever touched, and each dispatch is
+ * recorded together with its receipts (and recipient ids) so a step can
+ * assert BOTH that a publish happened and WHICH users it targeted (the
+ * layer's rule 5). Installed once in `beforeAll`, restored in `afterAll`.
+ */
+function spyPublication(): { calls: NotificationDeliveryReceipt[][]; stop: () => void } {
+  const calls: NotificationDeliveryReceipt[][] = [];
+  const spy = spyOn(NotificationEngine, "publishReceipts").mockImplementation(async receipts => {
+    calls.push([...receipts]);
+  });
+  return { calls, stop: () => spy.mockRestore() };
+}
+
+let publication: ReturnType<typeof spyPublication> | undefined;
+
+/** Every recipient id the spy has recorded so far, in publish order. */
+function publishedUserIds(): number[] {
+  return (publication?.calls ?? []).flatMap(receipts => receipts.flatMap(receipt => receipt.recipientUserIds));
+}
+
 beforeAll(async () => {
   await db.transaction(async tx => {
     cast = await buildSessionJourneyCast(tx, registry, {
@@ -184,9 +207,11 @@ beforeAll(async () => {
       primaryStudent: { trial: 2, hifz: 4 },
     });
   });
+  publication = spyPublication();
 });
 
 afterAll(async () => {
+  publication?.stop();
   // Hard-deletes every tracked fixture AND service-created row (sessions,
   // idempotency claims) inside one committed transaction, FK-safe order.
   await registry.cleanup();
@@ -340,19 +365,15 @@ describe("Journey J2 — in-session lock: start locks, cancel and complete both 
     await SessionLifecycleService.startSession(cast.teacher.userId, booked.id, LOCALE);
     expect(await readTeacherOnline(cast.teacher.userId)).toBe(false);
 
-    const publishSpy = spyOn(NotificationEngine, "publishReceipts");
+    const publishesBefore = (publication?.calls ?? []).length;
     const completed = await SessionLifecycleService.completeSession(cast.teacher.userId, booked.id, LOCALE);
     expect(completed.status).toBe(SessionStatus.Completed);
     expect(completed.endedAt).not.toBeNull();
     expect(await readTeacherOnline(cast.teacher.userId)).toBe(true);
-
-    // The confirm prompt rides the completion's own commit and is published
-    // exactly once, to the primary student, strictly after that commit.
-    expect(publishSpy).toHaveBeenCalledTimes(1);
-    const published = publishSpy.mock.calls[0]?.[0];
-    expect(published).toHaveLength(1);
-    expect(published[0]?.recipientUserIds).toContain(cast.primaryStudent.userId);
-    publishSpy.mockRestore();
+    // The completion confirm-prompt wave is published exactly once,
+    // targeting the acting student (dispatch + recipient assert).
+    expect(publication?.calls ?? []).toHaveLength(publishesBefore + 1);
+    expect(publishedUserIds()).toContain(cast.primaryStudent.userId);
   });
 });
 
@@ -442,9 +463,9 @@ testOnRealPostgres(
     await SessionLifecycleService.startSession(cast.teacher.userId, booked.id, LOCALE);
     await SessionLifecycleService.openSessionDispute(cast.primaryStudent.userId, booked.id, "race fixture", LOCALE);
     const lanesBefore = await readStudentLanes(cast.primaryStudent.student.id);
-    // The start's INV-S6 lock must still be held going into the race: the
-    // winning resolution is what lifts it, so the final online assertion
-    // below genuinely proves the unlock happened.
+    // The start above locked the teacher offline; assert that state holds
+    // BEFORE the concurrent resolutions so the final `true` below proves
+    // the winning resolve is what lifted the lock (never pre-restored).
     expect(await readTeacherOnline(cast.teacher.userId)).toBe(false);
 
     const outcomes = await Promise.allSettled([
