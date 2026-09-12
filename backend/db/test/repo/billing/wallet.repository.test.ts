@@ -175,6 +175,15 @@ function causeChainContainsMessage(error: unknown, substring: string): boolean {
 }
 
 /**
+ * Type guard for the zero-row INSERT stub: it claims the single `insert`
+ * seam the defensive guards consume (a live `DBTransaction` shape is never
+ * structurally checked here — the guards only ever call `insert`).
+ */
+function isZeroRowInsertStub(value: unknown): value is DBTransaction {
+  return typeof value === "object" && value !== null && "insert" in value;
+}
+
+/**
  * Typed executor stub whose `insert(...).values(...).returning()` resolves
  * to zero rows. A live PostgreSQL INSERT ... RETURNING always yields one
  * row per inserted tuple, so the repositories' defensive zero-row guards
@@ -189,7 +198,10 @@ function zeroReturningExecutor(): DBTransaction {
       }),
     }),
   };
-  return stub as unknown as DBTransaction;
+  if (!isZeroRowInsertStub(stub)) {
+    throw new Error("zeroReturningExecutor: stub failed its own type guard");
+  }
+  return stub;
 }
 
 describe("WalletRepository — transactional paths (runInRollback)", () => {
@@ -351,7 +363,7 @@ describe("WalletRepository — transactional paths (runInRollback)", () => {
     });
   });
 
-  test("debitForWithdrawalOnce at the exact boundary (balance == amount) succeeds and lands on \"0.00\"", async () => {
+  test('debitForWithdrawalOnce at the exact boundary (balance == amount) succeeds and lands on "0.00"', async () => {
     await runInRollback(async tx => {
       const teacherUserId = await createTeacherFixture(tx);
       const fixtureWallet = await createTestWallet(tx, teacherUserId, {

@@ -92,7 +92,11 @@ function isTriggerEnforcing(states: readonly TriggerState[], triggerName: string
 }
 
 /** Asserts BOTH the BEFORE UPDATE and BEFORE DELETE triggers are present AND enabled. */
-function expectTriggerPairEnforcing(states: readonly TriggerState[], updateTrigger: string, deleteTrigger: string): void {
+function expectTriggerPairEnforcing(
+  states: readonly TriggerState[],
+  updateTrigger: string,
+  deleteTrigger: string
+): void {
   expect(isTriggerEnforcing(states, updateTrigger)).toBe(true);
   expect(isTriggerEnforcing(states, deleteTrigger)).toBe(true);
 }
@@ -145,7 +149,11 @@ async function expectTeacherTransactionPresent(tx: DBTransaction, id: number): P
 
 /** Independent read-back oracle for the payments ledger. */
 async function expectStudentPaymentPresent(tx: DBTransaction, id: number): Promise<void> {
-  const [row] = await tx.select({ id: studentPayments.id }).from(studentPayments).where(eq(studentPayments.id, id)).limit(1);
+  const [row] = await tx
+    .select({ id: studentPayments.id })
+    .from(studentPayments)
+    .where(eq(studentPayments.id, id))
+    .limit(1);
   expect(row).toBeDefined();
   expect(row?.id).toBe(id);
 }
@@ -166,6 +174,22 @@ function errorMessageChain(error: Error): string {
     messages.push(current.message);
   }
   return messages.join("\n");
+}
+
+/**
+ * Extracts the deepest cause-chain message — the DB-raised exception text
+ * itself, stripped of Drizzle's "Failed query" wrapper (whose embedded bind
+ * parameters, e.g. the wall-clock `updated_at`, differ between otherwise
+ * identical repeat attempts).
+ */
+function deepestCauseMessage(error: Error): string {
+  let current: Error = error;
+  const seen = new Set<Error>([error]);
+  while (current.cause instanceof Error && !seen.has(current.cause)) {
+    current = current.cause;
+    seen.add(current);
+  }
+  return current.message;
 }
 
 /**
@@ -232,7 +256,7 @@ describeTriggerTier("financial ledger immutability — trigger presence tier", (
       ]);
       const statesByTable = await Promise.all(IMMUTABLE_TABLES.map(table => probeTriggerStates(tx, table)));
       for (const states of statesByTable) {
-        expect(states.length).toBe(2);
+        expect(states).toHaveLength(2);
         for (const state of states) {
           expect([...expected].includes(state.name)).toBe(true);
         }
@@ -269,7 +293,9 @@ describeTriggerTier("financial ledger immutability — teacher_transaction tampe
       await expectTeacherTransactionPresent(tx, fixture.id);
 
       await withinSavepoint(tx, "teacher_tx_delete_probe", async () => {
-        const error = await expectRepoError(() => tx.delete(teacherTransaction).where(eq(teacherTransaction.id, fixture.id)));
+        const error = await expectRepoError(() =>
+          tx.delete(teacherTransaction).where(eq(teacherTransaction.id, fixture.id))
+        );
         const chain = errorMessageChain(error);
         expect(chain).toContain(TEACHER_TX_IMMUTABLE);
         expect(chain).toContain(TEACHER_TX_DELETE_MSG);
@@ -284,24 +310,25 @@ describeTriggerTier("financial ledger immutability — teacher_transaction tampe
       const fixture = await insertTeacherLedgerFixture(tx);
       await expectTeacherTransactionPresent(tx, fixture.id);
 
-      const firstMessages: string[] = [];
+      let firstMessage = "";
       await withinSavepoint(tx, "teacher_tx_repeat_probe_1", async () => {
         const error = await expectRepoError(() =>
           tx.update(teacherTransaction).set({ amount: "999.99" }).where(eq(teacherTransaction.id, fixture.id))
         );
-        firstMessages.push(errorMessageChain(error));
+        firstMessage = deepestCauseMessage(error);
+        expect(firstMessage).toContain(TEACHER_TX_IMMUTABLE);
+        expect(firstMessage).toContain(TEACHER_TX_UPDATE_MSG);
       });
 
-      const secondMessages: string[] = [];
       await withinSavepoint(tx, "teacher_tx_repeat_probe_2", async () => {
         const error = await expectRepoError(() =>
           tx.update(teacherTransaction).set({ amount: "999.99" }).where(eq(teacherTransaction.id, fixture.id))
         );
-        secondMessages.push(errorMessageChain(error));
+        expect(deepestCauseMessage(error)).toBe(firstMessage);
       });
 
-      expect(firstMessages[0]).toContain(TEACHER_TX_IMMUTABLE);
-      expect(secondMessages[0]).toBe(firstMessages[0]);
+      const after = await readTeacherTransactionRow(tx, fixture.id);
+      expect(after).toEqual(fixture);
     });
   });
 

@@ -50,7 +50,7 @@ Verification-only plan (D-1). Sequence: baseline → gap matrix (research) → r
 
 ### Task 1: Verification Gap Matrix (research → outcome)
 
-- [ ] 1. Author the financial-safety coverage matrix
+- [x] 1. Author the financial-safety coverage matrix
   - Read all `outcome/` files first (REQ-0).
   - Produce `outcome/01-verification-gap-matrix.md`: one row per ticket test scenario (6) and per PRODUCTION_READINESS financial row (§1.2, §2.1, §2.2, §2.3, §2.4-ref, §2.5) → mapped to existing test path:line OR "NEW (Task N)".
   - Classify each row: COVERED / PARTIAL / NEW REQUIRED.
@@ -72,32 +72,32 @@ Verification-only plan (D-1). Sequence: baseline → gap matrix (research) → r
 
 ### Task 2: Wallet repository coverage & constraint probes
 
-- [ ] 2. Create `backend/db/test/repo/billing/wallet.repository.test.ts`
+- [x] 2. Create `backend/db/test/repo/billing/wallet.repository.test.ts`
   - 100% lines & functions coverage of `WalletRepository` (per `backend/db/test/AGENTS.md` §14, `bun test --coverage`): `ensureWalletOnce` (create + conflict-idempotent re-enter), `creditEarningOnce` (ledger row + additive balance/total_earning, decimal-string fidelity), `findByTeacherId`, `listTransactionsByWalletId`, `listRecentTransactions` (ordering/limit), `debitForWithdrawalOnce` (success, exact-boundary `balance == amount`, insufficient → null + zero writes) (`backend/db/repo/billing/wallet.repository.ts:45-194`).
   - Constraint probes (savepoint-bracketed, `expectRepoError` + `constraintNameOf`, `backend/db/test/test-utils.ts:77,111`): raw `wallet.balance = -1` → `wallet_balance_check`; `total_earning = -1` → `wallet_total_earning_check`; direct negative `amount` insert → `teacher_transaction_amount_check`.
   - API-surface assertion: `WalletRepository` exposes no update/delete method for `teacher_transaction` (REQ-3 #5).
   - Fixtures via `createTestWallet` / `createTestTeacherTransaction` (`backend/db/test/entity-setup.ts:450,486`); all wrapped in `runInRollback` with `tx` propagation.
-  - [ ] 2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/test/repo/billing/wallet.repository.test.ts --lifecycle duplicates` → exit 0.
-  - [ ] 2.TE **Test Engineering**: run `bun run test/scripts/run-test.ts backend/db/test/repo/billing/wallet.repository.test.ts`; Tier-1 coverage of every method/branch; Tier-2 boundaries (0.00, exact-limit, precision); Tier-4 negative probes above.
-  - [ ] 2.SEC **Security & Tenancy Audit**: probes stay savepoint-contained; no seed data; no cross-fixture reads.
-  - [ ] 2.SR **Semantic Review**: checklist pass (no `.rejects.toThrow`, all repo calls receive `tx`, decimal strings never parsed).
-  - [ ] 2.IV **Instruction Verification**: read rule files printed by sub-loop (`backend/db/test/AGENTS.md`, `backend.instructions.md`, `tests.instructions.md`) and validate.
+  - [x] 2.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/db/test/repo/billing/wallet.repository.test.ts --lifecycle duplicates` → exit 0.
+  - [x] 2.TE **Test Engineering**: run `bun run test/scripts/run-test.ts backend/db/test/repo/billing/wallet.repository.test.ts`; Tier-1 coverage of every method/branch; Tier-2 boundaries (0.00, exact-limit, precision); Tier-4 negative probes above.
+  - [x] 2.SEC **Security & Tenancy Audit**: probes stay savepoint-contained; no seed data; no cross-fixture reads.
+  - [x] 2.SR **Semantic Review**: checklist pass (no `.rejects.toThrow`, all repo calls receive `tx`, decimal strings never parsed).
+  - [x] 2.IV **Instruction Verification**: read rule files printed by sub-loop (`backend/db/test/AGENTS.md`, `backend.instructions.md`, `tests.instructions.md`) and validate.
   - Write `outcome/2-wallet-repo-outcome.md`.
   - _Requirements: REQ-4, REQ-6, REQ-3(#5), REQ-0_
 
 ### Task 3: Immutability & trigger-tier probes
 
-- [ ] 3. Create `backend/db/test/logic/billing/financial-immutability.test.ts`
+- [x] 3. Create `backend/db/test/logic/billing/financial-immutability.test.ts`
   - Trigger-presence probe via `pg_trigger`/`pg_proc` for `teacher_transaction`, `student_payments`, `audit_logs` (pattern: `backend/db/test/logic/audit/audit-immutability.test.ts:420-435`).
   - Adversarial probes under savepoint: UPDATE any column on `teacher_transaction` → RAISE EXCEPTION; DELETE → RAISE EXCEPTION; assert error text/class per trigger (`backend/db/migration/3-immutability-triggers.sql:86-113`).
   - Compensating-row doctrine check: a second corrective INSERT succeeds while a mutation of the original fails (proves corrections path).
   - Runtime gating: trigger-tier block is wrapped in `describeTriggerTier = isPgliteProvider() ? describe.skip : describe` (precedent `backend/db/test/logic/audit/audit-immutability.test.ts:418`); a PGlite skip logs a note, never silently skips.
   - Assertion-only (reference) coverage rows for `student_payments` transition guard — do NOT duplicate `student-payment.repository.test.ts:206-213`; assert presence + one fresh tamper probe to pin behavior in the billing suite.
-  - [ ] 3.QL **Quality Loop**: sub-loop on the file → exit 0.
-  - [ ] 3.TE **Test Engineering**: `run-test.ts` green; Tier-1 covers both trigger branches (update/delete) per table; Tier-2 includes idempotent re-probe (fails identically on repeat).
-  - [ ] 3.SEC **Security & Tenancy Audit**: probes are destructive-by-design but savepoint-contained; `runInRollback` wrap; no global trigger manipulation.
-  - [ ] 3.SR **Semantic Review**: no dead branches; enum value-imports; no `Translation.`/string-literal misuse (N/A here but checked).
-  - [ ] 3.IV **Instruction Verification**: validate against printed rule files.
+  - [x] 3.QL **Quality Loop**: sub-loop on the file → exit 0.
+  - [x] 3.TE **Test Engineering**: `run-test.ts` green; Tier-1 covers both trigger branches (update/delete) per table; Tier-2 includes idempotent re-probe (fails identically on repeat).
+  - [x] 3.SEC **Security & Tenancy Audit**: probes are destructive-by-design but savepoint-contained; `runInRollback` wrap; no global trigger manipulation.
+  - [x] 3.SR **Semantic Review**: no dead branches; enum value-imports; no `Translation.`/string-literal misuse (N/A here but checked).
+  - [x] 3.IV **Instruction Verification**: validate against printed rule files.
   - Write `outcome/3-immutability-outcome.md`.
   - _Requirements: REQ-3, REQ-4(#3 constraint adjacency), REQ-6, REQ-0_
 
