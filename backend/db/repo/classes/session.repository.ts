@@ -71,6 +71,7 @@ import type {
   DBTransaction,
   SessionInsertType,
   SessionListFilterInput,
+  SessionRatingEligibilityProbeType,
   SessionReportWaveContextRow,
   SessionSelectType,
   SessionTransitionProbeRowType,
@@ -348,6 +349,42 @@ export namespace SessionRepository {
     tx?: DBTransaction
   ): Promise<SessionTransitionProbeRowType | null> {
     return sessionRepositoryImpl.findTransitionProbe(id, tx);
+  }
+
+  /**
+   * Rating-eligibility probe: reads the minimal gate projection (row
+   * identity, both participants, the lifecycle state, and the dual
+   * completion stamps) for a session id. A plain (non-locking) read: the
+   * dual-confirmation state is monotonic once written, so the read cannot
+   * gate a stale write, and duplicate submissions are arbitrated
+   * downstream by the evaluations table's unique (session, evaluator)
+   * constraint. The probe is classification-only — it never feeds a
+   * guarded update.
+   *
+   * `tx` is REQUIRED (not optional): the gate decision must run on the
+   * caller's transaction so it observes that transaction's own writes and
+   * commits against the same snapshot.
+   *
+   * @returns The six-column probe row, or `null` when the id is unknown
+   *          (the caller owns the not-found semantics).
+   */
+  export async function findRatingEligibilityProbe(
+    sessionId: number,
+    tx: DBTransaction
+  ): Promise<SessionRatingEligibilityProbeType | null> {
+    const rows = await tx
+      .select({
+        id: session.id,
+        studentId: session.studentId,
+        teacherId: session.teacherId,
+        status: session.status,
+        confirmedByTeacherAt: session.confirmedByTeacherAt,
+        confirmedByStudentAt: session.confirmedByStudentAt,
+      })
+      .from(session)
+      .where(eq(session.id, sessionId))
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   /**
