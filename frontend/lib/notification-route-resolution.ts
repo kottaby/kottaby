@@ -12,15 +12,25 @@ import { NotificationType } from "@/backend/enum/notifications/notification-type
  */
 export const STUDENT_LINK_REQUESTS_ROUTE = "/student/link-requests";
 
+/**
+ * The student sessions route — ONE definition site for every student
+ * sessions-page navigation consumer (the student nav entry and the
+ * session-completion notification deep link) so the two never drift.
+ *
+ * Same leaf-module discipline as `STUDENT_LINK_REQUESTS_ROUTE` above:
+ * directive-free and framework-free, safe for nav/card/test consumers.
+ */
+export const STUDENT_SESSIONS_ROUTE = "/student/sessions";
+
 /** Fallback row target — the notifications feed page (the unchanged default). */
 const NOTIFICATIONS_FEED_ROUTE = "/notifications";
 
 /**
  * `relatedEntityType` → deep-link route. The persisted `related_entity_type`
  * varchar carries the backend `NotificationType` enum VALUE for the
- * STUDENT-targeted parent-link row (e.g. `"parent_link_request"`), so that
- * key is the enum's member — never a bare string literal. `undefined` values
- * model the runtime miss for an unknown entity type (the realtime payload-map
+ * STUDENT-targeted row (e.g. `"parent_link_request"`), so every key is the
+ * enum's member — never a bare string literal. `undefined` values model the
+ * runtime miss for an unknown entity type (the realtime payload-map
  * precedent in `use-notification-realtime.helpers.ts`).
  *
  * PARENT-targeted parent-link rows (issue #99) deliberately carry
@@ -34,12 +44,16 @@ const NOTIFICATIONS_FEED_ROUTE = "/notifications";
  */
 const NOTIFICATION_ROUTE_BY_ENTITY_TYPE: Readonly<Record<string, string | undefined>> = {
   [NotificationType.ParentLinkRequest]: STUDENT_LINK_REQUESTS_ROUTE,
+  // The student's session-completion row deep-links to the sessions list —
+  // the surface where the Rate action lives.
+  [NotificationType.SessionCompletion]: STUDENT_SESSIONS_ROUTE,
 };
 
 /**
  * Resolve a drawer row's navigation target from its related-entity pointer.
- * Known entity types deep-link to their decision surface; every UNKNOWN or
- * absent pointer falls through UNCHANGED to the notifications feed page (the
+ * Known entity types deep-link to their surface (the student link-requests
+ * decision route, the student sessions list); every UNKNOWN or absent
+ * pointer falls through UNCHANGED to the notifications feed page (the
  * pre-deep-link hard anchor) — never throws, never mis-routes.
  */
 export function resolveNotificationRoute(relatedEntityType: string | null): string {

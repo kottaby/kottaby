@@ -43,7 +43,11 @@ import {
   myNotificationsQueryDocument,
   myUnreadNotificationCountQueryDocument,
 } from "@/frontend/graphql/sharedDocuments";
-import { resolveNotificationRoute, STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/lib/notification-route-resolution";
+import {
+  resolveNotificationRoute,
+  STUDENT_LINK_REQUESTS_ROUTE,
+  STUDENT_SESSIONS_ROUTE,
+} from "@/frontend/lib/notification-route-resolution";
 import { createApolloCache } from "@/frontend/providers/apollo/apolloCache";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
@@ -86,6 +90,7 @@ const FIXED_ISO = "2026-08-29T12:00:00.000Z";
 const LINK_REQUEST_ROW_TITLE = "drawer-deeplink-link-request";
 const UNKNOWN_ENTITY_ROW_TITLE = "drawer-deeplink-unknown-entity";
 const PARENT_DECISION_ROW_TITLE = "drawer-deeplink-parent-decision";
+const SESSION_COMPLETION_ROW_TITLE = "drawer-deeplink-session-completion";
 
 /**
  * Fixture row type — the codegen row PLUS `__typename` (MockLink passes
@@ -147,6 +152,16 @@ const PARENT_DECISION_ROW = drawerRow({
   // decision route. The bare literal pins the backend wire value.
   type: NotificationType.ParentLinkRequest,
   relatedEntityType: "parent_link_request_decision",
+});
+
+const SESSION_COMPLETION_ROW = drawerRow({
+  id: "304",
+  title: SESSION_COMPLETION_ROW_TITLE,
+  type: NotificationType.SessionCompletion,
+  // Enum member, never a bare literal — the backend enum's VALUE is exactly
+  // what the wire `relatedEntityType` carries ("session_completion").
+  relatedEntityType: BackendNotificationType.SessionCompletion,
+  relatedEntityId: 4103,
 });
 
 /** The drawer's single inbox window (mirrors `DRAWER_PAGE_SIZE`). */
@@ -244,6 +259,22 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expect(webSocketConstructions).toBe(0);
     });
 
+    test("a session_completion row anchors EXACTLY to the shared student sessions route", async () => {
+      renderDrawer([countMock(0), listMock([SESSION_COMPLETION_ROW])], locale);
+
+      const row = await waitFor(() => screen.getByText(SESSION_COMPLETION_ROW_TITLE).closest("a"));
+      if (row === null) {
+        throw new Error("row anchor must render (the row IS a Link anchor)");
+      }
+      // The anchor href IS the router target — the same single-sourced
+      // constant the student nav entry points at.
+      expect(row.getAttribute("href")).toBe(STUDENT_SESSIONS_ROUTE);
+      // Frozen-value pin: the constant must KEEP the exact route string the
+      // page's `withPageAuth` guard and the nav entry target.
+      expect(row.getAttribute("href")).toBe("/student/sessions");
+      expect(webSocketConstructions).toBe(0);
+    });
+
     test("a PARENT-audience decision row falls through to the notifications feed (issue #99)", async () => {
       renderDrawer([countMock(0), listMock([PARENT_DECISION_ROW])], locale);
 
@@ -275,6 +306,42 @@ describe("resolveNotificationRoute (drawer route-resolution seam)", () => {
     // wire contract (`parent-link-request.helpers.ts`) pinned here verbatim.
     expect(resolveNotificationRoute("parent_link_request_decision")).toBe("/notifications");
     expect(resolveNotificationRoute("parent_link_request_expiry")).toBe("/notifications");
+  });
+
+  test("maps every deep-linked entity type to its single-sourced route (table-driven)", () => {
+    // Lookup-table rows — the enum member is the KEY domain of the route map,
+    // never a `===` comparison target.
+    const routeByEntityType: ReadonlyArray<readonly [BackendNotificationType, string]> = [
+      [BackendNotificationType.ParentLinkRequest, STUDENT_LINK_REQUESTS_ROUTE],
+      [BackendNotificationType.SessionCompletion, STUDENT_SESSIONS_ROUTE],
+    ];
+    for (const [entityType, expectedRoute] of routeByEntityType) {
+      expect(resolveNotificationRoute(entityType)).toBe(expectedRoute);
+    }
+    // Frozen-value pins: the constants must KEEP the exact route strings the
+    // guard/nav/CTA consumers already anchor to.
+    expect(STUDENT_SESSIONS_ROUTE).toBe("/student/sessions");
+  });
+
+  test("unmapped and absent pointers STILL fall through to the feed page (table-driven fallback preservation)", () => {
+    // Every remaining backend enum member is UNMAPPED — the fall-through is
+    // the designed safe default for each notification kind without a
+    // student surface — alongside the free-string misses (issue #99
+    // refinements, out-of-vocabulary values) and the absent pointer.
+    const fallbackPointers: ReadonlyArray<string | null> = [
+      null,
+      "unknown_entity_type",
+      "parent_link_request_decision",
+      "parent_link_request_expiry",
+      BackendNotificationType.SessionRequest,
+      BackendNotificationType.SessionCancellation,
+      BackendNotificationType.SystemBroadcast,
+      BackendNotificationType.PaymentConfirmation,
+      BackendNotificationType.EvaluationResult,
+    ];
+    for (const pointer of fallbackPointers) {
+      expect(resolveNotificationRoute(pointer)).toBe("/notifications");
+    }
   });
 
   test("unknown and absent pointers fall through to the feed page (unchanged default)", () => {

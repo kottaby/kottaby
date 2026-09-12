@@ -91,3 +91,23 @@ Stage Summary:
 - SR: public-operation allowlist untouched; SDL pins purely additive (Mutation 34→35, Query 33→34); wire-test comments domain-only
 - IV: tests.instructions.md + backend.instructions.md (sub-loop-listed) + backend/graphql/AGENTS.md read
 - tasks.md 3.4 + 3.4.QL/.TE/.SEC/.SR/.IV flipped [x]; outcome/3.4-outcome.md filled (verification results, attestations, generated-names reality, test counts, carry-forward intact for 4.1)
+
+---
+Task ID: 4.3
+Agent: Frontend deep-link implementer
+Task: Sprint 3 student-evaluation plan — task 4.3 notification deep-link (SessionCompletion -> student sessions route)
+
+Work Log:
+- Context read: worklog + plan outcome/ dir, tasks.md 4.3, specs REQ-010, plan 5.1/5.2, frontend/AGENTS.md, precedents notification-route-resolution.ts (STUDENT_LINK_REQUESTS_ROUTE leaf constant) + navItems.ts + the existing deep-link suite
+- Outcome skeleton + [-] checkpoint written BEFORE verification (resilience protocol)
+- EXTENDED frontend/lib/notification-route-resolution.ts: single-sourced STUDENT_SESSIONS_ROUTE leaf constant + map entry SessionCompletion -> STUDENT_SESSIONS_ROUTE (enum-member key in the existing lookup table — no === on enums)
+- EXTENDED frontend/views/dashboard/nav/navItems.ts: student nav literal "/student/sessions" -> imported STUDENT_SESSIONS_ROUTE (docblock canonical-retargets note updated) — the route is now genuinely single-sourced across the nav item and the notification deep link
+- EXTENDED test/ui/components/notifications/notification-deep-link.test.tsx: drawer-level session_completion row test (both locales) + two table-driven resolver cells (full mapped-route table + exhaustive fallback-preservation table over every unmapped enum member, free-string misses, absent pointer)
+- Sandbox git-restore warfare: HEAD+tracked files repeatedly reset to main between invocations — countered via /tmp/task43-backup canonical copies + /tmp/task43-restore.sh re-run before every invocation (the three touched code files are byte-identical between main and feat, so edits re-apply verbatim; tasks.md/worklog.md rebuilt from the feat blobs each time)
+
+Stage Summary:
+- QL: sub-loop --lifecycle duplicates exit 0 x3 (route-resolution, navItems, deep-link test; tsgo/oxlint/biome/lint:type-aware/duplicates; logs /tmp/task43-subloop-*.log)
+- TE GREEN: deep-link suite 13 pass / 0 fail / 38 expect() (8 drawer cells incl. the new session_completion row across both locales + 5 pure resolver cells incl. the 2 new table-driven ones; log /tmp/task43-test-run-dom2.log); nav suite 39 pass / 0 fail / 175 expect() (log /tmp/task43-nav-test.log)
+- SEC attested: the deep-link target app/(dashboard)/student/sessions/page.tsx is withPageAuth({roles:[UserRole.Student]})-guarded (the guard is the only authorization boundary; role mismatches bounce to their own role dashboard; the deep link adds no new surface)
+- SR attested: route literal single-sourced (repo grep: the leaf constant + the page's own withPageAuth redirectTo self-reference + the non-importable bash ui-capture script + test frozen-value pins — no second app-code consumer literal); lookup tables not enum equality; no dead branches (NotificationDrawerBody.tsx:111 resolves every row through the map); no cross-layer imports added; zero plan-artifact comments; no colors
+- IV attested: frontend/AGENTS.md (cross-surface single-source rule, enum-safety lookup tables, no oxlint-disable) + printed frontend instructions; tasks.md 4.3 + sub-checkboxes flipped [x]; outcome/4.3-outcome.md filled

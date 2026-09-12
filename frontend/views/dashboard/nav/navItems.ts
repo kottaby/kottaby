@@ -26,7 +26,10 @@ import {
   PaymentsOutlined as WalletIcon,
 } from "@mui/icons-material";
 import { UserRole } from "@/frontend/graphql/generated/gql/graphql";
-import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/lib/notification-route-resolution";
+import {
+  STUDENT_LINK_REQUESTS_ROUTE,
+  STUDENT_SESSIONS_ROUTE,
+} from "@/frontend/lib/notification-route-resolution";
 import { dashboardEn } from "@/shared/locale/en/dashboard";
 import type { DashboardLabels } from "@/shared/locale/types/dashboard";
 import type { HandshakeCodeLabels } from "@/shared/locale/types/handshakeCode";
@@ -100,7 +103,10 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  *
  * Canonical retargets:
  *  - Sessions → `/student/sessions` / `/teacher/sessions` (a
- *    RETARGET of the former shared `/sessions` catch-all link)
+ *    RETARGET of the former shared `/sessions` catch-all link; the
+ *    student item points at the shared `STUDENT_SESSIONS_ROUTE`
+ *    constant so the nav and the session-completion notification
+ *    deep-link never drift)
  *  - Admin Users → `/admin/users` (the directory page exists)
  *  - Admin Plans → `/admin/plans`
  *  - Admin Broadcasts → `/admin/broadcasts` (a pure ADD, not a
@@ -116,7 +122,9 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
   [UserRole.Student]: [
     { route: "/student/dashboard", labelKey: "dashboard", Icon: DashboardIcon },
     { route: "/notifications", labelKey: "notifications", Icon: NotificationsIcon },
-    { route: "/student/sessions", labelKey: "sessions", Icon: SessionsIcon },
+    // Same single-sourced constant as the session-completion notification
+    // deep link (the surface where the Rate action lives).
+    { route: STUDENT_SESSIONS_ROUTE, labelKey: "sessions", Icon: SessionsIcon },
     { route: "/subscriptions", labelKey: "subscriptions", Icon: SubscriptionsIcon },
     { route: "/homework", labelKey: "homework", Icon: HomeworkIcon },
     { route: STUDENT_LINK_REQUESTS_ROUTE, labelKey: "linkRequests", Icon: LinkChildIcon },

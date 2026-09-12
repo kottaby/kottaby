@@ -198,14 +198,14 @@
 - [ ] 4.2.SR **Semantic Review**: gated on enum-string lookup tables (no `===` on enums); no hardcoded colors; no direct style props on MUI components.
 - [ ] 4.2.IV **Instruction Verification**: read `frontend/AGENTS.md`, `frontend/views/AGENTS.md` + frontend instructions.
 
-### - [ ] 4.3 Notification Deep-Link — `frontend/lib/notification-route-resolution.ts` (EXTEND)
+### - [x] 4.3 Notification Deep-Link — `frontend/lib/notification-route-resolution.ts` (EXTEND)
 - Map `NotificationType.SessionCompletion → STUDENT_SESSIONS_ROUTE`; NO such constant exists today — create it in the leaf module following the `STUDENT_LINK_REQUESTS_ROUTE` precedent (`frontend/lib/notification-route-resolution.ts:13-16`), and point the existing nav item at the same constant (`frontend/views/dashboard/nav/navItems.ts:119` currently holds the `"/student/sessions"` literal) so the route is genuinely single-sourced; extend the existing route-resolution unit tests (unmapped types still fall back to `/notifications`).
 - _Requirements: REQ-010_
-- [ ] 4.3.QL **Quality Loop**: sub-loop exit 0.
-- [ ] 4.3.TE **Test Engineering**: table-driven additions for the new mapping + fallback preservation.
-- [ ] 4.3.SEC **Security & Tenancy Audit**: navigation target is a role-guarded page already (`withPageAuth`).
-- [ ] 4.3.SR **Semantic Review**: route literal single-sourced (no second literal in the repo).
-- [ ] 4.3.IV **Instruction Verification**: read `frontend/AGENTS.md` + frontend instructions.
+- [x] 4.3.QL **Quality Loop**: sub-loop exit 0.
+- [x] 4.3.TE **Test Engineering**: table-driven additions for the new mapping + fallback preservation.
+- [x] 4.3.SEC **Security & Tenancy Audit**: navigation target is a role-guarded page already (`withPageAuth`).
+- [x] 4.3.SR **Semantic Review**: route literal single-sourced (no second literal in the repo).
+- [x] 4.3.IV **Instruction Verification**: read `frontend/AGENTS.md` + frontend instructions.
 
 ### - [ ] 4.4 Component Tests — `test/ui/components/student/rate-teacher-dialog.test.tsx` (NEW)
 - REQ-009.8 matrix (CTA hidden pre-confirmation / hidden when rated / visible dual-confirmed; dialog dispatch with selected rating; VALIDATION field error render; ALREADY_SUBMITTED → notice + rated state) using the component-test stack (Happy DOM + mocked Apollo via `renderWithWrapper` from `@/test/ui/components/TestWrapper`; labels resolved via `Sessions.getLabels(getTranslations(locale))` — `test/ui/AGENTS.md`). `translation-preload.ts` does NOT currently warm the `Sessions` handle — add `Sessions` and `Errors` to its warming loop as part of this task (load-bearing, `test/ui/AGENTS.md:163-165`).
