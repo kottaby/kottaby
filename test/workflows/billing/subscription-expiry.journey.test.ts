@@ -125,6 +125,9 @@ import {
 /** Per-run unique prefix — every fixture name, plan title, and idempotency key. */
 const PREFIX = journeyPrefix("billing");
 
+/** Error-copy locale for every service call and denial assertion. */
+const ERRORS_EN = getServerTranslations("en").errorsTranslations;
+
 /** Milliseconds per day — the activation window arithmetic. */
 const MS_PER_DAY = 86_400_000;
 
@@ -619,6 +622,7 @@ describe("cross-actor journey: subscription validity window → expiry sweep", (
     // The copy is server-localized — never the raw key, never empty.
     expect(denial.message.length).toBeGreaterThan(0);
     expect(denial.message).not.toBe("subscriptionExpired");
+    expect(denial.message).toContain(ERRORS_EN.subscriptionExpired);
 
     // Wire contract: the same denial through the real GraphQL scope gate is
     // exactly one error carrying the domain code in its extensions.

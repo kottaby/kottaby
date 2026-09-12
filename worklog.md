@@ -285,3 +285,18 @@ Work Log:
 Stage Summary:
 - Review wave closed; zero CRITICAL/HIGH/MEDIUM code findings across all rounds
 - Plan COMPLETE per tasks.md + SKILL.md exit criteria; branch 9dfb460 remote-verified
+---
+Task ID: R7B-FIX
+Agent: general-purpose
+Task: R7-b LOW fix — pin translated subscriptionExpired copy in journey step-5 denial
+
+Work Log:
+- Verified finding (HEAD 1fec7a2): journey step-5 denial (test/workflows/billing/subscription-expiry.journey.test.ts:618-621) asserted only `message.length > 0` + `!== "subscriptionExpired"`, contradicting test/workflows/AGENTS.md rule 6 (assert translated substrings from getServerTranslations("en").errorsTranslations) and the sibling precedent test/workflows/billing/subscription-purchase.journey.test.ts (ERRORS_EN constant at :122, `toContain(ERRORS_EN.notFound)` at :714). Key confirmed at shared/locale/en/errors/index.ts:85 ("Your subscription has expired."), thrown at backend/services/classes/session-lifecycle.booking.ts:149.
+- Sandbox hazard handled: HEAD was silently reset to main between tool calls multiple times; every git-dependent command re-verified HEAD == 1fec7a2 on feat/subscription-validity-window-expiry and re-checked out non-destructively when drifted.
+- Minimal single-file edit after pre-edit backup (/tmp/r7b-pre-journey.ts): added `const ERRORS_EN = getServerTranslations("en").errorsTranslations;` beside PREFIX (exact sibling derivation pattern, same doc comment) and strengthened step-5 with `expect(denial.message).toContain(ERRORS_EN.subscriptionExpired);`; existing non-empty / not-raw-key assertions kept; no other assertion touched.
+- scripts/health/sub-loop.ts <file> --lifecycle duplicates: exit 0 (tsgo, oxlint, biome:check, lint:type-aware, check:duplicates all green).
+- Journey suite (bun run test/scripts/run-test.ts test/workflows/billing/subscription-expiry.journey.test.ts): 7 pass / 0 fail, exit 0.
+- Service-tier pin suite (backend/services/classes/session-lifecycle.booking.test.ts): 26 pass / 0 fail, exit 0 — no interference.
+
+Stage Summary:
+- Only test/workflows/billing/subscription-expiry.journey.test.ts changed in the working tree; step-5 denial copy now pinned to the en errorsTranslations.subscriptionExpired string per AGENTS.md rule 6; both suites green (7/0 journey, 26/0 booking); sub-loop clean; nothing staged or committed — orchestrator commits.
