@@ -33,29 +33,29 @@
 
 ## Phase 0 — Baseline & Gate
 
-### - [ ] 0.1 Baseline & Ledger Verification — `outcome/phase0-baseline-outcome.md`, `deferred-items.md`
+### - [x] 0.1 Baseline & Ledger Verification — `outcome/phase0-baseline-outcome.md`, `deferred-items.md`
 - Re-run and record: `bun tsgo 2>&1 | grep -c "error TS"`, `bun run biome:check`, `bun run scripts/lint-service.ts --json --id baseline-dev2-016` — compare against planning-time baseline (tsgo 0 errors · biome clean · lint exit 0 @ 2026-09-11); record delta, if any.
 - Confirm `deferred-items.md` entries D1..D4 + cross-ticket section are present and still accurate.
 - _Requirements: REQ-001_
-- [ ] 0.1.QL **Quality Loop**: not a code task — no sub-loop run; record commands' raw output in the outcome.
-- [ ] 0.1.TE **Test Engineering**: n/a.
-- [ ] 0.1.SEC **Security & Tenancy Audit**: n/a.
-- [ ] 0.1.SR **Semantic Review**: baseline numbers quoted from real command output, never from memory.
-- [ ] 0.1.IV **Instruction Verification**: root `AGENTS.md` quality-workflow section re-read.
+- [x] 0.1.QL **Quality Loop**: not a code task — no sub-loop run; record commands' raw output in the outcome.
+- [x] 0.1.TE **Test Engineering**: n/a.
+- [x] 0.1.SEC **Security & Tenancy Audit**: n/a.
+- [x] 0.1.SR **Semantic Review**: baseline numbers quoted from real command output, never from memory.
+- [x] 0.1.IV **Instruction Verification**: root `AGENTS.md` quality-workflow section re-read.
 
-### - [ ] 0.2 Plan-Review Gate — `outcome/plan-review-R1.md`
+### - [x] 0.2 Plan-Review Gate — `outcome/plan-review-R1.md`
 - Confirm the generation-time Phase 1.5 review verdict (`outcome/plan-review-R1.md`) is present and clean; if implementation reveals drift, re-run the review and record R2 before continuing.
 - _Requirements: REQ-001_
-- [ ] 0.2.QL/.TE/.SEC: n/a (verification task).
-- [ ] 0.2.SR **Semantic Review**: any spec↔code drift discovered during implementation is written back into specs/plan/tasks in the same commit.
-- [ ] 0.2.IV **Instruction Verification**: `.agents/spec-process-guide/` templates re-read.
+- [x] 0.2.QL/.TE/.SEC: n/a (verification task).
+- [x] 0.2.SR **Semantic Review**: any spec↔code drift discovered during implementation is written back into specs/plan/tasks in the same commit.
+- [x] 0.2.IV **Instruction Verification**: `.agents/spec-process-guide/` templates re-read.
 ---
 
 ## Phase 1 — Data Substrate (schema, types, i18n)
 
 ### - [ ] 1.1 Schema: Write-Once Arbiter + Doc-Comment — `backend/db/schema/teachers/evaluations.ts`
 - Add `unique("evaluations_session_evaluator_unique").on(t.sessionId, t.evaluatorId)` as the last element of the constraint block (:42-47, after the three indexes) and add `unique` to the `drizzle-orm/pg-core` import (:2).
-- Rewrite the file header doc-comment (:6-19) to document BOTH consumers (applicant evaluation pipeline; student→teacher session rating, `score = rating × 20`).
+- Rewrite the file header doc-comment (:6-20) to document BOTH consumers (applicant evaluation pipeline; student→teacher session rating, `score = rating × 20`).
 - Apply with `bun run db push` (schema change; never `db migrate` for this); capture the generated DDL in the outcome; confirm the index exists (`\d evaluations` or DB introspection).
 - Verify no data-loss prompt appears (zero existing writer rows — evidence in `outcome/phase0-baseline-outcome.md`).
 - _Requirements: REQ-003_
