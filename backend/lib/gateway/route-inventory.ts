@@ -22,14 +22,17 @@
  *      `deferred`             → exists on disk but envelope adoption is owned by
  *                                a later change.
  *
- * Current ground truth: FIVE routes exist on disk —
+ * Current ground truth: SIX routes exist on disk —
  * `app/api/graphql/route.ts` (gateway), `app/api/set-locale/route.ts`
  * (envelope), `app/api/health/route.ts` (envelope from the start — the
  * GET-only LB liveness probe, second sanctioned health surface; no other
  * method is exported so every other verb rides the framework 405),
  * `app/api/cron/sweep-sessions/route.ts` (envelope — externally triggered
  * sweep job with the bearer gate + bare-404 kill switch documented on the
- * route) and `app/api/payments/webhook/route.ts` (provider-ack-exempt —
+ * route), `app/api/cron/expire-subscriptions/route.ts` (envelope — the
+ * subscription-expiry sweep job, the sessions sweep's fail-closed sibling
+ * with the same bearer gate + bare-404 kill switch documented on the route)
+ * and `app/api/payments/webhook/route.ts` (provider-ack-exempt —
  * gateway callback surface whose disabled kill switch answers a bare 404,
  * registered in the exemptions inventory).
  * `/api/webhooks/*` and `/api/logs` remain PHANTOM routes (dropped pre-seeds)
@@ -59,6 +62,10 @@ export const ROUTE_INVENTORY: readonly RouteInventoryEntry[] = [
   // Externally triggered sweep job — bearer-gated REST envelope contract;
   // the disabled mode answers a bare 404 (documented on the route).
   { path: "/api/cron/sweep-sessions", classification: "envelope" },
+  // Externally triggered subscription-expiry sweep job — the sessions
+  // sweep's bearer-gated REST envelope sibling; the disabled mode answers
+  // a bare 404 (documented on the route).
+  { path: "/api/cron/expire-subscriptions", classification: "envelope" },
   // Gateway callback ack — enveloped success/failure replies; the disabled
   // kill switch answers a bare 404 (exemption row in the error-handling
   // contract's exemptions inventory).

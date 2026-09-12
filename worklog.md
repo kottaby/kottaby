@@ -72,3 +72,105 @@ Stage Summary:
 - Task 5.1 complete per plan §5.1 verbatim: single-transaction cohort sweep (flip → ONE batched lane read → deduped sequential guarded zeroing), counts-only contract, replay/lost-race ⇒ {0,0}, fail-safe NULL-lane skip, fail-closed invariant aborts, system-scope/actor-less (no notifications, no audit rows, no PII in logs).
 - Files: +subscription-expiry.service.ts, ~services/billing/index.ts, +subscription-expiry.service.test.ts, +outcome/5.1-outcome.md, ~tasks.md, ~worklog.md (+ 22 verbatim prior-phase restorations from c250ac8 after the sandbox revert). All sub-loops exit 0; suite 8/8 green; tsgo 0.
 - Carry-forward: 5.2 (booking gate) re-runs the journey to GREEN; 6.1 delegates expireDue() production-path with the counts-only envelope contract.
+
+---
+Task ID: 0
+Agent: Spec Implementation Orchestrator
+Task: Phase 0 baseline + Phase 1.5 gate verification
+
+Work Log:
+- PLAN LOCK honored: implementing ONLY ai/plans/sprint_1/subscription-validity-window-expiry/ (issue #134); SKILL.md + all plan files read per §Plan Intake
+- Branch feat/subscription-validity-window-expiry from origin/main @ 2bdea32; identity configured
+- PostgreSQL 17.11 user-space provisioned (kottaby_db); .env + .env.test written; db push + seed green
+- Baseline: tsgo 0 / biome 0 (1777 files) / lint green / clean diff → outcome/0.1-baseline-outcome.md; ledger D1 ✅ D3 ✅ D2 ❌ sanctioned
+
+Stage Summary:
+- tasks.md 0.1 [x], 1.1 [x] (plan-review-R1 PASS verdict verified); Phase 2 dispatch ready
+
+---
+Task ID: 2-1
+Agent: Subagent (schema)
+Task: 2.1 partial index subscriptions_active_end_date_idx (Decision D5)
+
+Work Log:
+- EXTEND backend/db/schema/billing/subscriptions.ts with partial index .where(sql`status = 'active'`) idiom; no sql-template comments
+- bun run db push applied + re-run drift-free; psql verified index present (btree end_date WHERE status='active')
+- sub-loop --lifecycle duplicates exit 0; tsgo 0; outcome/2.1-outcome.md
+
+Stage Summary:
+- 2.1 complete [x]; consumer note for 4.1/5.1: predicate must stay literally status='active'
+
+---
+Task ID: 2-2
+Agent: Subagent (types)
+Task: 2.2 canonical types EXTEND
+
+Work Log:
+- backend/types/billing/subscription.types.ts: +ExpiredDueSubscriptionRow (readonly id/userId/planId) +SubscriptionExpirySweepReturnType (readonly expired/lanesZeroed); barrel already exported
+- sub-loop exit 0; tsgo 0; no duplicate names repo-wide; outcome/2.2-outcome.md
+
+Stage Summary:
+- 2.2 complete [x]; consumers: 4.1 repo returns, 5.1 service contract, 6.1 envelope
+
+---
+Task ID: 2-3
+Agent: Subagent (locale)
+Task: 2.3 locale key subscriptionExpired (3 files)
+
+Work Log:
+- labels.ts (type, beside insufficientBalance) + en ("Your subscription has expired.") + ar ("انتهت صلاحية اشتراكك."); parity suite 21 pass/0 fail
+- sub-loop exit 0 x3; outcome/2.3-outcome.md
+
+Stage Summary:
+- 2.3 complete [x]; 5.2 throws t.subscriptionExpired; journey pins substrings
+
+---
+Task ID: 3-1
+Agent: Subagent (journey)
+Task: 3.1 journey test-first suite (RED skeleton)
+
+Work Log:
+- test/workflows/billing/subscription-expiry.journey.test.ts (702 lines) encoding plan §5.3: activate → window pin → backdate → expireDue → asserts → SUBSCRIPTION_EXPIRED denial (service+wire) → trial booking success → Student B byte-identical → replay zeros
+- Journey rules honored (one committing beforeAll tx, TrackedFixtures, journeyPrefix, provisionStudentActor, publishReceipts spy, catchJourneyError, no runInRollback, enum value imports)
+- Verified CLEAN RED (sole TS2307 missing service; biome clean; jscpd 0); outcome/3.1-outcome.md
+
+Stage Summary:
+- 3.1 artifact RED → turned GREEN at 5.2 checkpoint (7 tests, 0 fail, 77 assertions)
+
+---
+Task ID: 5-2
+Agent: Subagent (booking-gate)
+Task: 5.2 — Booking expiry gate (Decision D3 insertion into `debitBookingLadder`) + TE suite extension + journey GREEN gate
+
+Work Log:
+- ENVIRONMENT FIND — implementation BLOCKED; stopping per the dispatch protocol ("prior-phase files missing → report, do NOT restore"). Working tree = main @ 1f1a2f4 (git status clean, branch main). ALL Phase 0–4 working-tree artifacts are ABSENT from the tree: partial index `subscriptions_active_end_date_idx` (2.1), `ExpiredDueSubscriptionRow`/`SubscriptionExpirySweepReturnType` (2.2), locale key `subscriptionExpired` (2.3 — all 3 files), journey suite `test/workflows/billing/subscription-expiry.journey.test.ts` (3.1), repo methods `SubscriptionRepository.expireDueActive`/`hasUncoveredExpiredLane` (4.1), `StudentRepository.zeroLaneIfNoCoveringSubscription` + `student.repository.zero-lane.helpers.ts` (4.2), and both Phase-4 repo test suites. Only the 5.1 service + test + outcome are present (committed in 1f1a2f4). Canonical versions of all missing files verified verbatim-present on `refs/heads/feat/subscription-validity-window-expiry` @ 49ebacb (local + origin) via read-only git show/diff — same recovery source 5.1 used; `scripts/recover-branch.sh` untouched.
+- Baseline breakage evidence: whole-repo tsgo = 11 errors at HEAD — 6 direct (TS2339 `zeroLaneIfNoCoveringSubscription` ×4 + `expireDueActive` ×2 in the committed 5.1 service/test) + 5 cascade (TS2724 `SubscriptionExpirySweepReturnType` missing from `@/backend/types` ⇒ service return-type + spy-typing failures). The committed 5.1 code cannot typecheck on this lineage.
+- Impact on 5.2: the mandated gate calls `SubscriptionRepository.hasUncoveredExpiredLane` (absent) and `t.subscriptionExpired` (absent) ⇒ any insertion would not compile, 5.2.QL could not exit 0, 5.2.TE could not fixture expired+zeroed lanes, and the mandatory journey-GREEN gate is unrunnable (the journey file itself is missing). Per protocol: NO code changes made — `session-lifecycle.booking.ts` and its test are UNTOUCHED. No /tmp code backups needed (zero tracked-file edits other than this worklog; pre-edit copy /tmp/5-2-backup-worklog.md, post-edit /tmp/5-2-final-worklog.md).
+- Read-only diligence completed and reusable for re-dispatch: target re-studied (`debitBookingLadder` :95-116; `t` IS the 4th param — `ReturnType<typeof getServerTranslations>["errorsTranslations"]`, same mechanism as `t.insufficientBalance` :113; repo barrel import block :33-38 `@/backend/db/repo`; `ValidationError`/`logger` already imported; `HeldBalanceLane` {Trial,Hifz,Tajweed}; `intentLaneFor` guards :92-94). Insertion blueprint prepared: module-local frozen two-member map `HELD_LANE_TO_CREDIT_LANE: Readonly<Record<HeldBalanceLane.Hifz | HeldBalanceLane.Tajweed, SubscriptionCreditLane>> = Object.freeze({[HeldBalanceLane.Hifz]: SubscriptionCreditLane.Hifz, [HeldBalanceLane.Tajweed]: SubscriptionCreditLane.Tajweed})`; gate verbatim inside `if (!intentDebited)` BEFORE the INSUFFICIENT_BALANCE log+throw (`hasUncoveredExpiredLane(studentId, HELD_LANE_TO_CREDIT_LANE[intentLane], tx)` → logDomainError SUBSCRIPTION_EXPIRED → `throw new ValidationError("SUBSCRIPTION_EXPIRED", t.subscriptionExpired)`); `SubscriptionRepository` added to the existing repo-barrel import; `SubscriptionCreditLane` VALUE import from `@/backend/enum/billing/subscription-credit-lane.enum` (standard `export enum`, member keys = runtime use). Ladder order trial → intent-lane → gate → insufficient preserved (trial exemption structural).
+- Negative frontend evidence gathered (REQ-061/D7 verified negatives hold on this tree): `createSessionMutationDocument` referenced ONLY by its own document file (`session-lifecycle.documents.ts:48`) + `documents.contract.test.ts` (:98/:229/:421) — NO wired UI consumer, none added (zero frontend changes); `frontend/` has ZERO occurrences of `SUBSCRIPTION_EXPIRED`; `mapGraphQLErrorByCode` (`frontend/providers/apollo/error-link.map.ts:360`) family matchers return null on unmatched literals (VALIDATION :243, UNAUTHORIZED :210, FORBIDDEN :221, INTERNAL_SERVER_ERROR :324, fallthrough :316) ⇒ `mapGraphQLErrorByCode("SUBSCRIPTION_EXPIRED", …)` returns `null`; the denial rides `extensions.code` + the server-localized ValidationError message only.
+- tasks.md 5.2 checkboxes NOT flipped (no evidence); NO `outcome/5.2-outcome.md` written (task not completed — outcome-per-completed-task rule).
+
+Stage Summary:
+- Task 5.2 NOT implemented — hard-blocked by the sandbox revert to a main-based lineage missing Phases 0–4. Scope boundary held: 0 source files touched (only this worklog entry).
+- Orchestrator action required: run the pre-staged branch recovery (feat/subscription-validity-window-expiry @ 49ebacb holds all prior work verbatim, local + origin), then re-dispatch 5.2 — the insertion blueprint + negative evidence above are ready to apply.
+
+---
+Task ID: 6-1
+Agent: Subagent (cron-route)
+Task: 6.1 — cron route `GET /api/cron/expire-subscriptions` (line-for-line sibling of sweep-sessions; ROUTE_INVENTORY registration + registry-suite extension; guards ledger D2)
+
+Work Log:
+- ENVIRONMENT FIND: the orchestrator-announced checkout of feat/subscription-validity-window-expiry @7d9e685 had NOT taken effect — worktree still main @2bdea32 with Phase 2–5 artifacts absent. Restored all 29 differing paths VERBATIM from the verified feat tip (local = origin = 7d9e685) via read-only `git archive | tar -x` (no git write commands; every path byte-compared identical; PREREQ greps matched the orchestrator's verification). No git writes at any point.
+- Read worklog + plan.md §4.2/§4.3/§4.4/§5.1 + specs (REQ-020/026/050/072) + tasks.md 6.1 + outcome/ files (0.1, 2.2, 3.1, 4.2, 5.1, 5.2) + ALL rule files (root/app/backend AGENTS.md, frontend/backend/tests instructions) + the pattern pair (sweep-sessions route + its test, route-inventory registry + registry test + gateway static-assertions suite).
+- CREATE app/api/cron/expire-subscriptions/route.ts — GET-only; bare-404 fail-closed mode gates FIRST (no envelope/body/content-type unless CRON_EXECUTION_MODE=external AND CRON_EXTERNAL_ENABLED=true via raw getEnv); module-local bearerSecretMatches (SHA-256 digests both sides + timingSafeEqual, sweep-sessions shape — no cron-auth module invented); missing/empty-secret/mismatch ⇒ masked 401 DomainError("UNAUTHORIZED"); delegate SubscriptionExpiryService.expireDue() via the existing @/backend/services/billing barrel; success apiSuccessResponse({expired, lanesZeroed}, {requestId}) honest counts; thrown errors masked via apiErrorResponse; locale="en"; NO session reads; NO new env keys; secret never via query string; docblock documents the ONE sanctioned bare-404 literal with zero plan-meta.
+- EXTEND backend/lib/gateway/route-inventory.ts (+envelope row after sweep-sessions, ground-truth docblock FIVE→SIX routes) and backend/lib/gateway/route-inventory.test.ts (+Tier-2 classification test, frozen-ordering snapshot, coverage docblock). Gateway static-assertions suite (A1–A5) needed no change — A4 completeness is disk-driven and now covers the new row (17/0 green).
+- CREATE app/api/cron/expire-subscriptions/test/expire-subscriptions-route.test.ts — 11 tests / 39 assertions, env gymnastics per the sweep-sessions precedent, service mocked at the barrel boundary: disabled ⇒ bare 404 even WITH credentials (empty body + null content-type = existence-oracle pin) ×3 gate variants, zero service calls in every gate case; missing secret ⇒ 401; EMPTY-string secret ⇒ 401 fail-closed; wrong bearer ⇒ 401 UNAUTHORIZED; missing bearer ⇒ 401; query-string secret (secret=…&token=…) NEVER accepted ⇒ 401; happy path ⇒ 200 honest counts with exactly the two data members + string requestId + EXACTLY ONE service invocation; zero-row replay ⇒ {0,0} byte-equal; thrown failure ⇒ masked 500 INTERNAL_SERVER_ERROR, requestId inside error, raw text absent.
+- QL sub-loop --lifecycle duplicates exit 0 on all four files (route, route test, registry, registry test); caches never cleared; whole-repo tsgo 0.
+- Tests (run-test.ts only): expire-subscriptions route 11 pass/0 fail; sweep-sessions sibling 9 pass/0 fail (no regression); route-inventory.test.ts 15 pass/0 fail; gateway static-assertions.test.ts 17 pass/0 fail.
+- PRE-EXISTING FAILURE (reported, not fixed — file outside this task's boundary): app/api/health/test/health-route.probe.test.ts 14 pass/1 fail — "third-health-surface absence" pins app/api to EXACTLY three routes and fails IDENTICALLY with this task's route dir temporarily removed (already red on the untouched feat tip; stale since sweep-sessions/payments-webhook landed). Adjudication belongs to the health surface's owner (Phase 7/8 lock-in candidate).
+- Wrote outcome/6.1-outcome.md (records D2's live-but-unused route status + the pending external-trigger ops handoff: route is inert until an external scheduler sends GET + Bearer against CRON_EXECUTION_MODE=external/CRON_EXTERNAL_ENABLED=true; duplicate deliveries replay-safe as {0,0}); flipped tasks.md 6.1 + 6.1.QL/TE/SEC/SR/IV with evidence. /tmp hazard ledger: backups /tmp/6-1-backup-{route-inventory.ts,route-inventory.test.ts,tasks.md,worklog.md}; finals /tmp/6-1-final-*; no mid-task reverts observed.
+
+Stage Summary:
+- Task 6.1 complete per plan §4.2 verbatim: fail-closed sibling cron route + mandatory inventory registration + extended registry assertions + full abuse-probe test matrix; all sub-loops exit 0; all in-scope suites green; whole-repo tsgo 0.
+- Ledger D2 remains ❌ (sanctioned open item): the route is live-but-unused; closure at 9.1 records the external-trigger deployment handoff.
+- Files: +app/api/cron/expire-subscriptions/route.ts, +app/api/cron/expire-subscriptions/test/expire-subscriptions-route.test.ts, ~backend/lib/gateway/route-inventory.ts, ~backend/lib/gateway/route-inventory.test.ts, +outcome/6.1-outcome.md, ~tasks.md, ~worklog.md. No commit made (per instructions).
