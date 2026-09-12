@@ -1,0 +1,15 @@
+{
+  "project": "projects/9907415613750926789",
+  "designSystem": "assets/140b91ecbc93484a9acf63e9d3b023fb",
+  "screens": [
+    {"screenId": "a894af42773e45c39b9802221c185808", "title": "Financial Console - Payments Audit", "file": "payments-audit-default-desktop.png", "deviceType": "DESKTOP", "state": "default"},
+    {"screenId": "ac4faffe88b24498b766e61c8175236d", "title": "Financial Console - Withdrawal Queue", "file": "withdrawal-queue-default-desktop.png", "deviceType": "DESKTOP", "state": "default"},
+    {"screenId": "e5b5442f2065429a86ff3827ff4af298", "title": "Financial Console - Reject Withdrawal Modal", "file": "withdrawal-reject-dialog-desktop.png", "deviceType": "DESKTOP", "state": "dialog"},
+    {"screenId": "ef2bf386952344c6bfcc652b3c796ee1", "title": "Financial Console - Wallet Inspector", "file": "wallet-inspector-default-desktop.png", "deviceType": "DESKTOP", "state": "default"},
+    {"screenId": "1feac122477049a09c766e16f232770b", "title": "Financial Console - Manual Wallet Adjustment Modal", "file": "wallet-adjust-dialog-desktop.png", "deviceType": "DESKTOP", "state": "dialog"},
+    {"screenId": "37f4a0de399a4a319ad8b43ba59df242", "title": "Financial Console - Wallet Inspector (Empty State)", "file": "wallet-inspector-empty-desktop.png", "deviceType": "DESKTOP", "state": "empty"},
+    {"screenId": "468c640a89244280945f244a3f6628e8", "title": "Financial Console - Withdrawal Queue (Error State)", "file": "withdrawal-queue-error-desktop.png", "deviceType": "DESKTOP", "state": "error"},
+    {"screenId": "66f807fc8d9140f480df169875a7dda9", "title": "Financial Console - Withdrawal Queue (Mobile)", "file": "withdrawal-queue-default-mobile.png", "deviceType": "MOBILE", "state": "default"},
+    {"screenId": "f93d90c0b39840018eef86c650d6f9bc", "title": "Financial Console - Wallet Inspector (Mobile)", "file": "wallet-inspector-default-mobile.png", "deviceType": "MOBILE", "state": "default"}
+  ]
+}

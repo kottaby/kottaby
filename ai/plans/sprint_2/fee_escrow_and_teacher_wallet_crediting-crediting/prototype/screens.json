@@ -1,0 +1,78 @@
+{
+  "stitchProject": "projects/8627249899576881812",
+  "projectTitle": "Kottaby — Fee Escrow & Teacher Wallet Crediting Prototypes",
+  "designSystem": "assets/94bb3df732dc44678126388d137a3f3f (Kottaby Scholarly Haven)",
+  "generated": "2026-09-12",
+  "screens": [
+    {
+      "screenId": "771cb65cfb064cbe99341d0a58abde1f",
+      "title": "Kottaby - Teacher Wallet",
+      "file": "teacher-wallet-summary-default-desktop.png",
+      "deviceType": "DESKTOP",
+      "state": "default",
+      "view": "teacher-wallet-summary",
+      "mapsTo": ["REQ-3 settle + wallet credit", "myWallet query", "teacher_transaction ledger"],
+      "notes": "Balance card (487.50 EGP), total earnings, withdraw button, Earning/Completed ledger rows at 25.00 EGP."
+    },
+    {
+      "screenId": "29c861f0a1de44c68e0c343cf06236db",
+      "title": "Teacher Wallet — Empty State",
+      "file": "teacher-wallet-ledger-empty-desktop.png",
+      "deviceType": "DESKTOP",
+      "state": "empty",
+      "view": "teacher-wallet-ledger",
+      "mapsTo": ["wallet lazy-ensure (ensureWalletOnce)", "new teacher with zero balance"],
+      "notes": "Zero balance, empty ledger, disabled withdraw CTA."
+    },
+    {
+      "screenId": "138be6d87ea945ec8342e31fe294c484",
+      "title": "Teacher Wallet — Mobile",
+      "file": "teacher-wallet-default-mobile.png",
+      "deviceType": "MOBILE",
+      "state": "default",
+      "view": "teacher-wallet",
+      "mapsTo": ["myWallet query on mobile", "recent earnings list"],
+      "notes": "Hero balance card, withdraw button, compact earning rows."
+    },
+    {
+      "screenId": "234ea863200c42a48c43be8528e4f01c",
+      "title": "Admin Session Disputes",
+      "file": "admin-dispute-queue-default-desktop.png",
+      "deviceType": "DESKTOP",
+      "state": "default",
+      "view": "admin-dispute-queue",
+      "mapsTo": ["openSessionDispute / resolveSessionDispute", "escrow HELD badge", "refund vs settle arbitration"],
+      "notes": "Disputes table, escrow-held stats, refund/settle actions, session timeline detail panel."
+    },
+    {
+      "screenId": "c4ebdb3febef43448b1f15d33ba472fd",
+      "title": "Teacher Sessions — Escrow Status",
+      "file": "teacher-sessions-escrow-badges-default-desktop.png",
+      "deviceType": "DESKTOP",
+      "state": "default",
+      "view": "teacher-sessions",
+      "mapsTo": ["session.feeHeld field", "held/settled/released lifecycle", "cancelSession release"],
+      "notes": "Sessions table with Fee Held (amber) / Settled +25.00 (green) / Released (grey) badges and lifecycle legend."
+    },
+    {
+      "screenId": "96ab22cb2396416daf54c8c85cb790c5",
+      "title": "Student Confirm Completion",
+      "file": "student-confirm-settle-default-mobile.png",
+      "deviceType": "MOBILE",
+      "state": "default",
+      "view": "student-confirm-settle",
+      "mapsTo": ["confirmSessionCompletion (settle arm)", "24h confirmation deadline", "dispute escape hatch"],
+      "notes": "Awaiting-confirmation timeline, escrow explainer, confirm button, dispute link, auto-release note."
+    },
+    {
+      "screenId": "1d73069f786148ac8c38b5253eda9083",
+      "title": "Student Booking — Insufficient Balance",
+      "file": "student-booking-insufficient-balance-error-mobile.png",
+      "deviceType": "MOBILE",
+      "state": "error",
+      "view": "student-booking",
+      "mapsTo": ["INSUFFICIENT_BALANCE rejection (REQ-2)", "lane ladder trial-first", "top-up recovery path"],
+      "notes": "Zero-credit balance card, localized error banner, disabled request button, top-up CTA."
+    }
+  ]
+}

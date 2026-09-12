@@ -1,0 +1,72 @@
+[
+  {
+    "screenId": "f241630cad5f41dba0d5faf6db9f2f63",
+    "title": "Kottaby - Teacher Verification Dashboard",
+    "file": "dashboard-pending-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "pending"
+  },
+  {
+    "screenId": "bb36ec95ca4d47a5997c589499c3c486",
+    "title": "Cooldown dashboard",
+    "file": "dashboard-failed-cooldown-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "failed-cooldown-active"
+  },
+  {
+    "screenId": "c911260e6da0444cbae599c6733e2296",
+    "title": "Kottaby - Verification Ready to Re-apply Dashboard",
+    "file": "dashboard-failed-eligible-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "failed-eligible"
+  },
+  {
+    "screenId": "35ac9f6e32a24f7b9bd02cb6cb1aa70d",
+    "title": "Kottaby - Verification In Progress Dashboard",
+    "file": "dashboard-in-evaluation-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "in_evaluation"
+  },
+  {
+    "screenId": "405f774385014e57a2903305f34a3add",
+    "title": "Kottaby - Purchase Verification Plan Modal",
+    "file": "purchase-dialog-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "dialog"
+  },
+  {
+    "screenId": "a0d85226e7d94f8cb7d0691c994ef11b",
+    "title": "Kottaby - Teacher Verification Cooldown with Purchase Rejected Snackbar",
+    "file": "dashboard-cooldown-rejected-desktop.png",
+    "deviceType": "DESKTOP",
+    "state": "cooldown-rejected-snackbar"
+  },
+  {
+    "screenId": "729acbbc909c43bd9fb75d9415e32717",
+    "title": "Kottaby - Mobile Teacher Verification Dashboard",
+    "file": "dashboard-pending-mobile.png",
+    "deviceType": "MOBILE",
+    "state": "pending"
+  },
+  {
+    "screenId": "80afe2b882654c8697bf3d0409bc444e",
+    "title": "Kottaby - Mobile Purchase Verification Plan Modal",
+    "file": "purchase-dialog-mobile.png",
+    "deviceType": "MOBILE",
+    "state": "dialog"
+  },
+  {
+    "screenId": "89aed9a30e6548ce933144f01ed3b9e0",
+    "title": "Kottaby - Mobile Verification Cooldown Dashboard",
+    "file": "dashboard-failed-cooldown-mobile.png",
+    "deviceType": "MOBILE",
+    "state": "failed-cooldown-active"
+  },
+  {
+    "screenId": "f921bab552f447489505035fcb2b03ae",
+    "title": "Kottaby - Mobile Verification Ready to Re-apply Dashboard",
+    "file": "dashboard-failed-eligible-mobile.png",
+    "deviceType": "MOBILE",
+    "state": "failed-eligible"
+  }
+]

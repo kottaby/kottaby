@@ -1,0 +1,12 @@
+[
+  { "screenId": "948e95c7e8ad40b5bbdc65f3cb3aee52", "title": "My Children - list", "file": "children-list-default-desktop.png", "deviceType": "DESKTOP", "state": "default" },
+  { "screenId": "894d600ec0bf44299e99f73ba54f1d29", "title": "My Children (mobile)", "file": "children-list-default-mobile.png", "deviceType": "MOBILE", "state": "default" },
+  { "screenId": "1ce9863982ff45b2ac6010959fac07de", "title": "My Children - empty state", "file": "children-list-empty-desktop.png", "deviceType": "DESKTOP", "state": "empty" },
+  { "screenId": "7938245d0d104a40b63ad400856babdc", "title": "Child detail - Attendance tab", "file": "child-detail-attendance-desktop.png", "deviceType": "DESKTOP", "state": "default" },
+  { "screenId": "25da254085844469bb32c7738741391f", "title": "Child detail - Session Reports tab", "file": "child-detail-reports-desktop.png", "deviceType": "DESKTOP", "state": "default" },
+  { "screenId": "97391043b9ca44999850f0c47ecfed1c", "title": "Child detail - Homework tab (Jadid/Madi)", "file": "child-detail-homework-desktop.png", "deviceType": "DESKTOP", "state": "default" },
+  { "screenId": "8479d8fc0d8b45c59e00033d9db50892", "title": "Child detail - Evaluations tab", "file": "child-detail-evaluations-desktop.png", "deviceType": "DESKTOP", "state": "default" },
+  { "screenId": "482da16ca29e44c4979eae225d2dbf95", "title": "Child detail - Progress tab (Tajweed position)", "file": "child-detail-progress-desktop.png", "deviceType": "DESKTOP", "state": "default" },
+  { "screenId": "f0ead39baa734b168510273c96cb0ee6", "title": "Child detail - 403 Permission Denied", "file": "child-detail-denied-desktop.png", "deviceType": "DESKTOP", "state": "denied" },
+  { "screenId": "6e1ebe61f35148e88ff87dac9c01b9a0", "title": "Child detail - Attendance (mobile)", "file": "child-detail-attendance-mobile.png", "deviceType": "MOBILE", "state": "default" }
+]

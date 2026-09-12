@@ -1,0 +1,8 @@
+[
+  { "screenId": "b43adba8be21466eb16b7646dbce27c8", "title": "My Sessions - Kottaby Student Portal", "file": "sessions-list-rate-cta-desktop.png", "deviceType": "DESKTOP", "state": "rate-cta-visible" },
+  { "screenId": "b3a94e8022d5435a96912e40a09d0009", "title": "My Sessions (mobile)", "file": "sessions-list-rate-cta-mobile.png", "deviceType": "MOBILE", "state": "rate-cta-visible" },
+  { "screenId": "62487550e4ac474aac2f476f8019226a", "title": "My Sessions - Rate Teacher Modal", "file": "rate-teacher-dialog-desktop.png", "deviceType": "DESKTOP", "state": "rating-dialog-open" },
+  { "screenId": "9420477ec526469f8a5cfbe7c3e38215", "title": "Rate Teacher dialog (mobile)", "file": "rate-teacher-dialog-mobile.png", "deviceType": "MOBILE", "state": "rating-dialog-open" },
+  { "screenId": "287e48d957104e07a66834e577cdea11", "title": "My Sessions - rating submitted", "file": "sessions-list-rated-success-desktop.png", "deviceType": "DESKTOP", "state": "rated-success" },
+  { "screenId": "7d145b71ad8b42a1bcf42898042af451", "title": "My Sessions - not completed error", "file": "sessions-list-error-not-completed-mobile.png", "deviceType": "MOBILE", "state": "error-not-completed" }
+]

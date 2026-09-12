@@ -1,0 +1,65 @@
+[
+ {
+  "screenId": "f9752131011e467295dac8b3fd0af5ff",
+  "title": "Dispute Arbitration Queue",
+  "file": "admin-queue-default-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "default"
+ },
+ {
+  "screenId": "5df2b7b3d3be4ae0a5737b175a7a5669",
+  "title": "Resolve Dialog \u2014 Partial Refund (invalid amount)",
+  "file": "admin-resolve-dialog-partial-invalid-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "validation-error"
+ },
+ {
+  "screenId": "f6ae94352b2245fc9f8812daff3cfb93",
+  "title": "Dispute Resolution Modal (Pre-Confirmation) - Kottaby",
+  "file": "admin-resolve-dialog-held-default-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "held-dispute"
+ },
+ {
+  "screenId": "fd88abefa54b4b2dbdeffaa799ebe33d",
+  "title": "Case Review \u2014 Recitation: Surah Al-Baqarah 1-20 - Kottaby",
+  "file": "admin-case-review-default-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "default"
+ },
+ {
+  "screenId": "7952712983d74d5e9b160bc3c2fce6ef",
+  "title": "Case Review (Empty States) \u2014 Session #SES-7419 - Kottaby",
+  "file": "admin-case-review-empty-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "empty-artifacts"
+ },
+ {
+  "screenId": "ec00b199eff54ac9b90c58b83197c57d",
+  "title": "Dispute Arbitration Queue (Empty State) - Kottaby",
+  "file": "admin-queue-empty-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "empty"
+ },
+ {
+  "screenId": "d4fd15cc69a74f4db70862e085adc2c5",
+  "title": "My Sessions - Kottaby Student Mobile",
+  "file": "student-sessions-default-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "default"
+ },
+ {
+  "screenId": "04030e4c05a64a38bac661472adfcdc3",
+  "title": "Dispute Session Confirmation Modal - Kottaby Mobile",
+  "file": "student-dispute-dialog-default-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "default"
+ },
+ {
+  "screenId": "142b59ad39f74e018ffdc4d68d6811d8",
+  "title": "Notifications - Kottaby Mobile",
+  "file": "notifications-dispute-default-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "default"
+ }
+]
