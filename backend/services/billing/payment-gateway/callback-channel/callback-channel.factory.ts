@@ -1,0 +1,156 @@
+import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
+import {
+  getEnvironmentConfig,
+  getPaymentGatewayProvider,
+  getPaymobConfig,
+  resetEnvironmentCache,
+} from "@/backend/lib/env";
+import { DomainError } from "@/backend/lib/errors";
+import { logger } from "@/backend/lib/logger";
+import {
+  SimulationCallbackChannel,
+  type SimulationCallbackChannelConfig,
+} from "@/backend/services/billing/payment-gateway/callback-channel/simulation-callback-channel.channel";
+import type { CallbackChannelPort } from "@/backend/types";
+
+/**
+ * Callback channel factory — the single source of truth for how a provider
+ * callback reaches this deployment's webhook receiver.
+ *
+ * Consumers (intention URL composition, dev tooling, workflow tests) call
+ * `getCallbackChannel()` and never read tunnel configuration themselves:
+ * this module is the ONLY place that consults the ngrok configuration keys,
+ * so per-file tunnel heuristics cannot appear anywhere else.
+ *
+ * Resolution semantics (development defaults to the fully implemented
+ * simulation channel — offline and dependency-free):
+ *  - A production runtime, or any deployment whose active provider is not
+ *    paymob, resolves the `real` channel: the provider posts to the
+ *    operator-configured dashboard URL, so this deployment owns no delivery
+ *    infrastructure (`publicBaseUrl: null`) and answers test deliveries
+ *    with a fail-closed domain error.
+ *  - In development with paymob active, a tunnel channel is eligible only
+ *    when BOTH the ngrok authtoken and the reserved public domain are
+ *    configured AND the tunnel's own readiness sequence succeeds. The
+ *    tunnel implementation plugs in at the single acquisition seam below;
+ *    until it does, a configured tunnel resolves to simulation.
+ *  - Every other development case — tunnel keys absent, or the tunnel not
+ *    usable — resolves the simulation channel, with exactly ONE structured
+ *    info log naming the fallback reason. Tunnel configuration is optional
+ *    operator setup: it is never an error and never blocks development.
+ *
+ * The resolved channel is a lazy singleton (same shape as the payment
+ * gateway factory): `resetCallbackChannel()` drops it together with the
+ * shared env snapshot, so configuration swaps take effect on the next
+ * resolution without a process restart.
+ */
+
+/** The resolved channel singleton (bounded to exactly one instance; reset-able). */
+let channel: CallbackChannelPort | null = null;
+
+/**
+ * The paymob provider selector as a plain string — the env getter answers
+ * the raw (trimmed, lowercased) string, and widening the enum member keeps
+ * the comparison string-to-string.
+ */
+const PAYMOB_PROVIDER_VALUE: string = PaymentGateway.Paymob;
+
+/**
+ * Why a development resolution fell back to the simulation channel. The
+ * tunnel acquisition seam owns this vocabulary; every reason is named in
+ * the one structured fallback log.
+ */
+type TunnelFallbackReason = "ngrok-not-configured" | "ngrok-channel-unavailable";
+
+/** Result of a development tunnel acquisition attempt. */
+type TunnelAcquisition =
+  | { readonly channel: CallbackChannelPort; readonly fallbackReason?: undefined }
+  | { readonly channel?: undefined; readonly fallbackReason: TunnelFallbackReason };
+
+/**
+ * The production callback channel: the provider delivers to the public URL
+ * configured in the merchant dashboard, so there is nothing to start up
+ * (`ensureReady` is a no-op) and no public base this deployment could name.
+ * Test delivery is a development-only surface — answering it with a typed
+ * failure keeps a production caller from synthesizing settlements.
+ */
+const REAL_CALLBACK_CHANNEL: CallbackChannelPort = {
+  kind: "real",
+  publicBaseUrl: null,
+  ensureReady: async () => {},
+  deliverTestCallback: async () => {
+    throw new DomainError(
+      "PAYMENT_CALLBACK_TEST_DELIVERY_UNSUPPORTED",
+      "Test callback delivery is a development-only surface; the real channel receives provider deliveries at its operator-configured URL."
+    );
+  },
+};
+
+/**
+ * Returns the active callback delivery channel, resolving it on first use
+ * and reusing the resolved instance afterwards. Development resolution may
+ * consult the tunnel acquisition seam, so the first call is awaitable.
+ */
+export async function getCallbackChannel(): Promise<CallbackChannelPort> {
+  if (channel) {
+    return channel;
+  }
+  channel = await resolveCallbackChannel();
+  return channel;
+}
+
+/**
+ * Invalidates the resolved channel and the shared env snapshot it was
+ * resolved from. The next `getCallbackChannel()` re-reads configuration
+ * from scratch, so env swaps and test fixtures take effect immediately.
+ */
+export function resetCallbackChannel(): void {
+  channel = null;
+  resetEnvironmentCache();
+}
+
+/** One resolution pass over the documented resolution order. */
+async function resolveCallbackChannel(): Promise<CallbackChannelPort> {
+  if (isProductionRuntime() || getPaymentGatewayProvider() !== PAYMOB_PROVIDER_VALUE) {
+    return REAL_CALLBACK_CHANNEL;
+  }
+  const acquisition = await acquireTunnelChannel();
+  if (acquisition.channel) {
+    return acquisition.channel;
+  }
+  logger.info("Callback delivery channel resolved to simulation", { reason: acquisition.fallbackReason });
+  return new SimulationCallbackChannel(resolveSimulationChannelConfig());
+}
+
+/**
+ * The single acquisition seam for the development tunnel channel. Tunnel
+ * eligibility is decided here from the typed ngrok configuration (both the
+ * authtoken and the reserved public domain must be set); the eligible case
+ * hands over to the tunnel channel implementation — the module that spawns
+ * the ngrok agent and verifies the PUBLIC reserved-domain URL is reachable
+ * — and falls back to simulation with a named reason when that
+ * implementation is not available or its readiness sequence fails.
+ */
+async function acquireTunnelChannel(): Promise<TunnelAcquisition> {
+  const { authtoken, domain } = getEnvironmentConfig().ngrok;
+  if (!authtoken || !domain) {
+    return { fallbackReason: "ngrok-not-configured" };
+  }
+  return { fallbackReason: "ngrok-channel-unavailable" };
+}
+
+/** Reads the simulation channel's configuration from the typed env snapshot. */
+function resolveSimulationChannelConfig(): SimulationCallbackChannelConfig {
+  const { hmacSecret, httpTimeoutMs } = getPaymobConfig();
+  const { port } = getEnvironmentConfig().ngrok;
+  return {
+    hmacSecret,
+    localBaseUrl: `http://localhost:${port}`,
+    probeTimeoutMs: httpTimeoutMs,
+  };
+}
+
+/** Production runtimes never resolve a development channel. */
+function isProductionRuntime(): boolean {
+  return process.env.NODE_ENV === "production";
+}
