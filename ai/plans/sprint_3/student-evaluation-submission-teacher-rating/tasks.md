@@ -104,7 +104,7 @@
 - [ ] 2.1.SR **Semantic Review**: no SELECT-then-INSERT helpers; `tx` unoptional on writes; probe never feeds a guarded update.
 - [ ] 2.1.IV **Instruction Verification**: read `backend/db/repo/AGENTS.md`, `backend/AGENTS.md` + printed instructions.
 
-### - [x] 2.2 Journey Test (test-first, RED) — `test/workflows/teachers/student-teacher-rating.journey.test.ts` (NEW dir)
+### - [ ] 2.2 Journey Test (test-first, RED) — `test/workflows/teachers/student-teacher-rating.journey.test.ts` (NEW dir)
 - Author the journey for REQ-J1..J4 BEFORE the service exists (RED by failure): new directory `test/workflows/teachers/`.
 - Harness (verified patterns): `bun:test`; import real services `SessionLifecycleService` + (future) `StudentEvaluationService`; `journeyPrefix("teachers")`; `createSessionFixtureRegistry()` (`test/workflows/helpers/journey-fixture-registry.ts:122`); `beforeAll` commits fixtures via `buildSessionJourneyCast` (`test/workflows/helpers/session-cast.ts:280-284`); every created row `registry.track(...)`ed; `afterAll` `registry.cleanup()`; final test asserts `registry.trackedCount()`.
 - **Registry extension (required first)**: `JourneyTrackedTable` + `JOURNEY_TRACKED_TABLE_DELETE_ORDER` (`test/workflows/helpers/journey-fixture-registry.ts:67-77`) currently do NOT include `evaluations`, and `track("evaluations", …)` would throw. Add `"evaluations"` to the tracked-table union and to the delete order BEFORE `users` (the `evaluator_id → users.id` FK is RESTRICT, `evaluations.ts:28-30` — user teardown must see the rating rows already gone). Extend `test/workflows/helpers/helpers.self-test.test.ts` accordingly (`test/workflows/AGENTS.md` self-test rule).
@@ -112,12 +112,12 @@
 - Denial assertions via local try/catch helper asserting `DomainError.code` + exact translated message from `getServerTranslations("en").errorsTranslations` (pattern: `session-dual-confirmation.journey.test.ts:135-149`). NO `runInRollback` in this file (`test/workflows/AGENTS.md:8-11`).
 - Run (RED expected pre-2.3): `bun run test/scripts/run-test.ts test/workflows/teachers/student-teacher-rating.journey.test.ts`.
 - _Requirements: REQ-J1, REQ-J2, REQ-J3, REQ-J4, REQ-013.3_
-- [x] 2.2.QL **Quality Loop**: sub-loop on the new file (exit 0; the file may fail tests — type/lint must pass).
-- [x] 2.2.TE **Test Engineering**: this IS the Tier-1..4 journey deliverable; chaos leg = concurrent dup race.
-- [x] 2.2.SEC **Security & Tenancy Audit**: REQ-J4 oracle identity asserted byte-identically (same code + message for unknown id and foreign session).
-- [x] 2.2.SR **Semantic Review**: fixtures are committed (not rollback); every row tracked; no seed-data usage.
-- [x] 2.2.IV **Instruction Verification**: read `test/workflows/AGENTS.md` + tests instructions.
-### - [x] 2.3 Service — `backend/services/teachers/student-evaluation.service.ts` (NEW) + `backend/services/teachers/index.ts`
+- [ ] 2.2.QL **Quality Loop**: sub-loop on the new file (exit 0; the file may fail tests — type/lint must pass).
+- [ ] 2.2.TE **Test Engineering**: this IS the Tier-1..4 journey deliverable; chaos leg = concurrent dup race.
+- [ ] 2.2.SEC **Security & Tenancy Audit**: REQ-J4 oracle identity asserted byte-identically (same code + message for unknown id and foreign session).
+- [ ] 2.2.SR **Semantic Review**: fixtures are committed (not rollback); every row tracked; no seed-data usage.
+- [ ] 2.2.IV **Instruction Verification**: read `test/workflows/AGENTS.md` + tests instructions.
+### - [ ] 2.3 Service — `backend/services/teachers/student-evaluation.service.ts` (NEW) + `backend/services/teachers/index.ts`
 - Implement `StudentEvaluationService.submitTeacherEvaluation` and `listMyTeacherEvaluations` exactly per `plan.md` §4.1 (guard order, `withTransaction`, probe gate, oracle collapse, 23505 mapping, one `logDomainError` per denial, success logs nothing).
 - Reuse `assertPositiveSafeSessionId` (`backend/services/classes/session-lifecycle.guards.ts:123`) — do not re-implement id guards.
 - Service tests `backend/services/teachers/student-evaluation.service.test.ts` (template: `backend/services/classes/recitation.service.test.ts`): every REQ-006/REQ-007 denial; rating matrix 1..5 → score 20..100; rating 0 / 6 / 2.5 / NaN / non-integer string-coerced values → `VALIDATION` with `fields[]`; `outerTx` SAVEPOINT propagation; log-spy per denial; `listMyTeacherEvaluations` scoping (two students, each sees only their own).
@@ -134,34 +134,34 @@
 
 ## Phase 3 — GraphQL Surface
 
-### - [ ] 3.1 Pothos Types — `backend/graphql/pothos/teachers/evaluation.pothos.ts` (NEW)
+### - [x] 3.1 Pothos Types — `backend/graphql/pothos/teachers/evaluation.pothos.ts` (NEW)
 - Define `EvaluationPothosObject` (fields: `id` first, `evaluatedId`/`evaluatorId` Int!, `sessionId` Int nullable, `score` Int nullable, `createdAt` DateTime!) over `EvaluationReturnType`, and `SubmitTeacherEvaluationPothosInput` (`rating: Int!`, string-named `inputType`).
 - No local type declarations; no enum literals; registration is transitive via 3.2/3.3 imports (mirrors `pothos/teachers/applicant.pothos.ts`).
 - _Requirements: REQ-008, REQ-004_
-- [ ] 3.1.QL **Quality Loop**: sub-loop exit 0.
-- [ ] 3.1.TE **Test Engineering**: SDL pins land in 3.4 (asserted there).
-- [ ] 3.1.SEC **Security & Tenancy Audit**: object exposes only `EvaluationReturnType` fields (no soft-delete/notes).
-- [ ] 3.1.SR **Semantic Review**: nullability matches `plan.md` §3.1 exactly; no `inputRef` coupling.
-- [ ] 3.1.IV **Instruction Verification**: read `backend/graphql/AGENTS.md`, `backend/graphql/pothos/AGENTS.md` + printed instructions.
+- [x] 3.1.QL **Quality Loop**: sub-loop exit 0.
+- [x] 3.1.TE **Test Engineering**: SDL pins land in 3.4 (asserted there).
+- [x] 3.1.SEC **Security & Tenancy Audit**: object exposes only `EvaluationReturnType` fields (no soft-delete/notes).
+- [x] 3.1.SR **Semantic Review**: nullability matches `plan.md` §3.1 exactly; no `inputRef` coupling.
+- [x] 3.1.IV **Instruction Verification**: read `backend/graphql/AGENTS.md`, `backend/graphql/pothos/AGENTS.md` + printed instructions.
 
-### - [ ] 3.2 Mutation — `backend/graphql/mutation/classes/student-evaluation.mutation.ts` (NEW) + `backend/graphql/mutation/classes/index.ts`
+### - [x] 3.2 Mutation — `backend/graphql/mutation/classes/student-evaluation.mutation.ts` (NEW) + `backend/graphql/mutation/classes/index.ts`
 - Register `submitTeacherEvaluation` per `plan.md` §3.2 (thin resolver: `$all` student scope, `ctx.user` narrowing with `await ctx.t("errorsTranslations")`, `requirePositiveIntId` coercion, member-mapped input, single service delegation; no try/catch, no business logic).
 - Add the side-effect import to the classes barrel (list near `session-report.mutation`).
 - _Requirements: REQ-008, REQ-011, REQ-002_
-- [ ] 3.2.QL **Quality Loop**: sub-loop exit 0.
-- [ ] 3.2.TE **Test Engineering**: wire coverage lands in 3.4; here, compile-time resolver-shape checks only.
-- [ ] 3.2.SEC **Security & Tenancy Audit**: `$all` conjunction (never plain key-map); no client-supplied evaluator id.
-- [ ] 3.2.SR **Semantic Review**: file has no named exports; resolver is logic-free; locale comes from `ctx.locale`.
-- [ ] 3.2.IV **Instruction Verification**: read `backend/graphql/mutation/AGENTS.md` + printed instructions.
+- [x] 3.2.QL **Quality Loop**: sub-loop exit 0.
+- [x] 3.2.TE **Test Engineering**: wire coverage lands in 3.4; here, compile-time resolver-shape checks only.
+- [x] 3.2.SEC **Security & Tenancy Audit**: `$all` conjunction (never plain key-map); no client-supplied evaluator id.
+- [x] 3.2.SR **Semantic Review**: file has no named exports; resolver is logic-free; locale comes from `ctx.locale`.
+- [x] 3.2.IV **Instruction Verification**: read `backend/graphql/mutation/AGENTS.md` + printed instructions.
 
-### - [ ] 3.3 Query — `backend/graphql/query/teachers/student-evaluation.query.ts` (NEW) + `backend/graphql/query/teachers/index.ts`
+### - [x] 3.3 Query — `backend/graphql/query/teachers/student-evaluation.query.ts` (NEW) + `backend/graphql/query/teachers/index.ts`
 - Register `myTeacherEvaluations` (`$all` student scope; delegate to the service) per `plan.md` §3.2 bullet 3; add the side-effect import to the teachers query barrel (`myApplicantProfile` precedent).
 - _Requirements: REQ-008_
-- [ ] 3.3.QL **Quality Loop**: sub-loop exit 0.
-- [ ] 3.3.TE **Test Engineering**: wire coverage in 3.4 incl. empty-list shape.
-- [ ] 3.3.SEC **Security & Tenancy Audit**: caller-scoped service call; no args that could widen scope.
-- [ ] 3.3.SR **Semantic Review**: non-paginated by design (D12) — note in outcome.
-- [ ] 3.3.IV **Instruction Verification**: read `backend/graphql/query/AGENTS.md` + printed instructions.
+- [x] 3.3.QL **Quality Loop**: sub-loop exit 0.
+- [x] 3.3.TE **Test Engineering**: wire coverage in 3.4 incl. empty-list shape.
+- [x] 3.3.SEC **Security & Tenancy Audit**: caller-scoped service call; no args that could widen scope.
+- [x] 3.3.SR **Semantic Review**: non-paginated by design (D12) — note in outcome.
+- [x] 3.3.IV **Instruction Verification**: read `backend/graphql/query/AGENTS.md` + printed instructions.
 ### - [ ] 3.4 Registration, SDL Pins, Wire Tests, Codegen
 - Run `bun run generate:gqlSchema && bun codegen`; commit the regenerated artifacts.
 - Extend `backend/graphql/test/sdl-static-assertions.test.ts`: `Evaluation` type fields, `submitTeacherEvaluation`, `myTeacherEvaluations` pins.

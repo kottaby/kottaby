@@ -17,36 +17,52 @@ Stage Summary:
 - Plan COMPLETE per tasks.md + SKILL.md exit criteria
 
 ---
-Task ID: 2.2
-Agent: Journey-test executor (test-first RED)
-Task: Sprint 3 student-evaluation plan — task 2.2 journey test (REQ-J1..J4) + registry extension
+Task ID: 3.1
+Agent: GraphQL surface implementer
+Task: Sprint 3 student-evaluation plan — task 3.1 Pothos types (Evaluation object + SubmitTeacherEvaluationInput)
 
 Work Log:
-- Registry extension: `evaluations` added to JourneyTrackedTable vocabulary + delete order BEFORE `users` (evaluator_id RESTRICT); deleter closure + doc-comment updated; self-test extended with an evaluations-vocabulary block (cleanup deletes rating row before its restricting user, zero residue)
-- Journey written TEST-FIRST: test/workflows/teachers/student-teacher-rating.journey.test.ts — 10 steps, real SessionLifecycleService lifecycle to dual confirmation, score=rating×20 row contents, sequential + Promise.allSettled duplicate legs, scheduled + teacher-stamp-only denials, byte-identical SESSION_NOT_FOUND oracle, listMyTeacherEvaluations read-back, trackedCount pinned at 24; NO runInRollback; committed fixtures + full tracking
-- RED strategy: compile-clean RED via teachers-barrel projection + undefined-guard (static import of the missing module cannot compile); RED message documented in outcome
-- Outcome skeleton written; verifications (sub-loop x3, journey RED run, self-test green run) executed with branch checkout per invocation (sandbox restores HEAD to main between invocations)
+- Context read: 2.1-2.3 outcomes (service signatures + error codes carry-forward), plan §3.1 SDL, REQ-008.1, backend/graphql + pothos AGENTS chains, precedents applicant.pothos.ts (transitive teachers registration) + report.pothos.ts (id-first exposeID conventions) + session-report-input.pothos.ts (string-named inputType)
+- Outcome skeleton + [-] checkpoint written BEFORE verification (resilience protocol)
+- Authored NEW backend/graphql/pothos/teachers/evaluation.pothos.ts: EvaluationPothosObject over EvaluationReturnType from @/backend/types (id first exposeID → ID!, evaluatedId/evaluatorId Int!, sessionId Int nullable, score Int nullable, createdAt DateTime!), SubmitTeacherEvaluationPothosInput via string-named inputType (rating Int! only — BOPLA whitelist, no inputRef coupling), zero local types / zero enum literals / zero logic; registration transitive via the 3.2/3.3 resolver imports (teachers stays off the top Pothos barrel)
+- Sandbox git-restore warfare: HEAD+tracked edits reverted between invocations — countered with /tmp/task3-backup canonical copies + /tmp/task3-restore.sh re-run before every invocation
 
 Stage Summary:
-- Gates green: sub-loop exit 0 x3 (journey + registry + self-test; tsgo/oxlint/biome/lint:type-aware/duplicates all pass); self-test 17 pass / 0 fail (70 expects) incl. the new evaluations-vocabulary block
-- Journey RED verified attributable (exit 1; 2 pass / 8 fail / 56 expects): steps 1–2 pass (fixtures + real lifecycle healthy); steps 3–9 fail with the verbatim barrel guard "student-to-teacher rating service not implemented yet: StudentEvaluationService is missing from @/backend/services/teachers" (denial probes surface it via toBeInstanceOf(DomainError) as designed); step 10 = documented prerequisite narrowing; zero harness/fixture/SQL/residue errors — correct RED, attributable to the missing service only
-- Attestations: SEC (REQ-J4 byte-identical code|message oracle), SR (committed fixtures, 24-row tracked worklist, no seed data, no runInRollback usage, zero plan-artifact refs in code), IV (test/workflows/AGENTS.md + task instructions read) — recorded in outcome/2.2-outcome.md §4–§5; tasks.md 2.2 + 2.2.QL/.TE/.SEC/.SR/.IV flipped [x]; logs tee'd to /tmp/task22-{ql,selftest,red}.log; journey intentionally left RED for 2.3
+- Gates green: sub-loop exit 0 first-attempt (tsgo/oxlint/biome/lint:type-aware/duplicates — log /tmp/task31-ql-evaluation-pothos.log); nullability mirrors the surface SDL exactly; input is string-named inputType (no inputRef); zero local types/enum literals/logic; teachers domain stays off the top Pothos barrel (transitive registration via 3.2/3.3 imports)
+- SEC (Disclosure/BOPLA): object backed exclusively by EvaluationReturnType — soft-delete/notes/updatedAt structurally unexposable; input whitelist is rating-only (no session id, no evaluator id, no score)
+- SR/IV attestations recorded in outcome/3.1-outcome.md; tasks.md 3.1 + 3.1.QL/.TE/.SEC/.SR/.IV flipped [x]; SDL expectations for the 3.4 pins recorded in the outcome carry-forward
 
 ---
-Task ID: 2.3
-Agent: Service implementer
-Task: Sprint 3 student-evaluation plan — task 2.3 StudentEvaluationService + journey GREEN
+Task ID: 3.2
+Agent: GraphQL surface implementer
+Task: Sprint 3 student-evaluation plan — task 3.2 submitTeacherEvaluation mutation + classes barrel
 
 Work Log:
-- Context read: plan §4.1/§4.5, REQ-006/007/011/012/013.2, 2.1/2.2 outcomes (repo signatures + journey seam), journey test contract, guards (assertPositiveSafeSessionId reuse), recitation service + test templates, teachers barrel, i18n keys from 1.3
-- Outcome skeleton + [-] checkpoint written BEFORE implementation (resilience protocol)
-- Implementation authored: backend/services/teachers/student-evaluation.service.ts (guard order → withTransaction → probe gate → oracle collapse → completion gate → insertOnce → 23505 → EVALUATION_ALREADY_SUBMITTED; member-by-member payload + return mapping; one logDomainError per denial; success logs nothing; outerTx SAVEPOINT support), barrel export, 4-tier service-test matrix
-- QL: sub-loop --lifecycle duplicates exit 0 x3 (service, barrel, test) after fix-and-rerun: max-lines-per-function (helpers extracted), prefer-optional-chain (probe?.studentId), no-await-in-loop (recursive sequential driver per linting-rules.md) + no-unsafe-type-assertion (JSON-channel hostile payload) + sonarjs sort/regex nits
-- TE: service suite 19 pass / 0 fail / 391 expects, exit 0 on TWO consecutive runs; journey 10 pass / 0 fail / 127 expects, exit 0 on TWO consecutive runs — STOP CONDITION MET (2.2 journey GREEN through the unmodified barrel seam)
-- SEC: BOLA (server-derived evaluator + probe-row rated subject), BOPLA (zero spread — pinned), byte-identical SESSION_NOT_FOUND oracle (foreign ≡ unknown), exactly one bounded logDomainError per denial (zero on success) — all test-pinned
-- SR: no lifecycle writes (session row + users + notifications + audit row-count/full-row oracles flat), no notification/audit imports (source pins), no module-level state (no let/var — pinned), no dead branches (both tx arms + both read arms + both catch arms covered), enum via SessionStatus import, zero plan-artifact refs in comments
-- IV: backend/services/AGENTS.md + backend/AGENTS.md + printed backend/tests instructions read; attestations in outcome/2.3-outcome.md
-- Sandbox git-restore warfare: HEAD reverted to main between invocations (tracked edits reverted, untracked files survived) — countered with /tmp/task23-backup canonical copies + /tmp/task23-restore.sh; nothing committed/pushed (per constraints)
+- Context read: plan §3.2 resolver shape + §3.3 error map, REQ-008.2/011/002, 2.3 outcome carry-forward (exact service signatures + error codes), backend/graphql + mutation AGENTS chains, precedents session-report.mutation.ts (thin $all template + requirePositiveIntId + member-mapped input) and subscription-purchase.mutation.ts (student-role scope), backend printed instructions
+- Outcome skeleton + [-] checkpoint written BEFORE verification (resilience protocol)
+- Authored NEW backend/graphql/mutation/classes/student-evaluation.mutation.ts: THIN side-effect module (no named exports) — $all{authenticated,role:[UserRole.Student]} conjunction (401/403 split), ctx.user narrowing via await ctx.t("errorsTranslations"), requirePositiveIntId(Number(args.sessionId)) boundary coercion, member-by-member BOPLA input hand-off ({ rating } only — no spread, no client evaluator id), SINGLE delegation to StudentEvaluationService.submitTeacherEvaluation(ctx.user.id, sessionId, input, ctx.locale) via the teachers barrel, NO try/catch (DomainErrors propagate to the masking boundary)
+- Barrel EXTEND: mutation/classes/index.ts + side-effect import after session-report.mutation + doc-comment registration line
+- Sandbox git-restore warfare countered via /tmp/task3-backup + /tmp/task3-restore.sh (force-checkout hardened) before every invocation
 
 Stage Summary:
-- All 2.3 gates green (QL x3 exit 0; service tests green x2; journey GREEN x2); tasks.md 2.3 + 2.3.QL/.TE/.SEC/.SR/.IV flipped [x]; outcome/2.3-outcome.md finalized with Phase-3 carry-forward (exact GraphQL-facing signatures + error codes); deliverables: student-evaluation.service.ts (NEW), teachers barrel (EXTEND), student-evaluation.service.test.ts (NEW)
+- Gates green: sub-loop exit 0 x2 first-attempt (mutation + classes barrel; tsgo/oxlint/biome/lint:type-aware/duplicates — logs /tmp/task32-ql-mutation.log, /tmp/task32-ql-barrel.log); the mutation's tsgo pass transitively type-checks the 3.1 pothos consts at the resolver import site
+- SEC ($all conjunction + BOPLA): explicit authenticated∧student conjunction (anonymous→UNAUTHORIZED, non-student→FORBIDDEN), rater = ctx.user.id server-derived, member-mapped { rating } input only, no spread, no client evaluator/score channel
+- SR/IV attestations recorded in outcome/3.2-outcome.md (no named exports; logic-free resolver; locale from ctx.locale; mutation AGENTS + printed instructions read); tasks.md 3.2 + sub-checkboxes flipped [x]; wire-matrix expectations for 3.4 recorded in the outcome carry-forward
+
+---
+Task ID: 3.3
+Agent: GraphQL surface implementer
+Task: Sprint 3 student-evaluation plan — task 3.3 myTeacherEvaluations query + teachers query barrel
+
+Work Log:
+- Context read: plan §3.2 bullet 3, REQ-008.3, 2.3 outcome carry-forward (listMyTeacherEvaluations signature), backend/graphql + query AGENTS chains, applicant.query.ts precedent (zero-arg role-gated my-* read, $all 401/403 split), backend printed instructions
+- Outcome skeleton + [-] checkpoint written BEFORE verification (resilience protocol)
+- Authored NEW backend/graphql/query/teachers/student-evaluation.query.ts: myTeacherEvaluations [Evaluation!]! — zero arguments (BOLA-proof, no scope-widening surface), $all{authenticated,role:[UserRole.Student]} conjunction, ctx.user narrowing via await ctx.t("errorsTranslations"), SINGLE caller-scoped delegation to StudentEvaluationService.listMyTeacherEvaluations(ctx.user.id) via the teachers barrel, NO try/catch; non-paginated by design
+- Barrel EXTEND: query/teachers/index.ts + side-effect import after applicant.query + doc-comment registration line
+- Sandbox git-restore warfare countered via /tmp/task3-backup + /tmp/task3-restore.sh before every invocation
+
+Stage Summary:
+- Gates green: sub-loop exit 0 on both files (query: fix-and-rerun — oxlint jsdoc tag-name nit from a line-wrapped @pothos specifier, reflowed mid-line, attempt 2 exit 0; barrel: first-attempt exit 0; logs /tmp/task33-ql-query.log, /tmp/task33-ql-barrel.log); the query's tsgo pass transitively type-checks EvaluationPothosObject + the service signature
+- SEC (caller scoping): zero arguments — no scope-widening surface; evaluator id = ctx.user.id server-bound; same $all 401/403 split as the mutation
+- SR: non-paginated [Evaluation!]! by design (bounded history; empty = [], never null) noted in outcome; no named exports; logic-free resolver; IV: query AGENTS + printed instructions read; tasks.md 3.3 + sub-checkboxes flipped [x]
+- Phase 3 GraphQL surface COMPLETE (3.1+3.2+3.3): codegen/SDL pins/wire tests remain for 3.4 — exact SDL expectations + registration names recorded in the three outcome carry-forwards
