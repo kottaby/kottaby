@@ -108,7 +108,7 @@
   - CREATE `…/callback-channel/ngrok-callback-channel.channel.ts` (spawn `ngrok http --url="https://<NGROK_DOMAIN>" <NGROK_PORT>`; probe the PUBLIC domain URL — local agent API off-limits; `publicBaseUrl = https://<NGROK_DOMAIN>`); EXTEND the intention URL composition to use the channel's `publicBaseUrl` for the dev `notification_url`; EXTEND `backend/lib/env.ts` (+`.env.example`, `backend/lib/test-ci-env.ts`) with the three optional `NGROK_AUTHTOKEN` / `NGROK_DOMAIN` / `NGROK_PORT` (default 3000) keys.
   - [x] 5.5.QL · [x] 5.5.TE — probe success/failure matrix; notification_url composition per channel; env parsing · [x] 5.5.SEC — authtoken never logged; dev-only selection · [x] 5.5.SR · [x] 5.5.IV
   - _Requirements: REQ-090, REQ-091, REQ-092_
-- [ ] 5.6 Mid-point backend review gate (Phase 2.5 pattern)
+- [x] 5.6 Mid-point backend review gate (Phase 2.5 pattern)
   - Dispatch backend-scoped review over Phase 2–5 outputs (types/repo/service/route files); aggregate + fix findings per file with sub-loop re-verification; repeat until zero backend-specific findings; write `outcome/midpoint-review-R1.md`.
   - _Requirements: REQ-002, REQ-082_
 

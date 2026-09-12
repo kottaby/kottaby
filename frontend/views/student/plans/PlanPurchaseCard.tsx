@@ -5,6 +5,7 @@ import { Button, Card, CardActions, CardContent, Chip, Stack, Typography } from 
 import type { PlanCatalogQuery_planCatalog } from "@/frontend/graphql/generated/gql/graphql";
 import { formatPlanAmount } from "@/frontend/views/student/plans/planPresentation";
 import { PLAN_CARD_BUY_SUFFIX, PLAN_CARD_TEST_ID_PREFIX } from "@/frontend/views/student/plans/plansViewIds";
+import { resolveLaneLabel } from "@/frontend/views/student/plans/plansViewLabels";
 import { useAppTranslation } from "@/shared/locale/client";
 import { Checkout } from "@/shared/locale/namespaces/checkout";
 
@@ -21,6 +22,7 @@ export interface PlanPurchaseCardProps {
  */
 export function PlanPurchaseCard({ plan, onBuy, buying }: Readonly<PlanPurchaseCardProps>): React.ReactElement {
   const t = useAppTranslation(Checkout);
+  const laneLabel: string | null = plan.balanceLane === null ? null : resolveLaneLabel(plan.balanceLane, t);
 
   return (
     <Card
@@ -62,6 +64,11 @@ export function PlanPurchaseCard({ plan, onBuy, buying }: Readonly<PlanPurchaseC
               })}
             />
           </Stack>
+          {laneLabel !== null && (
+            <Typography variant="body2" sx={theme => ({ color: theme.palette.onSurfaceVariant })}>
+              {t.laneCreditLine(laneLabel)}
+            </Typography>
+          )}
         </Stack>
       </CardContent>
       <CardActions sx={{ px: 2, pb: 2, pt: 0 }}>

@@ -74,6 +74,17 @@ const CATALOG_VARIABLES = {};
 /** The populated catalog mock (three plans, shared by the populated arms). */
 const POPULATED_MOCK = planCatalogMock(PLAN_CATALOG_ROWS);
 
+/**
+ * Wire lane value → checkout label key: the fixture rows carry the enum's
+ * wire string; assertions resolve the label through the PRELOADED label
+ * objects only (zero hardcoded copy).
+ */
+const LANE_LABEL_KEYS = {
+  Hifz: "laneHifz",
+  Tajweed: "laneTajweed",
+  Reviews: "laneReviews",
+} as const;
+
 // ---------------------------------------------------------------------------
 // Render + expectation helpers
 
@@ -201,7 +212,7 @@ describe("PlansCatalogContainer", () => {
       expect(screen.getByText(t.emptyBody)).toBeDefined();
     });
 
-    test(`[${locale}] branch 5 — populated catalog renders card titles, prices and Buy CTAs`, async () => {
+    test(`[${locale}] branch 5 — populated catalog renders card titles, prices, lane lines and Buy CTAs`, async () => {
       renderPlans([POPULATED_MOCK], locale);
       await waitFor(() => {
         expect(screen.getByTestId(`${PLAN_CARD_TEST_ID_PREFIX}-401${PLAN_CARD_BUY_SUFFIX}`)).toBeDefined();
@@ -210,7 +221,13 @@ describe("PlansCatalogContainer", () => {
         expect(screen.getByTestId(`${PLAN_CARD_TEST_ID_PREFIX}-${plan.id}`)).toBeDefined();
         expect(screen.getByTestId(`${PLAN_CARD_TEST_ID_PREFIX}-${plan.id}${PLAN_CARD_BUY_SUFFIX}`)).toBeDefined();
         expect(screen.getByText(plan.title)).toBeDefined();
+        if (plan.balanceLane !== null) {
+          // The lane feature line renders the namespace-owned localized copy.
+          expect(screen.getByText(t.laneCreditLine(t[LANE_LABEL_KEYS[plan.balanceLane]]))).toBeDefined();
+        }
       }
+      // Laneless rows render no lane feature line.
+      expect(screen.queryAllByText(t.laneCreditLine(t.laneReviews))).toHaveLength(0);
       // The price renders verbatim from the wire decimal string.
       expect(screen.getByText(`${PLAN_CATALOG_ROWS[0].price} ${PLAN_CATALOG_ROWS[0].currency}`)).toBeDefined();
       // Buy CTAs carry the localized copy.
@@ -300,6 +317,9 @@ describe("PlansCatalogContainer", () => {
       expect(screen.getByText(t.pageTitle)).toBeDefined();
       expect(screen.getByText(t.pageSubtitle)).toBeDefined();
       expect(screen.getAllByText(t.buyButton).length).toBeGreaterThanOrEqual(1);
+      // The lane feature line is namespace-owned localized copy, per lane.
+      expect(screen.getByText(t.laneCreditLine(t.laneHifz))).toBeDefined();
+      expect(screen.getByText(t.laneCreditLine(t.laneTajweed))).toBeDefined();
     });
   }
 });

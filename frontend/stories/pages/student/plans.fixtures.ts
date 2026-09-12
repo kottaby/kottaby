@@ -1,5 +1,5 @@
 import type { MockLink } from "@apollo/client/testing";
-import type { PlanCatalogQuery_planCatalog } from "@/frontend/graphql/generated/gql/graphql";
+import { type PlanCatalogQuery_planCatalog, SubscriptionCreditLane } from "@/frontend/graphql/generated/gql/graphql";
 import { planCatalogQueryDocument, purchaseSubscriptionMutationDocument } from "@/frontend/graphql/sharedDocuments";
 
 /**
@@ -18,6 +18,7 @@ function planRow(overrides: Partial<PlanRowFixture> & { id: string; title: strin
     price: "300.00",
     currency: "EGP",
     intervalDays: 30,
+    balanceLane: null,
     isActive: true,
     deactivatedAt: null,
     createdAt: "2026-06-01T10:00:00.000Z",
@@ -33,6 +34,7 @@ export const PLAN_CATALOG_ROWS: readonly PlanRowFixture[] = [
     sessionCount: 12,
     price: "450.00",
     intervalDays: 30,
+    balanceLane: SubscriptionCreditLane.Hifz,
   }),
   planRow({
     id: "402",
@@ -40,6 +42,7 @@ export const PLAN_CATALOG_ROWS: readonly PlanRowFixture[] = [
     sessionCount: 8,
     price: "300.00",
     intervalDays: 30,
+    balanceLane: SubscriptionCreditLane.Tajweed,
   }),
   planRow({
     id: "403",
@@ -47,6 +50,7 @@ export const PLAN_CATALOG_ROWS: readonly PlanRowFixture[] = [
     sessionCount: 4,
     price: "100.00",
     intervalDays: 30,
+    balanceLane: null,
   }),
 ];
 
