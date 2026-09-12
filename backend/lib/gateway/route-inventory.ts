@@ -22,15 +22,19 @@
  *      `deferred`             → exists on disk but envelope adoption is owned by
  *                                a later change.
  *
- * Current ground truth: FIVE routes exist on disk —
+ * Current ground truth: SIX routes exist on disk —
  * `app/api/graphql/route.ts` (gateway), `app/api/set-locale/route.ts`
  * (envelope), `app/api/health/route.ts` (envelope from the start — the
  * GET-only LB liveness probe, second sanctioned health surface; no other
  * method is exported so every other verb rides the framework 405),
  * `app/api/cron/sweep-sessions/route.ts` (envelope — externally triggered
  * sweep job with the bearer gate + bare-404 kill switch documented on the
- * route) and `app/api/payments/webhook/route.ts` (provider-ack-exempt —
- * gateway callback surface whose disabled kill switch and inactive paymob
+ * route), `app/api/cron/reconcile-paymob-payments/route.ts` (envelope —
+ * the externally triggered pending-payment reconciliation sweep, same
+ * bearer gate; its disabled cron mode AND its unconfigured paymob
+ * provider both answer a bare 404 documented on the route) and
+ * `app/api/payments/webhook/route.ts` (provider-ack-exempt — gateway
+ * callback surface whose disabled kill switch and inactive paymob
  * branch both answer a bare 404, registered in the exemptions inventory).
  * `/api/webhooks/*` and `/api/logs` remain PHANTOM routes (dropped pre-seeds)
  * and MUST NOT be listed until their files physically exist.
@@ -59,6 +63,11 @@ export const ROUTE_INVENTORY: readonly RouteInventoryEntry[] = [
   // Externally triggered sweep job — bearer-gated REST envelope contract;
   // the disabled mode answers a bare 404 (documented on the route).
   { path: "/api/cron/sweep-sessions", classification: "envelope" },
+  // Externally triggered reconciliation sweep job — same bearer-gated REST
+  // envelope contract as the sessions sweeper; the disabled cron mode and
+  // the unconfigured paymob provider both answer a bare 404 (documented on
+  // the route).
+  { path: "/api/cron/reconcile-paymob-payments", classification: "envelope" },
   // Gateway callback ack — enveloped success/failure replies; the disabled
   // kill switch and the inactive paymob-branch mode gate both answer a bare
   // 404 (exemption row in the error-handling contract's exemptions
