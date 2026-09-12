@@ -6,6 +6,7 @@ export * from "./adminUsers";
 export * from "./analytics";
 export * from "./applicant";
 export * from "./auth";
+export * from "./checkout";
 export * from "./common";
 export * from "./dashboard";
 export * from "./define-namespace";
