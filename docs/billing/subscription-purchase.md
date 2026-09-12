@@ -287,15 +287,25 @@ route). Fail-closed stages:
    whose `sessionCount` exceeds the `MAX_SESSION_COUNT` credit ceiling of 1,000,000 (an
    over-ceiling credit would overflow the lane's int4 balance at the credit step)) →
    `activatePendingOnce` (zero rows ⇒ `{ processed: true, replayed:
-   true }` — no credit, no second notification) → `markPaidOnce` → `creditLaneBalance(studentId,
+   true }` — no credit, no second notification) → `markPaidOnce` (the verified event's
+   `providerTransactionId`, when the gateway carries one, is recorded in the SAME guarded
+   statement — the one-time NULL → value allowance the immutability trigger admits on
+   `provider_transaction_id`) → `creditLaneBalance(studentId,
    plan.balanceLane, plan.sessionCount, tx)` → confirmation notification row persisted in-tx
    (copy composed in the RECIPIENT's persisted locale — the users row's `locale`, falling back to
    the platform default when unset; the webhook has no session locale) →
    receipts published strictly AFTER the unit resolves (publish failure degrades to one structured
    log — it never rolls back settlement).
-4. **`failed` path:** one guarded decision write; the subscription stays `pending` (no credit, no
-   notification). A late `confirmed` after `failed` yields zero rows from the guard and acks
-   `{ processed: false }` — reject-and-log, never a silent upgrade, never an error storm.
+4. **`failed` path — one transaction:** the guarded decision write (with the same one-time
+   `providerTransactionId` recording when the event carries one) and, when the write decided the
+   payment, the FAILURE notification row persisted in-tx — same `payment_confirmation` kind,
+   subscription pointer, recipient-locale composition, and idempotency-key treatment as the
+   confirmed copy; only the title/body copy differs (the failure copy names the attempted plan and
+   the not-activated outcome). Receipts publish strictly post-commit. The subscription stays
+   `pending` (no credit) — operator follow-up owns it. Zero rows ⇒ the payment was already decided:
+   `{ processed: true, replayed: true }` with no second notification. A late `confirmed` after
+   `failed` yields zero rows from the guard and acks `{ processed: false }` — reject-and-log, never
+   a silent upgrade, never an error storm.
 
 ### Lane crediting rules
 
@@ -306,8 +316,11 @@ route). Fail-closed stages:
 - Crediting a NULL lane column is a no-op (inherited convention — no `COALESCE`); the service's
   NULL-lane quarantine ensures this case never carries financial weight (the delivery acks
   `{ processed: false }` before any credit runs).
-- The activation emits are deliberately keyless: the `activatePendingOnce` zero-row arbiter already
-  guarantees the credit and the notification run exactly once per subscription.
+- The activation emits carry the idempotency key `payment:<providerTransactionId>:confirmation`
+  whenever the verified event carries a provider transaction reference — a belt-and-braces dedupe
+  on top of the primary arbiter (the zero-row guards already guarantee the credit and the
+  notification run exactly once per payment). Events without a provider reference stay keyless;
+  the guarded transition alone owns their dedupe.
 
 ### Subscription window semantics
 

@@ -13,11 +13,11 @@
  * (`markPaidOnce` / `markFailedOnce`) whose `status = 'pending'` predicate
  * is the concurrency lock: a replayed delivery matches zero rows and the
  * caller replays instead of re-deciding. No SELECT-then-UPDATE anywhere.
- * No column other than `status` / `updated_at` is ever written by this
- * repo's writers — the trigger additionally admits a one-time
- * `provider_transaction_id` recording (NULL → value) inside that same
- * guarded decision, which the fulfillment surface writes directly; the
- * repo and the trigger agree on that single permitted exception.
+ * No column other than `status` / `updated_at` is ever written by these
+ * writers unless the caller supplies the provider transaction reference —
+ * the one-time `provider_transaction_id` recording (NULL → value) the
+ * trigger admits inside that same guarded decision; the repo and the
+ * trigger agree on that single permitted exception.
  *
  * Reads follow the `backend/db/repo/AGENTS.md` "Neon HTTP Client for Bare
  * Reads (CRITICAL)" rule: non-transactional reads run as raw parameterized SQL
@@ -92,22 +92,31 @@ const PAYMENT_WITH_REFERENCE_READ_COLUMNS = `
 /**
  * One guarded status decision — the shared body of the paid/failed
  * writers. The update touches ONLY the lifecycle status (plus the bookkeep
- * timestamp); the DB trigger re-verifies that every frozen financial
- * column is unchanged, so a pending payment is the only row that can ever
- * match.
+ * timestamp) and, when the caller supplies it, the one-time provider
+ * transaction reference; the DB trigger re-verifies that every frozen
+ * financial column is unchanged, so a pending payment is the only row that
+ * can ever match.
+ *
+ * The optional reference rides INSIDE the same single statement: the
+ * amended trigger admits it only as a NULL → value write during the
+ * guarded transition, so it can never be recorded after the fact, never be
+ * overwritten, and never be erased — and a replayed delivery (zero rows)
+ * records nothing.
  */
 async function markStatusOnce(
   subscriptionId: number,
   targetStatus: PaymentStatus,
-  tx?: DBTransaction
+  tx?: DBTransaction,
+  providerTransactionId?: string
 ): Promise<StudentPaymentSelectType | null> {
   const executor = tx ?? db;
   const [row] = await executor
     .update(studentPayments)
-    .set({
-      status: targetStatus,
-      updatedAt: new Date(),
-    })
+    .set(
+      providerTransactionId === undefined
+        ? { status: targetStatus, updatedAt: new Date() }
+        : { status: targetStatus, updatedAt: new Date(), providerTransactionId }
+    )
     .where(and(eq(studentPayments.subscriptionId, subscriptionId), eq(studentPayments.status, PaymentStatus.Pending)))
     .returning();
   return row ?? null;
@@ -176,14 +185,20 @@ export namespace StudentPaymentRepository {
    * `confirmed` delivery, or a `confirmed` arriving after a `failed`
    * decision, matches zero rows.
    *
+   * When `providerTransactionId` is supplied it is recorded in the same
+   * guarded statement (the one-time NULL → value allowance the trigger
+   * admits); omitting it decides the payment without recording a provider
+   * reference.
+   *
    * @returns The paid row, or null when no pending payment exists for the
    *          subscription (already decided — replay or terminal state).
    */
   export async function markPaidOnce(
     subscriptionId: number,
-    tx?: DBTransaction
+    tx?: DBTransaction,
+    providerTransactionId?: string
   ): Promise<StudentPaymentSelectType | null> {
-    return markStatusOnce(subscriptionId, PaymentStatus.Paid, tx);
+    return markStatusOnce(subscriptionId, PaymentStatus.Paid, tx, providerTransactionId);
   }
 
   /**
@@ -192,14 +207,20 @@ export namespace StudentPaymentRepository {
    * failed outcome. A failed payment is terminal: no later writer can
    * match it.
    *
+   * When `providerTransactionId` is supplied it is recorded in the same
+   * guarded statement (the one-time NULL → value allowance the trigger
+   * admits); omitting it decides the payment without recording a provider
+   * reference.
+   *
    * @returns The failed row, or null when no pending payment exists for
    *          the subscription (already decided — replay or terminal state).
    */
   export async function markFailedOnce(
     subscriptionId: number,
-    tx?: DBTransaction
+    tx?: DBTransaction,
+    providerTransactionId?: string
   ): Promise<StudentPaymentSelectType | null> {
-    return markStatusOnce(subscriptionId, PaymentStatus.Failed, tx);
+    return markStatusOnce(subscriptionId, PaymentStatus.Failed, tx, providerTransactionId);
   }
 
   /**

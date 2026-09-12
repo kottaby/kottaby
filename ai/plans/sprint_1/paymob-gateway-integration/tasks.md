@@ -83,9 +83,9 @@
   - VERIFY registration: `{ path: "/api/payments/webhook", classification: "provider-ack-exempt" }` already exists (`backend/lib/gateway/route-inventory.ts:65`) — confirm no new row needed; if the paymob branch changes the exemption surface, update the row + `docs/graphql/error-handling-contract.md` §Exemptions accordingly.
   - [x] 4.1.QL · [x] 4.1.TE — full REQ-053 status matrix; replay — including an N≥5 burst of the SAME signed callback in quick succession (Auto Callback Retrial shape, REQ-029: exactly one settlement, the rest 200 no-ops); TOKEN/refund/void no-ops; unknown `merchant_order_id` 200; oversized 413 (landed as the shared masked 400 `PAYMENT_WEBHOOK_BODY_TOO_LARGE` — deviation ruled + logged in `deferred-items.md`); paymob-branch 404 when `PAYMENT_GATEWAY_PROVIDER ≠ paymob` · [x] 4.1.SEC — forged/malformed probes green; logs redacted + minimal · [x] 4.1.SR · [x] 4.1.IV
   - _Requirements: REQ-004, REQ-020, REQ-021, REQ-022, REQ-023, REQ-024, REQ-025, REQ-026, REQ-041, REQ-043, REQ-053, REQ-071_
-- [ ] 4.2 Fulfillment integration (activation + notification)
+- [x] 4.2 Fulfillment integration (activation + notification)
   - Verify/wire the subscription-purchase plan's `SubscriptionActivationService.processWebhookEvent`: guarded transition resolves reference→pending pair, applies `providerTransactionId` when present (REQ-031 amendment), credits lanes, and emits `payment_confirmation` via `NotificationEngine.emitForUser` in-tx with `publishReceipts` post-commit; idempotency key `payment:<providerTransactionId>:confirmation`.
-  - [ ] 4.2.QL · [ ] 4.2.TE — duplicate-event no-op; failure-path emission; notification persists-before-publish · [ ] 4.2.SEC — cross-student reference cannot reach another student's subscription · [ ] 4.2.SR · [ ] 4.2.IV
+  - [x] 4.2.QL · [x] 4.2.TE — duplicate-event no-op; failure-path emission; notification persists-before-publish · [x] 4.2.SEC — cross-student reference cannot reach another student's subscription · [x] 4.2.SR · [x] 4.2.IV
   - _Requirements: REQ-023, REQ-028, REQ-030, REQ-034_
 
 ---

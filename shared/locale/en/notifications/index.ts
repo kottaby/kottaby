@@ -74,6 +74,9 @@ export const notificationsEn: NotificationsLabels = {
   eventPaymentConfirmedTitle: "Payment confirmed",
   eventPaymentConfirmedBody: (planTitle: string) =>
     `Your payment for ${planTitle} was received — the subscription is now active and your sessions are available.`,
+  eventPaymentFailedTitle: "Payment failed",
+  eventPaymentFailedBody: (planTitle: string) =>
+    `Your payment for ${planTitle} was not completed — the subscription was not activated and no sessions were added. You can retry the purchase at any time.`,
   eventSessionReportReadyTitle: "Session report ready",
   eventSessionReportReadyBody: (teacherName: string) =>
     `${LRM}${iso(teacherName)} submitted a report for your session.`,

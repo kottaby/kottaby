@@ -15,9 +15,9 @@
  *      notification-type display labels, mark-read/mark-all affordances,
  *      badge aria, pluralized counts, realtime toast, quiet reconnect copy,
  *      session-request lifecycle + session completion-handshake event copy +
- *      intent labels, parent-link lifecycle event copy, payment-confirmation
- *      event copy, session-governance event copy, session-report-ready
- *      event copy) exists on BOTH maps — a key
+ *      intent labels, parent-link lifecycle event copy, payment event copy
+ *      (confirmation + failure), session-governance event copy,
+ *      session-report-ready event copy) exists on BOTH maps — a key
  *      deleted from both maps simultaneously still fails this suite.
  *   3. NO ENGLISH FALLTHROUGH — every ar STRING slot contains Arabic script
  *      (an accidentally English value in the ar map fails the sweep).
@@ -27,9 +27,9 @@
  *      in BOTH locales.
  *   5. TEMPLATE PINS — `markReadAriaLabel`, `realtimeToast`, the eight
  *      session event bodies, the four parent-link event-body functions, the
- *      payment-confirmation event-body function, and the two
- *      session-report-ready event-body functions expand their arguments
- *      into the returned message in BOTH locales.
+ *      payment-confirmation and payment-failure event-body functions, and
+ *      the two session-report-ready event-body functions expand their
+ *      arguments into the returned message in BOTH locales.
  *   6. REGISTRY WIRING — the `Notifications` handle is registered in
  *      `shared/locale/namespaces/index.ts` with the conventional
  *      `<ns>.<ns>` id and its getter resolves the composed bundle slice.
@@ -52,7 +52,7 @@ import { Notifications } from "@/shared/locale/namespaces/notifications";
 
 // ─── Mandated key inventory (the notification-feed surface ground truth) ────
 
-/** Every key the notifications UI namespace must carry (64 slots). */
+/** Every key the notifications UI namespace must carry (66 slots). */
 const MANDATED_KEYS = [
   "title",
   "emptyTitle",
@@ -109,6 +109,8 @@ const MANDATED_KEYS = [
   "eventParentLinkExpiringBody",
   "eventPaymentConfirmedTitle",
   "eventPaymentConfirmedBody",
+  "eventPaymentFailedTitle",
+  "eventPaymentFailedBody",
   "eventSessionGovernanceRescheduledTitle",
   "eventSessionGovernanceRescheduledBody",
   "eventSessionGovernanceCancelledTitle",
@@ -139,7 +141,7 @@ const TYPE_LABEL_KEYS = [
   "typeEvaluationResult",
 ] as const;
 
-/** The nineteen function-valued slots (pluralization + interpolation templates). */
+/** The twenty function-valued slots (pluralization + interpolation templates). */
 const FUNCTION_KEYS = [
   "markReadAriaLabel",
   "markAllResult",
@@ -158,6 +160,7 @@ const FUNCTION_KEYS = [
   "eventParentLinkRejectedBody",
   "eventParentLinkExpiringBody",
   "eventPaymentConfirmedBody",
+  "eventPaymentFailedBody",
   "eventSessionReportReadyBody",
   "eventSessionReportReadyParentBody",
 ] as const;
@@ -199,6 +202,7 @@ const FUNCTION_SLOT_SAMPLE_ARGS: Record<
   eventParentLinkRejectedBody: { en: ["Yusuf"], ar: ["الطالب"] },
   eventParentLinkExpiringBody: { en: ["Yusuf"], ar: ["الطالب"] },
   eventPaymentConfirmedBody: { en: ["Hifz Plan"], ar: ["خطة الحفظ"] },
+  eventPaymentFailedBody: { en: ["Hifz Plan"], ar: ["خطة الحفظ"] },
   eventSessionReportReadyBody: { en: ["Sheikh Omar"], ar: ["الشيخ عمر"] },
   eventSessionReportReadyParentBody: { en: ["Yusuf", "Sheikh Omar"], ar: ["يوسف", "الشيخ عمر"] },
 };
@@ -251,7 +255,7 @@ describe("compile-time parity mirror — ar/en key sets agree", () => {
     expect(Object.hasOwn(notificationsEn, key)).toBe(true);
   });
 
-  test("the mandated inventory is exhaustive (no silent key minting beyond the 64 slots)", () => {
+  test("the mandated inventory is exhaustive (no silent key minting beyond the 66 slots)", () => {
     const mandated = new Set<string>(MANDATED_KEYS);
     for (const key of Object.keys(notificationsAr)) {
       expect(mandated.has(key)).toBe(true);
@@ -348,6 +352,11 @@ describe("template pins — function slots expand their arguments", () => {
     expect(notificationsAr.eventPaymentConfirmedBody("خطة الحفظ")).toContain("خطة الحفظ");
   });
 
+  test("the payment-failure body embeds the plan title in BOTH locales", () => {
+    expect(notificationsEn.eventPaymentFailedBody("Hifz Plan")).toContain("Hifz Plan");
+    expect(notificationsAr.eventPaymentFailedBody("خطة الحفظ")).toContain("خطة الحفظ");
+  });
+
   test("parent-link event bodies embed the counterpart name in BOTH locales", () => {
     expect(notificationsEn.eventParentLinkRequestBody("Adam")).toContain("Adam");
     expect(notificationsAr.eventParentLinkRequestBody("ولي الأمر")).toContain("ولي الأمر");
@@ -422,7 +431,7 @@ describe("registry + bundle wiring", () => {
 });
 
 // ===========================================================================
-describe("function-slot inventory — exactly the nineteen locale functions, on BOTH maps", () => {
+describe("function-slot inventory — exactly the twenty locale functions, on BOTH maps", () => {
   test.each([...FUNCTION_KEYS])("slot `%s` is a function on BOTH maps", key => {
     expect(typeof Reflect.get(notificationsAr, key)).toBe("function");
     expect(typeof Reflect.get(notificationsEn, key)).toBe("function");

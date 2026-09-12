@@ -28,11 +28,16 @@
  *    dates + lane credited + notification row content + post-commit
  *    publish); unknown reference → `{ processed: false }` warn, zero
  *    mutation; failed path (payment failed, subscription untouched, no
- *    credit, no notification); duplicate confirmed → replay ack with no
- *    double credit/notification; late confirmed after failed → rejected &
- *    logged (replay-incompatible); NULL balance lane at activation → the
- *    quarantine (`{ processed: false }`, zero mutation, one correlated
- *    error log) — the lane-clear is REACHABLE after a purchase commits.
+ *    credit, FAILURE notification persisted + published — failure copy,
+ *    recipient, subscription pointer); duplicate confirmed → replay ack
+ *    with no double credit/notification; duplicate failed → replay ack
+ *    with no second notification; late confirmed after failed → rejected &
+ *    logged (replay-incompatible) with no upgrade; NULL balance lane at
+ *    activation → the quarantine (`{ processed: false }`, zero mutation,
+ *    one correlated error log) — the lane-clear is REACHABLE after a
+ *    purchase commits; the provider-transaction-reference wiring — a
+ *    carried reference is recorded on the guarded decision (both
+ *    outcomes) and keys the notification `payment:<ref>:confirmation`.
  *  - Tier 2 (boundary): currency mismatch quarantines; the exact balance
  *    delta equals the plan's `sessionCount` (other lanes untouched); the
  *    REVIEWS-lane activation credits `balance_reviews` by `sessionCount`
@@ -40,17 +45,27 @@
  *    legacy plan row written past the interval-days activation ceiling
  *    (direct-DB `interval_days` = 1e8, which would overflow the Date window
  *    arithmetic into a non-domain error) QUARANTINES — `{ processed: false }`,
- *    zero writes, one correlated error log.
+ *    zero writes, one correlated error log; an event WITHOUT a provider
+ *    reference stays keyless (column null, emit key undefined); the keyed
+ *    emission claims exactly once under the digest of the exact key and
+ *    stores its receipt post-commit through the REAL publish path.
  *  - Tier 3 (chaos): out-of-order delivery — a stale `failed` after a won
  *    confirmation replays without downgrading anything; true-concurrent
  *    double-webhook through `Promise.allSettled` proving ONE credit + one
  *    replay (gated to real multi-connection PostgreSQL — PGlite is a
  *    single-connection shim whose interleaved savepoints poison the loser
  *    instead of racing two independent claims, so the serialized Tier-1
- *    replay case carries the invariant here).
+ *    replay case carries the invariant here); the persist-before-publish
+ *    ORDER — the notification insert strictly precedes the publish on
+ *    both outcome paths (spy-marker sequence).
  *  - Tier 4 (abuse): a tampered (reduced) amount quarantines with zero
  *    mutation; the zero-credit replay proof — balance read before/after a
- *    duplicate delivery is byte-identical and the decided rows untouched.
+ *    duplicate delivery is byte-identical and the decided rows untouched;
+ *    cross-student reference isolation — a reference resolves to exactly
+ *    its OWN pending pair (the other student's rows, balance, and inbox
+ *    stay untouched, and a mismatched-amount probe through the sibling's
+ *    reference quarantines); the failure notification cannot be forged
+ *    via a mismatched amount (quarantine emits nothing).
  */
 
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
@@ -79,11 +94,17 @@ import { logger } from "@/backend/lib/logger";
 import { MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
 import { SubscriptionActivationService } from "@/backend/services/billing/subscription-activation.service";
 import { NotificationEngine } from "@/backend/services/notifications";
+import {
+  buildEmitClaimKey,
+  type NotificationIdempotencyClaimCache,
+} from "@/backend/services/notifications/emit-idempotency";
+import type { NotificationFanoutTransport } from "@/backend/services/notifications/realtime/fanout-transport";
 import type {
   DBTransaction,
   NotificationReturnType,
   PaymentWebhookEvent,
   PlanSelectType,
+  RealtimeNotificationPayload,
   StudentPaymentSelectType,
   StudentSelectType,
   SubscriptionSelectType,
@@ -125,7 +146,12 @@ afterEach(() => {
   trackedSpies.length = 0;
 });
 
-/** One pending purchase pair + its plan — the fixture every delivery path needs. */
+/**
+ * One pending purchase pair + its plan — the fixture every delivery path
+ * needs. The `paymentGateway` override selects the ledger's gateway (the
+ * paymob-shaped fixtures carry provider references; the default mirrors
+ * the mock adapter's reference-less deliveries).
+ */
 interface ActivationFixture {
   readonly user: UserSelectType;
   readonly student: StudentSelectType;
@@ -137,7 +163,8 @@ interface ActivationFixture {
 async function provisionPendingPair(
   tx: DBTransaction,
   planOverrides: Partial<PlanSelectType> = {},
-  userOverrides: Partial<UserSelectType> = {}
+  userOverrides: Partial<UserSelectType> = {},
+  paymentGateway: PaymentGateway = PaymentGateway.Mock
 ): Promise<ActivationFixture> {
   const user = await createTestUser(tx, userOverrides);
   const student = await createTestStudent(tx, user.id);
@@ -149,36 +176,51 @@ async function provisionPendingPair(
   });
   const subscription = await createTestSubscription(tx, student.id, plan.id, {
     status: SubscriptionStatus.Pending,
-    paymentMethod: PaymentGateway.Mock,
-    paymentReference: `mock_${crypto.randomUUID()}`,
+    paymentMethod: paymentGateway,
+    paymentReference: `${paymentGateway}_${crypto.randomUUID()}`,
     startDate: null,
     endDate: null,
     paymentVerifiedAt: null,
   });
   const payment = await createTestStudentPayment(tx, student.id, subscription.id, {
     status: PaymentStatus.Pending,
-    paymentGateway: PaymentGateway.Mock,
+    paymentGateway,
     amount: plan.price,
     currency: plan.currency,
   });
   return { user, student, plan, subscription, payment };
 }
 
-/** A verified `confirmed` event carrying the pair's settled amount. */
-function confirmedEvent(reference: string, amount: string, currency = "EGP"): PaymentWebhookEvent {
-  return { reference, outcome: "confirmed", amount, currency };
+/** A verified `confirmed` event (optionally carrying a provider transaction reference). */
+function confirmedEvent(
+  reference: string,
+  amount: string,
+  currency = "EGP",
+  providerTransactionId?: string
+): PaymentWebhookEvent {
+  return providerTransactionId === undefined
+    ? { reference, outcome: "confirmed", amount, currency }
+    : { reference, outcome: "confirmed", amount, currency, providerTransactionId };
 }
 
-/** A verified `failed` event carrying the pair's settled amount. */
-function failedEvent(reference: string, amount: string, currency = "EGP"): PaymentWebhookEvent {
-  return { reference, outcome: "failed", amount, currency };
+/** A verified `failed` event (optionally carrying a provider transaction reference). */
+function failedEvent(
+  reference: string,
+  amount: string,
+  currency = "EGP",
+  providerTransactionId?: string
+): PaymentWebhookEvent {
+  return providerTransactionId === undefined
+    ? { reference, outcome: "failed", amount, currency }
+    : { reference, outcome: "failed", amount, currency, providerTransactionId };
 }
 
-/** Spy seam doubles: the notification insert (row content capture) + the post-commit publish. */
-function spyNotificationSeams(): {
-  insertSpy: ReturnType<typeof spyOn>;
-  publishSpy: ReturnType<typeof spyOn>;
-} {
+/**
+ * Insert-only spy seam: captures the notification row content while the
+ * REAL post-commit publish path stays live — the keyed round-trip shape
+ * (receipt stored under the claim digest + transport push).
+ */
+function spyNotificationInsert(): ReturnType<typeof spyOn> {
   const insertSpy = trackSpy(spyOn(NotificationRepository, "createReturning"));
   insertSpy.mockImplementation(async insert => {
     notificationRowSeq += 1;
@@ -195,6 +237,15 @@ function spyNotificationSeams(): {
     };
     return row;
   });
+  return insertSpy;
+}
+
+/** Spy seam doubles: the notification insert (row content capture) + the post-commit publish. */
+function spyNotificationSeams(): {
+  insertSpy: ReturnType<typeof spyOn>;
+  publishSpy: ReturnType<typeof spyOn>;
+} {
+  const insertSpy = spyNotificationInsert();
   const publishSpy = trackSpy(spyOn(NotificationEngine, "publishReceipts"));
   publishSpy.mockImplementation(async () => {});
   return { insertSpy, publishSpy };
@@ -208,6 +259,62 @@ async function readBalances(tx: DBTransaction, studentId: number): Promise<Stude
     throw new Error("fixture vanished: student row not found");
   }
   return row;
+}
+
+/**
+ * Map-backed claim cache with SET-NX-EX semantics: the first `claim` for a
+ * key wins, later claims report held, `store` attaches the receipt a replay
+ * would read back. `claimedKeys` / `storedKeys` record every raw key the
+ * engine touched so tests can pin claim determinism and the post-commit
+ * receipt store.
+ */
+class MapBackedClaimCache implements NotificationIdempotencyClaimCache {
+  private readonly entries = new Map<string, string>();
+  readonly claimedKeys: string[] = [];
+  readonly storedKeys: string[] = [];
+
+  async claim(key: string, _ttlSeconds: number): Promise<boolean> {
+    this.claimedKeys.push(key);
+    if (this.entries.has(key)) {
+      return false;
+    }
+    this.entries.set(key, "1");
+    return true;
+  }
+
+  async store(key: string, value: string, _ttlSeconds: number): Promise<void> {
+    this.storedKeys.push(key);
+    this.entries.set(key, value);
+  }
+
+  async get(key: string): Promise<string | null> {
+    return this.entries.get(key) ?? null;
+  }
+}
+
+/**
+ * Recording fan-out transport double — the engine's realtime push port is
+ * publish-only, so an observer satisfies it structurally; `recipientBatches`
+ * captures every pushed recipient cohort.
+ */
+class RecordingFanoutTransport implements NotificationFanoutTransport {
+  readonly recipientBatches: number[][] = [];
+
+  async publishFanout(userIds: readonly number[], _payload: RealtimeNotificationPayload): Promise<void> {
+    this.recipientBatches.push([...userIds]);
+  }
+}
+
+/**
+ * Pass-through spy on the engine's single-recipient emit: observes the exact
+ * emit inputs (title/body/idempotencyKey/recipient) while the REAL engine
+ * logic runs — the claim machinery and the insert spy stay fully live.
+ */
+function spyEngineEmit(): ReturnType<typeof spyOn> {
+  const realEmit = NotificationEngine.emitForUser;
+  const emitSpy = trackSpy(spyOn(NotificationEngine, "emitForUser"));
+  emitSpy.mockImplementation(async (input, locale, tx, options) => realEmit(input, locale, tx, options));
+  return emitSpy;
 }
 
 /**
@@ -350,9 +457,9 @@ describe("SubscriptionActivationService — confirmed path (Tier 1: branches)", 
     });
   });
 
-  test("failed delivery: payment decided failed, subscription untouched, no credit, no notification", async () => {
+  test("failed delivery: payment decided failed, failure notification persisted + published, subscription untouched, no credit", async () => {
     await runInRollback(async tx => {
-      const { student, subscription, payment } = await provisionPendingPair(tx);
+      const { student, plan, subscription, payment } = await provisionPendingPair(tx, {}, { locale: "en" });
       const { insertSpy, publishSpy } = spyNotificationSeams();
 
       const outcome = await SubscriptionActivationService.processWebhookEvent(
@@ -372,8 +479,25 @@ describe("SubscriptionActivationService — confirmed path (Tier 1: branches)", 
       expect(payRows[0]?.status).toBe(PaymentStatus.Failed);
       const balances = await readBalances(tx, student.id);
       expect(balances.balanceHifz).toBe(0);
-      expect(insertSpy).not.toHaveBeenCalled();
-      expect(publishSpy).not.toHaveBeenCalled();
+
+      // The FAILURE notification — persisted in the same transaction with
+      // the failed copy (the funnel's failure signal), published post-commit.
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      const emitted = insertSpy.mock.calls[0]?.[0];
+      expect(emitted.userId).toBe(student.id);
+      expect(emitted.type).toBe(NotificationType.PaymentConfirmation);
+      expect(emitted.title).toBe(EN_NOTIFICATIONS.eventPaymentFailedTitle);
+      expect(emitted.body).toBe(EN_NOTIFICATIONS.eventPaymentFailedBody(plan.title));
+      expect(emitted.relatedEntityType).toBe("subscription");
+      expect(emitted.relatedEntityId).toBe(subscription.id);
+
+      expect(publishSpy).toHaveBeenCalledTimes(1);
+      const [receipts, publishLocale] = publishSpy.mock.calls[0] ?? [];
+      expect(publishLocale).toBe("en");
+      expect(receipts?.[0]?.recipientUserIds).toEqual([student.id]);
+      expect(receipts?.[0]?.notifications).toHaveLength(1);
+      expect(receipts?.[0]?.notifications[0]?.type).toBe(NotificationType.PaymentConfirmation);
+      expect(receipts?.[0]?.notifications[0]?.userId).toBe(student.id);
     });
   });
 
@@ -425,6 +549,9 @@ describe("SubscriptionActivationService — confirmed path (Tier 1: branches)", 
       );
       expect(failed).toEqual({ processed: true });
       domainLogSpy.mockClear();
+      // The failed decision already emitted its ONE failure notification.
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      expect(publishSpy).toHaveBeenCalledTimes(1);
 
       const lateConfirmed = await SubscriptionActivationService.processWebhookEvent(
         confirmedEvent(subscription.paymentReference ?? "", payment.amount),
@@ -442,8 +569,10 @@ describe("SubscriptionActivationService — confirmed path (Tier 1: branches)", 
       expect(payRows[0]?.status).toBe(PaymentStatus.Failed);
       const balances = await readBalances(tx, student.id);
       expect(balances.balanceHifz).toBe(0);
-      expect(insertSpy).not.toHaveBeenCalled();
-      expect(publishSpy).not.toHaveBeenCalled();
+      // The rejected late delivery adds NO second notification — the
+      // failure notification stands as the pair's single payment event.
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      expect(publishSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -889,6 +1018,428 @@ describe("SubscriptionActivationService — forged deliveries (Tier 4: abuse)", 
       expect(payAfter?.status).toBe(payBefore?.status);
       expect(subAfter?.startDate?.getTime()).toBe(subBefore?.startDate?.getTime());
       expect(subAfter?.updatedAt?.getTime()).toBe(subBefore?.updatedAt?.getTime());
+    });
+  });
+});
+
+describe("SubscriptionActivationService — provider transaction reference + keyed notification (fulfillment wiring)", () => {
+  test("confirmed event carrying a provider reference: recorded on the guarded transition, notification keyed payment:<ref>:confirmation", async () => {
+    await runInRollback(async tx => {
+      const { student, plan, subscription, payment } = await provisionPendingPair(
+        tx,
+        {},
+        { locale: "en" },
+        PaymentGateway.Paymob
+      );
+      const cache = new MapBackedClaimCache();
+      const emitSpy = spyEngineEmit();
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+      const providerTransactionId = "paymob-907001";
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount, "EGP", providerTransactionId),
+        "en",
+        tx,
+        { cache }
+      );
+
+      expect(outcome).toEqual({ processed: true });
+
+      // The auditable provider link — recorded in the SAME guarded decision
+      // (the one-time NULL → value allowance), never after the fact.
+      const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);
+      expect(payRows[0]?.status).toBe(PaymentStatus.Paid);
+      expect(payRows[0]?.providerTransactionId).toBe(providerTransactionId);
+
+      // The notification — keyed with the exact payment:<ref>:confirmation
+      // shape, confirmed copy, purchaser as recipient.
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      const emitInput = emitSpy.mock.calls[0]?.[0];
+      expect(emitInput?.idempotencyKey).toBe(`payment:${providerTransactionId}:confirmation`);
+      expect(emitInput?.userId).toBe(student.id);
+      expect(emitInput?.type).toBe(NotificationType.PaymentConfirmation);
+      expect(emitInput?.title).toBe(EN_NOTIFICATIONS.eventPaymentConfirmedTitle);
+      expect(emitInput?.body).toBe(EN_NOTIFICATIONS.eventPaymentConfirmedBody(plan.title));
+      expect(emitInput?.relatedEntityType).toBe("subscription");
+      expect(emitInput?.relatedEntityId).toBe(subscription.id);
+
+      // The engine claimed exactly once, under the digest of the exact key.
+      expect(cache.claimedKeys).toEqual([
+        buildEmitClaimKey(
+          [student.id],
+          NotificationType.PaymentConfirmation,
+          `payment:${providerTransactionId}:confirmation`
+        ),
+      ]);
+
+      expect(publishSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test("failed event carrying a provider reference: decision + recording + keyed failure notification", async () => {
+    await runInRollback(async tx => {
+      const { student, plan, subscription, payment } = await provisionPendingPair(
+        tx,
+        {},
+        { locale: "en" },
+        PaymentGateway.Paymob
+      );
+      const cache = new MapBackedClaimCache();
+      const emitSpy = spyEngineEmit();
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+      const providerTransactionId = "paymob-907002";
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        failedEvent(subscription.paymentReference ?? "", payment.amount, "EGP", providerTransactionId),
+        "en",
+        tx,
+        { cache }
+      );
+
+      expect(outcome).toEqual({ processed: true });
+
+      // The failed decision recorded the provider reference the same way.
+      const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);
+      expect(payRows[0]?.status).toBe(PaymentStatus.Failed);
+      expect(payRows[0]?.providerTransactionId).toBe(providerTransactionId);
+
+      // The failure notification — SAME key shape (a payment is decided
+      // exactly once, so the outcomes can never collide on one reference).
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      const emitInput = emitSpy.mock.calls[0]?.[0];
+      expect(emitInput?.idempotencyKey).toBe(`payment:${providerTransactionId}:confirmation`);
+      expect(emitInput?.title).toBe(EN_NOTIFICATIONS.eventPaymentFailedTitle);
+      expect(emitInput?.body).toBe(EN_NOTIFICATIONS.eventPaymentFailedBody(plan.title));
+      expect(emitInput?.userId).toBe(student.id);
+
+      expect(cache.claimedKeys).toEqual([
+        buildEmitClaimKey(
+          [student.id],
+          NotificationType.PaymentConfirmation,
+          `payment:${providerTransactionId}:confirmation`
+        ),
+      ]);
+      expect(publishSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test("event without a provider reference stays keyless — column null, emit key undefined", async () => {
+    await runInRollback(async tx => {
+      const { subscription, payment } = await provisionPendingPair(tx);
+      const emitSpy = spyEngineEmit();
+      const { insertSpy } = spyNotificationSeams();
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
+      );
+
+      expect(outcome).toEqual({ processed: true });
+
+      // The reference-less (mock-shaped) delivery: nothing recorded, and the
+      // emit carries NO key — the guarded transition alone owns the dedupe.
+      const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);
+      expect(payRows[0]?.providerTransactionId).toBeNull();
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      expect(emitSpy.mock.calls[0]?.[0]?.idempotencyKey).toBeUndefined();
+    });
+  });
+
+  test("duplicate keyed delivery → single emission: one insert, one claim, replay ack", async () => {
+    await runInRollback(async tx => {
+      const { student, subscription, payment } = await provisionPendingPair(
+        tx,
+        {},
+        { locale: "en" },
+        PaymentGateway.Paymob
+      );
+      const cache = new MapBackedClaimCache();
+      spyEngineEmit();
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+      const providerTransactionId = "paymob-907003";
+      const event = confirmedEvent(subscription.paymentReference ?? "", payment.amount, "EGP", providerTransactionId);
+
+      const first = await SubscriptionActivationService.processWebhookEvent(event, "en", tx, { cache });
+      const second = await SubscriptionActivationService.processWebhookEvent(event, "en", tx, { cache });
+
+      expect(first).toEqual({ processed: true });
+      expect(second).toEqual({ processed: true, replayed: true });
+
+      // ONE notification row, ONE claim attempt, ONE publish — the guarded
+      // replay short-circuits before any second emission could run.
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      expect(publishSpy).toHaveBeenCalledTimes(1);
+      expect(cache.claimedKeys).toHaveLength(1);
+      expect(cache.claimedKeys[0]).toBe(
+        buildEmitClaimKey(
+          [student.id],
+          NotificationType.PaymentConfirmation,
+          `payment:${providerTransactionId}:confirmation`
+        )
+      );
+    });
+  });
+
+  test("keyed emission round-trip: receipt stored under the claim digest post-commit and pushed through the transport", async () => {
+    await runInRollback(async tx => {
+      const { student, subscription, payment } = await provisionPendingPair(
+        tx,
+        {},
+        { locale: "en" },
+        PaymentGateway.Paymob
+      );
+      const cache = new MapBackedClaimCache();
+      const transport = new RecordingFanoutTransport();
+      spyEngineEmit();
+      // Insert-only spy — the REAL post-commit publish path runs against
+      // the injected cache + transport double.
+      const insertSpy = spyNotificationInsert();
+      const providerTransactionId = "paymob-907004";
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount, "EGP", providerTransactionId),
+        "en",
+        tx,
+        { cache, transport }
+      );
+
+      expect(outcome).toEqual({ processed: true });
+
+      const claimDigest = buildEmitClaimKey(
+        [student.id],
+        NotificationType.PaymentConfirmation,
+        `payment:${providerTransactionId}:confirmation`
+      );
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      // The receipt was STORED post-commit under the claim digest — the
+      // value a later duplicate emission would read back.
+      expect(cache.storedKeys).toEqual([claimDigest]);
+      expect(cache.get(claimDigest)).not.toBeNull();
+      // The realtime push ran exactly once, to the purchaser.
+      expect(transport.recipientBatches).toEqual([[student.id]]);
+    });
+  });
+});
+
+describe("SubscriptionActivationService — failure notification composition (recipient locale + replay)", () => {
+  test("failure copy is composed in the RECIPIENT's persisted locale — not the caller-supplied one", async () => {
+    await runInRollback(async tx => {
+      // Caller locale is the platform default ("ar"); the recipient carries
+      // an explicit non-default stored locale ("en").
+      const { plan, subscription, payment } = await provisionPendingPair(tx, {}, { locale: "en" });
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+
+      expect(EN_NOTIFICATIONS.eventPaymentFailedTitle).not.toBe(AR_NOTIFICATIONS.eventPaymentFailedTitle);
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        failedEvent(subscription.paymentReference ?? "", payment.amount),
+        "ar",
+        tx
+      );
+      expect(outcome).toEqual({ processed: true });
+
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      const emitted = insertSpy.mock.calls[0]?.[0];
+      expect(emitted.title).toBe(EN_NOTIFICATIONS.eventPaymentFailedTitle);
+      expect(emitted.body).toBe(EN_NOTIFICATIONS.eventPaymentFailedBody(plan.title));
+
+      // The post-commit publish stays attributed to the caller locale.
+      const [, publishLocale] = publishSpy.mock.calls[0] ?? [];
+      expect(publishLocale).toBe("ar");
+    });
+  });
+
+  test("duplicate failed delivery → replay ack, no second failure notification", async () => {
+    await runInRollback(async tx => {
+      const { subscription, payment } = await provisionPendingPair(tx, {}, { locale: "en" }, PaymentGateway.Paymob);
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+      const providerTransactionId = "paymob-907005";
+      const event = failedEvent(subscription.paymentReference ?? "", payment.amount, "EGP", providerTransactionId);
+
+      const first = await SubscriptionActivationService.processWebhookEvent(event, "en", tx);
+      const second = await SubscriptionActivationService.processWebhookEvent(event, "en", tx);
+
+      expect(first).toEqual({ processed: true });
+      expect(second).toEqual({ processed: true, replayed: true });
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      expect(publishSpy).toHaveBeenCalledTimes(1);
+
+      const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);
+      expect(payRows[0]?.status).toBe(PaymentStatus.Failed);
+      expect(payRows[0]?.providerTransactionId).toBe(providerTransactionId);
+    });
+  });
+});
+
+describe("SubscriptionActivationService — persist-before-publish ordering (Tier 3)", () => {
+  test("confirmed path: the notification row inserts strictly BEFORE the publish, which carries the persisted row", async () => {
+    await runInRollback(async tx => {
+      const { student, subscription, payment } = await provisionPendingPair(tx, {}, { locale: "en" });
+      const order: string[] = [];
+      const insertSpy = trackSpy(spyOn(NotificationRepository, "createReturning"));
+      insertSpy.mockImplementation(async insert => {
+        order.push("insert");
+        notificationRowSeq += 1;
+        const row: NotificationReturnType = {
+          id: notificationRowSeq,
+          userId: insert.userId,
+          type: insert.type,
+          title: insert.title,
+          body: insert.body ?? null,
+          isRead: false,
+          relatedEntityType: insert.relatedEntityType ?? null,
+          relatedEntityId: insert.relatedEntityId ?? null,
+          createdAt: new Date(),
+        };
+        return row;
+      });
+      const publishSpy = trackSpy(spyOn(NotificationEngine, "publishReceipts"));
+      publishSpy.mockImplementation(async () => {
+        order.push("publish");
+      });
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
+      );
+
+      expect(outcome).toEqual({ processed: true });
+      expect(order).toEqual(["insert", "publish"]);
+
+      // The publish carries the receipt wrapping the just-persisted row.
+      const [receipts] = publishSpy.mock.calls[0] ?? [];
+      expect(receipts?.[0]?.notifications).toHaveLength(1);
+      expect(receipts?.[0]?.notifications[0]?.userId).toBe(student.id);
+      expect(receipts?.[0]?.recipientUserIds).toEqual([student.id]);
+    });
+  });
+
+  test("failed path: the failure notification row inserts strictly BEFORE the publish", async () => {
+    await runInRollback(async tx => {
+      const { student, subscription, payment } = await provisionPendingPair(tx, {}, { locale: "en" });
+      const order: string[] = [];
+      const insertSpy = trackSpy(spyOn(NotificationRepository, "createReturning"));
+      insertSpy.mockImplementation(async insert => {
+        order.push("insert");
+        notificationRowSeq += 1;
+        const row: NotificationReturnType = {
+          id: notificationRowSeq,
+          userId: insert.userId,
+          type: insert.type,
+          title: insert.title,
+          body: insert.body ?? null,
+          isRead: false,
+          relatedEntityType: insert.relatedEntityType ?? null,
+          relatedEntityId: insert.relatedEntityId ?? null,
+          createdAt: new Date(),
+        };
+        return row;
+      });
+      const publishSpy = trackSpy(spyOn(NotificationEngine, "publishReceipts"));
+      publishSpy.mockImplementation(async () => {
+        order.push("publish");
+      });
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        failedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
+      );
+
+      expect(outcome).toEqual({ processed: true });
+      expect(order).toEqual(["insert", "publish"]);
+      const [receipts] = publishSpy.mock.calls[0] ?? [];
+      expect(receipts?.[0]?.notifications[0]?.userId).toBe(student.id);
+    });
+  });
+});
+
+describe("SubscriptionActivationService — cross-student isolation + forged failure probes (Tier 4: abuse)", () => {
+  test("a reference settles only its OWN pending pair — the sibling student's rows, balance, and inbox stay untouched", async () => {
+    await runInRollback(async tx => {
+      const pairA = await provisionPendingPair(tx, { price: "200.00" });
+      const pairB = await provisionPendingPair(tx, { price: "350.00" });
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+
+      // Probe 1 — a delivery quoting B's reference but A's settled amount:
+      // the settlement quarantine rejects it before any write (stored row
+      // is the source of truth), so NEITHER pair moves.
+      const forged = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(pairB.subscription.paymentReference ?? "", pairA.payment.amount),
+        "en",
+        tx
+      );
+      expect(forged).toEqual({ processed: false });
+      expect(insertSpy).not.toHaveBeenCalled();
+      expect(publishSpy).not.toHaveBeenCalled();
+
+      // Probe 2 — the honest delivery through B's reference: B settles in
+      // full (activation + credit + notification to B) and A is untouched.
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(pairB.subscription.paymentReference ?? "", pairB.payment.amount),
+        "en",
+        tx
+      );
+      expect(outcome).toEqual({ processed: true });
+
+      const subB = (
+        await tx.select().from(subscriptions).where(eq(subscriptions.id, pairB.subscription.id)).limit(1)
+      )[0];
+      expect(subB?.status).toBe(SubscriptionStatus.Active);
+      const payB = (
+        await tx.select().from(studentPayments).where(eq(studentPayments.id, pairB.payment.id)).limit(1)
+      )[0];
+      expect(payB?.status).toBe(PaymentStatus.Paid);
+      expect((await readBalances(tx, pairB.student.id)).balanceHifz).toBe(pairB.plan.sessionCount);
+
+      // A's pair is byte-identical to its pre-delivery state.
+      const subA = (
+        await tx.select().from(subscriptions).where(eq(subscriptions.id, pairA.subscription.id)).limit(1)
+      )[0];
+      expect(subA?.status).toBe(SubscriptionStatus.Pending);
+      expect(subA?.startDate).toBeNull();
+      const payA = (
+        await tx.select().from(studentPayments).where(eq(studentPayments.id, pairA.payment.id)).limit(1)
+      )[0];
+      expect(payA?.status).toBe(PaymentStatus.Pending);
+      expect(payA?.providerTransactionId).toBeNull();
+      expect((await readBalances(tx, pairA.student.id)).balanceHifz).toBe(0);
+
+      // Exactly ONE notification exists — addressed to B, never to A.
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      expect(insertSpy.mock.calls[0]?.[0]?.userId).toBe(pairB.student.id);
+    });
+  });
+
+  test("the failure notification cannot be forged via a mismatched amount — quarantine emits nothing", async () => {
+    await runInRollback(async tx => {
+      const { subscription, payment } = await provisionPendingPair(tx, {}, { locale: "en" }, PaymentGateway.Paymob);
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+      const errorSpy = trackSpy(spyOn(logger, "error"));
+
+      // A forged decline quoting a fraction of the settled price: the
+      // settlement quarantine fires before the decision write, so no
+      // failure decision, no reference recording, no failure notification.
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        failedEvent(subscription.paymentReference ?? "", "0.01", "EGP", "paymob-forged-907099"),
+        "en",
+        tx
+      );
+
+      expect(outcome).toEqual({ processed: false });
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0]?.[1]).toMatchObject({
+        reference: subscription.paymentReference,
+        subscriptionId: subscription.id,
+        paymentId: payment.id,
+      });
+
+      const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);
+      expect(payRows[0]?.status).toBe(PaymentStatus.Pending);
+      expect(payRows[0]?.providerTransactionId).toBeNull();
+      expect(insertSpy).not.toHaveBeenCalled();
+      expect(publishSpy).not.toHaveBeenCalled();
     });
   });
 });

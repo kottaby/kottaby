@@ -210,3 +210,20 @@ Work Log:
 Stage Summary:
 - Task 4.1 COMPLETE: single provider-dispatched receiver extended with the paymob branch (REQ-020/021/022/023/024/025/026/041/043/053/071 + REQ-004 surface); committing on feat/paymob-gateway-integration
 - Carry-forward: 4.2 receives {reference, outcome, amount, currency, providerTransactionId} + "en" locale; once-only/replay ack is the SERVICE's guarded transition (route always dispatches); 5.4 simulation channel signs the 20-key POST concat into ?hmac= (route test oracle is the reference); provider flips in tests MUST go through resetPaymentGateway() (drops adapter + env snapshot)
+---
+Task ID: 4.2
+Agent: general-purpose subagent (completion pass)
+Task: Fulfillment integration (activation + notification)
+
+Work Log:
+- Reviewed prior agent's 8 uncommitted files against task 4.2 + specs (REQ-023/028/030/034) + A6 ruling (deferred-items.md:45 — failure path NOW emits payment_confirmation) + 4.1/0.1 outcome contracts: implementation substantially complete — guarded transition resolves reference→pending pair, providerTransactionId recorded INSIDE the guarded decision statement (REQ-031 via repo's optional trailing param, set-on-transition convention from 2.2), lane credit in ONE tx (REQ-030), keyed emit payment:<providerTransactionId>:confirmation in-tx + publishReceipts post-commit (REQ-028), A6 failure notification persisted+published in the failed path's tx, canonical doc §7 updated same-change-set per A6
+- ONE critical fix: keyed round-trip test called spyNotificationSeams() whose publishReceipts NO-OP mock suppressed the very post-commit path under test (cache.storedKeys stayed []) — split spyNotificationInsert() (insert-only, real publish live) out of spyNotificationSeams(); suite went 26 pass/1 fail → 27 pass/0 fail
+- Verified locale wiring: eventPaymentFailedTitle/Body slots on types + en + ar (66-slot mandated inventory, 20 function slots), parity suite green
+- Verification: sub-loop --lifecycle duplicates exit 0 ×7 code files (docs .md content-reviewed per 4.1 precedent); run-test activation suite 27 pass/1 skip (PGlite-gated true-concurrency case, deliberate)/0 fail (242 expect); parity suite 125 pass/0 fail (764 expect); repo regression suite 14 pass/0 fail (set-on-transition + financial-freeze + second-update-forbidden pins hold); tsgo project-wide 0 errors; plan-meta grep over all added lines: zero matches
+- Semantic review: single-statement guarded updates everywhere (no read-then-write), no module-level mutable state, no dead branches (all arms test-exercised), no cross-layer imports, enum VALUE imports, 8-file scope justified (service+suite+repo seam+3 locale files+parity+canonical doc A6 mandate); persist-before-publish pinned by spy-sequence tests on BOTH outcome paths
+- 4.2.SEC: cross-student isolation Tier-4 test (two pairs, sibling untouched byte-identical) + forged-failure-via-amount-tamper quarantine test both green; key composed only from post-HMAC providerTransactionId, claim digest recipient-scoped
+- Wrote outcome/4.2-outcome.md; tasks.md 4.2 + all sub-boxes → [x]; deferred-items.md: NO new rows (only in-scope test defect, fixed; D-413 from 4.1 stands)
+
+Stage Summary:
+- Task 4.2 COMPLETE: fulfillment notification wiring landed on the guarded activation surface (REQ-023/028/030/034 + REQ-031 recording); committing on feat/paymob-gateway-integration
+- Carry-forward: 5.1 reconcile funnels inquiry outcomes through the SAME processWebhookEvent(event, locale, outerTx?, options?) call (options seam = injected cache/transport for tests; production omits it); 8.1 journey should use spyNotificationInsert() when asserting THROUGH the publish path (spyNotificationSeams no-ops it); Paymob deliveries always keyed, mock deliveries keyless (guard-only dedupe)
