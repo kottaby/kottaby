@@ -136,18 +136,66 @@ export namespace WalletRepository {
   }
 
   /**
-   * The withdrawal debit slice (R-302), on the caller's
-   * transaction: inserts ONE `pending` `withdrawal` ledger row (the
+   * Shared debit writer behind `debitForWithdrawalOnce` and
+   * `debitAdjustmentOnce`: inserts ONE `withdrawal` ledger row at
+   * `ledgerStatus` (the in-flight payout record or the completed
+   * manual-adjustment record) and debits the wallet `balance` by exactly
+   * `amount` via ONE guarded UPDATE — the funds guard lives in the
+   * statement's predicate (`balance >= amount`), mirroring
+   * `StudentRepository.decrementLaneIfAvailable`. The amount is a decimal
+   * STRING bound verbatim (never re-parsed — money discipline).
+   * `total_earning` is deliberately untouched: a debit spends the balance,
+   * it does not rewrite the lifetime earnings counter. The DB-side
+   * `wallet_balance_check >= 0` CHECK is the concurrent-overdraw backstop
+   * behind the predicate. `methodLabel` is the caller's fully-qualified
+   * method name, carried verbatim into the unreachable zero-row INSERT
+   * error so each public entry point keeps its own message.
+   *
+   * @returns The inserted ledger row, or `null` when the guarded UPDATE
+   *     matched zero rows (insufficient funds — the caller classifies).
+   */
+  async function debitWithLedgerRow(
+    insert: {
+      readonly walletId: number;
+      readonly amount: string;
+      readonly description: string;
+    },
+    ledgerStatus: TransactionStatus,
+    methodLabel: string,
+    tx?: DBTransaction
+  ): Promise<TeacherTransactionSelectType | null> {
+    const executor = tx ?? db;
+    const ledgerRows = await executor
+      .insert(teacherTransaction)
+      .values({
+        walletId: insert.walletId,
+        sessionId: null,
+        description: insert.description,
+        amount: insert.amount,
+        type: TransactionType.Withdrawal,
+        status: ledgerStatus,
+      })
+      .returning();
+    const ledger = ledgerRows[0];
+    if (!ledger) {
+      throw new Error(`${methodLabel}: ledger INSERT returned zero rows`);
+    }
+    const debited = await executor
+      .update(wallet)
+      .set({ balance: sql`${wallet.balance} - ${insert.amount}`, updatedAt: new Date() })
+      .where(and(eq(wallet.id, insert.walletId), gte(wallet.balance, insert.amount)))
+      .returning({ id: wallet.id });
+    if (debited.length === 0) {
+      return null;
+    }
+    return ledger;
+  }
+
+  /**
+   * The withdrawal debit slice, on the caller's transaction: inserts ONE `pending` `withdrawal` ledger row (the
    * in-flight payout record; the append-only contract means settlement is
    * a future compensating flow, never an in-place flip) and debits the
-   * wallet `balance` by exactly `amount` via ONE guarded UPDATE — the
-   * funds guard lives in the statement's predicate (`balance >= amount`),
-   * mirroring `StudentRepository.decrementLaneIfAvailable`. The amount is
-   * a decimal STRING bound verbatim (never re-parsed — money discipline).
-   * `total_earning` is deliberately untouched: a withdrawal spends the
-   * balance, it does not rewrite the lifetime earnings counter. The
-   * DB-side `wallet_balance_check >= 0` CHECK is the concurrent-overdraw
-   * backstop behind the predicate.
+   * wallet `balance` by exactly `amount` via ONE guarded UPDATE.
    *
    * @returns The inserted ledger row, or `null` when the guarded UPDATE
    *     matched zero rows (insufficient funds — the caller classifies).
@@ -160,31 +208,7 @@ export namespace WalletRepository {
     },
     tx?: DBTransaction
   ): Promise<TeacherTransactionSelectType | null> {
-    const executor = tx ?? db;
-    const ledgerRows = await executor
-      .insert(teacherTransaction)
-      .values({
-        walletId: insert.walletId,
-        sessionId: null,
-        description: insert.description,
-        amount: insert.amount,
-        type: TransactionType.Withdrawal,
-        status: TransactionStatus.Pending,
-      })
-      .returning();
-    const ledger = ledgerRows[0];
-    if (!ledger) {
-      throw new Error("WalletRepository.debitForWithdrawalOnce: ledger INSERT returned zero rows");
-    }
-    const debited = await executor
-      .update(wallet)
-      .set({ balance: sql`${wallet.balance} - ${insert.amount}`, updatedAt: new Date() })
-      .where(and(eq(wallet.id, insert.walletId), gte(wallet.balance, insert.amount)))
-      .returning({ id: wallet.id });
-    if (debited.length === 0) {
-      return null;
-    }
-    return ledger;
+    return debitWithLedgerRow(insert, TransactionStatus.Pending, "WalletRepository.debitForWithdrawalOnce", tx);
   }
 
   /**
@@ -550,30 +574,6 @@ export namespace WalletRepository {
     },
     tx?: DBTransaction
   ): Promise<TeacherTransactionSelectType | null> {
-    const executor = tx ?? db;
-    const ledgerRows = await executor
-      .insert(teacherTransaction)
-      .values({
-        walletId: insert.walletId,
-        sessionId: null,
-        description: insert.description,
-        amount: insert.amount,
-        type: TransactionType.Withdrawal,
-        status: TransactionStatus.Completed,
-      })
-      .returning();
-    const ledger = ledgerRows[0];
-    if (!ledger) {
-      throw new Error("WalletRepository.debitAdjustmentOnce: ledger INSERT returned zero rows");
-    }
-    const debited = await executor
-      .update(wallet)
-      .set({ balance: sql`${wallet.balance} - ${insert.amount}`, updatedAt: new Date() })
-      .where(and(eq(wallet.id, insert.walletId), gte(wallet.balance, insert.amount)))
-      .returning({ id: wallet.id });
-    if (debited.length === 0) {
-      return null;
-    }
-    return ledger;
+    return debitWithLedgerRow(insert, TransactionStatus.Completed, "WalletRepository.debitAdjustmentOnce", tx);
   }
 }

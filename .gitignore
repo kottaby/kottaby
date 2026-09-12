@@ -114,3 +114,4 @@ shared/locale/**/*.js
 # Python cache
 __pycache__/
 
+.tools

@@ -96,11 +96,11 @@ import type {
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 import { withAuditDeleteTriggersSuspended, withImmutabilityTriggersSuspended } from "@/test/helpers/db-cleanup";
-import type { JourneyActor } from "@/test/workflows/helpers";
 import {
   ANONYMOUS_ACTOR_ID,
   countAuditLogsForActor,
   countNotificationsForUser,
+  type JourneyActor,
   journeyPrefix,
   provisionAdminActor,
   provisionCertifiedTeacherActor,
@@ -119,11 +119,13 @@ const ERRORS_EN = getServerTranslations(LOCALE).errorsTranslations;
 /** Per-run unique prefix — greppable marker for any crash residue. */
 const PREFIX = journeyPrefix("billing");
 
-// The prefix's only runtime role is the crash-residue marker: fixtures use
-// the entity-setup helpers (whose names are unique per run already), so an
-// intermediate crash leaves rows greppable by the prefix in the audit
-// context string below rather than by fixture-name mutation.
-void PREFIX;
+// Fixtures take their uniqueness from the entity-setup helpers; the prefix
+// additionally rides along inside every free-text reason sent to the service
+// (it lands on write-once ledger descriptions), so an interrupted run leaves
+// rows greppable by `jrn_billing_<8hex>` rather than by shared fixture names.
+function prefixedReason(label: string): string {
+  return `${PREFIX} ${label}`;
+}
 
 /** The audit entity label for settlement rows (the service's constant). */
 const TXN_ENTITY_TYPE = "teacher_transaction";
@@ -480,7 +482,7 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     const rejected = await AdminFinancialAuditingService.rejectWithdrawal(
       adminActor.userId,
       pending.id,
-      "Insufficient documentation",
+      prefixedReason("insufficient documentation"),
       LOCALE
     );
     expect(rejected.id).toBe(pending.id);
@@ -511,7 +513,7 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     // lifetime earnings UNCHANGED.
     const credit = await AdminFinancialAuditingService.adjustTeacherWallet(
       adminActor.userId,
-      adjustmentInput(teacherA.userId, ADJUST_CREDIT, WalletAdjustmentDirection.Credit, "Goodwill credit"),
+      adjustmentInput(teacherA.userId, ADJUST_CREDIT, WalletAdjustmentDirection.Credit, prefixedReason("goodwill credit")),
       LOCALE
     );
     expect(credit.type).toBe(TransactionType.Bonus);
@@ -530,7 +532,7 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     const payoutRow = await readLedgerRow(payoutTxnId);
     const debit = await AdminFinancialAuditingService.adjustTeacherWallet(
       adminActor.userId,
-      adjustmentInput(teacherA.userId, ADJUST_DEBIT, WalletAdjustmentDirection.Debit, "Duplicate payout correction"),
+      adjustmentInput(teacherA.userId, ADJUST_DEBIT, WalletAdjustmentDirection.Debit, prefixedReason("duplicate payout correction")),
       LOCALE
     );
     expect(debit.type).toBe(TransactionType.Withdrawal);
@@ -563,7 +565,7 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     await expectInsufficientFunds(() =>
       AdminFinancialAuditingService.adjustTeacherWallet(
         adminActor.userId,
-        adjustmentInput(teacherA.userId, ADJUST_OVER_BALANCE, WalletAdjustmentDirection.Debit, "Over-balance probe"),
+        adjustmentInput(teacherA.userId, ADJUST_OVER_BALANCE, WalletAdjustmentDirection.Debit, prefixedReason("over-balance probe")),
         LOCALE
       )
     );
@@ -634,7 +636,7 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
       () =>
         AdminFinancialAuditingService.adjustTeacherWallet(
           teacherA.userId,
-          adjustmentInput(teacherA.userId, "5.00", WalletAdjustmentDirection.Credit, "Self credit probe"),
+          adjustmentInput(teacherA.userId, "5.00", WalletAdjustmentDirection.Credit, prefixedReason("self credit probe")),
           LOCALE
         ),
       ForbiddenError,
