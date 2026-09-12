@@ -667,6 +667,79 @@ type OutgoingParentLinkRequest {
   studentMaskedName: String!
 }
 
+type ParentAttendanceEntry {
+  createdAt: DateTime!
+  endedAt: DateTime
+  id: ID!
+  startedAt: DateTime
+  status: SessionStatus!
+}
+
+type ParentAttendancePage {
+  items: [ParentAttendanceEntry!]!
+  page: Int!
+  pageSize: Int!
+  totalCount: Int!
+}
+
+type ParentChildProgress {
+  child: ParentLinkedChild!
+  latestJadidPosition: ParentHomeworkPosition
+  latestMadiPosition: ParentHomeworkPosition
+  progressRowCount: Int!
+}
+
+type ParentHomeworkEntry {
+  createdAt: DateTime!
+  id: ID!
+  jadid: ParentHomeworkTrack
+  madi: ParentHomeworkTrack
+  sessionId: Int!
+}
+
+type ParentHomeworkPage {
+  items: [ParentHomeworkEntry!]!
+  page: Int!
+  pageSize: Int!
+  totalCount: Int!
+}
+
+type ParentHomeworkPosition {
+  fromAyah: Int
+  surahJuz: SurahJuzRef!
+  toAyah: Int
+}
+
+type ParentHomeworkTrack {
+  fromAyah: Int
+  grade: Int
+  surahJuz: SurahJuzRef
+  toAyah: Int
+}
+
+type ParentLinkedChild {
+  createdAt: DateTime!
+  fullName: String!
+  id: ID!
+}
+
+type ParentReportEntry {
+  createdAt: DateTime!
+  id: ID!
+  sessionId: Int!
+  sessionStartedAt: DateTime
+  sessionStatus: SessionStatus!
+  studentRatingByTeacher: Int
+  teacherNotes: String
+}
+
+type ParentReportPage {
+  items: [ParentReportEntry!]!
+  page: Int!
+  pageSize: Int!
+  totalCount: Int!
+}
+
 """Gateway checkout descriptor for a purchase in flight."""
 type PaymentCheckout {
   """
@@ -905,6 +978,11 @@ type Query {
   myIncomingParentLinkRequests: [IncomingParentLinkRequest!]!
 
   """
+  The caller's confirmed-linked children, oldest first. Soft-deleted children are excluded; a child whose account is severed vanishes from the list on the next read. Zero arguments — identity is derived exclusively from the verified context.
+  """
+  myLinkedChildren: [ParentLinkedChild!]!
+
+  """
   One page of the caller's own inbox — items (newest first), totalCount, hasMore. Optional conjunctive filters (type, isRead) and page window (limit 1..50 default 20, offset default 0).
   """
   myNotifications(filter: MyNotificationsFilterInput): NotificationListPage!
@@ -930,6 +1008,26 @@ type Query {
   The caller's own teacher wallet: the balance surface (decimal strings, EGP) plus the newest-first ledger page (the 50 most recent transactions). The wallet row is ensured lazily, so a new teacher sees an honest zeroed wallet. Teacher-only.
   """
   myWallet: Wallet!
+
+  """
+  The gated child's homework rows (each carrying the two parallel Jadid/Madi track blocks), newest-session-first, paged. Track block composition preserves per-field nullability — a null grade stays null, a fully-null track block collapses to null, never fabricated zeros.
+  """
+  parentChildHomework(page: Int, pageSize: Int, studentId: Int!): ParentHomeworkPage!
+
+  """
+  The gated child header echo plus the honest progress row count and the latest Jadid/Madi curriculum positions, in one payload. The link grant is verified inside the same transaction as the reads; a missing, foreign, never-linked, severed, or malformed student id collapses to the same constant denial.
+  """
+  parentChildProgress(studentId: Int!): ParentChildProgress!
+
+  """
+  The gated child's per-session report rows (teacher notes + rating, joined to the owning session for status/timestamp context), newest-session-first, paged. The honest total + page window shape mirrors the attendance list; an out-of-range page yields empty items next to the true total count.
+  """
+  parentChildReports(page: Int, pageSize: Int, studentId: Int!): ParentReportPage!
+
+  """
+  The gated child's derived attendance entries (session rows), newest first, paged. Pagination is normalized before the database read and the effective values are echoed in the page payload; an out-of-range page yields empty items next to the true total count.
+  """
+  parentChildSessions(page: Int, pageSize: Int, studentId: Int!): ParentAttendancePage!
 
   """Returns the active subscription plans catalog for authenticated users."""
   planCatalog: [Plan!]!
