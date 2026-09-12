@@ -9,16 +9,18 @@
  *
  *  - `real` for a production runtime AND for any deployment whose active
  *    provider is not paymob (fail-closed test delivery, null public base);
+ *  - `ngrok` in development with paymob active when BOTH tunnel keys are
+ *    set AND the channel's readiness sequence succeeds (spawn stand-in +
+ *    a passing public probe), with the ngrok channel's public base and the
+ *    dev-port spawn command;
  *  - `simulation` for every other development case — tunnel keys absent
- *    (wholly or partially) or the tunnel not usable — with exactly ONE
- *    structured info log naming the fallback reason;
- *  - the tunnel acquisition seam: a fully configured tunnel currently
- *    resolves to simulation with a distinct, named reason — the tunnel
- *    channel implementation replaces that branch's outcome without touching
- *    any other resolution rule;
+ *    (wholly or partially) or the tunnel's readiness sequence failing —
+ *    with exactly ONE structured info log naming the fallback reason (and
+ *    the probe detail on a failed readiness sequence);
  *  - the lazy singleton (same instance until reset; env changes observed
- *    after reset) and the simulation config wiring (dev-server port from
- *    configuration);
+ *    after reset), the simulation config wiring (dev-server port from
+ *    configuration), and the fail-closed production guard on test-delivery
+ *    configuration;
  *  - a static source pin: NO production source outside the typed env module
  *    reads `process.env.NGROK_*` — the factory is the only consumer of the
  *    tunnel configuration, so per-file tunnel heuristics cannot appear.
@@ -36,6 +38,7 @@ import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { DomainError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import {
+  configureCallbackChannelTestDelivery,
   getCallbackChannel,
   resetCallbackChannel,
 } from "@/backend/services/billing/payment-gateway/callback-channel/callback-channel.factory";
@@ -78,6 +81,9 @@ function memberString(parent: Record<string, unknown>, key: string): string {
 function resetFactory(): void {
   resetCallbackChannel();
 }
+
+/** The agent command the tunnel channel's spawn seam last captured. */
+let capturedSpawnCommand: string[] = [];
 
 // Index-signature alias sidesteps Next.js' read-only NODE_ENV augmentation
 // while still mutating the SAME live env object the runtime reads.
@@ -149,6 +155,7 @@ let infoSpy: ReturnType<typeof spyOn>;
 beforeEach(() => {
   clearConfiguredEnv();
   resetFactory();
+  capturedSpawnCommand = [];
   infoSpy = spyOn(logger, "info");
 });
 
@@ -228,17 +235,120 @@ describe("getCallbackChannel resolution", () => {
     expect(readFallbackReason()).toBe("ngrok-not-configured");
   });
 
-  test("falls back to simulation with a distinct reason when a configured tunnel has no channel implementation", async () => {
+  test("resolves the ngrok channel when the tunnel is configured and its probe passes", async () => {
     enableDevPaymobWithTunnelEnv();
+    process.env.NGROK_PORT = "4100";
+    const probedUrls: string[] = [];
+    configureCallbackChannelTestDelivery({
+      spawnAgent: ({ command }) => {
+        capturedSpawnCommand = [...command];
+        return { kill: () => {} };
+      },
+      fetch: async url => {
+        probedUrls.push(url);
+        return new Response(null, { status: 200 });
+      },
+    });
+
     const channel = await getCallbackChannel();
+
+    expect(channel.kind).toBe("ngrok");
+    expect(channel.publicBaseUrl).toBe("https://factory-test-domain.ngrok.app");
+    expect(typeof channel.deliverTestCallback).toBe("function");
+    expect(capturedSpawnCommand).toEqual(["ngrok", "http", "--url=https://factory-test-domain.ngrok.app", "4100"]);
+    expect(probedUrls).toEqual(["https://factory-test-domain.ngrok.app/api/health"]);
+    expect(infoSpy).not.toHaveBeenCalled();
+  });
+
+  test("falls back to simulation with a named reason when the tunnel probe never answers", async () => {
+    enableDevPaymobWithTunnelEnv();
+    configureCallbackChannelTestDelivery({
+      spawnAgent: () => ({ kill: () => {} }),
+      fetch: async () => {
+        throw new Error("connect ECONNREFUSED");
+      },
+    });
+
+    const channel = await getCallbackChannel();
+
     expect(channel.kind).toBe("simulation");
-    expect(readFallbackReason()).toBe("ngrok-channel-unavailable");
+    expect(channel.publicBaseUrl).toBe("http://localhost:3000");
+    expect(readFallbackReason()).toBe("ngrok-unreachable");
+    const firstCall: unknown = infoSpy.mock.calls[0];
+    if (!Array.isArray(firstCall)) {
+      throw new Error("logger.info call was not captured");
+    }
+    const logBag: unknown = firstCall[1];
+    if (!isPlainJsonObject(logBag)) {
+      throw new Error("logger.info context bag was not a JSON object");
+    }
+    expect(memberString(logBag, "detail")).toContain("readiness budget");
+  });
+
+  test("the fallback log carries no tunnel secret material on a failed probe", async () => {
+    enableDevPaymobWithTunnelEnv();
+    configureCallbackChannelTestDelivery({
+      spawnAgent: () => ({ kill: () => {} }),
+      fetch: async () => new Response(null, { status: 503 }),
+    });
+
+    await getCallbackChannel();
+
+    const firstCall: unknown = infoSpy.mock.calls[0];
+    if (!Array.isArray(firstCall)) {
+      throw new Error("logger.info call was not captured");
+    }
+    expect(String(firstCall[0])).not.toContain("factory-test-tunnel-token");
+    const logBag: unknown = firstCall[1];
+    if (!isPlainJsonObject(logBag)) {
+      throw new Error("logger.info context bag was not a JSON object");
+    }
+    expect(JSON.stringify(logBag)).not.toContain("factory-test-tunnel-token");
   });
 
   test("resolves simulation even when the HMAC secret is unconfigured (resolution never throws)", async () => {
     enableDevPaymob();
     const channel = await getCallbackChannel();
     expect(channel.kind).toBe("simulation");
+  });
+
+  test("rejects test-delivery configuration in a production runtime", async () => {
+    process.env.PAYMENT_GATEWAY_PROVIDER = PaymentGateway.Paymob;
+    await withNodeEnv("production", async () => {
+      let caught: unknown = null;
+      try {
+        configureCallbackChannelTestDelivery({ fetch: async () => new Response(null, { status: 200 }) });
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(DomainError);
+      if (caught instanceof DomainError) {
+        expect(caught.code).toBe("PAYMENT_CALLBACK_TEST_DELIVERY_UNSUPPORTED");
+      }
+    });
+  });
+
+  test("the ngrok channel's readiness is idempotent — one spawn, no re-probe after success", async () => {
+    enableDevPaymobWithTunnelEnv();
+    let spawnCount = 0;
+    let probeCount = 0;
+    configureCallbackChannelTestDelivery({
+      spawnAgent: () => {
+        spawnCount += 1;
+        return { kill: () => {} };
+      },
+      fetch: async () => {
+        probeCount += 1;
+        return new Response(null, { status: 200 });
+      },
+    });
+
+    const channel = await getCallbackChannel();
+    await channel.ensureReady();
+    await channel.ensureReady();
+
+    expect(spawnCount).toBe(1);
+    expect(probeCount).toBe(1);
   });
 
   test("honors the configured dev-server port as the simulation public base", async () => {

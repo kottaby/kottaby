@@ -8,8 +8,15 @@ import {
 import { DomainError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import {
+  type NgrokAgentSpawn,
+  NgrokCallbackChannel,
+  type NgrokCallbackChannelConfig,
+  type NgrokCleanupRegistration,
+} from "@/backend/services/billing/payment-gateway/callback-channel/ngrok-callback-channel.channel";
+import {
   SimulationCallbackChannel,
   type SimulationCallbackChannelConfig,
+  type SimulationSurfaceFetch,
 } from "@/backend/services/billing/payment-gateway/callback-channel/simulation-callback-channel.channel";
 import type { CallbackChannelPort } from "@/backend/types";
 
@@ -31,9 +38,10 @@ import type { CallbackChannelPort } from "@/backend/types";
  *    with a fail-closed domain error.
  *  - In development with paymob active, a tunnel channel is eligible only
  *    when BOTH the ngrok authtoken and the reserved public domain are
- *    configured AND the tunnel's own readiness sequence succeeds. The
- *    tunnel implementation plugs in at the single acquisition seam below;
- *    until it does, a configured tunnel resolves to simulation.
+ *    configured AND the tunnel's own readiness sequence succeeds — the
+ *    channel spawns the ngrok agent and probes the PUBLIC reserved-domain
+ *    URL, so the decision covers the whole acquisition, not just the
+ *    configuration keys.
  *  - Every other development case — tunnel keys absent, or the tunnel not
  *    usable — resolves the simulation channel, with exactly ONE structured
  *    info log naming the fallback reason. Tunnel configuration is optional
@@ -49,6 +57,21 @@ import type { CallbackChannelPort } from "@/backend/types";
 let channel: CallbackChannelPort | null = null;
 
 /**
+ * Injectable test-delivery seams for the tunnel channel's outbound surfaces
+ * (agent spawn, transport, cleanup registration) — captured when the tunnel
+ * configuration lands and consumed once at channel construction. Null in
+ * production: production never resolves a development channel.
+ */
+let testDeliverySeams: {
+  readonly spawnAgent?: NgrokAgentSpawn;
+  readonly fetch?: SimulationSurfaceFetch;
+  readonly registerCleanup?: NgrokCleanupRegistration;
+} | null = null;
+
+/** Floor for the readiness-retry interval — a dead tunnel must fall back quickly. */
+const MIN_PROBE_RETRY_DELAY_MS = 250;
+
+/**
  * The paymob provider selector as a plain string — the env getter answers
  * the raw (trimmed, lowercased) string, and widening the enum member keeps
  * the comparison string-to-string.
@@ -60,12 +83,17 @@ const PAYMOB_PROVIDER_VALUE: string = PaymentGateway.Paymob;
  * tunnel acquisition seam owns this vocabulary; every reason is named in
  * the one structured fallback log.
  */
-type TunnelFallbackReason = "ngrok-not-configured" | "ngrok-channel-unavailable";
+type TunnelFallbackReason = "ngrok-not-configured" | "ngrok-unreachable";
 
 /** Result of a development tunnel acquisition attempt. */
 type TunnelAcquisition =
-  | { readonly channel: CallbackChannelPort; readonly fallbackReason?: undefined }
-  | { readonly channel?: undefined; readonly fallbackReason: TunnelFallbackReason };
+  | { readonly channel: CallbackChannelPort; readonly fallbackReason?: undefined; readonly fallbackDetail?: undefined }
+  | {
+      readonly channel?: undefined;
+      readonly fallbackReason: TunnelFallbackReason;
+      /** The tunnel's own error message; never carries secret material. */
+      readonly fallbackDetail?: string;
+    };
 
 /**
  * The production callback channel: the provider delivers to the public URL
@@ -100,13 +128,38 @@ export async function getCallbackChannel(): Promise<CallbackChannelPort> {
 }
 
 /**
- * Invalidates the resolved channel and the shared env snapshot it was
- * resolved from. The next `getCallbackChannel()` re-reads configuration
- * from scratch, so env swaps and test fixtures take effect immediately.
+ * Invalidates the resolved channel, the shared env snapshot it was resolved
+ * from, and any captured test-delivery seams. The next
+ * `getCallbackChannel()` re-reads configuration from scratch, so env swaps
+ * and test fixtures take effect immediately.
  */
 export function resetCallbackChannel(): void {
   channel = null;
+  testDeliverySeams = null;
   resetEnvironmentCache();
+}
+
+/**
+ * Captures the test-delivery seams a channel-aware harness drives the
+ * tunnel channel through (agent spawn stand-in, outbound transport,
+ * cleanup registration). Development-only configuration: the seams are
+ * consumed once at the next tunnel-channel construction and dropped by
+ * `resetCallbackChannel()`. A production runtime rejects the call —
+ * production never resolves a development channel, so the seams could
+ * never be consumed there.
+ */
+export function configureCallbackChannelTestDelivery(seams: {
+  readonly spawnAgent?: NgrokAgentSpawn;
+  readonly fetch?: SimulationSurfaceFetch;
+  readonly registerCleanup?: NgrokCleanupRegistration;
+}): void {
+  if (isProductionRuntime()) {
+    throw new DomainError(
+      "PAYMENT_CALLBACK_TEST_DELIVERY_UNSUPPORTED",
+      "Test callback delivery is a development-only surface; the real channel receives provider deliveries at its operator-configured URL."
+    );
+  }
+  testDeliverySeams = seams;
 }
 
 /** One resolution pass over the documented resolution order. */
@@ -118,7 +171,10 @@ async function resolveCallbackChannel(): Promise<CallbackChannelPort> {
   if (acquisition.channel) {
     return acquisition.channel;
   }
-  logger.info("Callback delivery channel resolved to simulation", { reason: acquisition.fallbackReason });
+  logger.info("Callback delivery channel resolved to simulation", {
+    reason: acquisition.fallbackReason,
+    detail: acquisition.fallbackDetail,
+  });
   return new SimulationCallbackChannel(resolveSimulationChannelConfig());
 }
 
@@ -126,17 +182,73 @@ async function resolveCallbackChannel(): Promise<CallbackChannelPort> {
  * The single acquisition seam for the development tunnel channel. Tunnel
  * eligibility is decided here from the typed ngrok configuration (both the
  * authtoken and the reserved public domain must be set); the eligible case
- * hands over to the tunnel channel implementation — the module that spawns
- * the ngrok agent and verifies the PUBLIC reserved-domain URL is reachable
- * — and falls back to simulation with a named reason when that
- * implementation is not available or its readiness sequence fails.
+ * constructs the tunnel channel and verifies its readiness sequence — the
+ * channel spawns the ngrok agent and probes the PUBLIC reserved-domain
+ * URL — falling back to simulation with a named reason when that sequence
+ * fails. The detail carries the tunnel's own error message (never the
+ * authtoken); an unconfigured deployment is never an error.
  */
 async function acquireTunnelChannel(): Promise<TunnelAcquisition> {
   const { authtoken, domain } = getEnvironmentConfig().ngrok;
   if (!authtoken || !domain) {
     return { fallbackReason: "ngrok-not-configured" };
   }
-  return { fallbackReason: "ngrok-channel-unavailable" };
+  const tunnel = new NgrokCallbackChannel(resolveNgrokChannelConfig(authtoken, domain));
+  try {
+    await tunnel.ensureReady();
+  } catch (error) {
+    return {
+      fallbackReason: "ngrok-unreachable",
+      fallbackDetail: error instanceof Error ? error.message : String(error),
+    };
+  }
+  return { channel: tunnel };
+}
+
+/**
+ * Reads the ngrok channel's configuration from the typed env snapshot. The
+ * eligibility check already narrowed the authtoken and the domain (both
+ * configured); the test-delivery seams (transport, spawn, cleanup
+ * registration) are injectable so channel-aware tests and tooling can drive
+ * the channel without touching the network or the real agent binary.
+ */
+function resolveNgrokChannelConfig(authtoken: string, domain: string): NgrokCallbackChannelConfig {
+  const { hmacSecret, httpTimeoutMs } = getPaymobConfig();
+  const { port } = getEnvironmentConfig().ngrok;
+  const channelConfig: {
+    authtoken: string;
+    domain: string;
+    port: number;
+    hmacSecret: string | null;
+    probeTimeoutMs: number;
+    probeRetryDelayMs: number;
+    spawnAgent?: NgrokAgentSpawn;
+    fetch?: SimulationSurfaceFetch;
+    registerCleanup?: NgrokCleanupRegistration;
+  } = {
+    authtoken,
+    domain,
+    port,
+    hmacSecret,
+    probeTimeoutMs: httpTimeoutMs,
+    probeRetryDelayMs: resolveProbeRetryDelayMs(),
+  };
+  if (testDeliverySeams !== null) {
+    channelConfig.spawnAgent = testDeliverySeams.spawnAgent;
+    channelConfig.fetch = testDeliverySeams.fetch;
+    channelConfig.registerCleanup = testDeliverySeams.registerCleanup;
+  }
+  return channelConfig;
+}
+
+/**
+ * Readiness-retry interval: the readiness budget is the paymob HTTP timeout
+ * (10s default); a 500ms retry delay leaves roughly twenty public probes in
+ * budget — enough for the agent to establish the tunnel session, small
+ * enough that a dead tunnel falls back quickly.
+ */
+function resolveProbeRetryDelayMs(): number {
+  return Math.max(Math.floor(getPaymobConfig().httpTimeoutMs / 20), MIN_PROBE_RETRY_DELAY_MS);
 }
 
 /** Reads the simulation channel's configuration from the typed env snapshot. */

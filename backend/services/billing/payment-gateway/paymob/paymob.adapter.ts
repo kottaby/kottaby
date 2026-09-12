@@ -47,8 +47,9 @@
  */
 
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
-import { getPaymobConfig, optionalEnv } from "@/backend/lib/env";
+import { getPaymobConfig } from "@/backend/lib/env";
 import { DomainError, UnauthorizedError, ValidationError } from "@/backend/lib/errors";
+import { getCallbackChannel } from "@/backend/services/billing/payment-gateway/callback-channel/callback-channel.factory";
 import {
   buildTokenHmacMessage,
   buildTransactionHmacMessage,
@@ -185,22 +186,28 @@ function isTokenCallbackObj(value: unknown): value is PaymobTokenCallbackObj {
 }
 
 /**
- * Resolves the callback URLs from the deployment's configured public
- * origin. When no public origin is configured the members are omitted and
- * the vendor falls back to the callback URL configured on the merchant
+ * Resolves the callback URLs from the deployment's resolved callback
+ * channel. The tunnel channel serves the deployment's webhook receiver at
+ * its public tunnel URL (development with an operator-configured reserved
+ * domain); the real production channel and the offline simulation channel
+ * carry no outward-reachable base on this path, so the members are omitted
+ * and the vendor falls back to the callback URL configured on the merchant
  * dashboard — an operator setup step, never a fabricated URL.
+ *
+ * The channel is resolved through the callback-channel factory: the
+ * notification URL composition is a consumer of the ONE channel resolver
+ * (never a per-file tunnel check), and the readiness probe has already
+ * been answered by the factory's acquisition.
  */
-function resolveCallbackUrls(): { notificationUrl?: string; redirectionUrl?: string } {
-  let publicOrigin = optionalEnv("NEXT_PUBLIC_BASE_URL", "").trim();
-  while (publicOrigin.endsWith("/")) {
-    publicOrigin = publicOrigin.slice(0, -1);
-  }
-  if (publicOrigin.length === 0) {
+async function resolveCallbackUrls(): Promise<{ notificationUrl?: string; redirectionUrl?: string }> {
+  const channel = await getCallbackChannel();
+  const publicBaseUrl = channel.publicBaseUrl;
+  if (publicBaseUrl === null) {
     return {};
   }
   return {
-    notificationUrl: `${publicOrigin}${WEBHOOK_PATH}`,
-    redirectionUrl: `${publicOrigin}${CHECKOUT_RESULT_PATH}`,
+    notificationUrl: `${publicBaseUrl}${WEBHOOK_PATH}`,
+    redirectionUrl: `${publicBaseUrl}${CHECKOUT_RESULT_PATH}`,
   };
 }
 
@@ -302,7 +309,7 @@ export class PaymobPaymentGateway implements PaymentGatewayPort {
   async createCheckout(input: PaymentCheckoutInput): Promise<PaymentCheckoutSession> {
     const config = this.requirePaymobConfig();
     const client = new PaymobHttpClient({ config, fetch: this.fetchTransport });
-    const urls = resolveCallbackUrls();
+    const urls = await resolveCallbackUrls();
     const body = buildIntentionRequest({
       input,
       itemName: CHECKOUT_ITEM_NAME,

@@ -10,9 +10,12 @@
  *    any network or verification work.
  *  - Checkout: the intention body is built from the server-derived input
  *    (field-by-field asserted), the secret key rides as the documented
- *    `Token` header, and the descriptor echoes the correlation key — never
- *    the intention id. Upstream rejections surface sanitized; the upstream
- *    body never reaches the caller.
+ *    `Token` header, and the callback URL members compose from the
+ *    deployment's resolved callback channel (tunnel channel → public
+ *    tunnel URL; real/simulation channel → members omitted, the vendor
+ *    falls back to the dashboard URL); the descriptor echoes the
+ *    correlation key — never the intention id. Upstream rejections surface
+ *    sanitized; the upstream body never reaches the caller.
  *  - Webhook dispatch (verified-before-trusted): the presented `hmac` is
  *    verified with the shape-matched key list BEFORE any member is acted
  *    on — a tampered refund/void/token delivery is a 401-class denial, not
@@ -28,6 +31,10 @@ import { createHmac } from "node:crypto";
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { resetEnvironmentCache } from "@/backend/lib/env";
 import { DomainError, UnauthorizedError, ValidationError } from "@/backend/lib/errors";
+import {
+  configureCallbackChannelTestDelivery,
+  resetCallbackChannel,
+} from "@/backend/services/billing/payment-gateway/callback-channel/callback-channel.factory";
 import { PaymobPaymentGateway } from "@/backend/services/billing/payment-gateway/paymob/paymob.adapter";
 import {
   buildTokenHmacMessage,
@@ -52,7 +59,9 @@ const ADAPTER_ENV_KEYS = [
   "PAYMOB_CHECKOUT_BASE_URL",
   "PAYMOB_HTTP_TIMEOUT_MS",
   "PAYMOB_RECONCILE_PENDING_MINUTES",
-  "NEXT_PUBLIC_BASE_URL",
+  "PAYMENT_GATEWAY_PROVIDER",
+  "NGROK_AUTHTOKEN",
+  "NGROK_DOMAIN",
 ] as const;
 
 const originalEnv: Record<string, string | undefined> = {};
@@ -96,10 +105,12 @@ function restoreAdapterEnv(): void {
     }
   }
   resetEnvironmentCache();
+  resetCallbackChannel();
 }
 
 beforeEach(() => {
   setAdapterEnv();
+  resetCallbackChannel();
 });
 
 afterEach(restoreAdapterEnv);
@@ -224,6 +235,9 @@ interface RecordedRequest {
   readonly body: string;
 }
 
+/** The agent command the tunnel channel's spawn seam last captured. */
+let capturedSpawnCommand: string[] = [];
+
 /** Builds an adapter over a transport that serves one scripted intention response. */
 function adapterServing(response: Response): { adapter: PaymobPaymentGateway; calls: RecordedRequest[] } {
   const calls: RecordedRequest[] = [];
@@ -335,8 +349,45 @@ describe("PaymobPaymentGateway fail-closed configuration", () => {
 // ─── Checkout flow ───────────────────────────────────────────────────────────
 
 describe("PaymobPaymentGateway.createCheckout", () => {
+  test("composes the callback URLs from the tunnel channel's public base when the tunnel is configured and its probe passes", async () => {
+    setAdapterEnv({
+      PAYMENT_GATEWAY_PROVIDER: PaymentGateway.Paymob,
+      NGROK_AUTHTOKEN: "adapter-test-tunnel-token",
+      NGROK_DOMAIN: "adapter-test-tunnel.ngrok.app",
+    });
+    configureCallbackChannelTestDelivery({
+      spawnAgent: ({ command }) => {
+        capturedSpawnCommand = [...command];
+        return { kill: () => {} };
+      },
+      fetch: async () => new Response(null, { status: 200 }),
+    });
+    const { adapter, calls } = adapterServing(new Response(JSON.stringify(INTENTION_RESPONSE), { status: 201 }));
+
+    const session = await adapter.createCheckout(CHECKOUT_INPUT);
+
+    const body = JSON.parse(calls[0].body);
+    expect(body.notification_url).toBe("https://adapter-test-tunnel.ngrok.app/api/payments/webhook");
+    expect(body.redirection_url).toBe("https://adapter-test-tunnel.ngrok.app/student/checkout/result");
+    expect(capturedSpawnCommand).toEqual(["ngrok", "http", "--url=https://adapter-test-tunnel.ngrok.app", "3000"]);
+    expect(session.checkoutUrl).toBe(
+      "https://eg.checkout.paymob.com?publicKey=pk_test_adapter_public&clientSecret=cs_secret_value"
+    );
+  });
+
+  test("omits the callback URL members when the resolved channel carries no public base", async () => {
+    setAdapterEnv({ PAYMENT_GATEWAY_PROVIDER: PaymentGateway.Mock });
+    const { adapter, calls } = adapterServing(new Response(JSON.stringify(INTENTION_RESPONSE), { status: 201 }));
+
+    await adapter.createCheckout(CHECKOUT_INPUT);
+
+    const body = JSON.parse(calls[0].body);
+    expect("notification_url" in body).toBe(false);
+    expect("redirection_url" in body).toBe(false);
+  });
+
   test("builds the intention from the server-derived input and returns the correlation-key descriptor", async () => {
-    setAdapterEnv({ NEXT_PUBLIC_BASE_URL: "https://app.example.com" });
+    setAdapterEnv();
     const { adapter, calls } = adapterServing(new Response(JSON.stringify(INTENTION_RESPONSE), { status: 201 }));
 
     const session = await adapter.createCheckout(CHECKOUT_INPUT);
@@ -365,8 +416,6 @@ describe("PaymobPaymentGateway.createCheckout", () => {
       state: "NA",
     });
     expect(body.special_reference).toBe("purchase-claim-key");
-    expect(body.notification_url).toBe("https://app.example.com/api/payments/webhook");
-    expect(body.redirection_url).toBe("https://app.example.com/student/checkout/result");
 
     expect(session.provider).toBe(PaymentGateway.Paymob);
     expect(session.providerReference).toBe("purchase-claim-key");
@@ -382,17 +431,6 @@ describe("PaymobPaymentGateway.createCheckout", () => {
     await adapter.createCheckout(CHECKOUT_INPUT);
 
     expect(JSON.parse(calls[0].body).payment_methods).toEqual([1256, 4567]);
-  });
-
-  test("omits the callback URL members when no public origin is configured", async () => {
-    setAdapterEnv();
-    const { adapter, calls } = adapterServing(new Response(JSON.stringify(INTENTION_RESPONSE), { status: 201 }));
-
-    await adapter.createCheckout(CHECKOUT_INPUT);
-
-    const body = JSON.parse(calls[0].body);
-    expect("notification_url" in body).toBe(false);
-    expect("redirection_url" in body).toBe(false);
   });
 
   test("surfaces an upstream rejection sanitized — no body material, no retry", async () => {
