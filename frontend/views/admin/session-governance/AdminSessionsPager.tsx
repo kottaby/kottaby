@@ -1,8 +1,9 @@
 "use client";
 
 import { NavigateBeforeOutlined, NavigateNextOutlined } from "@mui/icons-material";
-import { IconButton, Stack, Typography } from "@mui/material";
+import { IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
@@ -50,40 +51,38 @@ export function AdminSessionsPager({
         py: 1,
       }}
     >
-      <IconButton
-        aria-label={tSessions.pagerPreviousLabel}
-        data-testid="admin-session-governance-pager-prev"
-        disabled={busy || page <= 1}
-        onClick={() => onPageChange(page - 1)}
-        sx={theme => ({
-          "&:focus-visible": {
-            outline: `2px solid ${theme.palette.outline}`,
-            outlineOffset: 2,
-          },
-        })}
-      >
-        <NavigateBeforeOutlined sx={theme => ({ transform: theme.direction === "rtl" ? "scaleX(-1)" : "none" })} />
-      </IconButton>
+      <Tooltip title={tSessions.pagerPreviousLabel}>
+        <span>
+          <IconButton
+            aria-label={tSessions.pagerPreviousLabel}
+            data-testid="admin-session-governance-pager-prev"
+            disabled={busy || page <= 1}
+            onClick={() => onPageChange(page - 1)}
+            sx={focusVisibleRingSx}
+          >
+            <NavigateBeforeOutlined sx={theme => ({ transform: theme.direction === "rtl" ? "scaleX(-1)" : "none" })} />
+          </IconButton>
+        </span>
+      </Tooltip>
       <Typography
         variant="body2"
         sx={theme => ({ color: theme.palette.text.secondary, minWidth: 64, textAlign: "center" })}
       >
         {page} / {totalPages}
       </Typography>
-      <IconButton
-        aria-label={tSessions.pagerNextLabel}
-        data-testid="admin-session-governance-pager-next"
-        disabled={busy || page >= totalPages}
-        onClick={() => onPageChange(page + 1)}
-        sx={theme => ({
-          "&:focus-visible": {
-            outline: `2px solid ${theme.palette.outline}`,
-            outlineOffset: 2,
-          },
-        })}
-      >
-        <NavigateNextOutlined sx={theme => ({ transform: theme.direction === "rtl" ? "scaleX(-1)" : "none" })} />
-      </IconButton>
+      <Tooltip title={tSessions.pagerNextLabel}>
+        <span>
+          <IconButton
+            aria-label={tSessions.pagerNextLabel}
+            data-testid="admin-session-governance-pager-next"
+            disabled={busy || page >= totalPages}
+            onClick={() => onPageChange(page + 1)}
+            sx={focusVisibleRingSx}
+          >
+            <NavigateNextOutlined sx={theme => ({ transform: theme.direction === "rtl" ? "scaleX(-1)" : "none" })} />
+          </IconButton>
+        </span>
+      </Tooltip>
     </Stack>
   );
 }

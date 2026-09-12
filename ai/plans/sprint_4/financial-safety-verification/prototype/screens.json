@@ -1,0 +1,58 @@
+[
+ {
+  "screenId": "aa6e84347dad4d05b518a11d025a2a80",
+  "title": "Teacher Wallet Dashboard",
+  "file": "teacher-wallet-default-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "default"
+ },
+ {
+  "screenId": "4f88264e827c46b29343c86e34f5a2eb",
+  "title": "Teacher Wallet (Mobile)",
+  "file": "teacher-wallet-default-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "default"
+ },
+ {
+  "screenId": "aad673f6ec054c87978d646699017eb2",
+  "title": "Teacher Wallet \u2014 Pending Withdrawal",
+  "file": "teacher-wallet-pending-withdrawal-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "pending-withdrawal"
+ },
+ {
+  "screenId": "549e83cf77764b01b0f1d3494e4fbd7b",
+  "title": "Teacher Wallet \u2014 Insufficient Funds Error",
+  "file": "teacher-wallet-insufficient-funds-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "error-insufficient-funds"
+ },
+ {
+  "screenId": "4e3d5c2295504b4b9716dda5881b1b4d",
+  "title": "Teacher Wallet \u2014 Zero Balance Empty State",
+  "file": "teacher-wallet-zero-balance-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "empty-zero-balance"
+ },
+ {
+  "screenId": "62a9da8ee28a4bc0b59efb7c25de41cf",
+  "title": "Student Sessions \u2014 Escrow States",
+  "file": "student-sessions-escrow-states-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "default"
+ },
+ {
+  "screenId": "7ed91f71a10f4dcbac8842835e9f6865",
+  "title": "Student Sessions \u2014 Escrow States (Mobile)",
+  "file": "student-sessions-escrow-mobile.png",
+  "deviceType": "MOBILE",
+  "state": "default"
+ },
+ {
+  "screenId": "1a9522ebda3f40648d6c46c4044de50f",
+  "title": "Admin \u2014 Withdrawals Oversight",
+  "file": "admin-withdrawals-oversight-desktop.png",
+  "deviceType": "DESKTOP",
+  "state": "default"
+ }
+]
