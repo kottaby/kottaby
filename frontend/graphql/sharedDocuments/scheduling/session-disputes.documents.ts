@@ -1,7 +1,11 @@
 import { gql, type TypedDocumentNode } from "@apollo/client";
 import type {
+  AdminDisputeCaseQuery,
+  AdminDisputeCaseQueryVariables,
   AdminDisputedSessionsQuery,
   AdminDisputedSessionsQueryVariables,
+  OpenPostConfirmationDisputeMutation,
+  OpenPostConfirmationDisputeMutationVariables,
   OpenSessionDisputeMutation,
   OpenSessionDisputeMutationVariables,
   ResolveSessionDisputeMutation,
@@ -13,14 +17,16 @@ import type {
  * out of `session.documents.ts` (which re-exports every sibling, so the
  * deep-import path and the export surface are unchanged).
  *
- * The dispute trio: the participant escalation mutation
- * (`openSessionDispute`), the ADMIN arbitration mutation
- * (`resolveSessionDispute`) and the ADMIN read of the arbitration queue
- * (`adminDisputedSessions`). Every `Session` payload selects `id` first so
+ * The dispute family: the participant escalation mutation for held-escrow
+ * rows (`openSessionDispute`), the student escalation for dual-confirmed
+ * (consumed) rows (`openPostConfirmationDispute`), the ADMIN arbitration
+ * mutation (`resolveSessionDispute`), the ADMIN read of the arbitration
+ * queue (`adminDisputedSessions`) and the ADMIN case-review read
+ * (`adminDisputeCase`). Every `Session` payload selects `id` first so
  * Apollo Client normalizes returned rows into the cache — consumers converge
  * lists via the returned `Session!` payloads WITHOUT refetch storms (per
- * `sharedDocuments/AGENTS.md` "id Field Requirement" and plan §5.4 "no
- * refetch").
+ * the `sharedDocuments/AGENTS.md` "id Field Requirement" — cache-normalized
+ * convergence, no refetch).
  *
  * Every `Session` selection carries the dispute/cancel-audit
  * fields (`cancelReason`, `disputeReason`, `disputedAt`, `resolutionNote`,
@@ -75,19 +81,62 @@ export const openSessionDisputeMutationDocument: TypedDocumentNode<
 `;
 
 /**
- * `resolveSessionDispute(id: ID!, resolution: DisputeResolution!, note: String)`
+ * `openPostConfirmationDispute(id: ID!, reason: String!)` — the STUDENT
+ * escalation for a dual-confirmed session (held escrow consumed, wallet
+ * credited): moves the completed row back into `Disputed` for arbitration.
+ * Same oracle-safe denial collapse as the held-escrow sibling
+ * (`openSessionDispute`): non-participants and nonexistent ids are
+ * indistinguishable `SESSION_NOT_FOUND` denials, and the student predicate
+ * is service-side. Returns the updated `Session!` payload for cache
+ * normalization — the row flips to its disputed chip WITHOUT a refetch.
+ */
+export const openPostConfirmationDisputeMutationDocument: TypedDocumentNode<
+  OpenPostConfirmationDisputeMutation,
+  OpenPostConfirmationDisputeMutationVariables
+> = gql`
+  mutation OpenPostConfirmationDispute($id: ID!, $reason: String!) {
+    openPostConfirmationDispute(id: $id, reason: $reason) {
+      id
+      status
+      intent
+      sessionType
+      fee
+      feeHeld
+      studentId
+      teacherId
+      startedAt
+      endedAt
+      confirmationDeadline
+      confirmedByStudentAt
+      confirmedByTeacherAt
+      createdAt
+      updatedAt
+      cancelReason
+      disputeReason
+      disputedAt
+      resolutionNote
+      resolvedAt
+    }
+  }
+`;
+
+/**
+ * `resolveSessionDispute(id: ID!, resolution: DisputeResolution!, note: String, partialAmount: String)`
  * — ADMIN arbitration: resolves a `Disputed` session into exactly one
  * terminal state (`Cancel` → cancelled + same-lane refund of any held fee;
- * `Complete` → completed + hold consumed, `startedAt` required). The note
- * is optional (≤ 500 chars at the UI seam). Returns the updated `Session!`
- * payload; arbitration writes (refund/hold consumption) are server-owned.
+ * `Complete` → completed + hold consumed, `startedAt` required;
+ * `Refund`/`PartialRefund`/`Uphold` → the consumed-escrow outcomes, where a
+ * `PartialRefund` additionally carries the validated `partialAmount` decimal
+ * string). The note is optional (≤ 500 chars at the UI seam). Returns the
+ * updated `Session!` payload; arbitration writes (refund/hold
+ * consumption/wallet reversal) are server-owned.
  */
 export const resolveSessionDisputeMutationDocument: TypedDocumentNode<
   ResolveSessionDisputeMutation,
   ResolveSessionDisputeMutationVariables
 > = gql`
-  mutation ResolveSessionDispute($id: ID!, $resolution: DisputeResolution!, $note: String) {
-    resolveSessionDispute(id: $id, resolution: $resolution, note: $note) {
+  mutation ResolveSessionDispute($id: ID!, $resolution: DisputeResolution!, $note: String, $partialAmount: String) {
+    resolveSessionDispute(id: $id, resolution: $resolution, note: $note, partialAmount: $partialAmount) {
       id
       status
       intent
@@ -150,6 +199,87 @@ export const adminDisputedSessionsQueryDocument: TypedDocumentNode<
       page
       pageSize
       totalCount
+    }
+  }
+`;
+
+/**
+ * `adminDisputeCase(id: ID!)` — the ADMIN case-review read: the full
+ * evidence bundle for one disputed session in a single response — the
+ * session detail (the shared dispute-family `Session` selection), the
+ * teacher report (with `studentRatingByTeacher`), the homework row, the
+ * recitation record and the session-scoped audit-trail entries. The three
+ * evidence artifacts are honest `null`s when absent (no report submitted,
+ * no homework/recitation) — never fabricated placeholders. Admin-only
+ * scope lives server-side (`$all{authenticated, role:[Admin]}` + the
+ * service-level governance re-assertion).
+ */
+export const adminDisputeCaseQueryDocument: TypedDocumentNode<AdminDisputeCaseQuery, AdminDisputeCaseQueryVariables> =
+  gql`
+  query AdminDisputeCase($id: ID!) {
+    adminDisputeCase(id: $id) {
+      session {
+        id
+        status
+        intent
+        sessionType
+        fee
+        feeHeld
+        studentId
+        teacherId
+        startedAt
+        endedAt
+        confirmationDeadline
+        confirmedByStudentAt
+        confirmedByTeacherAt
+        createdAt
+        updatedAt
+        cancelReason
+        disputeReason
+        disputedAt
+        resolutionNote
+        resolvedAt
+      }
+      report {
+        id
+        sessionId
+        teacherNotes
+        studentRatingByTeacher
+        createdAt
+        updatedAt
+      }
+      homework {
+        id
+        sessionId
+        currentFromAyah
+        currentToAyah
+        currentGrade
+        currentSurahJuz
+        revisionFromAyah
+        revisionToAyah
+        revisionGrade
+        revisionSurahJuz
+        createdAt
+        updatedAt
+      }
+      recitation {
+        id
+        sessionId
+        name
+        description
+        createdAt
+        updatedAt
+      }
+      auditTrail {
+        id
+        actionType
+        actorId
+        actorName
+        createdAt
+        details
+        entityId
+        entityType
+      }
     }
   }
 `;

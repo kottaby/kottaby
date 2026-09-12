@@ -231,8 +231,10 @@ function deniedQueueError(code: string): MockLink.MockedResponse {
 
 /**
  * Resolve-mutation mock with the variables the dialog ACTUALLY sends for an
- * empty note: `{ id, resolution, note: null }` (the trimmed-empty rule — the
- * note is OPTIONAL per R-104, so the wire arms need no typed input).
+ * empty note: `{ id, resolution, note: null, partialAmount: null }` (the
+ * trimmed-empty rule — the note is OPTIONAL per R-104, so the wire arms need
+ * no typed input; the amount rides only with a PartialRefund arbitration and
+ * stays explicitly null on the shipped held-escrow outcomes).
  */
 function resolveMock(
   sessionId: string,
@@ -242,7 +244,7 @@ function resolveMock(
   return {
     request: {
       query: resolveSessionDisputeMutationDocument,
-      variables: { id: sessionId, resolution, note: null },
+      variables: { id: sessionId, resolution, note: null, partialAmount: null },
     },
     ...(outcome.kind === "success"
       ? { result: { data: { resolveSessionDispute: outcome.payload } } }

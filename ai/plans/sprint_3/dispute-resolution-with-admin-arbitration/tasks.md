@@ -126,9 +126,9 @@ Backend-first with a **test-first journey** authored right after repo primitives
 
 ### Phase 4: Frontend Surfaces
 
-- [ ] 4.1 GraphQL documents (+ codegen outputs committed)
+- [x] 4.1 GraphQL documents (+ codegen outputs committed)
   - Extend `frontend/graphql/sharedDocuments/scheduling/session-disputes.documents.ts`: `openPostConfirmationDisputeMutationDocument` (+ `id` on every object), `partialAmount` on the resolve document, `adminDisputeCaseQueryDocument`; re-export via `frontend/graphql/sharedDocuments/scheduling/index.ts`
-  - [ ] 4.1.QL / 4.1.TE (document shape snapshot via generated types) / 4.1.SEC / 4.1.SR / 4.1.IV
+  - [x] 4.1.QL / [x] 4.1.TE (document shape snapshot via generated types) / [x] 4.1.SEC / [x] 4.1.SR / [x] 4.1.IV
   - Outcome: `outcome/4.1-documents-outcome.md`
   - _Requirements: REQ-5, REQ-6, REQ-9_
 

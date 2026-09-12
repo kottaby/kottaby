@@ -94,6 +94,9 @@ export function ResolveDisputeDialog({
         id: sessionId,
         resolution,
         note: trimmed.length === 0 ? null : trimmed,
+        // The consumed-escrow amount rides only with a PartialRefund
+        // arbitration; the shipped held-escrow outcomes never carry one.
+        partialAmount: null,
       },
     });
   };

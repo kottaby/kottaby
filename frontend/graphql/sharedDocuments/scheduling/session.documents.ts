@@ -2,12 +2,13 @@
  * Shared GraphQL documents for the session lifecycle + dispute + report
  * domain — RE-EXPORT HUB.
  *
- * Fourteen operations over the session lifecycle + report/homework SDL surfaces: three reads
+ * Sixteen operations over the session lifecycle + dispute + report/homework SDL surfaces: three reads
  * (`sessionById`, `myStudentSessions`, `myTeacherSessions`), the
  * lifecycle quartet of mutations (`createSession`, `startSession`,
- * `completeSession`, `cancelSession`), the dispute trio
- * (`openSessionDispute`, `resolveSessionDispute` mutations + the
- * `adminDisputedSessions` admin read), the dual-confirmation
+ * `completeSession`, `cancelSession`), the dispute family
+ * (`openSessionDispute`, `openPostConfirmationDispute`,
+ * `resolveSessionDispute` mutations + the `adminDisputedSessions` queue
+ * read + the `adminDisputeCase` case-review read), the dual-confirmation
  * mutation (`confirmSessionCompletion`) and the report/homework
  * trio (`submitSessionReport` mutation + the `sessionReport`,
  * `sessionHomework` reads).
@@ -30,7 +31,8 @@
  *  - `session-lifecycle.documents.ts`  — `createSession`, `startSession`,
  *    `completeSession`, `cancelSession`, `confirmSessionCompletion`;
  *  - `session-disputes.documents.ts`   — `openSessionDispute`,
- *    `resolveSessionDispute`, `adminDisputedSessions`;
+ *    `openPostConfirmationDispute`, `resolveSessionDispute`,
+ *    `adminDisputedSessions`, `adminDisputeCase`;
  *  - `session-report.documents.ts`     — `submitSessionReport`,
  *    `sessionReport`, `sessionHomework`).
  */

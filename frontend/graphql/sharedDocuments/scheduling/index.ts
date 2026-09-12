@@ -7,8 +7,9 @@
  * documents: the participant reads (`sessionById`,
  * `myStudentSessions`, `myTeacherSessions`), the lifecycle mutation
  * quartet (`createSession`, `startSession`, `completeSession`,
- * `cancelSession`) and the dispute trio (`openSessionDispute`,
- * `resolveSessionDispute`, `adminDisputedSessions`).
+ * `cancelSession`) and the dispute family (`openSessionDispute`,
+ * `openPostConfirmationDispute`, `resolveSessionDispute`,
+ * `adminDisputedSessions`, `adminDisputeCase`).
  */
 export * from "./recitation.documents";
 export * from "./session.documents";
