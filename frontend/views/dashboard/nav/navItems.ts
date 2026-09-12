@@ -101,6 +101,9 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  * Canonical retargets:
  *  - Sessions → `/student/sessions` / `/teacher/sessions` (a
  *    RETARGET of the former shared `/sessions` catch-all link)
+ *  - Parent Children → `/parent/children` (a RETARGET of the former
+ *    shared `/children` catch-all link; the parent portal root ships
+ *    at the role-scoped route)
  *  - Admin Users → `/admin/users` (the directory page exists)
  *  - Admin Plans → `/admin/plans`
  *  - Admin Broadcasts → `/admin/broadcasts` (a pure ADD, not a
@@ -133,7 +136,7 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
   [UserRole.Parent]: [
     { route: "/parent/dashboard", labelKey: "dashboard", Icon: DashboardIcon },
     { route: "/notifications", labelKey: "notifications", Icon: NotificationsIcon },
-    { route: "/children", labelKey: "children", Icon: ChildrenIcon },
+    { route: "/parent/children", labelKey: "children", Icon: ChildrenIcon },
     { route: "/parent/handshake", labelKey: "navLinkMyChild", Icon: LinkChildIcon },
     { route: "/profile", labelKey: "profile", Icon: ProfileIcon },
   ],

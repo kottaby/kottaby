@@ -779,3 +779,83 @@ Stage Summary:
 - ZERO non-existent component imports (`AppDataGrid`/`MetricCard`/`PageContainer`).
 - URL IS the state — ZERO `useState` on the 16-file module.
 - Carry-forward: task 6.4 (UI component tests) parameterizes one state matrix over 5 tabs + 2 containers; stable `data-testid` hooks documented per tab; mocked-provider variable surface documented per the five task-5.1 documents.
+
+---
+
+Task ID: 5.2
+Agent: Routes + Nav Subagent (general-purpose)
+Task: Portal routes + nav fix (parent read-only monitoring portal App Router surface + sidebar nav retarget)
+
+Work Log:
+- Read SKILL.md in FULL (mandatory hard rule #1) — per-task execution flow, per-file quality verification, semantic review checklist, instruction verification, Fix-Or-Report cross-file rule.
+- Read worklog.md (full) + ALL outcome files: `0-baseline-outcome.md`, `0.1-baseline-confirm-outcome.md`, `2.1-types-outcome.md`, `2.2-repo-children-progress-outcome.md`, `2.3-repo-reports-homework-outcome.md`, `2.4-service-gate-outcome.md`, `4.1-i18n-namespace-outcome.md`, `5.4-apollo-cache-outcome.md`, `plan-review-R1.md`, `research-00-planning-basis.md`.
+- Read plan files: `plan.md` §4.3 (concurrency + the PINNED guard-only-shell decision), §5.1 (routes table), §5.2 (sidebar nav retarget spec); `tasks.md` task 5.2 section (lines 262-273); `specs.md` REQ-002 / REQ-040 / REQ-041 / REQ-042.
+- Read applicable AGENTS.md + instruction files in FULL: `AGENTS.md` (root), `app/AGENTS.md` (server-component constraints, `withPageAuth` shared-guard pattern, locale handling), `frontend/views/AGENTS.md`, `frontend/AGENTS.md` (cross-surface nav-target single-sourcing), `.agents/instructions/frontend.instructions.md` (Next.js 16 async-params / searchParams contract, MUI v9 N/A for shells, i18n single-arg `getTranslations` form).
+- Read Next.js 16 docs BEFORE writing any App Router code: `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/dynamic-routes.md` (async `params: Promise<{ studentId: string }>`), `page.md` (async `searchParams: Promise<{ [key: string]: string | string[] | undefined }>`).
+- Read sibling files for conventions: `app/(dashboard)/parent/handshake/page.tsx` (the `withPageAuth` guard pattern + `generateMetadata` + server-side i18n), `app/(dashboard)/admin/users/[id]/page.tsx` (the dynamic-segment async-params pattern), `app/(dashboard)/audit/page.tsx` (the `firstValueOf` searchParams extraction helper + `Record<string, string | string[] | undefined>` typing), `app/(dashboard)/dashboard/page.tsx` (the `redirect()` from `next/navigation` pattern), `frontend/lib/auth/withPageAuth.ts` (guard semantics: anonymous → `/login?redirect=...`, role-mismatch → caller's role dashboard).
+- Confirmed task 5.3 (portal views) had ALREADY shipped on the `feat/parent-read-only-monitoring-portal` branch — `frontend/views/parent/monitoring/` exists with the barrel + 7 component files + parts + display helpers. The barrel exports `ParentChildrenRootContainer` (props: `{ student: string | null }`) and `ParentChildDetailContainer` (props: `{ studentId: number; tab: string | null; session: string | null }`). No cross-file blocker — the route shells' imports resolved cleanly.
+- Confirmed `feat/parent-read-only-monitoring-portal` branch checked out at the start of every bash command (the persistent shell session intermittently fell back to `main` between calls; the per-command checkout guaranteed branch isolation throughout).
+
+EXECUTED — three files in scope:
+
+1. `app/(dashboard)/parent/children/page.tsx` (UPDATE — replaced `ComingSoonView` stub):
+   - `withPageAuth({ roles: [UserRole.Parent], redirectTo: "/parent/children" })` guard — the only authorization boundary (non-parent roles never reach the container).
+   - `generateMetadata` reads `portalPageTitle` / `portalPageSubtitle` from the `parentMonitoring` namespace via the synchronous single-arg `getTranslations(locale).parentMonitoringTranslations.*` property chain (mirrors the handshake-route precedent).
+   - Awaits `searchParams: Promise<Record<string, string | string[] | undefined>>`; extracts the raw `?student=` value as `string | null` (a repeated `?student=1&student=2` is malformed and dropped to `null` — the deep-link contract is single-valued).
+   - Forwards `student` as a plain prop to `<ParentChildrenRootContainer>`. ZERO data fetch / `useQuery` / `myLinkedChildren` resolution / first-child auto-select / redirect to `/parent/children/<id>` on the server — the PINNED guard-only decision (plan §4.3). The client container resolves a missing `?student=` AFTER `useQuery(myLinkedChildrenQueryDocument)` resolves.
+
+2. `app/(dashboard)/parent/children/[studentId]/page.tsx` (CREATE — new file):
+   - `withPageAuth({ roles: [UserRole.Parent], redirectTo: "/parent/children" })` guard.
+   - Awaits `params: Promise<{ readonly studentId: string }>` (Next.js 16 async-params convention verified against the docs).
+   - Coerces `Number(rawId)`; validates `Number.isSafeInteger(parsedId) && parsedId > 0`. Non-numeric / non-positive / out-of-safe-range values call `redirect("/parent/children")` from `next/navigation` — the same fail-closed posture the service-layer `requireLinkedChild` gate enforces (constant-shape denial contract, plan §4.2).
+   - Awaits `searchParams`; extracts `?tab=` and `?session=` via a `firstValueOf(params, key): string | null` helper (mirrors the audit-trail route precedent — first array element wins, `null` when absent).
+   - Forwards `studentId: number`, `tab: string | null`, `session: string | null` as plain props to `<ParentChildDetailContainer>`. ZERO data fetch / `useQuery` / `requireLinkedChild` server-side — the link-gate authorization runs at the resolver layer on every backing query.
+
+3. `frontend/views/dashboard/nav/navItems.ts` (UPDATE — single route retarget):
+   - Inside `NAV_ITEMS_BY_ROLE[UserRole.Parent]` (line 136), retargeted `{ route: "/children", ... }` → `{ route: "/parent/children", ... }`.
+   - `labelKey: "children"` and the `FamilyRestroomOutlined` icon preserved verbatim — the `children` key was already owned by `DashboardLabels`, so the `NavLabelKey` exclusion guard (:55-77) is untouched (no new label-key collisions).
+   - Appended a documentation entry to the canonical-retargets docstring list (mirrors the existing `Sessions → /student/sessions` / `/teacher/sessions` entry style): "Parent Children → `/parent/children` (a RETARGET of the former shared `/children` catch-all link; the parent portal root ships at the role-scoped route)".
+   - Single-config drives both the desktop permanent drawer and the mobile temporary drawer via `DashboardSidebar.tsx` — no per-breakpoint variant work; NO bottom nav anywhere in this product.
+
+5.2.QL — Quality Loop (sub-loop.ts --lifecycle duplicates):
+- `app/(dashboard)/parent/children/page.tsx` → ✅ exit 0 (tsgo → oxlint → biome → lint:type-aware → check:duplicates, all 5 stages passed on the FIRST run — no fix-iterations needed).
+- `app/(dashboard)/parent/children/[studentId]/page.tsx` → ✅ exit 0 (all 5 stages passed on the FIRST run).
+- `frontend/views/dashboard/nav/navItems.ts` → ✅ exit 0 (all 5 stages passed on the FIRST run).
+- Project-wide `bun tsgo` → exit 0 (zero new errors introduced; the route shells' contracts into the task 5.3 containers typecheck cleanly).
+- Applicable rule files discovered by `sub-loop.ts` and read in FULL: `.agents/instructions/frontend.instructions.md`, `AGENTS.md` (root), `app/AGENTS.md` (both page.tsx files), `frontend/views/AGENTS.md` + `frontend/AGENTS.md` (navItems.ts).
+
+5.2.TE — Test Engineering: N/A per the pipeline's scoping rule — page shells are exercised via the component-test lane in 6.4 (Happy DOM does not mount server components). Inline typecheck of the async-params/params props contract verified by tsgo (the route shells' prop types match the container prop interfaces exactly).
+
+5.2.SEC — Security & Tenancy Audit:
+- Guard composition verified — both pages call `withPageAuth({ roles: [UserRole.Parent], redirectTo: "/parent/children" })` BEFORE any rendering. Anonymous callers bounce to `/login?redirect=<path>`; role-mismatched callers (Admin / Teacher / Student) bounce to their own role dashboard — non-parent roles NEVER reach the portal containers.
+- No param value trusted without server-side coercion: `[studentId]` is coerced via `Number(rawId)` and validated via `Number.isSafeInteger && > 0`; integer-coercion failures redirect to the portal root. `?student=` (root page) is forwarded as `string | null` — it is URL state, NOT a trusted identity (the link-gate runs at the resolver layer). `?tab=` / `?session=` (detail page) are forwarded as `string | null`; the client container validates the tab key and parses the session id itself.
+- Constant-shape denial posture preserved — a probe against a foreign / unlinked / nonexistent `studentId` (one that passes integer coercion but is not the parent's child) reaches the client container, which calls the GraphQL resolvers; the resolvers enforce `requireLinkedChild` and return the constant FORBIDDEN shape, rendered as `PermissionDeniedFallback` by the container.
+
+5.2.SR — Semantic Review (full checklist):
+- Race conditions & concurrency: N/A — guard-only server shells with zero data fetch. The PINNED decision (plan §4.3) that the root server page performs NO first-child auto-select eliminates the only structurally-racy operation.
+- Environment & configuration: N/A — no `resolveEnvConfig`, no credentials.
+- Code quality & clean comments: no dead branches; no cross-layer imports (page shells import only from `next`, `next/navigation`, `@/backend/enum/users/user-role.enum`, `@/frontend/lib/auth/withPageAuth`, `@/frontend/views/parent/monitoring`, `@/shared/locale/server`, `@/shared/locale/server-cookies`); no manual ReturnType construction; clean comments — ZERO plan-artifact references (verified by grep — no matches for `REQ-|Task [0-9]\.[0-9]|Phase [0-9]|\.ai/plans|specs\.md|tasks\.md|plan\.md|D1[0-1]|D[1-9]\b` across all 3 files).
+- Schema & types: N/A — no schema, no runtime enums (the `UserRole.Parent` enum value is consumed as a value per the established `withPageAuth` pattern).
+- Label-key namespace discipline intact: the `children` label key was already owned by `DashboardLabels`; the nav-items retarget changes ONLY the route string — the `NavLabelKey` exclusion guard is untouched.
+- Deferred work: no new deferred items.
+- Scope boundary: only the three files in scope were touched (plus the standard `tasks.md` checkbox + this outcome file + `worklog.md` append).
+
+5.2.IV — Instruction Verification:
+- `.agents/instructions/frontend.instructions.md`: Next.js 16 async-params/searchParams contract honored; `getTranslations(locale)` single-arg form + property chain honored; `@/` path aliases throughout; `oxlint-disable` prohibition honored (zero disable comments).
+- `AGENTS.md` (root): `@/*` path alias discipline; barrel mechanics (`@/frontend/views/parent/monitoring` barrel consumed — the task 5.3 barrel exists with multiple consumers, justifying the barrel); `oxlint-disable` prohibition; Next.js 16 agent-rules block discipline followed (`dynamic-routes.md` + `page.md` read before writing any code).
+- `app/AGENTS.md`: `withPageAuth` shared-guard pattern honored; Server Component constraints (no hooks, no repos/DB direct); locale comes from `getLocaleFromCookie()` (no `[locale]` URL segment under `(dashboard)`).
+- `frontend/views/AGENTS.md` + `frontend/AGENTS.md`: cross-surface navigation target single-sourcing — the `/parent/children` route literal is co-owned by the nav entry and the server page (the nav points AT the route the server page mounts at — the established pattern, precedent: `/parent/handshake`).
+
+Cross-file dependencies: NONE. The task 5.3 barrel was already present on the branch when this task ran (shipped in parallel by the orchestrator), so the route shells' imports resolved cleanly. No Fix-Or-Report cross-file blockers raised.
+
+Stage Summary:
+- Three files in scope (children/page.tsx, [studentId]/page.tsx, navItems.ts) shipped; sub-loop exit 0 on all three at the deepest lifecycle stage (`duplicates`); project-wide tsgo exit 0.
+- Outcome file written: `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/5.2-routes-nav-outcome.md`.
+- Worklog block appended (this entry).
+- `tasks.md` checkbox: `- [ ] 5.2 Portal routes + nav fix` → `- [x] 5.2 Portal routes + nav fix` (only the main line — subtask checkboxes left as-is per task instructions).
+- Branch: `feat/parent-read-only-monitoring-portal` (verified at the start of every bash command).
+
+Carry-forward to task 6.4 (mocked-Apollo state matrix):
+- The route shells' contracts into the client containers are fixed: root `<ParentChildrenRootContainer student={string | null} />`, detail `<ParentChildDetailContainer studentId={number} tab={string | null} session={string | null} />`.
+- Task 6.4's component-test lane can mount the client containers directly with these prop shapes (Happy DOM does not mount server components).
+- Task 6.4's E2E lane (Playwright) should additionally verify the integer-coercion redirect behavior on the detail route: requests to `/parent/children/abc`, `/parent/children/0`, `/parent/children/-5`, `/parent/children/12.5` should redirect to `/parent/children` (server-side redirect — outside Happy DOM's reach).
