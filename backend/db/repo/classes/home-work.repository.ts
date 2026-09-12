@@ -30,11 +30,31 @@
  *  - No business logic, no permission checks, no i18n or logging imports —
  *    the caller decides what `null` or a raw constraint error means.
  */
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNull, type SQL, sql } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { homeWork } from "@/backend/db/schema/classes/home-work";
 import { session } from "@/backend/db/schema/classes/session";
 import type { DBTransaction, HomeWorkGradeFieldsInput, HomeWorkInsertType, HomeWorkSelectType } from "@/backend/types";
+
+/**
+ * ONE module-scope JOIN-condition builder shared by `listForStudent` and
+ * `countForStudent`: folds together the relationship predicate
+ * (`home_work.session_id = session.id`) and the tenancy predicate
+ * (`session.student_id = $studentId`). Both methods apply this exact
+ * fragment as the INNER JOIN's ON clause, so the paged window and the
+ * honest total describe the same filtered set — the count can never
+ * diverge from the list.
+ *
+ * Because `home_work.session_id` is NOT NULL with `ON DELETE CASCADE`
+ * and carries a UNIQUE constraint, the INNER JOIN cannot fan out — one
+ * homework row matches exactly one session row — so the count over the
+ * JOIN equals the count over the bare `home_work` table scoped by the
+ * same tenancy predicate. No cross-student row can ever surface: the
+ * tenancy equality is fused into the JOIN condition itself.
+ */
+function buildParentScopedHomeWorkJoinCondition(studentId: number): SQL {
+  return sql.join([eq(session.id, homeWork.sessionId), eq(session.studentId, studentId)], sql` and `);
+}
 
 export namespace HomeWorkRepository {
   /**
@@ -174,5 +194,116 @@ export namespace HomeWorkRepository {
       .where(and(eq(homeWork.id, id), isNull(homeWork.currentGrade), isNull(homeWork.revisionGrade)))
       .returning();
     return rows[0] ?? null;
+  }
+
+  /**
+   * Lists the student's homework assignments, newest-session-first, paged.
+   * Consumes the shared module-scope JOIN-condition builder together with
+   * `countForStudent`, so the page window and the honest total describe
+   * the same filtered set.
+   *
+   * The INNER JOIN is used for tenancy scoping and ordering only — no
+   * session column is projected onto the returned row. The homework row's
+   * own columns (the Jadid `current_*` block, the Madi `revision_*` block,
+   * plus the identity and audit fields) are the complete projection; the
+   * service layer maps them into the parent-facing read shape (splitting
+   * the two track blocks, preserving per-field nullability — never
+   * fabricating zeros for absent grades or surah/juz references).
+   *
+   * Ordering is `session.started_at DESC NULLS LAST, home_work.id DESC`:
+   * the NULLS LAST clause pins sessions that have not started yet
+   * (scheduled, no `started_at`) after live sessions in the newest-first
+   * scan, and the `home_work.id DESC` tiebreak keeps same-instant rows
+   * deterministic across pages so consecutive pages never duplicate or
+   * drop a row. This is the same session-stamp-first discipline the
+   * report pair uses, keeping the parent portal's report and homework
+   * windows in lockstep chronological order.
+   *
+   * Read-only: on the caller's transaction it runs as a Drizzle select
+   * with an explicit column projection (no `SELECT *`); standalone it
+   * runs as raw parameterized SQL via `queryDb` (the student id, limit,
+   * and offset each ride a bound parameter).
+   *
+   * @returns The raw homework rows (NOT the parent projection — the
+   *          service layer maps). An offset past the end of the filtered
+   *          set yields an empty array (the count companion still reports
+   *          the true total).
+   */
+  export async function listForStudent(
+    studentId: number,
+    limit: number,
+    offset: number,
+    tx?: DBTransaction
+  ): Promise<HomeWorkSelectType[]> {
+    if (tx) {
+      return tx
+        .select({
+          id: homeWork.id,
+          sessionId: homeWork.sessionId,
+          currentFromAyah: homeWork.currentFromAyah,
+          currentToAyah: homeWork.currentToAyah,
+          currentGrade: homeWork.currentGrade,
+          currentSurahJuz: homeWork.currentSurahJuz,
+          revisionFromAyah: homeWork.revisionFromAyah,
+          revisionToAyah: homeWork.revisionToAyah,
+          revisionGrade: homeWork.revisionGrade,
+          revisionSurahJuz: homeWork.revisionSurahJuz,
+          createdAt: homeWork.createdAt,
+          updatedAt: homeWork.updatedAt,
+        })
+        .from(homeWork)
+        .innerJoin(session, buildParentScopedHomeWorkJoinCondition(studentId))
+        .orderBy(sql`${session.startedAt} DESC NULLS LAST`, desc(homeWork.id))
+        .limit(limit)
+        .offset(offset);
+    }
+    const result = await queryDb<HomeWorkSelectType>(
+      `SELECT id, session_id AS "sessionId",
+              current_from_ayah AS "currentFromAyah", current_to_ayah AS "currentToAyah",
+              current_grade AS "currentGrade", current_surah_juz AS "currentSurahJuz",
+              revision_from_ayah AS "revisionFromAyah", revision_to_ayah AS "revisionToAyah",
+              revision_grade AS "revisionGrade", revision_surah_juz AS "revisionSurahJuz",
+              created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM home_work hw
+       INNER JOIN session s ON s.id = hw.session_id AND s.student_id = $1
+       ORDER BY s.started_at DESC NULLS LAST, hw.id DESC
+       LIMIT $2 OFFSET $3`,
+      [studentId, limit, offset]
+    );
+    return result.rows;
+  }
+
+  /**
+   * Counts the student's homework assignments under the SAME JOIN-condition
+   * as `listForStudent` (one shared predicate builder) — the honest total
+   * for the paginated read. The INNER JOIN is identical to the list's
+   * (same ON clause, same tenancy equality) so the count describes the
+   * exact filtered set the page windows over; the join cannot fan out
+   * because `home_work.session_id` is UNIQUE.
+   *
+   * Read-only: on the caller's transaction it runs as a Drizzle count
+   * select; standalone it runs as raw parameterized SQL via `queryDb`
+   * (the count returns as a string from the driver and is coerced to a
+   * number here).
+   *
+   * @returns The total number of homework rows whose owning session
+   *          belongs to the student (zero when the student has no
+   *          homework-bearing sessions).
+   */
+  export async function countForStudent(studentId: number, tx?: DBTransaction): Promise<number> {
+    if (tx) {
+      const rows = await tx
+        .select({ value: count() })
+        .from(homeWork)
+        .innerJoin(session, buildParentScopedHomeWorkJoinCondition(studentId));
+      return rows[0]?.value ?? 0;
+    }
+    const result = await queryDb<{ value: string }>(
+      `SELECT count(*) AS "value"
+       FROM home_work hw
+       INNER JOIN session s ON s.id = hw.session_id AND s.student_id = $1`,
+      [studentId]
+    );
+    return Number(result.rows[0]?.value ?? 0);
   }
 }

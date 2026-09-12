@@ -38,7 +38,7 @@
  * delegation wrapper, so the public API (names, signatures, behavior) is
  * unchanged.
  */
-import { and, desc, eq, ilike, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
 import { type AnyPgColumn, alias } from "drizzle-orm/pg-core";
 import { db, queryDb } from "@/backend/db";
 import * as studentRepositoryCreditLaneImpl from "@/backend/db/repo/students/student.repository.credit-lane.helpers";
@@ -50,6 +50,7 @@ import type {
   DBQueryExecutor,
   DBTransaction,
   HandshakeDiscoveryRowType,
+  ParentLinkedChildReturnType,
   StudentLinkTargetRowType,
   StudentSelectType,
 } from "@/backend/types";
@@ -604,5 +605,48 @@ export namespace StudentRepository {
         .where(where),
     ]);
     return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  /**
+   * Lists the parent's confirmed-linked children: `students` rows INNER
+   * JOINed to their `users` accounts on the shared primary key, scoped by
+   * the `parent_id` grant and severed when the child's `users.is_deleted`
+   * flag is set (the soft-delete severance predicate). Ordered
+   * oldest-first by the student row's creation stamp with the integer id
+   * as the deterministic tiebreak, so consecutive reads never reorder
+   * rows authored in the same instant. Rides the `students_parent_id_idx`
+   * index for the `parent_id` equality scan.
+   *
+   * This method is the data-access contract for the parent-portal
+   * linked-children list: it returns the raw projection rows (id, full
+   * name, creation stamp) — governance re-checks, denial discipline and
+   * the readonly projection mapping live in the service layer. Zero
+   * permission logic here: the caller's `parentId` is the only identity
+   * the predicate consumes, and no client-supplied identity beyond that
+   * bound parameter reaches the statement.
+   *
+   * Runs as a Drizzle select on the caller's transaction when supplied,
+   * or against the global Drizzle handle otherwise (the `(tx ?? db)`
+   * pattern used by `listDirectory` — no `queryDb` raw-SQL branch needed
+   * for a join projected to a fixed column set). No prepared statements
+   * (Drizzle select inside a caller transaction is not the Neon HTTP
+   * path), no array-membership operators, no LIKE/ILIKE, no `sql`
+   * templates.
+   *
+   * @returns The linked-child rows in stable oldest-first order. An
+   *          unlinked parent (or one whose every linked child is
+   *          soft-deleted) yields an empty array — the caller decides
+   *          what that means.
+   */
+  export async function listLinkedChildrenByParentId(
+    parentId: number,
+    tx?: DBTransaction
+  ): Promise<ParentLinkedChildReturnType[]> {
+    return (tx ?? db)
+      .select({ id: students.id, fullName: users.fullName, createdAt: students.createdAt })
+      .from(students)
+      .innerJoin(users, eq(users.id, students.id))
+      .where(and(eq(students.parentId, parentId), eq(users.isDeleted, false)))
+      .orderBy(asc(students.createdAt), asc(students.id));
   }
 }

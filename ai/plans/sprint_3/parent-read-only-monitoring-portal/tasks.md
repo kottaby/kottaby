@@ -111,7 +111,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 ---
 ## Phase 0 — Pre-Implementation Baseline (blocking)
 
-- [ ] 0.1 Verify and confirm the recorded baseline + ledger
+- [x] 0.1 Verify and confirm the recorded baseline + ledger
   - Read `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/0-baseline-outcome.md` (measured 2026-09-11 from `/tmp/baseline-pp/`: tsgo errors 0, biome warnings 0, lint-service full-repo exit 0) and CONFIRM the numbers still hold on the implementation branch (rerun `bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline-confirm` if drift is suspected); confirm `deferred-items.md` exists with the pre-seeded rows D1..D5 (curriculum-traversal stats, DEV1-017 deep-link forward contract, DEV1-019 E2E lane, attendance-table rule, probe rate-limiting deferral); confirm no `❌`/`⚠️` rows.
   - Re-probe a sample of plan `path:line` anchors in the live tree (e.g. `backend/db/schema/students/students.ts:32`, `backend/db/repo/students/student.repository.ts:356`, `app/(dashboard)/parent/children/page.tsx`, `frontend/views/dashboard/nav/navItems.ts:133-139`) and note any drift in the outcome file before proceeding.
   - TE: N/A (process task, no runtime code) · SEC: N/A (no code surface)
@@ -124,7 +124,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 
 ## Phase 1 — Plan Review Gate (blocking, executed at authoring time)
 
-- [ ] 1.1 Plan review gate
+- [x] 1.1 Plan review gate
   - Invoke the `@plan-review` skill over this plan directory (`specs.md`, `plan.md`, `tasks.md`): layer rules, i18n/enum compliance (no `Translation.` enum, no two-arg `getTranslations`, no `next-intl`), type-pattern compliance (no service-layer `.types.ts`), R-A..R-J preserved verbatim, no invented paths, INV-P2 zero new mutations, role set exactly admin/teacher/student/parent.
   - Fix ALL findings in the plan files and re-run until the verdict is clean.
   - TE: N/A (review record, no runtime code) · SEC: N/A (review itself is the security posture check)
@@ -136,7 +136,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 ---
 ## Phase 2 — Backend types, repositories & services
 
-- [ ] 2.1 Canonical parent-monitoring types
+- [x] 2.1 Canonical parent-monitoring types
   - CREATE `backend/types/parents/parent-monitoring.types.ts` with the ten closed read projections verbatim from plan §2.3: `ParentLinkedChildReturnType`, `ParentAttendanceEntryReturnType`, `ParentAttendancePageReturnType`, `ParentReportEntryReturnType`, `ParentReportPageReturnType`, `ParentHomeworkTrackReturnType`, `ParentHomeworkEntryReturnType`, `ParentHomeworkPageReturnType`, `ParentHomeworkPositionReturnType`, `ParentChildProgressReturnType`, plus the shared `ParentPageInput` (`{ readonly page?: number; readonly pageSize?: number }`). All members `readonly`; `SessionStatus` / `SurahJuzRef` as VALUE imports from `@/backend/enum/...` (types-only usage still via `import type` where erased at runtime — follow the layer's existing convention); nullability exactly as designed (rating/notes nullable, never coerced).
   - UPDATE `backend/types/parents/index.ts` with `export * from "./parent-monitoring.types";` (relative `./` only; root `@/backend/types` barrel re-exports the parents barrel already — VERIFY, do not duplicate).
   - Deliberately NOT created (plan §2.3): `ParentChildOverviewReturnType`, `ParentReturnType`, any `evaluations` DTO.
@@ -148,7 +148,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - Write outcome: `outcome/2.1-types-outcome.md`
   - _Requirements: REQ-002, REQ-010, REQ-012, REQ-013, REQ-014, REQ-015, REQ-016, REQ-030_
 
-- [ ] 2.2 Repository reads — linked children + progress count
+- [x] 2.2 Repository reads — linked children + progress count
   - UPDATE `backend/db/repo/students/student.repository.ts`: ADD `StudentRepository.listLinkedChildrenByParentId(parentId: number, tx?: DBQueryExecutor): Promise<ParentLinkedChildReturnType-projecting rows>` — join `students → users`, predicates `students.parentId = parentId AND users.isDeleted = false`, order `students.createdAt ASC, students.id ASC` (stable; rides `students_parent_id_idx`). Namespace-member style; `tx` LAST; NO permission logic in the repo.
   - CREATE `backend/db/repo/classes/progress.repository.ts`: `ProgressRepository.countForStudent(studentId: number, tx?: DBQueryExecutor): Promise<number>` (`SELECT count(*) FROM progress WHERE student_id = $1`, `.mapWith(Number)`); UPDATE `backend/db/repo/classes/index.ts` barrel (`export * from "./progress.repository";`).
   - No writes of any kind introduced; no `inArray`+prepared-statement violations (repo layer rule).
@@ -161,7 +161,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - Write outcome: `outcome/2.2-repo-children-progress-outcome.md`
   - _Requirements: REQ-010, REQ-016_
 
-- [ ] 2.3 Repository reads — report & homework parent-scoped windows
+- [x] 2.3 Repository reads — report & homework parent-scoped windows
   - UPDATE `backend/db/repo/classes/report.repository.ts`: ADD `ReportRepository.listForStudent(studentId, limit, offset, tx?: DBTransaction)` returning report rows joined to their session (session `status`, `startedAt`) and `ReportRepository.countForStudent(studentId, tx?)` — SAME predicate set in both (single shared predicate/extract so the pair never drifts); inner join `reports ⋈ session ON session_id AND session.student_id = $1`; order `session.startedAt DESC NULLS LAST, reports.id DESC`.
   - UPDATE `backend/db/repo/classes/home-work.repository.ts`: ADD the same pair (`listForStudent` / `countForStudent`) over `home_work`, identical join/order discipline; CONFIRM existing `findLatestByStudentId` (`:122`) is reused unchanged by the service (D3).
   - Both repo pairs return the raw select rows; the parent-shaped projection mapping happens in the service helpers (plan §4.2) — never in the repo.
@@ -174,7 +174,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - Write outcome: `outcome/2.3-repo-reports-homework-outcome.md`
   - _Requirements: REQ-012, REQ-013, REQ-014, REQ-015_
 
-- [ ] 2.4 `ParentMonitoringService` + `requireLinkedChild` gate
+- [x] 2.4 `ParentMonitoringService` + `requireLinkedChild` gate
   - CREATE `backend/services/parents/parent-monitoring.helpers.ts`: `requireLinkedChild(parentActorId, studentId, locale, tx)` implemented exactly per plan §4.2 (malformed id ⇒ deny; `students.parentId !== parentActorId` ⇒ deny; `users.isDeleted` re-check ⇒ deny — ALL throwing the SAME constant `ForbiddenError` via `getServerTranslations(locale).errorsTranslations.forbidden`, exactly one bounded `logger.logDomainError` per denial, never logging child fields); plus the pure projection mappers (session row → `ParentAttendanceEntryReturnType`, report+session pair → `ParentReportEntryReturnType`, `HomeWorkSelectType` → track blocks + `*PositionReturnType` extraction) colocated here. `requireActor` imported from the same-domain sibling `./parent-link-request.helpers` (not duplicated).
   - CREATE `backend/services/parents/parent-monitoring.service.ts`: `ParentMonitoringService` namespace with the five methods from plan §4.2 (`listLinkedChildren`, `getChildProgress`, `listChildSessions`, `listChildReports`, `listChildHomework`). Every method: `requireActor(parentActorId, UserRole.Parent, locale, undefined, false)` first (relaxed READ path per helper docblock); per-student methods then open ONE `withTransaction` and run gate + reads inside it (D11 TOCTOU seal). Pagination: `page >= 1`, `pageSize` clamped to [1,50], effective values echoed in the page payload. NO mutation methods; NO reads of `parent_link_requests` or `evaluations` (D2/D5 grep-locks enforced in Phase 7).
   - UPDATE `backend/services/parents/index.ts` barrel to export the service namespace (match the existing barrel's export style for `ParentLinkRequestService`).
@@ -190,7 +190,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 
 ## Phase 3 — GraphQL layer
 
-- [ ] 3.1 Pothos parent-object types
+- [x] 3.1 Pothos parent-object types
   - CREATE `backend/graphql/pothos/parents/parent-monitoring.pothos.ts`: all ten parent objects from plan §3.1 (`ParentLinkedChild`, `ParentAttendanceEntry`, `ParentAttendancePage`, `ParentReportEntry`, `ParentReportPage`, `ParentHomeworkTrack`, `ParentHomeworkEntry`, `ParentHomeworkPage`, `ParentHomeworkPosition`, `ParentChildProgress`) as single `objectRef<...ReturnType>("GraphQLName")` each, backed by the task-2.1 types imported from `@/backend/types/parents` (NO local type definitions); `t.exposeID("id")` first on entity shapes; timestamps via `t.expose(..., { type: "DateTime" })`; enums via the ONCE-registered `SessionStatusPothosEnum` / `SurahJuzRefPothosEnum` from `backend/graphql/pothos/shared/enum.pothos.ts` (never re-register); nullability marks EXACTLY matching the TS nullability (notes/rating/track blocks nullable).
   - The existing participant objects (`SessionPothosObject`, `SessionReportPothosObject`, `SessionHomeWorkPothosObject`) are NOT touched (D4/REQ-031).
   - [ ] 3.1.QL **Quality Loop**: sub-loop exit 0 on the new file
@@ -227,7 +227,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 
 ## Phase 4 — i18n namespace (`parentMonitoring` full ceremony)
 
-- [ ] 4.1 `parentMonitoring` namespace ceremony (all eight artifacts)
+- [x] 4.1 `parentMonitoring` namespace ceremony (all eight artifacts)
   - CREATE `shared/locale/types/parentMonitoring/index.ts` — `ParentMonitoringLabels` (plain strings; `(count: number) => string` functions for pluralized counts; interpolation functions where values are inlined).
   - UPDATE `shared/locale/types/message.ts` — import `ParentMonitoringLabels` and add `parentMonitoringTranslations: ParentMonitoringLabels;` to the `Translations` interface (precedent: `parentLinkTranslations` at `shared/locale/types/message.ts:39` — verify before editing).
   - CREATE `shared/locale/namespaces/parentMonitoring/parentMonitoring.namespace.ts` — `defineNamespace<ParentMonitoringLabels>(...)` verbatim-shaped after `shared/locale/namespaces/parentLink/parentLink.namespace.ts`; CREATE `shared/locale/namespaces/parentMonitoring/index.ts` barrel.
@@ -284,7 +284,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - Write outcome: `outcome/5.3-views-outcome.md`
   - _Requirements: REQ-002, REQ-011, REQ-013, REQ-014, REQ-015, REQ-016, REQ-023, REQ-040, REQ-041, REQ-043_
 
-- [ ] 5.4 Apollo cache registration for the no-`id` portal types
+- [x] 5.4 Apollo cache registration for the no-`id` portal types
   - UPDATE `frontend/providers/apollo/apolloCache.ts`: register the six no-`id` GraphQL portal types from plan §3.1 — `ParentAttendancePage`, `ParentReportPage`, `ParentHomeworkPage`, `ParentHomeworkTrack`, `ParentHomeworkPosition`, `ParentChildProgress` — each as `{ keyFields: false }` under `typePolicies`, per the embedded-type normalization policy (`frontend/graphql/AGENTS.md`; live registry at `frontend/providers/apollo/apolloCache.ts`). Append after the last documented entry with a per-family inline comment, and extend the file's header docblock to name the new family (existing convention): the `*Page` wrappers' normalizable entities are the `id`-carrying `*Entry` rows inside `items`, so the wrappers themselves never need an identity; `ParentHomeworkTrack`, `ParentHomeworkPosition` and `ParentChildProgress` are embedded value objects read back through their enclosing parent and replaced wholesale on refetch.
   - [ ] 5.4.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts frontend/providers/apollo/apolloCache.ts --lifecycle duplicates` exit 0
   - [ ] 5.4.TE **Test Engineering**: N/A per the pipeline's scoping rule — cache-config-only change with no runtime code branches; behavior is exercised by 6.4's mocked-Apollo state matrix (re-keyed per-child reads never leak cross-child rows)

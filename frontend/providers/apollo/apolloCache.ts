@@ -1,4 +1,4 @@
-import { InMemoryCache } from "@apollo/client";
+import { InMemoryCache, type TypePolicies } from "@apollo/client";
 
 /**
  * Apollo cache with type policies for paginated / filtered list results.
@@ -33,87 +33,129 @@ import { InMemoryCache } from "@apollo/client";
  * trend-row objects are scalar-only snapshots (no `id` anywhere in the
  * aggregate), read back embedded under the root field and replaced
  * wholesale on every refetch.
+ *
+ * The parent monitoring-portal read model adds six embedded types: the
+ * three `*Page` pagination wrappers (`ParentAttendancePage`,
+ * `ParentReportPage`, `ParentHomeworkPage`) whose normalizable entities
+ * are the `id`-carrying `*Entry` rows inside `items`, so the wrappers
+ * themselves never need an identity; and three embedded value objects
+ * (`ParentHomeworkTrack`, `ParentHomeworkPosition`, `ParentChildProgress`)
+ * cached inline under their enclosing query field / parent object and
+ * replaced wholesale on every refetch. The parent's per-child reads are
+ * re-keyed by the `studentId` argument, so embedded rows never leak
+ * across children.
+ *
+ * The policies object is declared at module scope (rather than inline in
+ * `createApolloCache`) so the factory stays a one-liner and the registry
+ * of no-`id` type opt-outs reads as a flat, comment-anchored table.
  */
-export function createApolloCache(): InMemoryCache {
-  return new InMemoryCache({
-    typePolicies: {
-      AdminDashboardScheduleResult: {
-        fields: {
-          rows: {
-            merge: false,
-          },
-        },
-      },
-      AdminNoteInfo: {
-        keyFields: false,
-      },
-      // Embedded scalar-only value object (no `id`) — normalize-safe from day
-      // one so any future consumer of `_health` cannot trigger cache-data-loss
-      // warnings (frontend/graphql/AGENTS.md embedded-type policy).
-      HealthCheck: {
-        keyFields: false,
-      },
-      // Embedded pagination-wrapper value object (no `id`) for the
-      // notifications inbox — the normalizable entities are the `Notification`
-      // rows inside `items`, so the wrapper itself never needs an identity.
-      NotificationListPage: {
-        keyFields: false,
-      },
-      // Embedded masked parent-discovery value object (no `id` by design) —
-      // cached inline under its parent query field, never normalized into a
-      // standalone (identity-derived) cache key.
-      HandshakeCodeLookup: {
-        keyFields: false,
-      },
-      // Embedded pagination-wrapper value object (no `id`) for the admin
-      // audit trail — the normalizable entities are the `AdminAuditLogEntry`
-      // rows inside `items`, so the wrapper itself never needs an identity.
-      AdminAuditLogPage: {
-        keyFields: false,
-      },
-      OnlineMeetingInfo: {
-        keyFields: false,
-      },
-      // Admin analytics-dashboard snapshot family — scalar-only sections of
-      // the single `adminPlatformAnalytics` read model with no `id` anywhere
-      // in the aggregate (see `frontend/graphql/generated/schema.graphql`),
-      // cached inline under the root query field and replaced wholesale on
-      // every refetch. Entries are listed in the read model's own shape
-      // order (root, then sections, then trend points) — a fixed, repeatable
-      // order; new embedded families append after the last documented entry.
-      PlatformAnalytics: {
-        keyFields: false,
-      },
-      PlatformAnalyticsUsers: {
-        keyFields: false,
-      },
-      PlatformAnalyticsSessions: {
-        keyFields: false,
-      },
-      PlatformAnalyticsRevenue: {
-        keyFields: false,
-      },
-      PlatformAnalyticsCurrencyRevenue: {
-        keyFields: false,
-      },
-      PlatformAnalyticsSubscriptions: {
-        keyFields: false,
-      },
-      PlatformAnalyticsTeachers: {
-        keyFields: false,
-      },
-      PlatformAnalyticsRatings: {
-        keyFields: false,
-      },
-      PlatformAnalyticsHealth: {
-        keyFields: false,
-      },
-      PlatformAnalyticsSessionTrendPoint: {
-        keyFields: false,
-      },
-      PlatformAnalyticsRevenueTrendPoint: {
-        keyFields: false,
+const apolloCacheTypePolicies: TypePolicies = {
+  AdminDashboardScheduleResult: {
+    fields: {
+      rows: {
+        merge: false,
       },
     },
-  });
+  },
+  AdminNoteInfo: {
+    keyFields: false,
+  },
+  // Embedded scalar-only value object (no `id`) — normalize-safe from day
+  // one so any future consumer of `_health` cannot trigger cache-data-loss
+  // warnings (frontend/graphql/AGENTS.md embedded-type policy).
+  HealthCheck: {
+    keyFields: false,
+  },
+  // Embedded pagination-wrapper value object (no `id`) for the
+  // notifications inbox — the normalizable entities are the `Notification`
+  // rows inside `items`, so the wrapper itself never needs an identity.
+  NotificationListPage: {
+    keyFields: false,
+  },
+  // Embedded masked parent-discovery value object (no `id` by design) —
+  // cached inline under its parent query field, never normalized into a
+  // standalone (identity-derived) cache key.
+  HandshakeCodeLookup: {
+    keyFields: false,
+  },
+  // Embedded pagination-wrapper value object (no `id`) for the admin
+  // audit trail — the normalizable entities are the `AdminAuditLogEntry`
+  // rows inside `items`, so the wrapper itself never needs an identity.
+  AdminAuditLogPage: {
+    keyFields: false,
+  },
+  OnlineMeetingInfo: {
+    keyFields: false,
+  },
+  // Admin analytics-dashboard snapshot family — scalar-only sections of
+  // the single `adminPlatformAnalytics` read model with no `id` anywhere
+  // in the aggregate (see `frontend/graphql/generated/schema.graphql`),
+  // cached inline under the root query field and replaced wholesale on
+  // every refetch. Entries are listed in the read model's own shape
+  // order (root, then sections, then trend points) — a fixed, repeatable
+  // order; new embedded families append after the last documented entry.
+  PlatformAnalytics: {
+    keyFields: false,
+  },
+  PlatformAnalyticsUsers: {
+    keyFields: false,
+  },
+  PlatformAnalyticsSessions: {
+    keyFields: false,
+  },
+  PlatformAnalyticsRevenue: {
+    keyFields: false,
+  },
+  PlatformAnalyticsCurrencyRevenue: {
+    keyFields: false,
+  },
+  PlatformAnalyticsSubscriptions: {
+    keyFields: false,
+  },
+  PlatformAnalyticsTeachers: {
+    keyFields: false,
+  },
+  PlatformAnalyticsRatings: {
+    keyFields: false,
+  },
+  PlatformAnalyticsHealth: {
+    keyFields: false,
+  },
+  PlatformAnalyticsSessionTrendPoint: {
+    keyFields: false,
+  },
+  PlatformAnalyticsRevenueTrendPoint: {
+    keyFields: false,
+  },
+  // Parent monitoring-portal read model — the three `*Page` wrappers
+  // are pagination wrappers whose normalizable entities are the
+  // `id`-carrying `*Entry` rows inside `items`, so the wrappers
+  // themselves never need an identity; `ParentHomeworkTrack`,
+  // `ParentHomeworkPosition` and `ParentChildProgress` are embedded
+  // value objects cached inline under their enclosing query field /
+  // parent object and replaced wholesale on every refetch (the
+  // parent's per-child reads are re-keyed by the `studentId`
+  // argument, so embedded rows never leak across children).
+  ParentAttendancePage: {
+    keyFields: false,
+  },
+  ParentReportPage: {
+    keyFields: false,
+  },
+  ParentHomeworkPage: {
+    keyFields: false,
+  },
+  ParentHomeworkTrack: {
+    keyFields: false,
+  },
+  ParentHomeworkPosition: {
+    keyFields: false,
+  },
+  ParentChildProgress: {
+    keyFields: false,
+  },
+};
+
+export function createApolloCache(): InMemoryCache {
+  return new InMemoryCache({ typePolicies: apolloCacheTypePolicies });
 }

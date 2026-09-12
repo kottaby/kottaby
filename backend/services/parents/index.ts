@@ -6,3 +6,4 @@
  * directly.
  */
 export * from "./parent-link-request.service";
+export * from "./parent-monitoring.service";
