@@ -101,7 +101,7 @@
 
 ## Phase 4 — Review Wave & Closeout
 
-- [ ] 4.1 Review wave + final quality gate (REQ-035)
+- [x] 4.1 Review wave + final quality gate (REQ-035)
   - Dispatch review subagents scoped ONLY to files this plan touched: `review-backend` (test changes), `review-types` (none expected — confirm), security-probing (booking denial + purchase gating diff)
   - Fix findings; re-verify each file via sub-loop
   - Deferred-items enforcement: `awk '/^## Ledger Table/,/^## Status Values/' "ai/plans/sprint_1/Segregated Session Balance-crediting/deferred-items.md" | grep -c "❌\|⚠️"` ⇒ expected 0 (D1–D5 carry recorded dispositions)
@@ -110,7 +110,7 @@
   - Outcome: `outcome/4.1-review-wave-outcome.md`
   - _Requirements: REQ-001, REQ-002, REQ-035_
 
-- [ ] 4.2 Knowledge propagation closeout
+- [x] 4.2 Knowledge propagation closeout
   - Read ALL outcome files; synthesize recurring gotchas into `docs/billing/segregated-session-balance.md` (final section) if gaps surfaced
   - Confirm AGENTS.md / `.agents/instructions/` untouched (hand-curated)
   - Write `outcome/4.2-knowledge-propagation-outcome.md`

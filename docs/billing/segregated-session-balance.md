@@ -108,3 +108,12 @@ These four divergences between the ticket's literal phrasing and the shipped imp
 - `docs/students/free-trial-provisioning.md` — the `balance_trial` grant-once pattern behind the trial-first ladder.
 - `docs/graphql/domain-error-extensions-code.md` — the DomainError contract and `extensions.code` wire shape behind D3.
 - `docs/planning/PRODUCTION_READINESS.md` §5.3 — the readiness check-off bound to this domain's verification evidence.
+
+## 10. Gotchas & Operational Notes
+
+Transport-level facts proven while pinning this domain's behavior over the GraphQL wire — every consumer that drives `createSession` through the integration harness needs them:
+
+- **A student `createSession` client must carry an `X-Idempotency-Key` header.** The pre-DB `idempotencyKeyRequired` guard VALIDATION-denies any keyless student call *before* the balance ladder is reached — such a denial exercises the idempotency guard, never the balance path. Use a fixed per-run key so denial assertions are deterministic.
+- **`ID!` fields serialize as strings.** Wire payloads return `id`, `teacherId`, etc. as quoted strings (`"6555"`); assertions against numeric DB ids must cast (`String(...)`). Compare against `extensions.code` (`INSUFFICIENT_BALANCE`) for machine-readable denials — D3.
+- **GraphQL integration suites share the dev-server database and accumulate committed rows by convention.** Pre-existing rows (e.g. session rows from other suites' fixtures) are not residue; scope every row-count assertion to fixture-scoped ids (teacher/student pair, per-run idempotency keys), never to global table counts.
+- **Denial evidence lives in the captured server log.** `[DOMAIN] Session booking rejected: insufficient balance {"code":"INSUFFICIENT_BALANCE",...}` lines appear once per denial leg; the test runner's `--focus` view filters failures only, so for green suites grep the captured run log instead.
