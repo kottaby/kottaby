@@ -38,7 +38,7 @@ Verification-only plan (D-1). Sequence: baseline → gap matrix (research) → r
 
 ### Task 0: Pre-Implementation Baseline (MANDATORY)
 
-- [ ] 0. Establish error baseline and create deferred-items ledger
+- [x] 0. Establish error baseline and create deferred-items ledger
   - Record baseline counts BEFORE any test authorship:
     `bun tsgo 2>&1 | grep -c "error TS" > /tmp/baseline-tsgo.txt`;
     `bun biome:check 2>&1 | grep -c "warn" > /tmp/baseline-biome.txt`;
@@ -65,7 +65,7 @@ Verification-only plan (D-1). Sequence: baseline → gap matrix (research) → r
 
 ### Phase 1.5: Plan Review Gate (MANDATORY — executed during planning)
 
-- [ ] 1.5 Review complete plan via @plan-review skill
+- [x] 1.5 Review complete plan via @plan-review skill
   - Input: `specs.md`, `plan.md`, `tasks.md`; verdict + fixes recorded in `outcome/plan-review-R1.md`.
   - Loop until the review reports no AGENTS.md violations.
   - _Requirements: REQ-0_
