@@ -104,9 +104,9 @@
   - CREATE `backend/types/billing/callback-channel.types.ts` (`CallbackChannelKind`, `CallbackChannelPort`), `backend/services/billing/payment-gateway/callback-channel/callback-channel.factory.ts` (`getCallbackChannel()` — `real` in production / provider≠paymob, `ngrok` only when BOTH `NGROK_AUTHTOKEN` + `NGROK_DOMAIN` set AND probe passes, else `simulation` + one structured log), and `…/callback-channel/simulation-callback-channel.channel.ts` (synthesizes Paymob-shaped processed callbacks signed via the PRODUCTION `paymob.hmac.ts` builder with `PAYMOB_HMAC_SECRET`, POSTs `?hmac=<digest>` to the local webhook; supports confirm/fail/replay/cross-user; fail-closed guard in production). No consumer reads `NGROK_*` directly.
   - [x] 5.4.QL · [x] 5.4.TE — factory resolution matrix (real/ngrok/simulation incl. missing-env and failed-probe fallbacks); simulation callback passes the real route's HMAC gate and fulfills end-to-end; production guard throws · [x] 5.4.SEC — simulation unreachable in production; signer reuse (no drift) · [x] 5.4.SR — NO per-file ngrok checks anywhere · [x] 5.4.IV
   - _Requirements: REQ-090, REQ-091, REQ-093_
-- [ ] 5.5 Ngrok channel + intention URL wiring
+- [x] 5.5 Ngrok channel + intention URL wiring
   - CREATE `…/callback-channel/ngrok-callback-channel.channel.ts` (spawn `ngrok http --url="https://<NGROK_DOMAIN>" <NGROK_PORT>`; probe the PUBLIC domain URL — local agent API off-limits; `publicBaseUrl = https://<NGROK_DOMAIN>`); EXTEND the intention URL composition to use the channel's `publicBaseUrl` for the dev `notification_url`; EXTEND `backend/lib/env.ts` (+`.env.example`, `backend/lib/test-ci-env.ts`) with the three optional `NGROK_AUTHTOKEN` / `NGROK_DOMAIN` / `NGROK_PORT` (default 3000) keys.
-  - [ ] 5.5.QL · [ ] 5.5.TE — probe success/failure matrix; notification_url composition per channel; env parsing · [ ] 5.5.SEC — authtoken never logged; dev-only selection · [ ] 5.5.SR · [ ] 5.5.IV
+  - [x] 5.5.QL · [x] 5.5.TE — probe success/failure matrix; notification_url composition per channel; env parsing · [x] 5.5.SEC — authtoken never logged; dev-only selection · [x] 5.5.SR · [x] 5.5.IV
   - _Requirements: REQ-090, REQ-091, REQ-092_
 - [ ] 5.6 Mid-point backend review gate (Phase 2.5 pattern)
   - Dispatch backend-scoped review over Phase 2–5 outputs (types/repo/service/route files); aggregate + fix findings per file with sub-loop re-verification; repeat until zero backend-specific findings; write `outcome/midpoint-review-R1.md`.
@@ -130,17 +130,17 @@
   - [x] 7.1.QL · [x] 7.1.TE — document snapshot/type compile checks · [x] 7.1.SEC · [x] 7.1.SR · [x] 7.1.IV
   - _Requirements: REQ-060, REQ-075_
 
-- [ ] 7.2 Student plan catalog + checkout initiation
+- [x] 7.2 Student plan catalog + checkout initiation
   - CREATE `app/(dashboard)/student/plans/page.tsx` + `frontend/views/student/plans/` (`PlansCatalogContainer`, card/table tiers, `PlanPurchaseConfirmDialog`, `usePurchaseSubscription` with idempotency-key ref + redirect per plan §5); nav entry per navItems conventions; Storybook arm set.
-  - [ ] 7.2.QL · [ ] 7.2.TE — buy CTA → mutation vars; redirect on `checkoutUrl`; mock-provider branch refetches; dialog cancel keeps key · [ ] 7.2.SEC — no plan price sent from client; student-only page guard · [ ] 7.2.SR · [ ] 7.2.IV
+  - [x] 7.2.QL · [x] 7.2.TE — buy CTA → mutation vars; redirect on `checkoutUrl`; mock-provider branch refetches; dialog cancel keeps key · [x] 7.2.SEC — no plan price sent from client; student-only page guard · [x] 7.2.SR · [x] 7.2.IV
   - _Requirements: REQ-003, REQ-044, REQ-045, REQ-054, REQ-060, REQ-061, REQ-062, REQ-065_
-- [ ] 7.3 Payment result page
+- [x] 7.3 Payment result page
   - CREATE `app/(dashboard)/student/checkout/result/page.tsx` + `frontend/views/student/checkout/result/PaymentResultContainer.tsx` (searchParams hints; authoritative `mySubscriptions` re-query; success/failed/pending branches; retry CTA); stories.
-  - [ ] 7.3.QL · [ ] 7.3.TE — forged `success=true` query renders nothing positive without server truth · [ ] 7.3.SEC — student-scoped; no param trust · [ ] 7.3.SR · [ ] 7.3.IV
+  - [x] 7.3.QL · [x] 7.3.TE — forged `success=true` query renders nothing positive without server truth · [x] 7.3.SEC — student-scoped; no param trust · [x] 7.3.SR · [x] 7.3.IV
   - _Requirements: REQ-027, REQ-045, REQ-054, REQ-063, REQ-065_
-- [ ] 7.4 My subscriptions page
+- [x] 7.4 My subscriptions page
   - CREATE `app/(dashboard)/subscriptions/page.tsx` + `frontend/views/student/subscriptions/MySubscriptionsContainer.tsx` (status chips active/pending/failed, empty state, failed-guidance copy); the existing `/subscriptions` nav link goes live.
-  - [ ] 7.4.QL · [ ] 7.4.TE — all four state arms · [ ] 7.4.SEC — tenancy: only own rows · [ ] 7.4.SR · [ ] 7.4.IV
+  - [x] 7.4.QL · [x] 7.4.TE — all four state arms · [x] 7.4.SEC — tenancy: only own rows · [x] 7.4.SR · [x] 7.4.IV
   - _Requirements: REQ-045, REQ-054, REQ-064, REQ-065_
 - [ ] 7.5 Funnel component tests (Happy DOM)
   - CREATE suites under `test/ui/components/` per `test/ui/AGENTS.md` for the three containers (mocked Apollo).
