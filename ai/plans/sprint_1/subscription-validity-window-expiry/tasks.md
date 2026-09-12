@@ -35,14 +35,14 @@ Foundation-first: schema index → types → locale key → **journey test FIRST
 
 - [ ] 0.1 Record baseline & confirm ledger
   - Run `bun tsgo 2>&1 | grep "error TS" | wc -l`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline`; store counts in `/tmp/baseline-*.txt`.
-  - Confirm `deferred-items.md` exists (authored at spec time; D1 🔄, D2 ❌, D3 🔄 — D2's ❌ is the sanctioned open item whose resolution is the 9.1 documented ops handoff; all others must close before 8.1's gate).
+  - Confirm `deferred-items.md` exists (authored at spec time, closed at the Phase 1.5 gate: D1 ✅ and D3 ✅ ratified by `outcome/plan-review-R1.md`; D2 ❌ is the sanctioned open item — its resolution is the 9.1 documented ops handoff; all other statuses must be ✅ before 8.1's gate).
   - Write `outcome/0.1-baseline-outcome.md` with counts + environment notes.
   - _Requirements: REQ-001_
 
 ## Phase 1.5: Plan Review Gate (MANDATORY — executed at planning time)
 
 - [ ] 1.1 Plan review via `@plan-review` skill
-  - Verdict + fixes recorded in `outcome/plan-review-R1.md` BEFORE any implementation task starts; the gate ratifies plan.md Decisions D1–D7 verbatim (no redesign) — this closes ledger **D1** (O1 semantic ratified) and **D3** (fallback-sufficient, no dedicated dialog arm).
+  - Verdict + fixes recorded in `outcome/plan-review-R1.md` BEFORE any implementation task starts; the gate ratifies plan.md Decisions D1–D7 verbatim (no redesign) — this closes ledger **D1** (O1 semantic ratified) and **D3** (no wired booking-UI surface exists; the snackbar arm is deferred to the ticket that lands it, per corrected Decision D7).
   - _Requirements: REQ-001_
 
 ## Phase 2: Foundation (Schema · Types · Locale)
@@ -136,7 +136,7 @@ Foundation-first: schema index → types → locale key → **journey test FIRST
 
 - [ ] 8.1 Baseline comparison + deferred gate + full quality gate
   - Re-run baseline trio; confirm zero NEW errors vs `/tmp/baseline-*.txt` (compare against `outcome/0.1-baseline-outcome.md`).
-  - Deferred gate: `grep -c "❌\|⚠️" ai/plans/sprint_1/subscription-validity-window-expiry/deferred-items.md` MUST return 0 (the ❌/⚠️ icons in the "Status Values" legend block are definitional — count only the Ledger Table rows; D1 closed at 1.1, D3 closed at 1.1/5.2, D2 closes ONLY when 9.1's canonical doc records the external-trigger ops handoff).
+  - Deferred gate: `grep -c "❌\|⚠️" ai/plans/sprint_1/subscription-validity-window-expiry/deferred-items.md` counts the Ledger Table rows (the ❌/⚠️ icons in the "Status Values" legend are definitional and excluded). At THIS checkpoint the expected count is exactly 1 — D2's sanctioned ❌, which closes ONLY when 9.1's canonical doc records the external-trigger ops handoff (D1 closed ✅ at 1.1 via plan-review R1; D3 closed ✅ at 1.1). After 9.1 the count MUST be 0 (re-run the grep there; a non-zero post-9.1 count blocks completion).
   - `bun quality-gate` green end-to-end (tsgo → oxlint → biome → lint → duplicates); caches NEVER cleared.
   - [ ] 8.1.IV (instructions re-verified against every touched file)
   - Write `outcome/8.1-outcome.md`
@@ -145,7 +145,7 @@ Foundation-first: schema index → types → locale key → **journey test FIRST
 ## Phase 9: Knowledge Propagation (MANDATORY — final task)
 
 - [ ] 9.1 Canonical doc + invariant addendum + cross-refs
-  - CREATE `docs/billing/subscription-validity-window-expiry.md` — canonical reference: window arithmetic (AC1), sweep design (route/service/repo, D1/D6), REQ-023 zeroing semantic O1 + rationale + Revoke-Never-Wrongly guard (closes ledger D1's runtime documentation), booking gate + pinned predicate order (D3/D7), cron contract + **external-trigger deployment handoff (closes ledger D2 ops note)**, trial exemption (INV-B3), concurrency/race table summary.
+  - CREATE `docs/billing/subscription-validity-window-expiry.md` — canonical reference: window arithmetic (AC1), sweep design (route/service/repo, D1/D6), REQ-023 zeroing semantic O1 + rationale + Revoke-Never-Wrongly guard (closes ledger D1's runtime documentation), booking gate + pinned predicate order (Decision D3/D7, incl. the ledger-D3 requirement that the future booking UI SHALL map `SUBSCRIPTION_EXPIRED` to the `subscriptionExpired` snackbar key at landing), cron contract + **external-trigger deployment handoff (closes ledger D2 ops note)**, trial exemption (INV-B3), concurrency/race table summary.
   - EXTEND `docs/specs/state-machine-invariants.md` — INV-B3 implementation addendum (chosen O1 semantic; the `active → expired` writer now EXISTS — A.9's "Expired" transition gains its producer).
   - ≤2-line cross-refs to `backend/AGENTS.md` / `backend/services/AGENTS.md` per convention; instruction files otherwise NEVER modified; NO plan-meta comments in code.
   - Write `outcome/9.1-outcome.md`

@@ -1,0 +1,65 @@
+{
+  "_comment": "Prototype screens for the Subscription Validity Window & Expiry plan. The plan itself ships NO UI (REQ-060/061); these are visualization prototypes of the future surfaces this backend work unlocks (mySubscriptions expired rendering + the deferred SUBSCRIPTION_EXPIRED booking-denial arm, ledger D3). Generated for design-alignment discussion only — no prototype fixture data is to be hardcoded into the app.",
+  "project": "projects/1508109423260788443",
+  "projectTitle": "Kottaby — Subscription Validity & Expiry Prototypes",
+  "designSystem": "assets/a774d575c8454e38849234db0653f951",
+  "generatedAt": "2026-09-12",
+  "screens": [
+    {
+      "screenId": "bd8840e92594455a9d4feb7e0948a4d4",
+      "title": "Kottaby - My Subscriptions Dashboard",
+      "file": "my-subscriptions-active-desktop.png",
+      "deviceType": "DESKTOP",
+      "state": "active",
+      "planRef": "REQ-040 / AC4 — in-window subscription: ACTIVE badge, validity window progress, funded lane balances, trial lane separate"
+    },
+    {
+      "screenId": "a9ff18ff5daf411cbe382bd884e83a70",
+      "title": "My Subscriptions — Kottaby Quran Learning",
+      "file": "my-subscriptions-expired-desktop.png",
+      "deviceType": "DESKTOP",
+      "state": "expired",
+      "planRef": "AC2 / REQ-023/024 — post-sweep: EXPIRED badge, original dates unchanged, subscription lanes zeroed (no carryover), trial balance intact, renew CTA"
+    },
+    {
+      "screenId": "2a80e829763f49ebb09f52f44508a0cf",
+      "title": "My Subscriptions — Empty State",
+      "file": "my-subscriptions-empty-desktop.png",
+      "deviceType": "DESKTOP",
+      "state": "empty",
+      "planRef": "Baseline empty state — never-subscribed student; trial credit visible"
+    },
+    {
+      "screenId": "deabcb2f488f4d6ab9dadad210b20ea5",
+      "title": "My Subscriptions - Mobile",
+      "file": "my-subscriptions-mixed-mobile.png",
+      "deviceType": "MOBILE",
+      "state": "mixed",
+      "planRef": "Mobile form factor — active + expired cards together, trial chip"
+    },
+    {
+      "screenId": "dc0f61ca50f74f3b8a9650ccb11830c5",
+      "title": "Kottaby - Book a Session Modal Dialog",
+      "file": "session-booking-expired-denial-desktop.png",
+      "deviceType": "DESKTOP",
+      "state": "error",
+      "planRef": "AC3 / REQ-030..034 + deferred-items D3 — SUBSCRIPTION_EXPIRED denial arm of the booking dialog (deferred to the booking UI's landing); trial credit still offered"
+    },
+    {
+      "screenId": "08471b0fdb904595b9ca8a1aa33886a9",
+      "title": "Kottaby - Session Booked Confirmation",
+      "file": "session-booking-trial-success-mobile.png",
+      "deviceType": "MOBILE",
+      "state": "success",
+      "planRef": "REQ-033 / INV-B3 — trial-funded booking succeeds despite expired subscription"
+    },
+    {
+      "screenId": "c1860db8bf4d4fbb9d3d8f1066a56682",
+      "title": "حجز جلسة - منصة كُتّابي",
+      "file": "session-booking-expired-denial-ar-desktop.png",
+      "deviceType": "DESKTOP",
+      "state": "error-ar",
+      "planRef": "REQ-032 — Arabic RTL variant of the SUBSCRIPTION_EXPIRED denial (ar locale copy parity)"
+    }
+  ]
+}

@@ -18,9 +18,9 @@ Seeded at specification time (2026-09-11) with items already known from research
 
 | ID | Deferred Item | Source Task | Target Task | Status | Verified By | Notes |
 |---|---|---|---|---|---|---|
-| D1 | Per-subscription / per-period balance attribution ledger (candidate) | specs REQ-023 | plan.md design phase (Key Design Decisions) | 🔄 In Progress | — | AC2's "zero that period's remainder" is unimplementable on the shipped flat-lane model (`backend/db/schema/students/students.ts:24-45`). plan.md Decision D2 (§2.1) ratified the interim semantic: **O1 conditional lane zeroing** — zero the expiring plan's lane ONLY when no other `active`/`pending` subscription of the student credits the same lane, one guarded UPDATE inside the sweep transaction, `balance_trial` structurally exempt. O2 (attribution ledger) is the recorded future-work refinement for shared-lane co-subscriptions and remains deferred beyond this ticket; O3 rejected (fails AC2). Row closes when the Phase 1.5 plan-review gate accepts plan.md |
-| D2 | Scheduler deployment trigger for `/api/cron/expire-subscriptions` | specs REQ-020 | Final deployment/ops task | ❌ Blocked | — | No in-process scheduler, no `vercel.json`, no `scripts/cron-worker.ts` exist (research-03 §1/§7). Repo ships the fail-closed route + service; the external trigger wiring (host cron / scheduler config) is deployment work — to be documented in plan.md deployment section and the canonical doc; if no wiring mechanism lands, this is documented as an explicit ops handoff, not silently dropped |
-| D3 | Optional booking-dialog error arm for `SUBSCRIPTION_EXPIRED` | specs REQ-061 | Optional frontend task (or deferred out) | 🔄 In Progress | — | The existing VALIDATION code→snackbar fallback already surfaces the localized copy with zero frontend changes. plan.md Decision D7 rules **fallback-sufficient** — NO dedicated arm in `frontend/views/student/sessions/sessionDialogErrorArms.ts` ships with this ticket (verified: custom domain codes fall through to the VALIDATION toast; no `INSUFFICIENT_BALANCE` frontend consumer exists). Row closes when the Phase 1.5 plan-review gate accepts plan.md |
+| D1 | Per-subscription / per-period balance attribution ledger (candidate) | specs REQ-023 | plan.md design phase (Key Design Decisions) | ✅ Done | outcome/plan-review-R1.md | AC2's "zero that period's remainder" is unimplementable on the shipped flat-lane model (`backend/db/schema/students/students.ts:24-45`). plan.md Decision D2 (§2.1) — ratified at the Phase 1.5 plan-review gate — adopted the interim semantic: **O1 conditional lane zeroing** — zero the expiring plan's lane ONLY when no other `active` (post-flip, in-window) or `pending` subscription of the student credits the same lane, one guarded UPDATE inside the sweep transaction, `balance_trial` structurally exempt. O2 (attribution ledger) is the recorded future-work refinement for shared-lane co-subscriptions and remains deferred beyond this ticket; O3 rejected (fails AC2) |
+| D2 | Scheduler deployment trigger for `/api/cron/expire-subscriptions` | specs REQ-020 | Final deployment/ops task | ❌ Blocked | — | No in-process scheduler, no `vercel.json`, no `scripts/cron-worker.ts` exist (research-03 §1/§7). Repo ships the fail-closed route + service; the external trigger wiring (host cron / scheduler config) is deployment work — to be documented in plan.md deployment section and the canonical doc (9.1); this row's ❌ is the single sanctioned residual through Phase 8 and MUST flip to ✅ at 9.1, or completion is blocked |
+| D3 | Booking-dialog error arm for `SUBSCRIPTION_EXPIRED` (lands with the booking UI, not this ticket) | specs REQ-061 | The future sessions-booking UI surface's ticket | ✅ Done | outcome/plan-review-R1.md | The plan-review gate falsified the earlier "VALIDATION fallback already surfaces the copy" claim: the client map has NO row for custom domain codes (`mapValidationRow` matches `VALIDATION` only, `frontend/providers/apollo/error-link.map.ts:242-258`; `normalizeGraphQLErrorCode` folds only `RATE_LIMIT_EXCEEDED`, `:58-65`; unmapped codes → `null`), AND no wired consumer of `createSessionMutationDocument` exists in `frontend/` (grep-verified) — so there is no booking dialog to arm this sprint, and zero frontend changes is correct for surface-absence reasons. Resolution: localized copy travels server-side (`ValidationError` message + `extensions.code`); the future booking-UI ticket MUST map `SUBSCRIPTION_EXPIRED` → the new `subscriptionExpired` key; this obligation is recorded in REQ-061 and in the canonical doc (9.1) |
 
 ---
 
@@ -72,11 +72,14 @@ The **final quality gate task** (last task before Phase 7: Knowledge Propagation
 # Count unresolved items
 grep -c "❌\|⚠️" ai/plans/sprint_1/subscription-validity-window-expiry/deferred-items.md
 
-# Expected: 0 (excluding the Status Values legend block, which uses icons definitionally)
-# If >0: Task is blocked — resolve all ❌/⚠️ ledger rows before plan completion
+# Expected: exactly 1 before Phase 9 (D2's sanctioned ❌ — the external-trigger ops
+# handoff that only the 9.1 canonical doc can close), 0 after 9.1.
+# The "Status Values" legend block uses both icons definitionally — count only
+# Ledger Table rows. If anything other than D2's row is ❌/⚠️ before Phase 9,
+# or any ❌/⚠️ remains after 9.1: Task is blocked — resolve the rows first.
 ```
 
-**Exit criteria:** Plan cannot be marked complete if any ❌ or ⚠️ status remains in the Ledger Table.
+**Exit criteria:** Plan cannot be marked complete if any ❌ or ⚠️ status other than D2's sanctioned pre-9.1 row remains in the Ledger Table; after 9.1 the allowed count is zero.
 
 ---
 
