@@ -91,3 +91,7 @@ The backend follows a consistent pattern for defining and using types across all
 - GraphQL error handling: DomainError → GraphQLError extensions.code propagation.
 - **Taxonomy-only statuses**: HTTP statuses for errors MUST derive from `ERROR_CODE_HTTP_STATUS` via `normalizeErrorCode(...)` in `backend/lib/errors/error-code-taxonomy.ts`; numeric error-status literals anywhere else are prohibited (grep-gated).
 - **Envelope helpers location**: API routes use `resolveRequestId` / `apiSuccessResponse` / `apiErrorResponse` from the `@/backend/lib/api` barrel — never hand-roll `{ data }` / `{ error }` bodies.
+
+## Reference Docs
+
+- Billing subscription validity window & expiry (window arithmetic, expiry sweep, lane zeroing, booking gate, cron trigger contract): `docs/billing/subscription-validity-window-expiry.md`

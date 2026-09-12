@@ -50,3 +50,21 @@ Work Log:
 
 Stage Summary:
 - 8.1 GREEN — cleared for 9.1; outcome/8.1-outcome.md written; 8.1 + 8.1.IV [x]
+
+---
+Task ID: 9-1
+Agent: Subagent (knowledge-propagation)
+Task: 9.1 Canonical doc + invariant addendum + cross-refs (FINAL task; closes ledger D2)
+
+Work Log:
+- Sandbox drift hit twice mid-task (HEAD reverted to main@2bdea32; worklog.md reverted to its pre-8.1 17-line form while the other edits survived) — countered with the authorized recovery + /tmp copies: pristine pre-edit files at /tmp/9-1-backup/, verified feat-tip reference snapshot (read-only `git archive`) at /tmp/9-1-branch/, final post-edit files at /tmp/9-1-final/; worklog rebuilt from the verified feat-tip version + this section; a stale-reverted tasks.md base was caught by diff review (10-line diff instead of 2 — it had un-flipped 7.1/8.1) and rebuilt from the feat-tip archive + the single 9.1 flip
+- CREATE docs/billing/subscription-validity-window-expiry.md — canonical reference in the subscription-purchase.md house style: window arithmetic (end = start + interval_days × 86_400_000ms from one captured now; interval_days only on plans CHECK>0; A.9 inclusive boundary; window-vs-status lag), sweep design (route gates/bearer/masked envelopes + honest {expired, lanesZeroed}; expireDue one-tx shape; the three repo guards; subscriptions_active_end_date_idx), O1 conditional lane zeroing + Revoke-Never-Wrongly rationale + (active post-flip + pending) coverage guard + structurally trial-exempt + attribution ledger as recorded future refinement, booking gate + pinned predicate order + SUBSCRIPTION_EXPIRED error contract + sweep-lag contract, cron contract + external-trigger deployment handoff (ops runbook: env gates, curl, response table, kill switch, replay-safe retries — CLOSES D2), trial exemption, concurrency/race summary, anti-patterns; mermaid validator exit 0 (1 diagram)
+- EXTEND docs/specs/state-machine-invariants.md — one tight implementation-reference blockquote after the §4.2 table (the doc's own §1/§8 idiom): the active → expired transition now HAS a producer (the sweep; A.9's Expired gains its writer), the shipped INV-B3 zeroing semantic + under-revoke-only direction + structural trial exemption + booking denial/lag contract + canonical-doc pointer; no invariant rows rewritten
+- EXTEND backend/AGENTS.md + backend/services/AGENTS.md — ≤2-line cross-refs each ("## Reference Docs" heading + one bullet; grep-verified NO prior docs-cross-ref convention existed in either file, so the minimal placement is a noted formatting choice); no other rule text touched
+- CLOSED D2 in deferred-items.md (❌ → ✅ Done, Verified By = outcome/9.1-outcome.md + the canonical doc path; Notes record the ops handoff); D3's booking-UI obligation (map SUBSCRIPTION_EXPIRED → subscriptionExpired at landing) recorded in the canonical doc §5
+- Deferred gate: raw `grep -c "❌\|⚠️"` = 14, ALL definitional (legend 30–31, format template 48, usage note 55, Enforcement comments 73/75/78/79/82, anti-patterns 88–92); Ledger Table rows contributing ❌/⚠️ = 0 (D1 ✅ / D2 ✅ / D3 ✅) — the post-9.1 requirement is met
+- Plan-meta discipline: docs cite INV-* ids only (mirroring sibling docs); zero REQ-* ids/plan paths in the public docs; ZERO code files touched this task
+- Wrote outcome/9.1-outcome.md; flipped tasks.md 9.1 → [x]
+
+Stage Summary:
+- 9.1 complete — docs-only, verified against the implemented tree; Ledger Table fully ✅; plan's final task done; NOT committed (per orchestrator instruction), finals preserved at /tmp/9-1-final/

@@ -144,7 +144,7 @@ Foundation-first: schema index → types → locale key → **journey test FIRST
 
 ## Phase 9: Knowledge Propagation (MANDATORY — final task)
 
-- [ ] 9.1 Canonical doc + invariant addendum + cross-refs
+- [x] 9.1 Canonical doc + invariant addendum + cross-refs
   - CREATE `docs/billing/subscription-validity-window-expiry.md` — canonical reference: window arithmetic (AC1), sweep design (route/service/repo, D1/D6), REQ-023 zeroing semantic O1 + rationale + Revoke-Never-Wrongly guard (closes ledger D1's runtime documentation), booking gate + pinned predicate order (Decision D3/D7, incl. the ledger-D3 requirement that the future booking UI SHALL map `SUBSCRIPTION_EXPIRED` to the `subscriptionExpired` snackbar key at landing), cron contract + **external-trigger deployment handoff (closes ledger D2 ops note)**, trial exemption (INV-B3), concurrency/race table summary.
   - EXTEND `docs/specs/state-machine-invariants.md` — INV-B3 implementation addendum (chosen O1 semantic; the `active → expired` writer now EXISTS — A.9's "Expired" transition gains its producer).
   - ≤2-line cross-refs to `backend/AGENTS.md` / `backend/services/AGENTS.md` per convention; instruction files otherwise NEVER modified; NO plan-meta comments in code.
