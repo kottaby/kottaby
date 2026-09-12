@@ -7,12 +7,11 @@
  * the machine-readable admin action census
  * (`@/test/workflows/admin/audit-completeness.catalog`). A producer admin
  * executes every `wired` census row (direction-paired rows exercise BOTH
- * verbs: delete/reactivate, suspend/reactivate for users and for plans); a
- * System fixture lane mints the one action type that has no shipped producer
- * yet (the deferred financial-adjustment surface); a DIFFERENT admin observer
- * reads the whole trail back through the global read surface and every filter
- * axis; non-admin and anonymous actors are denied every action and mint
- * nothing.
+ * verbs: delete/reactivate, suspend/reactivate for users and for plans; the
+ * financial-auditing trio settles BOTH withdrawal directions — approve AND
+ * reject — and both adjustment verbs are exercised through the reason-bearing
+ * manual adjustment); non-admin and anonymous actors are denied every action
+ * and mint nothing.
  *
  * Per `test/workflows/AGENTS.md`:
  *  - Committed fixtures in `beforeAll` inside ONE committing transaction
@@ -44,19 +43,26 @@ import { db, queryDb } from "@/backend/db";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { session } from "@/backend/db/schema/classes/session";
+import { teacherTransaction } from "@/backend/db/schema/billing/teacher-transaction";
+import { wallet } from "@/backend/db/schema/billing/wallet";
 import { notifications } from "@/backend/db/schema/notifications/notifications";
 import { students } from "@/backend/db/schema/students/students";
 import { applicants } from "@/backend/db/schema/teachers/applicants";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
+import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
+import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
+import { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustment-direction.enum";
 import { BroadcastAudienceType } from "@/backend/enum/notifications/broadcast-audience-type.enum";
 import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { ConflictError, DomainError, ForbiddenError, UnauthorizedError, ValidationError } from "@/backend/lib/errors";
 import { AdminUserManagementService, AuditTrailService, ColdStartCertificationService } from "@/backend/services/admin";
+import { AdminFinancialAuditingService } from "@/backend/services/billing/admin-financial-auditing.service";
 import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.service";
+import { WalletService } from "@/backend/services/billing/wallet.service";
 import { SessionAdminGovernanceService } from "@/backend/services/classes/session-admin-governance";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
 import { AdminBroadcastService } from "@/backend/services/notifications/admin-broadcast.service";
@@ -75,9 +81,9 @@ import type {
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 // Deep import (same rationale as the sibling journeys — the `test/helpers`
 // barrel pulls the Apollo test client into backend-only graphs).
-import { countUsersByIds, withAuditDeleteTriggersSuspended } from "@/test/helpers/db-cleanup";
+import { countUsersByIds, withAuditDeleteTriggersSuspended, withImmutabilityTriggersSuspended } from "@/test/helpers/db-cleanup";
+import { createTestWallet } from "@/backend/db/test/entity-setup";
 import {
-  ACTION_TYPE_COVERAGE,
   ADMIN_ACTION_CENSUS,
   type AdminActionCensusEntry,
 } from "@/test/workflows/admin/audit-completeness.catalog";
@@ -132,6 +138,14 @@ const SUSPENSION_PERIOD_DAYS = 1;
 /** The admin-supplied cancel reason exercised by the governance cancel census row. */
 const ADMIN_CANCEL_REASON = `${runPrefix} admin schedule conflict`;
 
+/** Financial-auditing leg amounts (decimal strings, carried verbatim). */
+const FINANCE_PAYOUT_PRIMARY = "100.00";
+const FINANCE_PAYOUT_REJECTED = "50.00";
+const FINANCE_ADJUST_CREDIT = "25.00";
+/** The admin-supplied reject reason + adjustment reason (run-unique free text). */
+const FINANCE_REJECT_REASON = `${runPrefix} insufficient documentation`;
+const FINANCE_ADJUST_REASON = `${runPrefix} goodwill credit`;
+
 /**
  * The reschedule fixture's ORIGINAL timing pair (whole-second UTC instants —
  * the audit `from` comparison is exact, so the stored-vs-read-back
@@ -162,6 +176,8 @@ const USER_LIFECYCLE_LEG = [
 const CERTIFICATION_BROADCAST_LEG = ["adminCertifyTeacherColdStart", "adminBroadcastNotification"] as const;
 const PLAN_CATALOG_LEG = ["createPlan", "updatePlan", "setPlanActiveStatus"] as const;
 const DISPUTE_LEG = ["resolveSessionDispute"] as const;
+/** Financial-auditing trio — approve/reject settle BOTH withdrawal directions. */
+const FINANCE_LEG = ["adjustTeacherWallet", "approveWithdrawal", "rejectWithdrawal"] as const;
 
 /**
  * Try/catch rejection helper (journey-layer pattern —
@@ -294,6 +310,18 @@ let joinSessionId = 0;
 /** Row-count oracles — captured after the cast commit, restored by teardown. */
 let auditBaseline = 0;
 let notificationBaseline = 0;
+
+/**
+ * The financial-auditing ledger fixture: wallet + pending withdrawal rows
+ * the legs act on. The wallet is registered in the tracked registry
+ * (children-first teardown); the `teacher_transaction` rows are DELETE-blocked
+ * (append-only trigger), so their ids are swept FIRST in `afterAll` under the
+ * sanctioned suspension wrapper — never registered in the tracked registry.
+ */
+let financeWalletId = 0;
+let financeTeacherId = 0;
+/** The `teacher_transaction` rows minted by the finance legs (untracked teardown). */
+const financeLedgerTxnIds: number[] = [];
 
 /** The System fixture lane's backdated adjustment stamp (millisecond-precise). */
 let fixtureAdjustAt = new Date(0);
@@ -588,6 +616,81 @@ const censusRunners: Record<string, CensusRunner> = {
       action: "join_observe",
     });
   },
+
+  approveWithdrawal: async (entry, executed) => {
+    // The teacher files the payout through the SHIPPED self-service flow
+    // (the request reserves the debit: one pending `withdrawal` ledger row
+    // + the guarded balance decrement). The admin approves it; the ledger
+    // row settles `completed`. Exactly ONE Override row reconstructs the
+    // decision on the `teacher_transaction` anchor.
+    const requested = await WalletService.requestWithdrawal(financeTeacherId, FINANCE_PAYOUT_PRIMARY, LOCALE);
+    const pending = requested.transactions.find(
+      txn => txn.type === TransactionType.Withdrawal && txn.status === TransactionStatus.Pending
+    );
+    if (!pending) {
+      throw new Error("finance leg: expected the fresh ledger page to carry the pending withdrawal row");
+    }
+    financeLedgerTxnIds.push(pending.id);
+
+    const settled = await AdminFinancialAuditingService.approveWithdrawal(adminA.userId, pending.id, LOCALE);
+    expect(settled.id).toBe(pending.id);
+    expect(settled.status).toBe(TransactionStatus.Completed);
+    record(executed, entry, AuditActionType.Override, pending.id, {
+      action: "withdrawal_approved",
+    });
+  },
+
+  rejectWithdrawal: async (entry, executed) => {
+    // The teacher files a second payout request; the admin rejects it with
+    // a reason; the ledger row settles `failed` and the reserved debit is
+    // restored. Exactly ONE Override row reconstructs the decision (the
+    // raw reason text never enters the trail — only its presence).
+    const requested = await WalletService.requestWithdrawal(financeTeacherId, FINANCE_PAYOUT_REJECTED, LOCALE);
+    const pending = requested.transactions.find(
+      txn => txn.type === TransactionType.Withdrawal && txn.status === TransactionStatus.Pending
+    );
+    if (!pending) {
+      throw new Error("finance leg: expected the fresh ledger page to carry the pending withdrawal row");
+    }
+    financeLedgerTxnIds.push(pending.id);
+
+    const rejected = await AdminFinancialAuditingService.rejectWithdrawal(
+      adminA.userId,
+      pending.id,
+      FINANCE_REJECT_REASON,
+      LOCALE
+    );
+    expect(rejected.id).toBe(pending.id);
+    expect(rejected.status).toBe(TransactionStatus.Failed);
+    record(executed, entry, AuditActionType.Override, pending.id, {
+      action: "withdrawal_rejected",
+      reasonPresent: true,
+    });
+  },
+
+  adjustTeacherWallet: async (entry, executed) => {
+    // The admin books a reason-bearing manual credit: a `bonus`/`completed`
+    // ledger row whose audit row rides the Adjust verb (ticket-pinned) on
+    // the `teacher_transaction` anchor.
+    const credit = await AdminFinancialAuditingService.adjustTeacherWallet(
+      adminA.userId,
+      {
+        teacherId: financeTeacherId,
+        amount: FINANCE_ADJUST_CREDIT,
+        direction: WalletAdjustmentDirection.Credit,
+        reason: FINANCE_ADJUST_REASON,
+      },
+      LOCALE
+    );
+    expect(credit.type).toBe(TransactionType.Bonus);
+    expect(credit.status).toBe(TransactionStatus.Completed);
+    financeLedgerTxnIds.push(credit.id);
+    record(executed, entry, AuditActionType.Adjust, credit.id, {
+      action: "wallet_adjustment",
+      direction: WalletAdjustmentDirection.Credit,
+      reasonPresent: true,
+    });
+  },
 };
 
 /**
@@ -729,6 +832,20 @@ describe("Audit-trail completeness journey — execute every admin action, prove
       for (const id of [rescheduleSessionId, cancelSessionId, reassignSessionId, joinSessionId]) {
         tracked.register(session, id);
       }
+
+      // The financial-auditing fixture: a funded wallet for the certified
+      // teacher (the shipped payout flow reserves the debit at REQUEST time,
+      // so the approve/reject legs need real headroom to file the request).
+      // The wallet is registered (children-first teardown); the
+      // `teacher_transaction` rows the legs mint are swept in `afterAll`
+      // under the immutability-trigger suspension instead.
+      const financeWallet = await createTestWallet(tx, teacherActor.userId, {
+        balance: "500.00",
+        totalEarning: "500.00",
+      });
+      financeWalletId = financeWallet.id;
+      financeTeacherId = teacherActor.userId;
+      tracked.register(wallet, financeWalletId);
     });
 
     // Row-count oracles: whole-table baselines the legs assert deltas against.
@@ -774,6 +891,17 @@ describe("Audit-trail completeness journey — execute every admin action, prove
       await db.delete(notifications).where(inArray(notifications.userId, journeyUserIds));
     }
 
+    // Financial-auditing ledger teardown: the `teacher_transaction` rows the
+    // finance legs minted are DELETE-blocked (append-only trigger), so they
+    // are hard-deleted FIRST under the sanctioned suspension wrapper — never
+    // registered in the tracked registry. The belt-and-braces actor/entity
+    // audit sweep above already drained their audit rows.
+    if (financeLedgerTxnIds.length > 0) {
+      await withImmutabilityTriggersSuspended(["teacher_transaction"], () =>
+        db.delete(teacherTransaction).where(inArray(teacherTransaction.id, [...financeLedgerTxnIds]))
+      );
+    }
+
     // Tracked hard-delete in reverse registration order (children before
     // owning users), with mandatory zero-residue existence probes.
     await tracked.cleanup();
@@ -798,6 +926,7 @@ describe("Audit-trail completeness journey — execute every admin action, prove
       ...PLAN_CATALOG_LEG,
       ...DISPUTE_LEG,
       ...SESSION_GOVERNANCE_LEG,
+      ...FINANCE_LEG,
     ];
     expect(legFields).toHaveLength(wiredFields.length);
     expect(legFields.toSorted((a, b) => a.localeCompare(b))).toEqual(
@@ -820,18 +949,14 @@ describe("Audit-trail completeness journey — execute every admin action, prove
       expect(count).toBe(0);
     }
 
-    // The census accounts for every action-type enum member: the wired rows
-    // cover six verbs, the fixture lane owns the seventh (the deferred
-    // financial-adjustment producer).
-    const fixtureCovered = new Set(
-      ADMIN_ACTION_CENSUS.filter(row => row.kind === "deferred").flatMap(row => row.expectedActionTypes)
-    );
+    // The census accounts for every action-type enum member: every verb is
+    // wired (the financial-auditing trio covers the Adjust verb through the
+    // reason-bearing manual adjustment).
     for (const member of Object.values(AuditActionType)) {
       const wiredCovered = ADMIN_ACTION_CENSUS.some(
         row => row.kind === "wired" && row.expectedActionTypes.includes(member)
       );
-      const fixtureOnly = fixtureCovered.has(member) && ACTION_TYPE_COVERAGE[member] === "fixture";
-      expect(wiredCovered || fixtureOnly).toBe(true);
+      expect(wiredCovered).toBe(true);
     }
   });
 
@@ -947,6 +1072,39 @@ describe("Audit-trail completeness journey — execute every admin action, prove
     const joinedRows = await db.select().from(session).where(eq(session.id, joinSessionId)).limit(1);
     expect(joinedRows[0]?.status).toBe(SessionStatus.Started);
     expect(joinedRows[0]?.startedAt).toEqual(JOIN_STARTED_AT);
+  });
+
+  test("producer executes the financial-auditing census rows through the real service path", async () => {
+    const auditBefore = await countAllAuditRows();
+    const legActions = await executeCensusRows(FINANCE_LEG);
+    executedActions.push(...legActions);
+
+    // Every settlement mints exactly one Override row on its ledger anchor;
+    // the adjustment mints the Adjust verb (ticket-pinned).
+    expect(legActions).toHaveLength(3);
+    expect(legActions.map(action => action.actionType)).toEqual([
+      AuditActionType.Override,
+      AuditActionType.Override,
+      AuditActionType.Adjust,
+    ]);
+    expect(await countAllAuditRows()).toBe(auditBefore + legActions.length);
+    expect(await countAllAuditRows()).toBe(auditBaseline + executedActions.length);
+
+    // Each settlement committed its own side effect with the trail row: the
+    // approved row settled `completed`, the rejected row settled `failed`.
+    const [approveAction, rejectAction, adjustAction] = legActions;
+    if (!approveAction?.entityId || !rejectAction?.entityId || !adjustAction?.entityId) {
+      throw new Error("finance leg: expected all three census executions to carry a ledger anchor id");
+    }
+    const approvedRows = await db.select().from(teacherTransaction).where(eq(teacherTransaction.id, approveAction.entityId)).limit(1);
+    expect(approvedRows[0]?.status).toBe(TransactionStatus.Completed);
+
+    const rejectedRows = await db.select().from(teacherTransaction).where(eq(teacherTransaction.id, rejectAction.entityId)).limit(1);
+    expect(rejectedRows[0]?.status).toBe(TransactionStatus.Failed);
+
+    const adjustedRows = await db.select().from(teacherTransaction).where(eq(teacherTransaction.id, adjustAction.entityId)).limit(1);
+    expect(adjustedRows[0]?.type).toBe(TransactionType.Bonus);
+    expect(adjustedRows[0]?.status).toBe(TransactionStatus.Completed);
   });
 
   test("system fixture lane mints the adjustment row whose shipped producer is deferred", async () => {
@@ -1337,6 +1495,29 @@ describe("Audit-trail completeness journey — execute every admin action, prove
       {
         field: "adminJoinSession",
         call: actorId => SessionAdminGovernanceService.join(actorId, { sessionId: joinSessionId }, LOCALE),
+      },
+      {
+        field: "approveWithdrawal",
+        call: actorId => AdminFinancialAuditingService.approveWithdrawal(actorId, financeWalletId, LOCALE),
+      },
+      {
+        field: "rejectWithdrawal",
+        call: actorId =>
+          AdminFinancialAuditingService.rejectWithdrawal(actorId, financeWalletId, `${runPrefix} denied`, LOCALE),
+      },
+      {
+        field: "adjustTeacherWallet",
+        call: actorId =>
+          AdminFinancialAuditingService.adjustTeacherWallet(
+            actorId,
+            {
+              teacherId: financeTeacherId,
+              amount: "1.00",
+              direction: WalletAdjustmentDirection.Credit,
+              reason: `${runPrefix} denied adjustment`,
+            },
+            LOCALE
+          ),
       },
     ];
 

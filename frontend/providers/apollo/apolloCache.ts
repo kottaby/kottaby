@@ -8,8 +8,10 @@ import { InMemoryCache } from "@apollo/client";
  * Without `merge: false`, Apollo warns that cache data may be lost.
  *
  * `OnlineMeetingInfo`, `AdminNoteInfo`, `HealthCheck`, `NotificationListPage`,
- * `HandshakeCodeLookup`, `AdminAuditLogPage` and the eleven `PlatformAnalytics`
- * dashboard aggregate types are embedded value types with
+ * `HandshakeCodeLookup`, `AdminAuditLogPage`, the eleven `PlatformAnalytics`
+ * dashboard aggregate types and the four `AdminFinance` wrapper types
+ * (`AdminStudentPaymentPage`, `AdminTeacherWallet`, `AdminWithdrawalQueueRow`,
+ * `AdminWithdrawalQueuePage`) are embedded value types with
  * no `id` field (see `frontend/graphql/generated/schema.graphql`).
  * Marking them `keyFields: false` opts them out of normalization so Apollo
  * does not emit "Cache data may be lost" warnings when these types are written
@@ -69,6 +71,26 @@ export function createApolloCache(): InMemoryCache {
       // audit trail — the normalizable entities are the `AdminAuditLogEntry`
       // rows inside `items`, so the wrapper itself never needs an identity.
       AdminAuditLogPage: {
+        keyFields: false,
+      },
+      // Admin financial-auditing envelope family — the id-less wrapper types
+      // of the payments audit / wallet inspector / withdrawal queue surfaces.
+      // The normalizable entities are the row objects carrying an `id`
+      // inside any wrapper (`AdminStudentPayment` rows inside
+      // `AdminStudentPaymentPage.items`, `TeacherTransaction` rows inside
+      // `AdminTeacherWallet.transactions` and inside
+      // `AdminWithdrawalQueueRow.transaction`), so the wrappers themselves
+      // never need an identity.
+      AdminStudentPaymentPage: {
+        keyFields: false,
+      },
+      AdminTeacherWallet: {
+        keyFields: false,
+      },
+      AdminWithdrawalQueueRow: {
+        keyFields: false,
+      },
+      AdminWithdrawalQueuePage: {
         keyFields: false,
       },
       OnlineMeetingInfo: {

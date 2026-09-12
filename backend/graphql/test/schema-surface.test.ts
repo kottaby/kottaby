@@ -61,6 +61,13 @@
  *    `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }`
  *    conjunction verbatim (the `$all` is what makes the scope combine with
  *    AND semantics — a plain scope map would silently degrade to ANY).
+ *  - **admin financial-auditing surface pins** — the three new
+ *    financial-auditing queries and the three mutations carry the
+ *    `$all` conjunction and sit at their lexicographic sorted positions
+ *    (`approveWithdrawal` < `adjustTeacherWallet` < `rejectWithdrawal` on
+ *    the mutation root; `adminPendingWithdrawals` < `adminStudentPayments`
+ *    < `adminTeacherWallet` on the query root); the adjustment-direction
+ *    enum exposes exactly the `Credit`/`Debit` wire vocabulary.
  *  - **Allowlist agreement** — the scopeless `_health` field is present in
  *    the closed `PUBLIC_OPERATION_NAMES` tuple / `PUBLIC_OPERATIONS` set
  *    1:1 (schema↔allowlist agreement enforced as code).
@@ -439,6 +446,36 @@ const RECITATION_RECORD_QUERY_FIELDS = ["sessionRecitation"] as const;
 const RECITATION_RECORD_TYPE_NAMES = ["SessionRecitation", "SessionRecitationInput"] as const;
 
 /**
+ * Admin financial-auditing surface — the sanctioned addition. Three
+ * admin-only queries (payments audit listing, wallet inspector,
+ * pending-withdrawal queue) and three admin-only mutations (approve /
+ * reject withdrawal, manual wallet adjustment), each carrying the
+ * `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }`
+ * conjunction (`adminOnlyAuthScopes` from `backend/graphql/shared`).
+ */
+const ADMIN_FINANCE_QUERY_FIELDS = ["adminPendingWithdrawals", "adminStudentPayments", "adminTeacherWallet"] as const;
+const ADMIN_FINANCE_MUTATION_FIELDS = ["adjustTeacherWallet", "approveWithdrawal", "rejectWithdrawal"] as const;
+/** The adjustment-direction vocabulary — registered ONCE, no pgEnum backing. */
+const ADMIN_FINANCE_ENUMS = ["WalletAdjustmentDirection"] as const;
+/**
+ * Named-type surface — the two row objects (`AdminStudentPayment` in
+ * `pothos/billing/`, `AdminWithdrawalQueueRow` next to its domain), the
+ * three page/wrapper envelopes, and the three closed input whitelists.
+ * The canonical `TeacherTransaction` object is REUSED for the mutation
+ * payloads and the wallet ledger rows (single canonical object rule).
+ */
+const ADMIN_FINANCE_TYPE_NAMES = [
+  "AdminStudentPayment",
+  "AdminStudentPaymentPage",
+  "AdminStudentPaymentsFilterInput",
+  "AdminTeacherWallet",
+  "AdminWalletTransactionFilterInput",
+  "AdminWithdrawalQueuePage",
+  "AdminWithdrawalQueueRow",
+  "AdjustTeacherWalletInput",
+] as const;
+
+/**
  * R1–R3 admin directory query trio — RECONCILED baseline drift (the
  * teacher/student/applicant directory read surfaces shipped across the
  * admin-directory rounds but were never enumerated in the Query-root
@@ -615,11 +652,12 @@ describe("Query._health — retyped probe surface", () => {
     // mutation pair), the whole-platform analytics snapshot, the
     // session-report read pair, the admin session-governance pair
     // (4.4 reconcile), the subscription-purchase owner listing
-    // (`mySubscriptions`), and the RECONCILED admin audit listing +
+    // (`mySubscriptions`), the RECONCILED admin audit listing +
     // parent-link read pair + R1–R3 admin directory trio (shipped but never
-    // pinned — re-anchored alongside the R4 statusCounts aggregate) + the
+    // pinned — re-anchored alongside the R4 statusCounts aggregate), the
     // R5 admin directory export trio (the sanctioned export-all read
-    // surface).
+    // surface), and the admin financial-auditing read trio
+    // (payments audit listing, wallet inspector, pending-withdrawal queue).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
       [
@@ -639,6 +677,7 @@ describe("Query._health — retyped probe surface", () => {
         ...RECONCILED_PARENT_LINK_QUERY_FIELDS,
         ...RECONCILED_ADMIN_AUDIT_QUERY_FIELDS,
         ...RECITATION_RECORD_QUERY_FIELDS,
+        ...ADMIN_FINANCE_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -700,7 +739,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set grows ONLY by the sanctioned additions (quartet + dispute pair + confirm + payout + admin-user trio + admin-governance pair + session-governance quartet + session-report write + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair + the session-recitation write)", () => {
+  test("mutation set grows ONLY by the sanctioned additions (quartet + dispute pair + confirm + payout + admin-user trio + admin-governance pair + session-governance quartet + session-report write + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair + the session-recitation write + the financial-auditing trio)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
@@ -718,9 +757,11 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     // session-report write, the subscription purchase write, the
     // RECONCILED parent-link trio + admin broadcast/certify pair (shipped
     // but never pinned — re-anchored alongside the R4 statusCounts
-    // aggregate), and the session-recitation write
-    // (`setSessionRecitation`). All authScopes-gated — none is allowlist
-    // material; the public-operation registry stays byte-unchanged.
+    // aggregate), the session-recitation write
+    // (`setSessionRecitation`), and the admin financial-auditing trio
+    // (`approveWithdrawal` / `rejectWithdrawal` / `adjustTeacherWallet`).
+    // All authScopes-gated — none is allowlist material; the
+    // public-operation registry stays byte-unchanged.
     expect(names).toEqual(
       [
         ...PRE_3_1_MUTATION_FIELDS,
@@ -736,6 +777,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...RECONCILED_PARENT_LINK_MUTATION_FIELDS,
         ...RECONCILED_ADMIN_BROADCAST_CERTIFY_MUTATION_FIELDS,
         ...RECITATION_RECORD_MUTATION_FIELDS,
+        ...ADMIN_FINANCE_MUTATION_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
     expect(names).not.toContain("_health");
@@ -793,7 +835,8 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     // enum is the sanctioned addition; the subscription-purchase
     // settlement quartet (`PaymentGateway`, `PaymentStatus`,
     // `SubscriptionCreditLane`, `SubscriptionStatus`) is the
-    // sanctioned addition.
+    // sanctioned addition; the `WalletAdjustmentDirection`
+    // financial-auditing vocabulary is the sanctioned addition.
     expect(enumNames).toEqual(
       [
         ...PRE_3_1_ENUMS,
@@ -804,6 +847,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...ADMIN_USER_ENUMS,
         ...SUBSCRIPTION_PURCHASE_ENUMS,
         ...RECONCILED_ENUMS,
+        ...ADMIN_FINANCE_ENUMS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -888,6 +932,8 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...R4R_ADMIN_DIRECTORY_TYPE_NAMES,
         ...R5_ADMIN_EXPORT_TYPE_NAMES,
         ...RECITATION_RECORD_TYPE_NAMES,
+        ...ADMIN_FINANCE_TYPE_NAMES,
+        ...ADMIN_FINANCE_ENUMS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -1420,6 +1466,181 @@ describe("admin-governance mutations — exact arg shapes + `$all` scope pins", 
   });
 });
 
+describe("admin financial-auditing surface — exact arg shapes + `$all` scope pins + enum vocabulary", () => {
+  const queryType = graphQLSchema.getQueryType();
+
+  if (!queryType) {
+    throw new Error("Schema must define a root Query type");
+  }
+
+  /** Fail-fast query field lookup (mirrors the notification describe's helper). */
+  function adminQueryField(name: string): GraphQLField<unknown, unknown> {
+    const fields = queryType?.getFields();
+    const field = fields?.[name];
+    if (!field) {
+      throw new Error(`Query must register the \`${name}\` root field`);
+    }
+    return field;
+  }
+
+  test("`adminStudentPayments` returns AdminStudentPaymentPage! with the filter + pagination args", () => {
+    const field = adminQueryField("adminStudentPayments");
+    expect(field.type.toString()).toBe("AdminStudentPaymentPage!");
+    const argsByName = new Map(field.args.map(arg => [arg.name, arg.type.toString()]));
+    expect(argsByName.get("filters")).toBe("AdminStudentPaymentsFilterInput");
+    expect(argsByName.get("page")).toBe("Int");
+    expect(argsByName.get("pageSize")).toBe("Int");
+    expect(field.args).toHaveLength(3);
+  });
+
+  test("`adminTeacherWallet` returns AdminTeacherWallet! with the required teacherId arg", () => {
+    const field = adminQueryField("adminTeacherWallet");
+    expect(field.type.toString()).toBe("AdminTeacherWallet!");
+    const argsByName = new Map(field.args.map(arg => [arg.name, arg.type.toString()]));
+    expect(argsByName.get("teacherId")).toBe("ID!");
+    expect(argsByName.get("filters")).toBe("AdminWalletTransactionFilterInput");
+    expect(argsByName.get("page")).toBe("Int");
+    expect(argsByName.get("pageSize")).toBe("Int");
+    expect(field.args).toHaveLength(4);
+  });
+
+  test("`adminPendingWithdrawals` returns AdminWithdrawalQueuePage! with pagination args only", () => {
+    const field = adminQueryField("adminPendingWithdrawals");
+    expect(field.type.toString()).toBe("AdminWithdrawalQueuePage!");
+    const argsByName = new Map(field.args.map(arg => [arg.name, arg.type.toString()]));
+    expect(argsByName.get("page")).toBe("Int");
+    expect(argsByName.get("pageSize")).toBe("Int");
+    expect(field.args).toHaveLength(2);
+  });
+
+  test("`approveWithdrawal` returns TeacherTransaction! with EXACTLY ONE required `transactionId: ID!` arg", () => {
+    const field = mutationField("approveWithdrawal");
+    expect(field.type.toString()).toBe("TeacherTransaction!");
+    const argNames = field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b));
+    expect(argNames).toEqual(["transactionId"]);
+    const idArg = field.args[0];
+    if (!idArg) throw new Error("expected the transactionId argument");
+    expect(idArg.type.toString()).toBe("ID!");
+  });
+
+  test("`rejectWithdrawal` returns TeacherTransaction! with EXACTLY the two required args", () => {
+    const field = mutationField("rejectWithdrawal");
+    expect(field.type.toString()).toBe("TeacherTransaction!");
+    const argsByName = new Map(field.args.map(arg => [arg.name, arg.type.toString()]));
+    expect(argsByName.get("transactionId")).toBe("ID!");
+    expect(argsByName.get("reason")).toBe("String!");
+    expect(field.args).toHaveLength(2);
+  });
+
+  test("`adjustTeacherWallet` returns TeacherTransaction! with EXACTLY ONE required `input` arg", () => {
+    const field = mutationField("adjustTeacherWallet");
+    expect(field.type.toString()).toBe("TeacherTransaction!");
+    const argNames = field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b));
+    expect(argNames).toEqual(["input"]);
+    const inputArg = field.args[0];
+    if (!inputArg) throw new Error("expected the input argument");
+    expect(inputArg.type.toString()).toBe("AdjustTeacherWalletInput!");
+  });
+
+  test("ALL SIX financial-auditing root fields carry the EXACT `$all` conjunction", () => {
+    for (const name of [...ADMIN_FINANCE_QUERY_FIELDS, ...ADMIN_FINANCE_MUTATION_FIELDS]) {
+      const field = graphQLSchema.getMutationType()?.getFields()[name] ?? queryType.getFields()[name];
+      if (!field) throw new Error(`expected the \`${name}\` root field`);
+      const scopes = authScopesSnapshot(field);
+      expect(scopes).toEqual({
+        $all: { authenticated: true, role: [UserRole.Admin] },
+      });
+      expect(Object.keys(scopes).toSorted((a, b) => a.localeCompare(b))).toEqual(["$all"]);
+      const allScope: unknown = Reflect.get(scopes, "$all");
+      if (!isRecord(allScope)) throw new Error("expected record-shaped $all scope conjunction");
+      const roleSet: unknown = Reflect.get(allScope, "role");
+      expect(roleSet).toEqual([UserRole.Admin]);
+    }
+  });
+
+  test("anonymous (context-free) in-process execution of ALL SIX financial-auditing fields yields UNAUTHORIZED", async () => {
+    // Each op asserted in its OWN document: all six are non-null at the
+    // root, so a combined document would null-propagate the first failure
+    // over its siblings.
+    const documents = [
+      { source: "{ adminStudentPayments { totalCount } }", path: "adminStudentPayments" },
+      { source: "{ adminTeacherWallet(teacherId: \"1\") { teacherId } }", path: "adminTeacherWallet" },
+      { source: "{ adminPendingWithdrawals { totalCount } }", path: "adminPendingWithdrawals" },
+      { source: "mutation { approveWithdrawal(transactionId: \"1\") { id } }", path: "approveWithdrawal" },
+      {
+        source: 'mutation { rejectWithdrawal(transactionId: "1", reason: "x") { id } }',
+        path: "rejectWithdrawal",
+      },
+      {
+        source:
+          'mutation { adjustTeacherWallet(input: { teacherId: "1", amount: "1.00", direction: Credit, reason: "x" }) { id } }',
+        path: "adjustTeacherWallet",
+      },
+    ] as const;
+    const results = await Promise.all(
+      documents.map(async document => graphql({ schema: graphQLSchema, source: document.source, contextValue: {} }))
+    );
+    for (const [index, result] of results.entries()) {
+      const errors = result.errors;
+      if (!errors) throw new Error("expected the anonymous financial-auditing call to fail");
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.extensions?.code).toBe("UNAUTHORIZED");
+      expect(errors[0]?.path).toEqual([documents[index]?.path]);
+    }
+  });
+
+  test("WalletAdjustmentDirection exposes exactly the Credit | Debit wire vocabulary", () => {
+    const enumType = graphQLSchema.getType("WalletAdjustmentDirection");
+
+    if (!(enumType instanceof GraphQLEnumType)) {
+      throw new Error("WalletAdjustmentDirection must be registered as a GraphQL enum type");
+    }
+    expect(
+      enumType
+        .getValues()
+        .map(value => value.name)
+        .toSorted((a, b) => a.localeCompare(b))
+    ).toEqual(["Credit", "Debit"]);
+  });
+
+  test("smuggled identity args die at validation BEFORE any resolver runs (zero identity-arg surface)", () => {
+    // The actor identity is sourced exclusively from `ctx.user.id` — a
+    // smuggled `actorId` must die as `Unknown argument` BEFORE the resolver
+    // body runs.
+    const smuggledApprove = validate(
+      graphQLSchema,
+      parse('mutation { approveWithdrawal(transactionId: "1", actorId: 42) { id } }')
+    );
+    expect(smuggledApprove).toHaveLength(1);
+    expect(smuggledApprove[0]?.message).toContain('Unknown argument "actorId"');
+
+    const smuggledAdjust = validate(
+      graphQLSchema,
+      parse(
+        'mutation { adjustTeacherWallet(input: { teacherId: "1", amount: "1.00", direction: Credit, reason: "x", actorId: 42 }) { id } }'
+      )
+    );
+    expect(smuggledAdjust).toHaveLength(1);
+    expect(smuggledAdjust[0]?.message).toContain('unknown field "actorId"');
+  });
+
+  test("the closed filter inputs reject smuggled fields at validation (BOPLA boundary)", () => {
+    const smuggledPaymentFilters = validate(
+      graphQLSchema,
+      parse("{ adminStudentPayments(filters: { userId: 42 }) { totalCount } }")
+    );
+    expect(smuggledPaymentFilters).toHaveLength(1);
+    expect(smuggledPaymentFilters[0]?.message).toContain('unknown field "userId"');
+
+    const smuggledWalletFilters = validate(
+      graphQLSchema,
+      parse('{ adminTeacherWallet(teacherId: "1", filters: { userId: 42 }) { teacherId } }')
+    );
+    expect(smuggledWalletFilters).toHaveLength(1);
+    expect(smuggledWalletFilters[0]?.message).toContain('unknown field "userId"');
+  });
+});
+
 describe("Public-operation allowlist agreement", () => {
   test("`_health` is a member of the closed allowlist 1:1 with its scopeless schema posture", () => {
     expect(PUBLIC_OPERATION_NAMES).toContain("_health");
@@ -1551,5 +1772,27 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     expect(committedSdl).toContain("sessionRecitation(sessionId: ID!): SessionRecitation");
     expect(committedSdl).toContain("type SessionRecitation {");
     expect(committedSdl).toContain("input SessionRecitationInput {");
+    // …and the admin financial-auditing surface (3 queries + 3 mutations
+    // + the adjustment-direction enum + the 8 named types) is really
+    // inside the committed artifact.
+    expect(committedSdl).toContain(
+      "adminStudentPayments(filters: AdminStudentPaymentsFilterInput, page: Int, pageSize: Int): AdminStudentPaymentPage!"
+    );
+    expect(committedSdl).toContain(
+      "adminTeacherWallet(teacherId: ID!, filters: AdminWalletTransactionFilterInput, page: Int, pageSize: Int): AdminTeacherWallet!"
+    );
+    expect(committedSdl).toContain(
+      "adminPendingWithdrawals(page: Int, pageSize: Int): AdminWithdrawalQueuePage!"
+    );
+    expect(committedSdl).toContain("approveWithdrawal(transactionId: ID!): TeacherTransaction!");
+    expect(committedSdl).toContain("rejectWithdrawal(transactionId: ID!, reason: String!): TeacherTransaction!");
+    expect(committedSdl).toContain("adjustTeacherWallet(input: AdjustTeacherWalletInput!): TeacherTransaction!");
+    expect(committedSdl).toContain("enum WalletAdjustmentDirection {");
+    expect(committedSdl).toContain("type AdminStudentPaymentPage {");
+    expect(committedSdl).toContain("type AdminTeacherWallet {");
+    expect(committedSdl).toContain("type AdminWithdrawalQueuePage {");
+    expect(committedSdl).toContain("input AdminStudentPaymentsFilterInput {");
+    expect(committedSdl).toContain("input AdminWalletTransactionFilterInput {");
+    expect(committedSdl).toContain("input AdjustTeacherWalletInput {");
   });
 });

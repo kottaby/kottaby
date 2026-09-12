@@ -39,6 +39,7 @@ import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-cred
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
+import { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustment-direction.enum";
 import { BroadcastAudienceType } from "@/backend/enum/notifications/broadcast-audience-type.enum";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
@@ -182,6 +183,23 @@ export const TransactionTypePothosEnum = gqlSchemaBuilder.enumType(TransactionTy
  */
 export const TransactionStatusPothosEnum = gqlSchemaBuilder.enumType(TransactionStatus, {
   name: "TransactionStatus",
+});
+
+/**
+ * GraphQL `WalletAdjustmentDirection` enum (wire names `Credit`/`Debit`
+ * over the runtime strings "credit"/"debit") — the manual wallet
+ * adjustment vocabulary the admin auditing mutation selects.
+ *
+ * Registered ONCE from the canonical TS enum
+ * (`backend/enum/billing/wallet-adjustment-direction.enum.ts`). There is NO
+ * pgEnum backing this vocabulary — it is a pure service-time transition
+ * selector resolved into the credit/debit ledger movement against the
+ * teacher's wallet, never a stored column value. Per the Pothos
+ * enum-object convention (identical to `DisputeResolution`), the enum KEYS
+ * are the GraphQL value names on the wire (`Credit`, `Debit`).
+ */
+export const WalletAdjustmentDirectionPothosEnum = gqlSchemaBuilder.enumType(WalletAdjustmentDirection, {
+  name: "WalletAdjustmentDirection",
 });
 
 /**

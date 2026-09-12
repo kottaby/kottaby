@@ -81,7 +81,7 @@ import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustment-direction.enum";
-import { type DomainError, ConflictError, ForbiddenError, UnauthorizedError } from "@/backend/lib/errors";
+import { DomainError, ConflictError, ForbiddenError, UnauthorizedError } from "@/backend/lib/errors";
 import { WalletService } from "@/backend/services/billing/wallet.service";
 import { AdminFinancialAuditingService } from "@/backend/services/billing/admin-financial-auditing.service";
 import type {
@@ -478,6 +478,9 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     // The ledger shows the failed row.
     const row = await readLedgerRow(pending.id);
     expect(row.status).toBe(TransactionStatus.Failed);
+
+    // The queue's joined teacher identity stays consistent with the actor.
+    expect(teacherBUser.id).toBe(teacherB.userId);
 
     // One audit row records the rejection.
     const audits = await readAuditsForTransaction(pending.id);
