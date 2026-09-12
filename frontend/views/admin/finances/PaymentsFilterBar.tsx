@@ -17,7 +17,12 @@
 import { FilterListOutlined } from "@mui/icons-material";
 import { Box, Button, FormControl, InputLabel, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
 import { type ReactNode, useId, useState } from "react";
-import { type PaymentGateway, type PaymentStatus, PaymentStatus as PaymentStatusEnum, PaymentGateway as PaymentGatewayEnum } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  type PaymentGateway,
+  PaymentGateway as PaymentGatewayEnum,
+  type PaymentStatus,
+  PaymentStatus as PaymentStatusEnum,
+} from "@/frontend/graphql/generated/gql/graphql";
 import type { AppliedPaymentFilters } from "@/frontend/views/admin/finances/useAdminFinanceQueries";
 import { useAppTranslation } from "@/shared/locale/client";
 import { AdminFinance } from "@/shared/locale/namespaces/adminFinance";
@@ -111,7 +116,9 @@ export function PaymentsFilterBar({ onApply, onReset }: Readonly<PaymentsFilterB
   const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const inverted =
-      drafts.from !== "" && drafts.to !== "" && (parseUtcDayStart(drafts.from)?.getTime() ?? 0) > (parseUtcDayStart(drafts.to)?.getTime() ?? 0);
+      drafts.from !== "" &&
+      drafts.to !== "" &&
+      (parseUtcDayStart(drafts.from)?.getTime() ?? 0) > (parseUtcDayStart(drafts.to)?.getTime() ?? 0);
     onApply({
       studentName: drafts.studentName.trim() || null,
       status: drafts.status === "" ? null : drafts.status,
@@ -170,7 +177,7 @@ export function PaymentsFilterBar({ onApply, onReset }: Readonly<PaymentsFilterB
           onChange={event => updateDraft({ status: (event.target.value || "") as PaymentStatus | "" })}
           data-testid="admin-finances-filter-status"
         >
-          <MenuItem value="">{t.resetFilters}</MenuItem>
+          <MenuItem value="">{t.allStatusesOption}</MenuItem>
           {STATUS_OPTIONS.map(status => (
             <MenuItem key={status} value={status}>
               {status}
@@ -189,7 +196,7 @@ export function PaymentsFilterBar({ onApply, onReset }: Readonly<PaymentsFilterB
           onChange={event => updateDraft({ paymentGateway: (event.target.value || "") as PaymentGateway | "" })}
           data-testid="admin-finances-filter-gateway"
         >
-          <MenuItem value="">{t.resetFilters}</MenuItem>
+          <MenuItem value="">{t.allGatewaysOption}</MenuItem>
           {GATEWAY_OPTIONS.map(gateway => (
             <MenuItem key={gateway} value={gateway}>
               {gateway}
@@ -255,7 +262,12 @@ export function PaymentsFilterBar({ onApply, onReset }: Readonly<PaymentsFilterB
         >
           {t.resetFilters}
         </Button>
-        <Button type="submit" variant="contained" data-testid="admin-finances-filters-apply" sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}>
+        <Button
+          type="submit"
+          variant="contained"
+          data-testid="admin-finances-filters-apply"
+          sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
+        >
           {t.applyFilters}
         </Button>
       </Stack>

@@ -52,6 +52,10 @@ export interface AdminFinanceLabels {
   readonly applyFilters: string;
   /** Filter bar reset action. */
   readonly resetFilters: string;
+  /** Status filter unset option — any status (no status constraint). */
+  readonly allStatusesOption: string;
+  /** Gateway filter unset option — any gateway (no gateway constraint). */
+  readonly allGatewaysOption: string;
   // ─── Payments panel — table headers ─────────────────────────────────────────
   /** Payments table header — the student column. */
   readonly studentHeader: string;
@@ -67,6 +71,12 @@ export interface AdminFinanceLabels {
   readonly dateHeader: string;
   /** Payments result-count caption above the table. */
   readonly paymentsResultCount: (count: number) => string;
+  /** Pagination bar — the previous page control. */
+  readonly previousPageLabel: string;
+  /** Pagination bar — the next page control. */
+  readonly nextPageLabel: string;
+  /** Pagination bar — the current-page-of-total caption. */
+  readonly pageCountLabel: (page: number, totalPages: number) => string;
   // ─── Withdrawal payout queue ────────────────────────────────────────────────
   /** Withdrawal queue header — the teacher column. */
   readonly teacherHeader: string;
@@ -80,6 +90,34 @@ export interface AdminFinanceLabels {
   readonly approveAction: string;
   /** Row action — open the reject dialog. */
   readonly rejectAction: string;
+  /** Withdrawal-queue lifecycle status label — pending payout. */
+  readonly statusPending: string;
+  /** Withdrawal-queue lifecycle status label — settled to completed. */
+  readonly statusCompleted: string;
+  /** Withdrawal-queue lifecycle status label — settled to failed. */
+  readonly statusFailed: string;
+  /** Payment lifecycle status label — paid. */
+  readonly statusPaid: string;
+  /** Payment lifecycle status label — refunded. */
+  readonly statusRefunded: string;
+  /** Payment gateway label — Stripe. */
+  readonly gatewayStripe: string;
+  /** Payment gateway label — PayPal. */
+  readonly gatewayPaypal: string;
+  /** Payment gateway label — Paymob. */
+  readonly gatewayPaymob: string;
+  /** Payment gateway label — Fawry. */
+  readonly gatewayFawry: string;
+  /** Payment gateway label — offline cash. */
+  readonly gatewayOfflineCash: string;
+  /** Payment gateway label — bank transfer. */
+  readonly gatewayBankTransfer: string;
+  /** Payment gateway label — scholarship waiver. */
+  readonly gatewayScholarship: string;
+  /** Payment gateway label — mock gateway (test surface). */
+  readonly gatewayMock: string;
+  /** Payment gateway label — other. */
+  readonly gatewayOther: string;
   /** Reject dialog title. */
   readonly rejectDialogTitle: string;
   /** Reject dialog reason field label. */
@@ -103,6 +141,12 @@ export interface AdminFinanceLabels {
   readonly typeHeader: string;
   /** Transactions table header — the description column. */
   readonly descriptionHeader: string;
+  /** Ledger entry-type label — a session earning. */
+  readonly typeEarning: string;
+  /** Ledger entry-type label — a manual bonus adjustment. */
+  readonly typeBonus: string;
+  /** Ledger entry-type label — a withdrawal. */
+  readonly typeWithdrawal: string;
   // ─── Adjustment dialog ──────────────────────────────────────────────────────
   /** Manual wallet-adjustment dialog title. */
   readonly adjustDialogTitle: string;
@@ -116,6 +160,14 @@ export interface AdminFinanceLabels {
   readonly adjustReasonLabel: string;
   /** Adjustment dialog submit CTA. */
   readonly adjustSubmit: string;
+  /** Success snackbar — a withdrawal settlement settled (approve/reject). */
+  readonly settlementSuccessMessage: string;
+  /** Success snackbar — a manual wallet adjustment booked. */
+  readonly adjustSuccessMessage: string;
+  /** Adjustment amount validation message — the decimal grammar or nonzero-digit check failed. */
+  readonly adjustAmountInvalidMessage: string;
+  /** Adjustment reason validation message — the reason is empty or whitespace-only. */
+  readonly adjustReasonInvalidMessage: string;
   // ─── Loading / error / denied / empty states ────────────────────────────────
   /** In-flight load indicator label. */
   readonly loadingLabel: string;

@@ -11,14 +11,27 @@
  * discipline, theme-palette colors.
  */
 
-import { Box, Card, Skeleton, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@mui/material";
+import {
+  Box,
+  Card,
+  Skeleton,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Typography,
+} from "@mui/material";
 import type { ReactNode } from "react";
-import { TonalChip } from "@/frontend/views/admin/users/ui";
-import { DirectoryHeaderCell } from "@/frontend/views/admin/directory-shared/DirectoryHeaderCell";
+import type { AdminTeacherWalletQuery_adminTeacherWallet_transactions } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { formatMoneyAmount } from "@/frontend/views/admin/analytics/platform-analytics-display";
-import { type DirectoryTone } from "@/frontend/views/admin/users/utils";
-import type { AdminTeacherWalletQuery_adminTeacherWallet_transactions } from "@/frontend/graphql/generated/gql/graphql";
+import { DirectoryHeaderCell } from "@/frontend/views/admin/directory-shared/DirectoryHeaderCell";
+import { AdminFinancePaginationBar } from "@/frontend/views/admin/finances/AdminFinancePaginationBar";
+import { TonalChip } from "@/frontend/views/admin/users/ui";
+import type { DirectoryTone } from "@/frontend/views/admin/users/utils";
+import type { AdminFinanceLabels } from "@/shared/locale/types/adminFinance";
 
 /** The stable skeleton row keys of the ledger's loading state. */
 const LEDGER_SKELETON_KEYS = [
@@ -42,6 +55,25 @@ function ledgerTypeTone(type: string): DirectoryTone {
   }
 }
 
+/**
+ * Localized ledger entry-type label — mapped lookup over the canonical
+ * `TransactionType` wire values; any unknown wire value renders VERBATIM
+ * (honest fallback — the ledger is a display projection, never a lifecycle
+ * authority).
+ */
+function ledgerTypeLabel(type: string, labels: AdminFinanceLabels): string {
+  switch (type) {
+    case "earning":
+      return labels.typeEarning;
+    case "bonus":
+      return labels.typeBonus;
+    case "withdrawal":
+      return labels.typeWithdrawal;
+    default:
+      return type;
+  }
+}
+
 /** Ledger entry status → tonal lane (pending = warning, completed = success, failed = error). */
 function ledgerStatusTone(status: string): DirectoryTone {
   switch (status) {
@@ -54,27 +86,53 @@ function ledgerStatusTone(status: string): DirectoryTone {
   }
 }
 
+/**
+ * Localized ledger entry-status label — mapped lookup over the canonical
+ * `TransactionStatus` wire values; any unknown wire value renders VERBATIM.
+ */
+function ledgerStatusLabel(status: string, labels: AdminFinanceLabels): string {
+  switch (status) {
+    case "pending":
+      return labels.statusPending;
+    case "completed":
+      return labels.statusCompleted;
+    case "failed":
+      return labels.statusFailed;
+    default:
+      return status;
+  }
+}
+
 interface WalletTransactionsTableProps {
   readonly transactions: readonly AdminTeacherWalletQuery_adminTeacherWallet_transactions[];
   readonly loading: boolean;
   readonly locale: string;
-  readonly labels: {
-    readonly typeHeader: string;
-    readonly statusHeader: string;
-    readonly amountHeader: string;
-    readonly descriptionHeader: string;
-    readonly dateHeader: string;
-    readonly empty: string;
-    readonly loadingLabel: string;
-  };
+  readonly labels: AdminFinanceLabels;
+  /** The current 0-based page index (the hook's own `page` state). */
+  readonly page: number;
+  /** The page-window size (the hook's own `pageSize`). */
+  readonly pageSize: number;
+  /** The total ledger row count from the query data. */
+  readonly totalCount: number;
+  /** The 0-based page setter (the hook's own `setPage`). */
+  readonly onPageChange: (page: number) => void;
 }
 
 /** The picked teacher's transaction ledger (desktop table + mobile cards). */
-export function WalletTransactionsTable({ transactions, loading, locale, labels }: Readonly<WalletTransactionsTableProps>): ReactNode {
+export function WalletTransactionsTable({
+  transactions,
+  loading,
+  locale,
+  labels,
+  page,
+  pageSize,
+  totalCount,
+  onPageChange,
+}: Readonly<WalletTransactionsTableProps>): ReactNode {
   const empty = (
     <Stack spacing={1} sx={{ alignItems: "center", py: 6 }}>
       <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-        {labels.empty}
+        {labels.inspectorEmpty}
       </Typography>
     </Stack>
   );
@@ -102,10 +160,14 @@ export function WalletTransactionsTable({ transactions, loading, locale, labels 
               </TableRow>
             </TableHead>
             <TableBody aria-label={loading && transactions.length === 0 ? labels.loadingLabel : undefined}>
+              {" "}
               {loading && transactions.length === 0
                 ? LEDGER_SKELETON_KEYS.map(rowKey => (
                     <TableRow key={rowKey}>
-                      <TableCell colSpan={5} sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
+                      <TableCell
+                        colSpan={5}
+                        sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}
+                      >
                         <Skeleton variant="text" />
                       </TableCell>
                     </TableRow>
@@ -127,12 +189,17 @@ export function WalletTransactionsTable({ transactions, loading, locale, labels 
                   })}
                 >
                   <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-                    <TonalChip tone={ledgerTypeTone(tx.type)} label={tx.type} />
+                    <TonalChip tone={ledgerTypeTone(tx.type)} label={ledgerTypeLabel(tx.type, labels)} />
                   </TableCell>
                   <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-                    <TonalChip tone={ledgerStatusTone(tx.status)} label={tx.status} />
+                    <TonalChip tone={ledgerStatusTone(tx.status)} label={ledgerStatusLabel(tx.status, labels)} />
                   </TableCell>
-                  <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}`, fontVariantNumeric: "tabular-nums" })}>
+                  <TableCell
+                    sx={theme => ({
+                      borderBottom: `1px solid ${theme.palette.border.light}`,
+                      fontVariantNumeric: "tabular-nums",
+                    })}
+                  >
                     <Typography variant="body2">{formatMoneyAmount(tx.amount)}</Typography>
                   </TableCell>
                   <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
@@ -145,6 +212,25 @@ export function WalletTransactionsTable({ transactions, loading, locale, labels 
               ))}
             </TableBody>
           </Table>
+          <Stack
+            direction="row"
+            sx={theme => ({
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: 2,
+              flexWrap: "wrap",
+              py: 2,
+              px: 2.5,
+              borderTop: `1px solid ${theme.palette.border.light}`,
+            })}
+          >
+            <AdminFinancePaginationBar
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={onPageChange}
+            />
+          </Stack>
         </Card>
       </Box>
       {/* Mobile (<md): per-transaction cards. */}
@@ -152,21 +238,43 @@ export function WalletTransactionsTable({ transactions, loading, locale, labels 
         <Stack spacing={2}>
           {loading && transactions.length === 0
             ? LEDGER_SKELETON_KEYS.slice(0, 4).map(rowKey => (
-                <Card key={rowKey} sx={theme => ({ borderRadius: "12px", border: `1px solid ${theme.palette.border.light}`, boxShadow: theme.palette.shadow.card, p: 2, height: 132 })} />
+                <Card
+                  key={rowKey}
+                  sx={theme => ({
+                    borderRadius: "12px",
+                    border: `1px solid ${theme.palette.border.light}`,
+                    boxShadow: theme.palette.shadow.card,
+                    p: 2,
+                    height: 132,
+                  })}
+                />
               ))
             : null}
           {!loading && transactions.length === 0 ? (
-            <Card sx={theme => ({ borderRadius: "12px", border: `1px solid ${theme.palette.border.light}`, boxShadow: theme.palette.shadow.card })}>{empty}</Card>
+            <Card
+              sx={theme => ({
+                borderRadius: "12px",
+                border: `1px solid ${theme.palette.border.light}`,
+                boxShadow: theme.palette.shadow.card,
+              })}
+            >
+              {empty}
+            </Card>
           ) : null}
           {transactions.map(tx => (
             <Card
               key={tx.id}
-              sx={theme => ({ borderRadius: "12px", border: `1px solid ${theme.palette.border.light}`, boxShadow: theme.palette.shadow.card, p: 2 })}
+              sx={theme => ({
+                borderRadius: "12px",
+                border: `1px solid ${theme.palette.border.light}`,
+                boxShadow: theme.palette.shadow.card,
+                p: 2,
+              })}
             >
               <Stack spacing={1}>
                 <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-                  <TonalChip tone={ledgerTypeTone(tx.type)} label={tx.type} />
-                  <TonalChip tone={ledgerStatusTone(tx.status)} label={tx.status} />
+                  <TonalChip tone={ledgerTypeTone(tx.type)} label={ledgerTypeLabel(tx.type, labels)} />
+                  <TonalChip tone={ledgerStatusTone(tx.status)} label={ledgerStatusLabel(tx.status, labels)} />
                 </Stack>
                 <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
                   <Typography variant="caption" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>

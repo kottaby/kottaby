@@ -25,23 +25,36 @@
  * discipline, theme-palette colors, `*Outlined` icons.
  */
 
-import { WalletOutlined as WalletIcon } from "@mui/icons-material";
-import { Alert, AlertTitle, Autocomplete, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from "@mui/material";
 import { useQuery } from "@apollo/client/react";
+import { WalletOutlined as WalletIcon } from "@mui/icons-material";
+import {
+  Alert,
+  AlertTitle,
+  Autocomplete,
+  Box,
+  Button,
+  Card,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { type ReactNode, useState } from "react";
+import { NoticeSnackbar } from "@/frontend/components/ui/NoticeSnackbar";
+import {
+  type AdminTeachersQuery_adminTeachers_items,
+  WalletAdjustmentDirection,
+} from "@/frontend/graphql/generated/gql/graphql";
 import { adminTeachersQueryDocument } from "@/frontend/graphql/sharedDocuments/admin";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { formatMoneyAmount } from "@/frontend/views/admin/analytics/platform-analytics-display";
-import {
-  useAdjustTeacherWallet,
-  useAdminTeacherWallet,
-  type AppliedWalletFilters,
-} from "@/frontend/views/admin/finances/useAdminFinanceQueries";
+import { useAdjustTeacherWallet, useAdminTeacherWallet } from "@/frontend/views/admin/finances/useAdminFinanceQueries";
 import { WalletTransactionsTable } from "@/frontend/views/admin/finances/WalletTransactionsTable";
-import { NoticeSnackbar } from "@/frontend/components/ui/NoticeSnackbar";
 import { Common, Errors, useAppLocale, useAppTranslation } from "@/shared/locale";
 import { AdminFinance } from "@/shared/locale/namespaces/adminFinance";
-import { type AdminTeachersQuery_adminTeachers_items, WalletAdjustmentDirection } from "@/frontend/graphql/generated/gql/graphql";
 
 /** Snackbar autohide — the shared container-notice cadence. */
 const NOTICE_AUTOHIDE_MS = 4000;
@@ -98,12 +111,14 @@ function AdjustWalletDialog({
   const [reasonInvalid, setReasonInvalid] = useState(false);
 
   const amountError = amountInvalid || (drafts.amount !== "" && !ADJUSTMENT_AMOUNT_PATTERN.test(drafts.amount));
-  const zeroAmount = drafts.amount !== "" && Number(drafts.amount) === 0;
+  // The backend's nonzero-digit string check mirror — no `Number()` parse
+  // ever touches the money string on the client.
+  const zeroAmount = drafts.amount !== "" && !/[1-9]/.test(drafts.amount);
 
   const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
     if (loading) return;
-    const amountValid = ADJUSTMENT_AMOUNT_PATTERN.test(drafts.amount) && Number(drafts.amount) !== 0;
+    const amountValid = ADJUSTMENT_AMOUNT_PATTERN.test(drafts.amount) && /[1-9]/.test(drafts.amount);
     const reasonValid = drafts.reason.trim() !== "";
     setAmountInvalid(!amountValid);
     setReasonInvalid(!reasonValid);
@@ -158,7 +173,7 @@ function AdjustWalletDialog({
           }}
           required
           error={amountError || zeroAmount}
-          helperText={amountError || zeroAmount ? t.adjustAmountLabel : undefined}
+          helperText={amountError || zeroAmount ? t.adjustAmountInvalidMessage : undefined}
           aria-invalid={amountError || zeroAmount}
           data-testid="admin-finances-adjust-amount"
           slotProps={{ htmlInput: { inputMode: "decimal", autoComplete: "off" } }}
@@ -174,7 +189,7 @@ function AdjustWalletDialog({
           multiline
           minRows={2}
           error={reasonInvalid}
-          helperText={reasonInvalid ? t.adjustReasonLabel : undefined}
+          helperText={reasonInvalid ? t.adjustReasonInvalidMessage : undefined}
           aria-invalid={reasonInvalid}
           data-testid="admin-finances-adjust-reason"
           slotProps={{ htmlInput: { autoComplete: "off" } }}
@@ -206,7 +221,10 @@ interface WalletInspectorPanelProps {
 }
 
 /** The wallet inspector panel: picker + summary cards + ledger + adjust dialog. */
-export function WalletInspectorPanel({ initialTeacherId, onTeacherChange }: Readonly<WalletInspectorPanelProps>): ReactNode {
+export function WalletInspectorPanel({
+  initialTeacherId,
+  onTeacherChange,
+}: Readonly<WalletInspectorPanelProps>): ReactNode {
   const t = useAppTranslation(AdminFinance);
   const te = useAppTranslation(Errors);
   const locale = useAppLocale();
@@ -229,7 +247,7 @@ export function WalletInspectorPanel({ initialTeacherId, onTeacherChange }: Read
   const outcomeCallbacks = {
     onSettled: () => {
       setAdjustOpen(false);
-      setNotice({ message: te.validation, severity: "success" });
+      setNotice({ message: t.adjustSuccessMessage, severity: "success" });
     },
     onRequestNotFound: () => {
       setNotice({ message: te.teacherNotFound, severity: "error" });
@@ -275,28 +293,23 @@ export function WalletInspectorPanel({ initialTeacherId, onTeacherChange }: Read
   // alone (without the totalEarning pair) renders the empty copy too (the
   // honest no-wallet posture, never a fabricated value).
   const balanceDisplay =
-    wallet === null || noWallet || wallet.balance === null
-      ? t.inspectorEmpty
-      : formatMoneyAmount(wallet.balance);
+    wallet === null || noWallet || wallet.balance === null ? t.inspectorEmpty : formatMoneyAmount(wallet.balance);
   const totalEarningsDisplay =
     wallet === null || noWallet || wallet.totalEarning === null
       ? t.inspectorEmpty
       : formatMoneyAmount(wallet.totalEarning);
 
-  const pickedTeacher = teacherOptions.find(option => String(option.id) === (inspector.teacherId === null ? "" : String(inspector.teacherId))) ?? null;
+  const pickedTeacher =
+    teacherOptions.find(
+      option => String(option.id) === (inspector.teacherId === null ? "" : String(inspector.teacherId))
+    ) ?? null;
 
   const handleTeacherPick = (teacher: AdminTeachersQuery_adminTeachers_items | null): void => {
     onTeacherChange(teacher === null ? null : teacher.id);
   };
 
-  const summaryLabels = {
-    typeHeader: t.typeHeader,
-    statusHeader: t.statusHeader,
-    amountHeader: t.amountHeader,
-    descriptionHeader: t.descriptionHeader,
-    dateHeader: t.dateHeader,
-    empty: t.inspectorEmpty,
-    loadingLabel: t.loadingLabel,
+  const handleLedgerPageChange = (nextPage: number): void => {
+    inspector.setPage(nextPage);
   };
 
   return (
@@ -342,7 +355,12 @@ export function WalletInspectorPanel({ initialTeacherId, onTeacherChange }: Read
       {(() => {
         if (denied) {
           return (
-            <Alert severity="error" variant="outlined" sx={{ borderRadius: "12px" }} data-testid="admin-finances-wallet-denied">
+            <Alert
+              severity="error"
+              variant="outlined"
+              sx={{ borderRadius: "12px" }}
+              data-testid="admin-finances-wallet-denied"
+            >
               <AlertTitle sx={{ fontWeight: 700 }}>{t.forbiddenTitle}</AlertTitle>
               <Typography variant="body2" component="p">
                 {t.forbiddenBody}
@@ -353,7 +371,11 @@ export function WalletInspectorPanel({ initialTeacherId, onTeacherChange }: Read
         if (inspector.teacherId === null) {
           return (
             <Card
-              sx={theme => ({ borderRadius: "12px", border: `1px solid ${theme.palette.border.light}`, boxShadow: theme.palette.shadow.card })}
+              sx={theme => ({
+                borderRadius: "12px",
+                border: `1px solid ${theme.palette.border.light}`,
+                boxShadow: theme.palette.shadow.card,
+              })}
             >
               <Stack spacing={1} sx={{ alignItems: "center", py: 6 }}>
                 <WalletIcon sx={theme => ({ fontSize: 48, color: theme.palette.text.secondary })} />
@@ -365,52 +387,64 @@ export function WalletInspectorPanel({ initialTeacherId, onTeacherChange }: Read
           );
         }
         return (
-        <>
-          {/* Summary cards — balance / total earnings, the honest pair. */}
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-            <Card
-              sx={theme => ({
-                borderRadius: "12px",
-                border: `1px solid ${theme.palette.border.light}`,
-                boxShadow: theme.palette.shadow.card,
-              })}
-              data-testid="admin-finances-balance-card"
-            >
-              <Stack spacing={1} sx={{ p: { xs: 2, md: 2.5 } }}>
-                <Typography variant="subtitle2" component="h3" sx={theme => ({ color: theme.palette.text.secondary })}>
-                  {t.balanceLabel}
-                </Typography>
-                <Typography variant="h5" component="p" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-                  {balanceDisplay}
-                </Typography>
-              </Stack>
-            </Card>
-            <Card
-              sx={theme => ({
-                borderRadius: "12px",
-                border: `1px solid ${theme.palette.border.light}`,
-                boxShadow: theme.palette.shadow.card,
-              })}
-              data-testid="admin-finances-total-earnings-card"
-            >
-              <Stack spacing={1} sx={{ p: { xs: 2, md: 2.5 } }}>
-                <Typography variant="subtitle2" component="h3" sx={theme => ({ color: theme.palette.text.secondary })}>
-                  {t.totalEarningsLabel}
-                </Typography>
-                <Typography variant="h5" component="p" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-                  {totalEarningsDisplay}
-                </Typography>
-              </Stack>
-            </Card>
-          </Box>
+          <>
+            {/* Summary cards — balance / total earnings, the honest pair. */}
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+              <Card
+                sx={theme => ({
+                  borderRadius: "12px",
+                  border: `1px solid ${theme.palette.border.light}`,
+                  boxShadow: theme.palette.shadow.card,
+                })}
+                data-testid="admin-finances-balance-card"
+              >
+                <Stack spacing={1} sx={{ p: { xs: 2, md: 2.5 } }}>
+                  <Typography
+                    variant="subtitle2"
+                    component="h3"
+                    sx={theme => ({ color: theme.palette.text.secondary })}
+                  >
+                    {t.balanceLabel}
+                  </Typography>
+                  <Typography variant="h5" component="p" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                    {balanceDisplay}
+                  </Typography>
+                </Stack>
+              </Card>
+              <Card
+                sx={theme => ({
+                  borderRadius: "12px",
+                  border: `1px solid ${theme.palette.border.light}`,
+                  boxShadow: theme.palette.shadow.card,
+                })}
+                data-testid="admin-finances-total-earnings-card"
+              >
+                <Stack spacing={1} sx={{ p: { xs: 2, md: 2.5 } }}>
+                  <Typography
+                    variant="subtitle2"
+                    component="h3"
+                    sx={theme => ({ color: theme.palette.text.secondary })}
+                  >
+                    {t.totalEarningsLabel}
+                  </Typography>
+                  <Typography variant="h5" component="p" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                    {totalEarningsDisplay}
+                  </Typography>
+                </Stack>
+              </Card>
+            </Box>
 
-          <WalletTransactionsTable
-            transactions={wallet?.transactions ?? []}
-            loading={inspector.loading}
-            locale={locale}
-            labels={summaryLabels}
-          />
-        </>
+            <WalletTransactionsTable
+              transactions={wallet?.transactions ?? []}
+              loading={inspector.loading}
+              locale={locale}
+              labels={t}
+              page={inspector.page}
+              pageSize={inspector.pageSize}
+              totalCount={wallet?.totalCount ?? 0}
+              onPageChange={handleLedgerPageChange}
+            />
+          </>
         );
       })()}
 
@@ -435,6 +469,3 @@ export function WalletInspectorPanel({ initialTeacherId, onTeacherChange }: Read
     </Stack>
   );
 }
-
-/** Re-exported for the summary cards' filter record type (panel seam). */
-export type { AppliedWalletFilters };

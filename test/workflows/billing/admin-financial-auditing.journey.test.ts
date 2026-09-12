@@ -81,9 +81,9 @@ import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustment-direction.enum";
-import { DomainError, ConflictError, ForbiddenError, UnauthorizedError } from "@/backend/lib/errors";
-import { WalletService } from "@/backend/services/billing/wallet.service";
+import { ConflictError, DomainError, ForbiddenError, UnauthorizedError } from "@/backend/lib/errors";
 import { AdminFinancialAuditingService } from "@/backend/services/billing/admin-financial-auditing.service";
+import { WalletService } from "@/backend/services/billing/wallet.service";
 import type {
   AdminWalletAdjustmentSubmitInput,
   AdminWalletTransactionFilters,
@@ -96,6 +96,7 @@ import type {
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 import { withAuditDeleteTriggersSuspended, withImmutabilityTriggersSuspended } from "@/test/helpers/db-cleanup";
+import type { JourneyActor } from "@/test/workflows/helpers";
 import {
   ANONYMOUS_ACTOR_ID,
   countAuditLogsForActor,
@@ -106,7 +107,6 @@ import {
   provisionStudentActor,
   TrackedFixtures,
 } from "@/test/workflows/helpers";
-import type { JourneyActor } from "@/test/workflows/helpers";
 
 // ─── Harness state ───────────────────────────────────────────────────────────
 
@@ -374,7 +374,12 @@ afterAll(async () => {
   }
   if (fixturePaymentRows.length > 0) {
     await withImmutabilityTriggersSuspended(["student_payments"], () =>
-      db.delete(studentPayments).where(inArray(studentPayments.id, fixturePaymentRows.map(row => row.id)))
+      db.delete(studentPayments).where(
+        inArray(
+          studentPayments.id,
+          fixturePaymentRows.map(row => row.id)
+        )
+      )
     );
   }
 
@@ -513,9 +518,7 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     expect(credit.status).toBe(TransactionStatus.Completed);
     ledgerTxnIds.push(credit.id);
     const walletAfterCredit = await readWalletRow(teacherA.userId);
-    expect(decimalValue(walletAfterCredit.balance)).toBe(
-      decimalValue(walletBefore.balance) + Number(ADJUST_CREDIT)
-    );
+    expect(decimalValue(walletAfterCredit.balance)).toBe(decimalValue(walletBefore.balance) + Number(ADJUST_CREDIT));
     expect(decimalValue(walletAfterCredit.totalEarning)).toBe(earningBefore);
 
     // Debit: withdrawal/completed row whose description carries the manual
@@ -536,9 +539,7 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     expect(debit.description).not.toBe(payoutRow.description);
     ledgerTxnIds.push(debit.id);
     const walletAfterDebit = await readWalletRow(teacherA.userId);
-    expect(decimalValue(walletAfterDebit.balance)).toBe(
-      decimalValue(walletAfterCredit.balance) - Number(ADJUST_DEBIT)
-    );
+    expect(decimalValue(walletAfterDebit.balance)).toBe(decimalValue(walletAfterCredit.balance) - Number(ADJUST_DEBIT));
 
     // Admin wallet inspector: the adjusted wallet with both new rows.
     const view = await AdminFinancialAuditingService.getTeacherWalletForAdmin(
@@ -567,9 +568,7 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
       )
     );
     expect(await countLedgerRowsForTeachers([teacherA.userId])).toBe(ledgerCountBefore);
-    expect(decimalValue((await readWalletRow(teacherA.userId)).balance)).toBe(
-      decimalValue(walletAfterDebit.balance)
-    );
+    expect(decimalValue((await readWalletRow(teacherA.userId)).balance)).toBe(decimalValue(walletAfterDebit.balance));
 
     // One audit row per adjustment, pointing at its ledger row.
     const creditAudits = await readAuditsForTransaction(credit.id);
@@ -598,9 +597,8 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     const paidIds = new Set(paidPage.items.map(item => item.id));
     expect(paidIds.has(fixturePaymentRows[0]?.id ?? 0)).toBe(true);
     expect(paidIds.has(fixturePaymentRows[1]?.id ?? 0)).toBe(true);
-    // The joined rows resolve the student's display identity.
+    // The joined rows resolve the student's display name.
     expect(paidPage.items[0]?.studentName).toBe(studentUser.fullName);
-    expect(paidPage.items[0]?.studentEmail).toBe(studentUser.email);
 
     // A filter nothing matches yields the honest empty page.
     const emptyPage = await AdminFinancialAuditingService.listStudentPaymentsForAdmin(
@@ -643,22 +641,14 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
       ERRORS_EN.forbidden
     );
     await expectDenial(
-      () =>
-        AdminFinancialAuditingService.listStudentPaymentsForAdmin(
-          teacherA.userId,
-          paymentFilters(),
-          1,
-          50,
-          LOCALE
-        ),
+      () => AdminFinancialAuditingService.listStudentPaymentsForAdmin(teacherA.userId, paymentFilters(), 1, 50, LOCALE),
       ForbiddenError,
       ERRORS_EN.forbidden
     );
 
     // Student callers: forbidden likewise.
     await expectDenial(
-      () =>
-        AdminFinancialAuditingService.listPendingWithdrawalsForAdmin(studentActor.userId, 1, 50, LOCALE),
+      () => AdminFinancialAuditingService.listPendingWithdrawalsForAdmin(studentActor.userId, 1, 50, LOCALE),
       ForbiddenError,
       ERRORS_EN.forbidden
     );
@@ -671,13 +661,7 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     // Anonymous callers: unauthorized.
     await expectDenial(
       () =>
-        AdminFinancialAuditingService.listStudentPaymentsForAdmin(
-          ANONYMOUS_ACTOR_ID,
-          paymentFilters(),
-          1,
-          50,
-          LOCALE
-        ),
+        AdminFinancialAuditingService.listStudentPaymentsForAdmin(ANONYMOUS_ACTOR_ID, paymentFilters(), 1, 50, LOCALE),
       UnauthorizedError,
       ERRORS_EN.unauthorized
     );

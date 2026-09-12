@@ -32,11 +32,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import type { RenderResult } from "@testing-library/react";
-import type {
-  AdminPendingWithdrawalsQuery,
-  AdminStudentPaymentsQuery,
-  AdminTeacherWalletQuery,
-} from "@/frontend/graphql/generated/gql/graphql";
+import type { AdminPendingWithdrawalsQuery, AdminStudentPaymentsQuery } from "@/frontend/graphql/generated/gql/graphql";
 import {
   adminPendingWithdrawalsQueryDocument,
   adminStudentPaymentsQueryDocument,
@@ -67,7 +63,6 @@ const FIXED_ISO = "2026-08-29T12:00:00.000Z";
 
 type PaymentRowFixture = AdminStudentPaymentsQuery["adminStudentPayments"]["items"][number];
 type WithdrawalRowFixture = AdminPendingWithdrawalsQuery["adminPendingWithdrawals"]["items"][number];
-type WalletTxFixture = AdminTeacherWalletQuery["adminTeacherWallet"]["transactions"][number];
 
 const PAYMENT_ROW: PaymentRowFixture = {
   __typename: "AdminStudentPayment",
@@ -77,8 +72,8 @@ const PAYMENT_ROW: PaymentRowFixture = {
   subscriptionId: "7",
   amount: "250.00",
   currency: "EGP",
-  paymentGateway: "stripe",
-  status: "paid",
+  paymentGateway: "Stripe",
+  status: "Paid",
   createdAt: FIXED_ISO,
 } as unknown as PaymentRowFixture;
 
@@ -96,17 +91,6 @@ const WITHDRAWAL_ROW: WithdrawalRowFixture = {
   teacherName: "Teacher One",
   walletBalance: "900.00",
 } as unknown as WithdrawalRowFixture;
-
-const WALLET_TX: WalletTxFixture = {
-  __typename: "TeacherTransaction",
-  id: "902",
-  type: "earning",
-  status: "completed",
-  amount: "120.50",
-  description: "Session payout",
-  sessionId: "31",
-  createdAt: FIXED_ISO,
-} as unknown as WalletTxFixture;
 
 function paymentsPage(rows: readonly PaymentRowFixture[], totalCount = rows.length): AdminStudentPaymentsQuery {
   return {
@@ -132,26 +116,12 @@ function withdrawalsPage(rows: readonly WithdrawalRowFixture[]): AdminPendingWit
   } as AdminPendingWithdrawalsQuery;
 }
 
-function walletPage(rows: readonly WalletTxFixture[]): AdminTeacherWalletQuery {
-  return {
-    adminTeacherWallet: {
-      __typename: "AdminTeacherWallet",
-      balance: "900.00",
-      totalEarning: "1240.00",
-      currency: "EGP",
-      teacherId: "3",
-      teacherName: "Teacher One",
-      transactions: [...rows],
-      totalCount: rows.length,
-      page: 1,
-      pageSize: 10,
-    },
-  } as AdminTeacherWalletQuery;
-}
-
 function paymentsMock(data: AdminStudentPaymentsQuery): MockLink.MockedResponse {
   return {
-    request: { query: adminStudentPaymentsQueryDocument, variables: { filters: { studentId: null }, page: 1, pageSize: 10 } },
+    request: {
+      query: adminStudentPaymentsQueryDocument,
+      variables: { filters: { studentId: null }, page: 1, pageSize: 10 },
+    },
     result: { data },
   };
 }
@@ -163,10 +133,7 @@ function withdrawalsMock(data: AdminPendingWithdrawalsQuery): MockLink.MockedRes
   };
 }
 
-function renderFinances(
-  mocks: ReadonlyArray<MockLink.MockedResponse>,
-  locale: "en" | "ar" = "en"
-): RenderResult {
+function renderFinances(mocks: ReadonlyArray<MockLink.MockedResponse>, locale: "en" | "ar" = "en"): RenderResult {
   return renderWithWrapper(
     <MockedProvider mocks={[...mocks]}>
       <AdminFinancesContainer />
@@ -200,7 +167,10 @@ describe("AdminFinancesContainer (en / LTR)", () => {
 
 describe("AdminFinancesContainer (ar / RTL)", () => {
   test("renders the Arabic labels through the same handle over the RTL provider stack", async () => {
-    renderFinances([paymentsMock(paymentsPage([PAYMENT_ROW])), withdrawalsMock(withdrawalsPage([WITHDRAWAL_ROW]))], "ar");
+    renderFinances(
+      [paymentsMock(paymentsPage([PAYMENT_ROW])), withdrawalsMock(withdrawalsPage([WITHDRAWAL_ROW]))],
+      "ar"
+    );
 
     expect(screen.getByRole("heading", { level: 1, name: tar.title })).toBeDefined();
     expect(screen.getByText(tar.subtitle)).toBeDefined();
@@ -211,11 +181,3 @@ describe("AdminFinancesContainer (ar / RTL)", () => {
     await waitFor(() => expect(screen.getAllByText(PAYMENT_ROW.studentName).length).toBeGreaterThanOrEqual(1));
   });
 });
-
-// Re-exported test-only fixtures for the sibling suites (same folder, flat
-// files) — the wallet/payments suites import them to avoid duplicating the
-// fixture shapes.
-export { PAYMENT_ROW, WITHDRAWAL_ROW, WALLET_TX, walletPage, withdrawalsPage, paymentsPage, paymentsMock, withdrawalsMock, FIXED_ISO };
-
-// The `waitFor` binding is re-exported use; keep the import referenced so
-// the lint pass keeps it (the sibling suites await their own copy).

@@ -89,7 +89,10 @@ export function RejectWithdrawalDialog({
       slotProps={{ paper: { component: "form", onSubmit: handleSubmit } }}
       aria-labelledby={`reject-withdrawal-dialog-title-${transactionId}`}
     >
-      <DialogTitle id={`reject-withdrawal-dialog-title-${transactionId}`} sx={theme => ({ color: theme.palette.onSurface })}>
+      <DialogTitle
+        id={`reject-withdrawal-dialog-title-${transactionId}`}
+        sx={theme => ({ color: theme.palette.onSurface })}
+      >
         {t.rejectDialogTitle}
       </DialogTitle>
       <DialogContent sx={{ display: "grid", gap: 2 }}>

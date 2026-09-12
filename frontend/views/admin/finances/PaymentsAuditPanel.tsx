@@ -22,27 +22,43 @@
  */
 
 import { ReceiptLongOutlined as EmptyIcon } from "@mui/icons-material";
-import { Alert, AlertTitle, Box, Card, Skeleton, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
+import {
+  Alert,
+  AlertTitle,
+  Box,
+  Card,
+  Skeleton,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from "@mui/material";
 import type { ReactNode } from "react";
 import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
-import { TonalChip } from "@/frontend/views/admin/users/ui";
+import type { AdminStudentPaymentsQuery_adminStudentPayments_items } from "@/frontend/graphql/generated/gql/graphql";
+import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
+import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
+import { formatMoneyAmount } from "@/frontend/views/admin/analytics/platform-analytics-display";
 import { DirectoryHeaderCell } from "@/frontend/views/admin/directory-shared/DirectoryHeaderCell";
 import { DirectoryMobileCardList } from "@/frontend/views/admin/directory-shared/DirectoryMobileCardList";
 import type { DirectoryTableHeader } from "@/frontend/views/admin/directory-shared/DirectoryTableScaffold";
-import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
-import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
-import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
-import { formatMoneyAmount } from "@/frontend/views/admin/analytics/platform-analytics-display";
+import { directoryTableCardSx } from "@/frontend/views/admin/directory-shared/directory-skins";
+import { AdminFinancePaginationBar } from "@/frontend/views/admin/finances/AdminFinancePaginationBar";
 import { PaymentsFilterBar } from "@/frontend/views/admin/finances/PaymentsFilterBar";
 import {
-  useAdminStudentPayments,
   type AppliedPaymentFilters,
+  useAdminStudentPayments,
 } from "@/frontend/views/admin/finances/useAdminFinanceQueries";
-import { directoryTableCardSx } from "@/frontend/views/admin/directory-shared/directory-skins";
-import { type DirectoryTone } from "@/frontend/views/admin/users/utils";
+import { TonalChip } from "@/frontend/views/admin/users/ui";
+import type { DirectoryTone } from "@/frontend/views/admin/users/utils";
 import { Common, useAppLocale, useAppTranslation } from "@/shared/locale";
 import { AdminFinance } from "@/shared/locale/namespaces/adminFinance";
-import type { AdminStudentPaymentsQuery_adminStudentPayments_items } from "@/frontend/graphql/generated/gql/graphql";
+import type { AdminFinanceLabels } from "@/shared/locale/types/adminFinance";
 
 /** The stable skeleton row/card keys of the payments loading state. */
 const PAYMENTS_SKELETON_KEYS = [
@@ -70,19 +86,71 @@ function paymentStatusTone(status: string): DirectoryTone {
   }
 }
 
-/** One payment status chip — tone-mapped with the verbatim wire value. */
-function PaymentStatusChip({ status }: Readonly<{ status: string }>): ReactNode {
-  return <TonalChip tone={paymentStatusTone(status)} label={status} />;
+/**
+ * Localized payment-status label — mapped lookup over the four canonical
+ * `PaymentStatus` wire values; any unknown wire value renders VERBATIM
+ * (honest fallback — the audit table is a display projection, never a
+ * lifecycle authority).
+ */
+function paymentStatusLabel(status: string, labels: AdminFinanceLabels): string {
+  switch (status) {
+    case "Paid":
+      return labels.statusPaid;
+    case "Pending":
+      return labels.statusPending;
+    case "Failed":
+      return labels.statusFailed;
+    case "Refunded":
+      return labels.statusRefunded;
+    default:
+      return status;
+  }
+}
+
+/**
+ * Localized payment-gateway label — mapped lookup over the canonical
+ * `PaymentGateway` wire values; any unknown wire value renders VERBATIM.
+ */
+function paymentGatewayLabel(gateway: string, labels: AdminFinanceLabels): string {
+  switch (gateway) {
+    case "Stripe":
+      return labels.gatewayStripe;
+    case "Paypal":
+      return labels.gatewayPaypal;
+    case "Paymob":
+      return labels.gatewayPaymob;
+    case "Fawry":
+      return labels.gatewayFawry;
+    case "OfflineCash":
+      return labels.gatewayOfflineCash;
+    case "BankTransfer":
+      return labels.gatewayBankTransfer;
+    case "Scholarship":
+      return labels.gatewayScholarship;
+    case "Mock":
+      return labels.gatewayMock;
+    case "Other":
+      return labels.gatewayOther;
+    default:
+      return gateway;
+  }
+}
+
+/** One payment status chip — tone-mapped with the localized label. */
+function PaymentStatusChip({ status, labels }: Readonly<{ status: string; labels: AdminFinanceLabels }>): ReactNode {
+  return <TonalChip tone={paymentStatusTone(status)} label={paymentStatusLabel(status, labels)} />;
 }
 
 /** One body row of the desktop payments table. */
 function PaymentRow({
   payment,
   locale,
+  labels,
   striped,
 }: Readonly<{
   payment: AdminStudentPaymentsQuery_adminStudentPayments_items;
   locale: string;
+  labels: AdminFinanceLabels;
   striped: boolean;
 }>): ReactNode {
   return (
@@ -102,17 +170,19 @@ function PaymentRow({
           </Typography>
         </Stack>
       </TableCell>
-      <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}`, fontVariantNumeric: "tabular-nums" })}>
+      <TableCell
+        sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}`, fontVariantNumeric: "tabular-nums" })}
+      >
         <Typography variant="body2">{formatMoneyAmount(payment.amount)}</Typography>
       </TableCell>
       <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
         <Typography variant="body2">{payment.currency}</Typography>
       </TableCell>
       <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-        <Typography variant="body2">{payment.paymentGateway}</Typography>
+        <Typography variant="body2">{paymentGatewayLabel(payment.paymentGateway, labels)}</Typography>
       </TableCell>
       <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-        <PaymentStatusChip status={payment.status} />
+        <PaymentStatusChip status={payment.status} labels={labels} />
       </TableCell>
       <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
         <Typography variant="body2">{formatApplicantDate(payment.createdAt, locale)}</Typography>
@@ -132,10 +202,12 @@ function PaymentMobileCard({
   payment,
   locale,
   labels,
+  namespace,
 }: Readonly<{
   payment: AdminStudentPaymentsQuery_adminStudentPayments_items;
   locale: string;
   labels: PaymentCellLabels;
+  namespace: AdminFinanceLabels;
 }>): ReactNode {
   return (
     <Card
@@ -151,7 +223,7 @@ function PaymentMobileCard({
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             {payment.studentName}
           </Typography>
-          <PaymentStatusChip status={payment.status} />
+          <PaymentStatusChip status={payment.status} labels={namespace} />
         </Stack>
         <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
           <Typography variant="caption" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
@@ -165,7 +237,7 @@ function PaymentMobileCard({
           <Typography variant="caption" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
             {labels.gatewayHeader}
           </Typography>
-          <Typography variant="body2">{payment.paymentGateway}</Typography>
+          <Typography variant="body2">{paymentGatewayLabel(payment.paymentGateway, namespace)}</Typography>
         </Stack>
         <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
           <Typography variant="caption" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
@@ -184,28 +256,21 @@ function PaymentsTableCard({
   loading,
   locale,
   labels,
-  totalCount,
+  namespace,
   page,
-  totalPages,
+  pageSize,
+  totalCount,
+  onPageChange,
 }: Readonly<{
   items: readonly AdminStudentPaymentsQuery_adminStudentPayments_items[];
   loading: boolean;
   locale: string;
-  labels: {
-    readonly paymentsTab: string;
-    readonly loadingLabel: string;
-    readonly paymentsEmpty: string;
-    readonly paymentsResultCount: (count: number) => string;
-    readonly studentHeader: string;
-    readonly amountHeader: string;
-    readonly currencyHeader: string;
-    readonly gatewayHeader: string;
-    readonly statusHeader: string;
-    readonly dateHeader: string;
-  };
-  totalCount: number;
+  labels: AdminFinanceLabels;
+  namespace: AdminFinanceLabels;
   page: number;
-  totalPages: number;
+  pageSize: number;
+  totalCount: number;
+  onPageChange: (page: number) => void;
 }>): ReactNode {
   const headers: readonly DirectoryTableHeader[] = [
     { id: "student", width: "30%", label: labels.studentHeader },
@@ -232,7 +297,10 @@ function PaymentsTableCard({
             {loading && items.length === 0
               ? PAYMENTS_SKELETON_KEYS.map(rowKey => (
                   <TableRow key={rowKey}>
-                    <TableCell colSpan={headers.length} sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
+                    <TableCell
+                      colSpan={headers.length}
+                      sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}
+                    >
                       <Skeleton variant="text" />
                     </TableCell>
                   </TableRow>
@@ -246,7 +314,13 @@ function PaymentsTableCard({
               </TableRow>
             ) : null}
             {items.map((payment, index) => (
-              <PaymentRow key={payment.id} payment={payment} locale={locale} striped={index % 2 === 1} />
+              <PaymentRow
+                key={payment.id}
+                payment={payment}
+                locale={locale}
+                labels={namespace}
+                striped={index % 2 === 1}
+              />
             ))}
           </TableBody>
         </Table>
@@ -257,6 +331,7 @@ function PaymentsTableCard({
           alignItems: "center",
           justifyContent: "space-between",
           gap: 2,
+          flexWrap: "wrap",
           py: 2,
           px: 2.5,
           borderTop: `1px solid ${theme.palette.border.light}`,
@@ -265,11 +340,12 @@ function PaymentsTableCard({
         <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
           {labels.paymentsResultCount(totalCount)}
         </Typography>
-        <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
-          <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
-            {page + 1} / {totalPages}
-          </Typography>
-        </Stack>
+        <AdminFinancePaginationBar
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          onPageChange={onPageChange}
+        />
       </Stack>
     </Card>
   );
@@ -312,8 +388,9 @@ export function PaymentsAuditPanel(): ReactNode {
     errorCode !== null &&
     mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
 
-  const totalPages = Math.max(1, Math.ceil(payments.totalCount / payments.pageSize));
-
+  const handlePageChange = (nextPage: number): void => {
+    payments.setPage(nextPage);
+  };
 
   const mobileList = (
     <DirectoryMobileCardList
@@ -327,6 +404,7 @@ export function PaymentsAuditPanel(): ReactNode {
           payment={payment}
           locale={locale}
           labels={{ amountHeader: t.amountHeader, gatewayHeader: t.gatewayHeader, dateHeader: t.dateHeader }}
+          namespace={t}
         />
       ))}
     />
@@ -336,7 +414,12 @@ export function PaymentsAuditPanel(): ReactNode {
   let body: ReactNode;
   if (denied) {
     body = (
-      <Alert severity="error" variant="outlined" sx={{ borderRadius: "12px" }} data-testid="admin-finances-payments-denied">
+      <Alert
+        severity="error"
+        variant="outlined"
+        sx={{ borderRadius: "12px" }}
+        data-testid="admin-finances-payments-denied"
+      >
         <AlertTitle sx={{ fontWeight: 700 }}>{t.forbiddenTitle}</AlertTitle>
         <Typography variant="body2" component="p">
           {t.forbiddenBody}
@@ -367,21 +450,12 @@ export function PaymentsAuditPanel(): ReactNode {
             items={payments.items}
             loading={payments.loading}
             locale={locale}
-            labels={{
-              paymentsTab: t.paymentsTab,
-              loadingLabel: t.loadingLabel,
-              paymentsEmpty: t.paymentsEmpty,
-              paymentsResultCount: t.paymentsResultCount,
-              studentHeader: t.studentHeader,
-              amountHeader: t.amountHeader,
-              currencyHeader: t.currencyHeader,
-              gatewayHeader: t.gatewayHeader,
-              statusHeader: t.statusHeader,
-              dateHeader: t.dateHeader,
-            }}
-            totalCount={payments.totalCount}
+            labels={t}
+            namespace={t}
             page={payments.page}
-            totalPages={totalPages}
+            pageSize={payments.pageSize}
+            totalCount={payments.totalCount}
+            onPageChange={handlePageChange}
           />
         </Box>
         {/* Mobile (<md): the per-payment card stack. */}
@@ -397,5 +471,3 @@ export function PaymentsAuditPanel(): ReactNode {
     </Stack>
   );
 }
-
-

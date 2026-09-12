@@ -9,6 +9,7 @@ import {
   FamilyRestroomOutlined as ChildrenIcon,
   DashboardOutlined as DashboardIcon,
   GavelOutlined as DisputesIcon,
+  AccountBalanceOutlined as FinanceIcon,
   HistoryEduOutlined as HomeworkIcon,
   InsightsOutlined,
   LinkOutlined as LinkChildIcon,
@@ -148,7 +149,7 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
     // Targets the admin-guarded finances console at
     // `app/(dashboard)/admin/finances/page.tsx` — the payments audit, the
     // withdrawal payout queue, and the teacher wallet inspector.
-    { route: "/admin/finances", labelKey: "finances", Icon: WalletIcon },
+    { route: "/admin/finances", labelKey: "finances", Icon: FinanceIcon },
     { route: "/admin/broadcasts", labelKey: "broadcasts", Icon: CampaignOutlined },
     // Targets the admin-guarded analytics page at `app/(dashboard)/admin/analytics/page.tsx`.
     { route: "/admin/analytics", labelKey: "analytics", Icon: InsightsOutlined },

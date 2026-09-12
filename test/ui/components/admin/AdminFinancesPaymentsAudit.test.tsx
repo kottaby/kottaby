@@ -64,21 +64,27 @@ const PAYMENT_ROW = {
   subscriptionId: "7",
   amount: "250.00",
   currency: "EGP",
-  paymentGateway: "stripe",
-  status: "paid",
+  paymentGateway: "Stripe",
+  status: "Paid",
   createdAt: FIXED_ISO,
 } as never;
 
 function paymentsMock(data: Record<string, unknown>): MockLink.MockedResponse {
   return {
-    request: { query: adminStudentPaymentsQueryDocument, variables: { filters: { studentId: null }, page: 1, pageSize: 10 } },
+    request: {
+      query: adminStudentPaymentsQueryDocument,
+      variables: { filters: { studentId: null }, page: 1, pageSize: 10 },
+    },
     result: { data },
   };
 }
 
 function codeErrorMock(code: string): MockLink.MockedResponse {
   return {
-    request: { query: adminStudentPaymentsQueryDocument, variables: { filters: { studentId: null }, page: 1, pageSize: 10 } },
+    request: {
+      query: adminStudentPaymentsQueryDocument,
+      variables: { filters: { studentId: null }, page: 1, pageSize: 10 },
+    },
     result: { errors: [{ message: `${code} (masked transport surface)`, extensions: { code } }] },
   };
 }
@@ -113,9 +119,18 @@ describe("AdminFinancesPaymentsAudit (en / LTR)", () => {
     await waitFor(() => expect(screen.getAllByText("Student One").length).toBeGreaterThanOrEqual(1));
     expect(screen.getAllByText("250.00").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("EGP").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("stripe").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("paid").length).toBeGreaterThanOrEqual(1);
+    // The gateway + status chips render the LOCALIZED labels (never the raw
+    // wire enums) — the canonical wire values resolve through the localized
+    // label helpers.
+    expect(screen.getAllByText(t.gatewayStripe).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(t.statusPaid).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(t.paymentsResultCount(1)).length).toBeGreaterThanOrEqual(1);
+    // The shared pagination bar renders beside the result count (the admin
+    // can page past the first window); on a single page both controls sit
+    // disabled at the bounds.
+    expect(screen.getByTestId("admin-finances-pagination")).toBeDefined();
+    expect(screen.getByTestId("admin-finances-pagination-next").hasAttribute("disabled")).toBe(true);
+    expect(screen.getByTestId("admin-finances-pagination-prev").hasAttribute("disabled")).toBe(true);
   });
 
   test("empty result renders the honest empty state without rows", async () => {

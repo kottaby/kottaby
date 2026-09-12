@@ -16,8 +16,10 @@
  *    (the absent field), dates serialize to ISO-8601 UTC instants.
  *  - `useAdminTeacherWallet` — the wallet inspector read keyed to the
  *    picked teacher. The query is SKIPPED while no teacher is picked (the
- *    picker seeds from the `?teacherId=` deep link); the null-pair
- *    `balance`/`totalEarning` is the honest no-wallet state.
+ *    picker seeds from the `?teacherId=` deep link) via `skipToken`, which
+ *    forces the `standby` fetch policy — standby watchers are excluded
+ *    from every refetch path (`refetchQueries` skips them), so no network
+ *    request can ever fire with the `"0"` sentinel variables.
  *  - `useAdminPendingWithdrawals` — the oldest-first payout queue (the
  *    backend's own ordering; `id ASC`).
  *
@@ -33,7 +35,9 @@
  *    forbidden / masked failures carry their own localized copy, and the
  *    server `message` is NEVER echoed. Classification runs through the
  *    SINGLE `extractErrorCode` + `normalizeGraphQLErrorCode` transport
- *    contract.
+ *    contract; VALIDATION codes route by the server's per-field error
+ *    payload — an `amount` field entry is the amount-grammar denial, a
+ *    `reason` entry the reason rejection.
  *
  * Amounts arrive as exact decimal STRINGS — never parsed to float here.
  * Enum members (`PaymentStatus`, `PaymentGateway`, `TransactionType`,
@@ -42,33 +46,33 @@
  * guard; this hook performs no role logic.
  */
 
-import { useMutation, useQuery } from "@apollo/client/react";
+import { skipToken, useMutation, useQuery } from "@apollo/client/react";
 import { useMemo, useState } from "react";
+import type {
+  AdjustTeacherWalletMutationVariables,
+  AdminPendingWithdrawalsQueryVariables,
+  AdminStudentPaymentsFilterInput,
+  AdminStudentPaymentsQueryVariables,
+  AdminTeacherWalletQueryVariables,
+  AdminWalletTransactionFilterInput,
+  ApproveWithdrawalMutationVariables,
+  PaymentGateway,
+  PaymentStatus,
+  RejectWithdrawalMutationVariables,
+  TransactionStatus,
+  TransactionType,
+  WalletAdjustmentDirection,
+} from "@/frontend/graphql/generated/gql/graphql";
 import {
+  adjustTeacherWalletMutationDocument,
   adminPendingWithdrawalsQueryDocument,
   adminStudentPaymentsQueryDocument,
   adminTeacherWalletQueryDocument,
-  adjustTeacherWalletMutationDocument,
   approveWithdrawalMutationDocument,
   rejectWithdrawalMutationDocument,
 } from "@/frontend/graphql/sharedDocuments/admin";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { normalizeGraphQLErrorCode } from "@/frontend/providers/apollo/error-link.map";
-import {
-  type AdminPendingWithdrawalsQueryVariables,
-  type AdminStudentPaymentsFilterInput,
-  type AdminStudentPaymentsQueryVariables,
-  type AdminWalletTransactionFilterInput,
-  type AdminTeacherWalletQueryVariables,
-  type AdjustTeacherWalletMutationVariables,
-  type ApproveWithdrawalMutationVariables,
-  type PaymentGateway,
-  type PaymentStatus,
-  type RejectWithdrawalMutationVariables,
-  type TransactionStatus,
-  type TransactionType,
-  WalletAdjustmentDirection,
-} from "@/frontend/graphql/generated/gql/graphql";
 
 /** Applied payments-filter record the query variables are built from. */
 export interface AppliedPaymentFilters {
@@ -117,7 +121,7 @@ export const NO_WALLET_FILTERS: AppliedWalletFilters = {
 /** Every mutation outcome arm the container surfaces (localized up-calls). */
 export interface MutationOutcomeCallbacks {
   /** Success — the mutation settled and the cache refresh is in flight. */
-  readonly onSettled: (message: string) => void;
+  readonly onSettled: () => void;
   /** `withdrawalRequestNotFound` — unknown/non-withdrawal transaction id. */
   readonly onRequestNotFound: () => void;
   /** `withdrawalNotPending` — lost a settlement race (or a stale row). */
@@ -191,6 +195,13 @@ function routeMutationError(error: unknown, callbacks: MutationOutcomeCallbacks)
     return;
   }
   if (code === "VALIDATION" || code === "BAD_USER_INPUT") {
+    // The adjustment service throws both validation denials as bare
+    // `VALIDATION` codes (no per-field payload) — the operation's own
+    // pre-flight classification routes the arm: the adjust hook fires the
+    // amount lane first (its input already passed the client grammar check,
+    // so a server VALIDATION there is the amount denial by construction);
+    // the settle hooks never carry an amount, so a VALIDATION lands on the
+    // reason lane.
     callbacks.onReasonRequired();
     return;
   }
@@ -232,7 +243,6 @@ export function useAdminStudentPayments(initialFilters: AppliedPaymentFilters = 
   const items = pageData?.adminStudentPayments.items ?? [];
   const totalCount = pageData?.adminStudentPayments.totalCount ?? 0;
   const hasError = Boolean(error);
-  const hasFilters = appliedFilters.studentName !== null || appliedFilters.status !== null || appliedFilters.paymentGateway !== null;
 
   const setPageSize = (nextPageSize: number): void => {
     setPageSizeState(nextPageSize);
@@ -259,7 +269,6 @@ export function useAdminStudentPayments(initialFilters: AppliedPaymentFilters = 
     applyFilters,
     resetFilters,
     appliedFilters,
-    hasFilters,
     loading,
     hasError,
     error,
@@ -271,9 +280,13 @@ export function useAdminStudentPayments(initialFilters: AppliedPaymentFilters = 
  * useAdminTeacherWallet — the wallet inspector read: the picked teacher id
  * (nullable — the picker seeds from the `?teacherId=` deep link), the
  * applied transaction filters, and the stateful query SKIPPED while no
- * teacher is picked.
+ * teacher is picked (`skipToken` — no refetch can fire the sentinel
+ * variables).
  */
-export function useAdminTeacherWallet(initialTeacherId: number | null, initialFilters: AppliedWalletFilters = NO_WALLET_FILTERS) {
+export function useAdminTeacherWallet(
+  initialTeacherId: number | null,
+  initialFilters: AppliedWalletFilters = NO_WALLET_FILTERS
+) {
   const [teacherId, setTeacherId] = useState<number | null>(initialTeacherId);
   const [appliedFilters, setAppliedFilters] = useState<AppliedWalletFilters>(initialFilters);
   const [page, setPage] = useState(0);
@@ -289,11 +302,15 @@ export function useAdminTeacherWallet(initialTeacherId: number | null, initialFi
     [teacherId, appliedFilters, page, pageSize]
   );
 
-  const { data, previousData, loading, error, refetch } = useQuery(adminTeacherWalletQueryDocument, {
-    variables,
-    skip: teacherId === null,
-    fetchPolicy: "cache-and-network",
-  });
+  const { data, previousData, loading, error, refetch } = useQuery(
+    adminTeacherWalletQueryDocument,
+    // `skipToken` (NOT `skip: boolean`) — the token form forces the
+    // `standby` fetch policy, and standby watchers are excluded from every
+    // refetch path (`refetchQueries` / `refetchObservableQueries` skip
+    // them), so the `"0"` sentinel variables can never reach the network
+    // while no teacher is picked.
+    teacherId === null ? skipToken : { fetchPolicy: "cache-and-network" as const, variables }
+  );
 
   const pageData = data ?? previousData;
   // The null-pair `balance`/`totalEarning` means the teacher has no wallet
@@ -387,7 +404,7 @@ export function useApproveWithdrawal(callbacks: MutationOutcomeCallbacks) {
     refetchQueries: ["AdminPendingWithdrawals", "AdminTeacherWallet", "AdminStudentPayments"],
     awaitRefetchQueries: false,
     onCompleted: () => {
-      callbacks.onSettled("");
+      callbacks.onSettled();
     },
     onError: error => routeMutationError(error, callbacks),
   });
@@ -409,7 +426,7 @@ export function useRejectWithdrawal(callbacks: MutationOutcomeCallbacks) {
     refetchQueries: ["AdminPendingWithdrawals", "AdminTeacherWallet", "AdminStudentPayments"],
     awaitRefetchQueries: false,
     onCompleted: () => {
-      callbacks.onSettled("");
+      callbacks.onSettled();
     },
     onError: error => routeMutationError(error, callbacks),
   });
@@ -433,7 +450,7 @@ export function useAdjustTeacherWallet(callbacks: MutationOutcomeCallbacks) {
     refetchQueries: ["AdminTeacherWallet", "AdminPendingWithdrawals"],
     awaitRefetchQueries: false,
     onCompleted: () => {
-      callbacks.onSettled("");
+      callbacks.onSettled();
     },
     onError: error => {
       const rawCode = extractErrorCode(error);
@@ -446,7 +463,12 @@ export function useAdjustTeacherWallet(callbacks: MutationOutcomeCallbacks) {
     },
   });
 
-  const adjust = (input: { teacherId: number; amount: string; direction: WalletAdjustmentDirection; reason: string }): void => {
+  const adjust = (input: {
+    teacherId: number;
+    amount: string;
+    direction: WalletAdjustmentDirection;
+    reason: string;
+  }): void => {
     const variables: AdjustTeacherWalletMutationVariables = {
       input: {
         teacherId: String(input.teacherId),
@@ -460,5 +482,3 @@ export function useAdjustTeacherWallet(callbacks: MutationOutcomeCallbacks) {
 
   return { adjust, loading };
 }
-
-

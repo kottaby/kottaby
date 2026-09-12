@@ -36,7 +36,12 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import type { RenderResult } from "@testing-library/react";
-import { adminTeacherWalletQueryDocument, adminTeachersQueryDocument, adjustTeacherWalletMutationDocument } from "@/frontend/graphql/sharedDocuments/admin";
+import {
+  adjustTeacherWalletMutationDocument,
+  adminPendingWithdrawalsQueryDocument,
+  adminTeachersQueryDocument,
+  adminTeacherWalletQueryDocument,
+} from "@/frontend/graphql/sharedDocuments/admin";
 import { WalletInspectorPanel } from "@/frontend/views/admin/finances/WalletInspectorPanel";
 import { arMessages } from "@/shared/locale/ar/messages";
 import { enMessages } from "@/shared/locale/en/messages";
@@ -53,10 +58,30 @@ AdminFinance.getLabels(arMessages);
 const t = AdminFinance.getLabels(getTranslations("en"));
 const tar = AdminFinance.getLabels(getTranslations("ar"));
 
+/**
+ * Deadline poll (plain sleeps + a direct probe — no `waitFor` act-wrapper
+ * overhead). Exits the moment the probe holds or the (pure failure bound)
+ * deadline elapses.
+ */
+async function pollUntil(probe: () => boolean, deadlineAt: number, intervalMs: number): Promise<boolean> {
+  if (probe()) {
+    return true;
+  }
+  if (Date.now() >= deadlineAt) {
+    return false;
+  }
+  await new Promise(resolve => setTimeout(resolve, intervalMs));
+  return pollUntil(probe, deadlineAt, intervalMs);
+}
+
 // ─── Fixtures & helpers ─────────────────────────────────────────────────────
 
 const FIXED_ISO = "2026-08-29T12:00:00.000Z";
 const TEACHER_ID = 3;
+
+/** Deadline-poll cadence for the adjust settle (pure failure bound). */
+const SETTLE_POLL_INTERVAL_MS = 40;
+const SETTLE_POLL_DEADLINE_MS = 3200;
 
 const TEACHER_ITEM = {
   __typename: "AdminTeacherItem",
@@ -109,9 +134,17 @@ function walletMock(data: Record<string, unknown>): MockLink.MockedResponse {
   return {
     request: {
       query: adminTeacherWalletQueryDocument,
-      variables: { teacherId: String(TEACHER_ID), filters: { type: undefined, status: undefined, from: undefined, to: undefined }, page: 1, pageSize: 10 },
+      variables: {
+        teacherId: String(TEACHER_ID),
+        filters: { type: undefined, status: undefined, from: undefined, to: undefined },
+        page: 1,
+        pageSize: 10,
+      },
     },
     result: { data },
+    // The adjust settle refetches `AdminTeacherWallet` (cache-and-network
+    // consumes two mocks per query) — the refetch lane must never starve.
+    maxUsageCount: Number.POSITIVE_INFINITY,
   };
 }
 
@@ -181,8 +214,9 @@ const NO_WALLET = {
   },
 };
 
-// The payments document is unused here (the inspector does not query it);
-// keep the import referenced so the lint pass keeps it.
+// The `walletMock` spare mocks and the infinite-usage withdrawals mock keep
+// the settle refetch lane fed (cache-and-network consumes two mocks per
+// query) — a starved refetch would surface as a mock-mismatch error wave.
 // ─── Suite (en / LTR) ───────────────────────────────────────────────────────
 
 describe("AdminFinancesWalletInspector (en / LTR)", () => {
@@ -195,6 +229,17 @@ describe("AdminFinancesWalletInspector (en / LTR)", () => {
     expect(screen.getByText(t.totalEarningsLabel)).toBeDefined();
     expect(screen.getByText("1,240.00")).toBeDefined();
     expect(screen.getAllByText("Session payout").length).toBeGreaterThanOrEqual(1);
+    // The ledger chips render the LOCALIZED labels (never the raw wire
+    // enums) — the fixtures carry lowercase `type: "earning"` /
+    // `status: "completed"` (unknown wire values → honest verbatim
+    // fallback), the canonical enums resolve through the localized labels.
+    expect(screen.getAllByText(t.typeEarning).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(t.statusCompleted).length).toBeGreaterThanOrEqual(1);
+    // The shared pagination bar renders in the ledger card footer; on a
+    // single page both controls sit disabled at the bounds.
+    expect(screen.getByTestId("admin-finances-pagination")).toBeDefined();
+    expect(screen.getByTestId("admin-finances-pagination-next").hasAttribute("disabled")).toBe(true);
+    expect(screen.getByTestId("admin-finances-pagination-prev").hasAttribute("disabled")).toBe(true);
   });
 
   test("the honest no-wallet state renders the empty copy — never fake zeros", async () => {
@@ -216,32 +261,60 @@ describe("AdminFinancesWalletInspector (en / LTR)", () => {
         input: {
           teacherId: String(TEACHER_ID),
           amount: "50.00",
-          direction: "credit",
+          direction: "Credit",
           reason: "Goodwill bonus",
         },
       }),
+      // The settle hooks refetch `AdminTeacherWallet` AND
+      // `AdminPendingWithdrawals` after the mutation — cache-and-network
+      // consumes two mocks per query, so keep spares for both reads.
+      walletMock(POPULATED_WALLET),
+      walletMock(POPULATED_WALLET),
+      {
+        request: { query: adminPendingWithdrawalsQueryDocument, variables: { page: 1, pageSize: 25 } },
+        result: {
+          data: {
+            adminPendingWithdrawals: {
+              __typename: "AdminWithdrawalQueuePage",
+              items: [],
+              totalCount: 0,
+              page: 1,
+              pageSize: 25,
+            },
+          },
+        },
+        maxUsageCount: Number.POSITIVE_INFINITY,
+      },
     ]);
 
     await waitFor(() => expect(screen.getByTestId("admin-finances-balance-card")).toBeDefined());
 
     fireEvent.click(screen.getByTestId("admin-finances-adjust-open"));
 
-    // The dialog resolves open through the shared prologue idiom, then the
-    // fields are driven via the dialog-scoped label association (the MUI
-    // label/input ids are generated inside the portal).
-    const dialog = await waitFor(() => screen.getByRole("dialog", { hidden: true }));
-    fireEvent.change(within(dialog).getByRole("textbox", { name: t.adjustAmountLabel, hidden: true }), {
-      target: { value: "50.00" },
-    });
-    fireEvent.change(within(dialog).getByRole("textbox", { name: t.adjustReasonLabel, hidden: true }), {
-      target: { value: "Goodwill bonus" },
-    });
+    // The dialog resolves open (NO options object — the hidden variant hangs
+    // happy-dom), then the fields are driven via the dialog-scoped label
+    // association (label text carries the required asterisk).
+    const dialog = await waitFor(() => screen.getByRole("dialog"));
+    const amountInput = within(dialog).getByLabelText(/Amount/);
+    fireEvent.change(amountInput, { target: { value: "50.00" } });
+    const reasonInput = within(dialog).getByLabelText(/Reason/);
+    fireEvent.change(reasonInput, { target: { value: "Goodwill bonus" } });
 
-    fireEvent.click(screen.getByTestId("admin-finances-adjust-submit"));
+    fireEvent.click(within(dialog).getByTestId("admin-finances-adjust-submit"));
 
     // The adjust mutation settled (the mocked input matched EXACTLY the
-    // wire object) — the dialog closes on settle.
-    await waitFor(() => expect(screen.queryByTestId("admin-finances-adjust-submit")).toBeNull());
+    // wire object) — the dialog closes on settle. The settle lands through
+    // the MockLink refetch lane whose timers run OUTSIDE waitFor's act
+    // window under happy-dom — the deadline poll (plain sleeps + a direct
+    // query) observes it without the act-wrapper stall; the deadline is a
+    // pure failure bound, not a sleep seed.
+    const settled = await pollUntil(
+      () => screen.queryByTestId("admin-finances-adjust-submit") === null,
+      Date.now() + SETTLE_POLL_DEADLINE_MS,
+      SETTLE_POLL_INTERVAL_MS
+    );
+    expect(settled).toBe(true);
+    expect(screen.queryByTestId("admin-finances-adjust-submit")).toBeNull();
   });
 });
 
