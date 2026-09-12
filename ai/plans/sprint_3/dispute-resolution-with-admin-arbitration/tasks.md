@@ -63,11 +63,11 @@ Backend-first with a **test-first journey** authored right after repo primitives
   - Outcome: `outcome/2.1-enum-extensions-outcome.md`
   - _Requirements: REQ-1, REQ-5, REQ-7_
 
-- [ ] 2.2 Canonical arbitration types
+- [x] 2.2 Canonical arbitration types
   - Create `backend/types/classes/session-arbitration.types.ts`: `SessionArbitrationProbeType`, `AdminDisputeCaseReturnType`, `ArbitrateDisputeInput`-shaped input type (service DTO), per `backend/types/AGENTS.md`
   - Verify composed ReturnTypes exist (`ReportReturnType`, `HomeWorkReturnType`, `RecitationReturnType`, `AdminAuditLogEntryReturnType`); if a ReturnType name differs, adapt to the canonical one — never invent a duplicate
   - If `backend/types/classes` contributes to the live `@/backend/types` barrel, add the new file there per barrel rules (relative `export *`, no imports)
-  - [ ] 2.2.QL sub-loop exit 0 · [ ] 2.2.TE type-only file (no runtime tests) · [ ] 2.2.SEC no client data widened · [ ] 2.2.SR no duplicate type definitions · [ ] 2.2.IV read printed rule files
+  - [x] 2.2.QL sub-loop exit 0 · [x] 2.2.TE type-only file (no runtime tests) · [x] 2.2.SEC no client data widened · [x] 2.2.SR no duplicate type definitions · [x] 2.2.IV read printed rule files
   - Outcome: `outcome/2.2-types-outcome.md`
   - _Requirements: REQ-5, REQ-6_
 
