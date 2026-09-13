@@ -38,7 +38,7 @@
 
 ## Task 0 — Pre-Implementation Baseline
 
-- [ ] 0. Record error baselines BEFORE any change
+- [x] 0. Record error baselines BEFORE any change
   - `bun tsgo 2>&1 | grep "error TS" | wc -l > /tmp/baseline-tsgo.txt`
   - `bun biome:check 2>&1 | grep -c "warn" > /tmp/baseline-biome.txt`
   - `bun run scripts/lint-service.ts --json --id baseline > /tmp/baseline-lint.json`
