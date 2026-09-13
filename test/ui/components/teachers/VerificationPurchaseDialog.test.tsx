@@ -8,7 +8,8 @@
  *
  *   plan-line render from the catalog (en LTR + ar RTL) · confirm disabled
  *   while the catalog is in flight · missing active plan row → disabled
- *   confirm + generic error copy · confirm success → success snackbar +
+ *   confirm + generic error copy · failed catalog fetch → the same generic
+ *   error copy instead of the probe · confirm success → success snackbar +
  *   close + profile refetch · cooldown denial → server-localized copy
  *   (the ONE sanctioned raw server message) + profile refetch · duplicate
  *   replay → info notice · generic denial → generic error copy, no
@@ -182,6 +183,14 @@ function planCatalogMock(rows: readonly PlanRow[], delay?: number): MockLink.Moc
     request: { query: planCatalogQueryDocument },
     result: { data: { planCatalog: [...rows] } },
     delay,
+  };
+}
+
+/** Catalog transport failure — drives the PlanSlot error arm (no probe, no line). */
+function planCatalogErrorMock(): MockLink.MockedResponse {
+  return {
+    request: { query: planCatalogQueryDocument },
+    error: new Error("catalog transport failure"),
   };
 }
 
@@ -388,6 +397,18 @@ describe("VerificationPurchaseDialog (en / LTR)", () => {
     await waitFor(() => {
       expect(screen.getByText(t.purchaseGenericError)).toBeDefined();
     });
+    const button = screen.getByRole("button", { name: t.purchaseConfirmCta });
+    expect(button.getAttribute("disabled")).not.toBeNull();
+  });
+
+  test("failed catalog fetch renders the generic error copy instead of the probe and keeps confirm disabled", async () => {
+    renderDialog([planCatalogErrorMock(), profileMock()], "en");
+
+    await waitFor(() => {
+      expect(screen.getByText(t.purchaseGenericError)).toBeDefined();
+    });
+    // The error arm replaces the in-flight probe entirely.
+    expect(screen.queryByRole("progressbar")).toBeNull();
     const button = screen.getByRole("button", { name: t.purchaseConfirmCta });
     expect(button.getAttribute("disabled")).not.toBeNull();
   });
