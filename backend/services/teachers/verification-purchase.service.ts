@@ -24,17 +24,19 @@
  *      the caller's transaction when `outerTx` is supplied, otherwise a
  *      bare pool read;
  *   4. ONE transaction that owns the authoritative validation and every
- *      write: the plan is re-validated as active (the pre-checkout read
- *      only fed the gateway input), the applicant lifecycle guard runs
- *      INSIDE the transaction before any write (cooldown + certification —
- *      a cooldown that activates or a certification that lands during
- *      checkout fails the purchase here), the idempotency claim is
- *      inserted savepoint-bracketed, the pending subscription and the
- *      pending payment commit atomically with the attempt ledger and the
- *      guarded applicant status flip, and the claim's subscription
- *      backfill closes the unit. Any failure rolls the whole purchase
- *      back, which also releases the claim — a failed purchase never
- *      burns its key.
+ *      write: the plan is re-validated as active AND re-compared against
+ *      the checkout's captured price/currency (the pre-checkout read only
+ *      fed the gateway input — a deactivation or a price change that lands
+ *      during checkout fails the purchase before any row write), the
+ *      caller's governance state is re-asserted (a suspension that lands
+ *      during checkout fails the purchase here), and the applicant
+ *      lifecycle guard runs INSIDE the transaction before any write
+ *      (cooldown + certification). The idempotency claim is inserted
+ *      savepoint-bracketed, the pending subscription and the pending
+ *      payment commit atomically with the attempt ledger and the guarded
+ *      applicant status flip, and the claim's subscription backfill closes
+ *      the unit. Any failure rolls the whole purchase back, which also
+ *      releases the claim — a failed purchase never burns its key.
  *
  * The payment row's owner is NULL: the purchaser is an applicant (a user
  * with an `applicants` row and no `students` row), so no student-junction
@@ -74,6 +76,7 @@ import type {
   ApplicantSelectType,
   DBTransaction,
   PaymentCheckoutSession,
+  PlanSelectType,
   PurchaseSubscriptionReturnType,
   StudentPaymentSelectType,
   SubscriptionPurchaseIdempotencySelectType,
@@ -203,18 +206,96 @@ async function insertPendingSubscription(
 }
 
 /**
+ * Re-compares the FRESH in-transaction plan row against the price/currency
+ * the gateway checkout was created with (both carried verbatim from the
+ * pre-checkout plan read). An admin price or currency change between the
+ * checkout creation and this transaction would otherwise commit a pending
+ * pair whose stored amount disagrees with the amount the provider actually
+ * charged — a settlement guaranteed to quarantine. The mismatch is the
+ * generic localized validation denial (machine code `PLAN_PRICE_CHANGED`,
+ * field `planId`) thrown BEFORE any row write, so the transaction rolls
+ * back with nothing to release.
+ *
+ * The abandoned checkout session needs no compensation inside this flow:
+ * the built-in mock provider is stateless (a checkout is a pure descriptor
+ * mint — no provider-side session exists to void). A stateful provider
+ * integration owns its own abandoned-session compensation out-of-band.
+ */
+function assertPlanUnchangedSinceCheckout(
+  freshPlan: PlanSelectType,
+  checkoutAmount: string,
+  checkoutCurrency: string,
+  t: ErrorsTranslations
+): void {
+  if (freshPlan.price === checkoutAmount && freshPlan.currency === checkoutCurrency) {
+    return;
+  }
+  logger.logDomainError("Verification purchase rejected: plan price or currency changed during checkout", {
+    code: "PLAN_PRICE_CHANGED",
+    entity: "plans",
+    entityId: freshPlan.id,
+  });
+  throw new ValidationError(t.validation, [{ field: "planId", code: "PLAN_PRICE_CHANGED", message: t.validation }]);
+}
+
+/**
+ * Composes the strongly-typed purchase payload field-by-field from the two
+ * inserted rows and the checkout descriptor (never a spread): the pending
+ * lifecycle states are re-asserted from the enum members — the inserted
+ * rows' DB-defaulted status columns are pending by construction, and the
+ * enum-typed payload makes that contract explicit instead of relying on
+ * the raw string defaults.
+ */
+function toPurchasePayload(
+  createdSubscription: SubscriptionSelectType,
+  createdPayment: StudentPaymentSelectType,
+  checkout: PaymentCheckoutSession
+): PurchaseSubscriptionReturnType {
+  return {
+    subscription: {
+      id: createdSubscription.id,
+      userId: createdSubscription.userId,
+      planId: createdSubscription.planId,
+      status: SubscriptionStatus.Pending,
+      startDate: createdSubscription.startDate,
+      endDate: createdSubscription.endDate,
+      paymentMethod: checkout.provider,
+      paymentReference: createdSubscription.paymentReference,
+      paymentVerifiedAt: createdSubscription.paymentVerifiedAt,
+      createdAt: createdSubscription.createdAt,
+      updatedAt: createdSubscription.updatedAt,
+    },
+    payment: {
+      id: createdPayment.id,
+      studentId: createdPayment.studentId,
+      subscriptionId: createdPayment.subscriptionId,
+      amount: createdPayment.amount,
+      currency: createdPayment.currency,
+      paymentGateway: checkout.provider,
+      status: PaymentStatus.Pending,
+      createdAt: createdPayment.createdAt,
+      updatedAt: createdPayment.updatedAt,
+    },
+    checkout,
+  };
+}
+
+/**
  * The purchase transaction body — the fixed, never reordered write order
- * (active-plan re-validation → applicant lifecycle guard → savepoint-
- * bracketed idempotency claim → applicant-row read for the transition
- * decision → pending subscription insert → pending payment insert with a
- * NULL owner → re-application attempt increment for a `failed` re-applier
- * → guarded `pending|failed → in_evaluation` flip → claim backfill). Any
- * failure rolls the whole purchase back, which also releases the claim
- * (a failed purchase never burns its key).
+ * (active-plan re-validation → checkout-value re-comparison → governance
+ * re-assertion → applicant lifecycle guard → savepoint-bracketed
+ * idempotency claim → applicant-row read for the transition decision →
+ * pending subscription insert → pending payment insert with a NULL owner
+ * → re-application attempt increment for a `failed` re-applier → guarded
+ * `pending|failed → in_evaluation` flip → claim backfill). Any failure
+ * rolls the whole purchase back, which also releases the claim (a failed
+ * purchase never burns its key).
  */
 async function purchaseInTx(
   applicantUserId: number,
   planId: number,
+  checkoutAmount: string,
+  checkoutCurrency: string,
   checkout: PaymentCheckoutSession,
   idempotencyKey: string,
   locale: string,
@@ -233,6 +314,18 @@ async function purchaseInTx(
     });
     throw new NotFoundError("PLAN", t.subscriptionPurchase.planNotPurchasable);
   }
+
+  // The checkout was priced from the PRE-transaction plan read; the pair is
+  // only committable when the fresh row still agrees with it. Thrown before
+  // ANY row write — the rollback discards the checkout session with zero
+  // rows written (see the helper's docblock on session compensation).
+  assertPlanUnchangedSinceCheckout(activePlan, checkoutAmount, checkoutCurrency, t);
+
+  // Governance re-assertion INSIDE the transaction: the pre-checkout check
+  // read the actor before the gateway round-trip, so a caller deleted,
+  // blocked, or suspended during checkout fails the whole purchase here —
+  // the pair rolls back together with the claim.
+  await assertActorGovernanceClean(applicantUserId, t, tx);
 
   // The applicant lifecycle guard INSIDE the transaction, BEFORE any write:
   // a missing applicants row, an active cooldown, and a certified applicant
@@ -291,33 +384,7 @@ async function purchaseInTx(
   // the claim and the purchase commit atomically.
   await SubscriptionPurchaseIdempotencyRepository.updateClaimSubscriptionId(claim.id, createdSubscription.id, tx);
 
-  return {
-    subscription: {
-      id: createdSubscription.id,
-      userId: createdSubscription.userId,
-      planId: createdSubscription.planId,
-      status: SubscriptionStatus.Pending,
-      startDate: createdSubscription.startDate,
-      endDate: createdSubscription.endDate,
-      paymentMethod: checkout.provider,
-      paymentReference: createdSubscription.paymentReference,
-      paymentVerifiedAt: createdSubscription.paymentVerifiedAt,
-      createdAt: createdSubscription.createdAt,
-      updatedAt: createdSubscription.updatedAt,
-    },
-    payment: {
-      id: createdPayment.id,
-      studentId: createdPayment.studentId,
-      subscriptionId: createdPayment.subscriptionId,
-      amount: createdPayment.amount,
-      currency: createdPayment.currency,
-      paymentGateway: checkout.provider,
-      status: PaymentStatus.Pending,
-      createdAt: createdPayment.createdAt,
-      updatedAt: createdPayment.updatedAt,
-    },
-    checkout,
-  };
+  return toPurchasePayload(createdSubscription, createdPayment, checkout);
 }
 
 export namespace VerificationPurchaseService {
@@ -330,13 +397,17 @@ export namespace VerificationPurchaseService {
    * canonical title (the wire carries no plan id, no amount, no user id).
    * The gateway checkout runs outside every transaction (a network call
    * never holds a transaction open). Inside one transaction the plan is
-   * re-validated as active (fail-closed), the applicant lifecycle guard
-   * runs before any write (cooldown + certification), the idempotency
-   * claim is inserted savepoint-bracketed, and the pending subscription +
-   * pending payment (NULL owner — the purchaser is an applicant, not a
-   * student) commit atomically with the re-application attempt increment,
-   * the guarded `pending|failed → in_evaluation` flip, and the claim's
-   * subscription backfill.
+   * re-validated as active and re-compared against the checkout's captured
+   * price/currency (fail-closed — a mid-checkout deactivation or price
+   * change denies the purchase before any row write), the caller's
+   * governance state is re-asserted (a suspension during checkout rolls
+   * the pair back), the applicant lifecycle guard runs before any write
+   * (cooldown + certification), the idempotency claim is inserted
+   * savepoint-bracketed, and the pending subscription + pending payment
+   * (NULL owner — the purchaser is an applicant, not a student) commit
+   * atomically with the re-application attempt increment, the guarded
+   * `pending|failed → in_evaluation` flip, and the claim's subscription
+   * backfill.
    *
    * On a duplicate claim key the flow REPLAYS BY THROWING: every
    * same-caller duplicate — a claim with or without its subscription
@@ -422,7 +493,7 @@ export namespace VerificationPurchaseService {
     });
 
     return withTransaction(outerTx, tx =>
-      purchaseInTx(applicantUserId, plan.id, checkout, idempotencyKey, locale, tx, t)
+      purchaseInTx(applicantUserId, plan.id, plan.price, plan.currency, checkout, idempotencyKey, locale, tx, t)
     );
   }
 }

@@ -134,7 +134,7 @@
 
 ### Phase 2.5 — Mid-Point Backend Review Gate (>10 tasks, backend/frontend split ⇒ MANDATORY)
 
-- [ ] 8. **Backend review wave + fixes**
+- [x] 8. **Backend review wave + fixes**
   - Dispatch review subagents scoped to backend files of Tasks 1-7 (schema/repo/service/activation/mutation/locale): `review-backend`, `review-types`, plus error/i18n spot-check.
   - Fix findings per file; each fix re-runs `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` (exit 0).
   - Re-review until zero backend findings; write `outcome/midpoint-review-R1.md`.

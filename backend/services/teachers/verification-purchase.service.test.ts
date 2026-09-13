@@ -68,7 +68,7 @@ import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-cred
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
-import { ConflictError, DomainError, NotFoundError } from "@/backend/lib/errors";
+import { ConflictError, DomainError, ForbiddenError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { MockPaymentGatewayAdapter } from "@/backend/services/billing/payment-gateway/mock-payment-gateway.adapter";
 import { resetPaymentGateway } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
 import { VerificationPurchaseService } from "@/backend/services/teachers/verification-purchase.service";
@@ -493,6 +493,73 @@ describe("VerificationPurchaseService — purchase (Tier 1: branches)", () => {
       expectDomainDenial(err, "PLAN_NOT_FOUND", t().subscriptionPurchase.planNotPurchasable);
 
       // Thrown BEFORE any row write: no pair, no claim.
+      const counts = await countRows(tx, user.id);
+      expect(counts).toEqual({ subs: 0, payments: 0, claims: 0 });
+    });
+  });
+
+  test("a plan price changed during checkout → PLAN_PRICE_CHANGED validation denial, zero writes", async () => {
+    await runInRollback(async tx => {
+      const { user } = await createApplicantFixture(tx);
+      await createVerificationPlan(tx);
+      const expectedPlan = await resolveActiveVerificationPlan(tx);
+      if (expectedPlan === undefined) {
+        throw new Error("expected an active verification plan row for the assertion anchor");
+      }
+
+      // Direct repo update riding the checkout seam: the pre-checkout read
+      // fed the gateway the ORIGINAL price; the fresh in-transaction row now
+      // disagrees — committing would pair the provider's charge with a
+      // different stored amount (a settlement guaranteed to quarantine).
+      const checkoutSpy = interceptCheckoutDuring(async () => {
+        await PlanRepository.updatePlanFields(expectedPlan.id, { price: "999.99" }, tx);
+      });
+
+      let err: Error;
+      try {
+        err = await expectRepoError(() => VerificationPurchaseService.purchase(user.id, purchaseKey(), "en", tx));
+      } finally {
+        checkoutSpy.mockRestore();
+      }
+
+      // The generic localized validation label, machine-coded for the field
+      // payload — the plan selector is the offending input.
+      expectDomainDenial(err, "VALIDATION", t().validation);
+      if (!(err instanceof ValidationError)) {
+        throw new Error("expected the mid-flight price denial to be a ValidationError");
+      }
+      expect(err.fields).toEqual([{ field: "planId", code: "PLAN_PRICE_CHANGED", message: t().validation }]);
+
+      // Thrown BEFORE any row write: no pair, no claim, no burned key.
+      const counts = await countRows(tx, user.id);
+      expect(counts).toEqual({ subs: 0, payments: 0, claims: 0 });
+    });
+  });
+
+  test("a caller suspended during checkout → forbidden denial, zero writes", async () => {
+    await runInRollback(async tx => {
+      const { user } = await createApplicantFixture(tx);
+      await createVerificationPlan(tx);
+
+      // The pre-checkout governance check saw a CLEAN actor; the suspension
+      // flips the actor's column during checkout (the session-lifecycle
+      // fixture manipulation idiom), so only the in-transaction
+      // re-assertion can catch it.
+      const checkoutSpy = interceptCheckoutDuring(async () => {
+        await tx.update(users).set({ suspended: true }).where(eq(users.id, user.id));
+      });
+
+      let err: Error;
+      try {
+        err = await expectRepoError(() => VerificationPurchaseService.purchase(user.id, purchaseKey(), "en", tx));
+      } finally {
+        checkoutSpy.mockRestore();
+      }
+
+      expectDomainDenial(err, "FORBIDDEN", t().forbidden);
+      expect(err).toBeInstanceOf(ForbiddenError);
+
+      // The governed caller wrote nothing: no pair, no claim.
       const counts = await countRows(tx, user.id);
       expect(counts).toEqual({ subs: 0, payments: 0, claims: 0 });
     });
