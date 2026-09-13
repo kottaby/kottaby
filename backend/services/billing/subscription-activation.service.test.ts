@@ -35,8 +35,8 @@
  *    error log) — the lane-clear is REACHABLE after a purchase commits.
  *  - Tier 2 (boundary): currency mismatch quarantines; the exact balance
  *    delta equals the plan's `sessionCount` (other lanes untouched); the
- *    REVIEWS-lane activation credits `balance_reviews` by `sessionCount`
- *    (hifz/tajweed byte-identical — every pgEnum member is routable); a
+ *    REVIEWS- and TAJWEED-lane activations credit their balance lane by
+ *    `sessionCount` (every pgEnum member is routable); a
  *    legacy plan row written past the interval-days activation ceiling
  *    (direct-DB `interval_days` = 1e8, which would overflow the Date window
  *    arithmetic into a non-domain error) QUARANTINES — `{ processed: false }`,
@@ -571,6 +571,44 @@ describe("SubscriptionActivationService — settlement quarantine + exact credit
       expect(after.balanceReviews).toBe(5);
       expect(after.balanceHifz).toBe(before.balanceHifz);
       expect(after.balanceTajweed).toBe(before.balanceTajweed);
+
+      // The rest of the committed unit is lane-agnostic: active window,
+      // decided payment, one notification, one post-commit publish.
+      const subRows = await tx.select().from(subscriptions).where(eq(subscriptions.id, subscription.id)).limit(1);
+      expect(subRows[0]?.status).toBe(SubscriptionStatus.Active);
+      const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);
+      expect(payRows[0]?.status).toBe(PaymentStatus.Paid);
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      expect(publishSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test("tajweed-lane activation: confirmed event credits balance_tajweed by sessionCount — hifz/reviews/trial untouched", async () => {
+    await runInRollback(async tx => {
+      const { student, plan, subscription, payment } = await provisionPendingPair(tx, {
+        balanceLane: SubscriptionCreditLane.Tajweed,
+        sessionCount: 6,
+      });
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+
+      const before = await readBalances(tx, student.id);
+      expect(before.balanceTajweed).toBe(0);
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
+      );
+      expect(outcome).toEqual({ processed: true });
+
+      // The tajweed lane credited exactly the plan's sessionCount; the
+      // sibling lanes and the trial balance are byte-identical.
+      const after = await readBalances(tx, student.id);
+      expect(after.balanceTajweed).toBe((before.balanceTajweed ?? 0) + plan.sessionCount);
+      expect(after.balanceTajweed).toBe(6);
+      expect(after.balanceHifz).toBe(before.balanceHifz);
+      expect(after.balanceReviews).toBe(before.balanceReviews);
+      expect(after.balanceTrial).toBe(before.balanceTrial);
 
       // The rest of the committed unit is lane-agnostic: active window,
       // decided payment, one notification, one post-commit publish.
