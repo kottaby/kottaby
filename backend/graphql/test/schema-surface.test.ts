@@ -438,8 +438,8 @@ const RECITATION_RECORD_QUERY_FIELDS = ["sessionRecitation"] as const;
 /** record object + its closed two-member input (name + optional description). */
 const RECITATION_RECORD_TYPE_NAMES = ["SessionRecitation", "SessionRecitationInput"] as const;
 /**
- * student-evaluation rating pair — the sanctioned Phase-3 addition.
- * The mutation is student-gated
+ * student-evaluation rating pair — the sanctioned student→teacher rating
+ * surface addition. The mutation is student-gated
  * (`$all { authenticated: true, role: [UserRole.Student] }`) with a
  * NON-nullable payload; the query is caller-scoped (rater id server-bound,
  * zero arguments) with a NON-nullable list payload. Both are authScopes-gated

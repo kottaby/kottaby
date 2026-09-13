@@ -45,13 +45,13 @@
  */
 
 import { EvaluationRepository, SessionRepository } from "@/backend/db/repo";
-import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ConflictError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import {
   assertPositiveSafeSessionId,
   isPositiveSafeSessionId,
+  SESSION_COMPLETED_STATUS,
 } from "@/backend/services/classes/session-lifecycle.guards";
 import { isUniqueViolation } from "@/backend/services/shared";
 import type {
@@ -72,15 +72,6 @@ const RATING_MAX = 5;
 
 /** Score points per whole star on the table's 0-100 scale (1★ → 20 … 5★ → 100). */
 const SCORE_POINTS_PER_STAR = 20;
-
-/**
- * The ratable status widened to a plain string: the probe row's `status`
- * is the raw pg-enum string union, so the eligibility comparison needs the
- * enum member's string identity without a runtime conversion — the
- * vocabulary still flows from the enum, never from a bare literal (the
- * guards-module widening idiom).
- */
-const SESSION_COMPLETED_STATUS: string = SessionStatus.Completed;
 
 /** The localized errors handle threaded through every guard and gate. */
 type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
@@ -147,7 +138,12 @@ async function submitWithinTransaction(
   }
   // A rating closes a FINISHED handshake: the row is completed and both
   // participants have stamped. Either stamp missing (or the wrong status)
-  // is the same typed conflict.
+  // is the same typed conflict. The comparison borrows the guards module's
+  // widened status constant because the probe row's `status` arrives as the
+  // raw pg-enum string union — the same probe-row vocabulary treatment the
+  // lifecycle's own pre-write probes use, so every consumer compares the
+  // enum member's string identity through ONE shared constant instead of
+  // per-flow re-declarations (never a bare literal).
   if (
     probe.status !== SESSION_COMPLETED_STATUS ||
     probe.confirmedByTeacherAt === null ||

@@ -8,14 +8,15 @@ import type {
 import { myTeacherEvaluationsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 
 /** The read's own payload row shape (one persisted teacher rating). */
-export type TeacherEvaluationRow = MyTeacherEvaluationsQuery_myTeacherEvaluations;
+type TeacherEvaluationRow = MyTeacherEvaluationsQuery_myTeacherEvaluations;
 
 /**
  * Collapses the caller's rating rows into the set of rated session ids the
  * Rate-CTA gate consumes. Rows without a session (`sessionId` null) carry no
- * session to gate and are skipped. Pure — exported for the suite tier.
+ * session to gate and are skipped. Pure — every call yields a fresh set
+ * snapshot and never mutates its input rows.
  */
-export function deriveRatedSessionIds(rows: readonly TeacherEvaluationRow[]): ReadonlySet<number> {
+function deriveRatedSessionIds(rows: readonly TeacherEvaluationRow[]): ReadonlySet<number> {
   const ratedSessionIds = new Set<number>();
   for (const row of rows) {
     if (row.sessionId !== null) {
