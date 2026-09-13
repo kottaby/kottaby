@@ -318,6 +318,13 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * the gateway checkout descriptor; every denial rides `errors[]`), never a
  * partial-success wrapper, so it does not exercise Rules #6/#7 either.
  *
+ * Refreshed for the teacher-applicant verification purchase:
+ * `purchaseVerificationPlan` resolves to the SAME canonical
+ * `PurchaseSubscriptionPayload` (it reuses the student purchase surface's
+ * payload object; every denial — APPLICANT_NOT_FOUND, cooldown,
+ * DUPLICATE_REQUEST — rides `errors[]`), so it is warning-incapable like
+ * `purchaseSubscription`.
+ *
  * Refreshed for the recitation record per session: `setSessionRecitation`
  * resolves to the canonical `SessionRecitation` payload with every denial
  * (`RECITATION_ALREADY_EXISTS`, `SESSION_NOT_FOUND`) riding `errors[]`, so it
@@ -347,6 +354,7 @@ const KNOWN_LIVE_MUTATION_FIELDS = [
   "markNotificationRead",
   "openSessionDispute",
   "purchaseSubscription",
+  "purchaseVerificationPlan",
   "refreshToken",
   "registerUser",
   "requestParentChildLink",

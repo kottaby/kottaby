@@ -564,6 +564,11 @@ type Mutation {
   purchaseSubscription(input: PurchaseSubscriptionInput!): PurchaseSubscriptionPayload!
 
   """
+  Purchase the platform-owned teacher verification plan for the caller: identity is server-bound from the verified session, the plan is resolved server-side from the active catalog, and the pending subscription + payment pair commit atomically with the applicant lifecycle transition. Requires the X-Idempotency-Key header (a replayed key surfaces DUPLICATE_REQUEST). Applicant-only.
+  """
+  purchaseVerificationPlan: PurchaseSubscriptionPayload!
+
+  """
   Rotate the JWT pair from a valid refresh token. Returns fresh access + refresh tokens. The new access_token + refresh_token + session_id are also set as httpOnly cookies (rotation invalidates the prior pair).
   """
   refreshToken(refreshToken: String!): RefreshTokenPayload!

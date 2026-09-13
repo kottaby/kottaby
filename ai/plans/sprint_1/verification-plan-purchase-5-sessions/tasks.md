@@ -101,35 +101,35 @@
   - Run: `bun run test/scripts/run-test.ts test/workflows/teachers/verification-plan-purchase.journey.test.ts`
   - _Requirements: REQ-8.5, REQ-9.2, REQ-4, REQ-5_
 
-- [ ] 5. **`VerificationPurchaseService.purchase`** (turns the journey green for purchase)
+- [x] 5. **`VerificationPurchaseService.purchase`** (turns the journey green for purchase)
   - CREATE `backend/services/teachers/verification-purchase.service.ts` per `plan.md` §4.3 EXACTLY (steps 1-8: guards → plan resolve → gateway pre-tx → single tx claim+pair+increment+flip+backfill); export via `backend/services/teachers/index.ts` (and ensure surfaced by `@/backend/services` barrel if needed).
   - Extract shared guards FIRST: `isPositiveSafeId` + `isCarryableIdempotencyKey` are module-private at `backend/services/billing/subscription-purchase.service.ts:109,120` — promote them into a NEW `backend/services/billing/purchase-guards.helpers.ts`, export from there, and update `subscription-purchase.service.ts` to import them (behavior-preserving refactor; no copies — jscpd would flag a duplicate). `withTransaction` comes from `@/backend/lib/db/with-transaction`; `assertActorGovernanceClean` from `@/backend/services/classes/session-lifecycle.governance` (dev1-006 import at `subscription-purchase.service.ts:78`).
-  - [ ] 5.QL sub-loop on service + barrel → exit 0
-  - [ ] 5.TE CREATE `backend/services/teachers/verification-purchase.service.test.ts` (mirrors `subscription-purchase.service.test.ts` patterns incl. `spyOn(MockPaymentGatewayAdapter.prototype, "createCheckout")` seam and its suite-local `expectDomainDenial` helper — declare an equivalent suite-local helper here (it is NOT a shared export; note: a same-named local lives in `test/workflows/sessions/recitation-record.journey.test.ts:161`); `expectRepoError` for DB denials): happy path (pending pair with NULL owner, flip pending→in_evaluation, attempts=0, claim backfilled); cooldown-active → `APPLICANT_COOLDOWN_ACTIVE` + zero rows; expired cooldown + failed → attempts+1 + flip; passed → `APPLICANT_ALREADY_CERTIFIED`; non-applicant → `APPLICANT_NOT_FOUND`; missing key → VALIDATION; replay → `DUPLICATE_REQUEST` zero new rows; foreign key → `PAYMENT_NOT_FOUND`; missing plan → `PLAN_NOT_FOUND`; gateway-throw → zero rows (pre-tx boundary); concurrent double key-race (`Promise.allSettled`, `isPgliteProvider()` gate); unicode fuzz on localized asserts.
-  - [ ] 5.SEC BOLA (identity param only, callers pass `ctx.user.id`), BOPLA (no input object at all), BFLA (service gate), no key logging.
-  - [ ] 5.SR Atomicity (all writes in one tx; guard in-tx), no module state, enums as values, no dead branches.
-  - [ ] 5.IV Read printed files; validate.
+  - [x] 5.QL sub-loop on service + barrel → exit 0
+  - [x] 5.TE CREATE `backend/services/teachers/verification-purchase.service.test.ts` (mirrors `subscription-purchase.service.test.ts` patterns incl. `spyOn(MockPaymentGatewayAdapter.prototype, "createCheckout")` seam and its suite-local `expectDomainDenial` helper — declare an equivalent suite-local helper here (it is NOT a shared export; note: a same-named local lives in `test/workflows/sessions/recitation-record.journey.test.ts:161`); `expectRepoError` for DB denials): happy path (pending pair with NULL owner, flip pending→in_evaluation, attempts=0, claim backfilled); cooldown-active → `APPLICANT_COOLDOWN_ACTIVE` + zero rows; expired cooldown + failed → attempts+1 + flip; passed → `APPLICANT_ALREADY_CERTIFIED`; non-applicant → `APPLICANT_NOT_FOUND`; missing key → VALIDATION; replay → `DUPLICATE_REQUEST` zero new rows; foreign key → `PAYMENT_NOT_FOUND`; missing plan → `PLAN_NOT_FOUND`; gateway-throw → zero rows (pre-tx boundary); concurrent double key-race (`Promise.allSettled`, `isPgliteProvider()` gate); unicode fuzz on localized asserts.
+  - [x] 5.SEC BOLA (identity param only, callers pass `ctx.user.id`), BOPLA (no input object at all), BFLA (service gate), no key logging.
+  - [x] 5.SR Atomicity (all writes in one tx; guard in-tx), no module state, enums as values, no dead branches.
+  - [x] 5.IV Read printed files; validate.
   - Run: `bun run test/scripts/run-test.ts backend/services/teachers/verification-purchase.service.test.ts`
   - _Requirements: REQ-2.5, REQ-1.2, REQ-3, REQ-4, REQ-8.2_
 
-- [ ] 6. **Activation credit-skip branch**
+- [x] 6. **Activation credit-skip branch**
   - UPDATE `backend/services/billing/subscription-activation.service.ts` confirmed branch (:381-408 covers decision→credit; exact credit+abort block at :393-408) per `plan.md` §4.4: students-row-first probe → credit + existing abort; applicants-row probe → skip credit (verification subscription); neither → existing abort. Notification emission unchanged.
-  - [ ] 6.QL sub-loop → exit 0
-  - [ ] 6.TE Extend `backend/services/billing/subscription-activation.service.test.ts`: applicant-owned confirmation (no credit, no abort, active+paid, notification to purchaser); student regression (credit unchanged); corrupt purchaser (neither row) → abort preserved; failed branch unchanged for verification subscriptions.
-  - [ ] 6.SEC Credit-skip cannot be reached for student purchasers (probe order); no notification fan-out change.
-  - [ ] 6.SR `ApplicantRepository` import via barrel; no business logic drift into repo.
-  - [ ] 6.IV Read printed files; validate.
+  - [x] 6.QL sub-loop → exit 0
+  - [x] 6.TE Extend `backend/services/billing/subscription-activation.service.test.ts`: applicant-owned confirmation (no credit, no abort, active+paid, notification to purchaser); student regression (credit unchanged); corrupt purchaser (neither row) → abort preserved; failed branch unchanged for verification subscriptions.
+  - [x] 6.SEC Credit-skip cannot be reached for student purchasers (probe order); no notification fan-out change.
+  - [x] 6.SR `ApplicantRepository` import via barrel; no business logic drift into repo.
+  - [x] 6.IV Read printed files; validate.
   - Run: `bun run test/scripts/run-test.ts backend/services/billing/subscription-activation.service.test.ts`
   - _Requirements: REQ-5.1-5.6, REQ-8.3_
 
-- [ ] 7. **`purchaseVerificationPlan` GraphQL mutation**
+- [x] 7. **`purchaseVerificationPlan` GraphQL mutation**
   - CREATE `backend/graphql/mutation/verification-plan-purchase.mutation.ts` (`plan.md` §4.5: inputless, `authScopes: { authenticated: true }`, delegates to `VerificationPurchaseService.purchase(ctx.user.id, ctx.idempotencyKey ?? null, ctx.locale)`); register side-effect import in `backend/graphql/mutation/index.ts` AND extend that barrel's header docblock (it narrates each wired file — add the verification line so the header never drifts).
   - Run `bun run generate:gqlSchema && bun codegen` (commit generated changes).
-  - [ ] 7.QL sub-loop per file → exit 0
-  - [ ] 7.TE CREATE `frontend/graphql/test/teachers/verification-plan-purchase.test.ts` (`describeGraphqlSuite`, `setupTestServerLifecycle`, `testClient`; register/login like `frontend/graphql/test/teachers/applicant-profile.test.ts:109-190`): anonymous → UNAUTHORIZED; student (non-applicant) w/ key → `APPLICANT_NOT_FOUND`; applicant w/o key → VALIDATION key-required; happy-path purchase covered by service+journey (no seed dependency).
-  - [ ] 7.SEC authScope + narrowing guard exactly as DEV1-006 pattern; errors propagate uncaught to masking boundary.
-  - [ ] 7.SR No local types; payload object reused; barrel wiring per `backend/graphql/mutation/AGENTS.md`.
-  - [ ] 7.IV Read printed files; validate.
+  - [x] 7.QL sub-loop per file → exit 0
+  - [x] 7.TE CREATE `frontend/graphql/test/teachers/verification-plan-purchase.test.ts` (`describeGraphqlSuite`, `setupTestServerLifecycle`, `testClient`; register/login like `frontend/graphql/test/teachers/applicant-profile.test.ts:109-190`): anonymous → UNAUTHORIZED; student (non-applicant) w/ key → `APPLICANT_NOT_FOUND`; applicant w/o key → VALIDATION key-required; happy-path purchase covered by service+journey (no seed dependency).
+  - [x] 7.SEC authScope + narrowing guard exactly as DEV1-006 pattern; errors propagate uncaught to masking boundary.
+  - [x] 7.SR No local types; payload object reused; barrel wiring per `backend/graphql/mutation/AGENTS.md`.
+  - [x] 7.IV Read printed files; validate.
   - _Requirements: REQ-2.1-2.6, REQ-8.4, REQ-9_
 
 ### Phase 2.5 — Mid-Point Backend Review Gate (>10 tasks, backend/frontend split ⇒ MANDATORY)

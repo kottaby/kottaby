@@ -18,7 +18,9 @@
  * CRUD; `notifications/` wires the inbox read-latch mutations
  * (`markNotificationRead`, `markAllNotificationsRead`);
  * `subscription-purchase.mutation.ts` wires the student purchase mutation
- * (`purchaseSubscription`); `user.mutation.ts` wires the caller-scoped
+ * (`purchaseSubscription`); `verification-plan-purchase.mutation.ts` wires
+ * the teacher-applicant verification purchase mutation
+ * (`purchaseVerificationPlan`); `user.mutation.ts` wires the caller-scoped
  * profile mutations (`updateMyLocale`).
  */
 import "./auth.mutation";
@@ -30,3 +32,4 @@ import "./parents";
 import "./plan-catalog.mutation";
 import "./subscription-purchase.mutation";
 import "./user.mutation";
+import "./verification-plan-purchase.mutation";
