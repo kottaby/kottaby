@@ -189,6 +189,11 @@ const MANDATED_KEYS = [
   "sortDateAsc",
   "sortRatingDesc",
   "sortRatingAsc",
+  // Homework CSV export
+  "csvJadidColumn",
+  "csvMadiColumn",
+  "csvGradeColumn",
+  "homeworkPrintDialogTitle",
 ] as const;
 
 /**

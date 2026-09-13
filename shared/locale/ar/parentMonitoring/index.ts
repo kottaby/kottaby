@@ -169,4 +169,8 @@ export const parentMonitoringAr: ParentMonitoringLabels = {
   sortDateAsc: "التاريخ (الأقدم)",
   sortRatingDesc: "التقييم (الأعلى)",
   sortRatingAsc: "التقييم (الأقل)",
+  csvJadidColumn: "الجديد - السورة/الجزء",
+  csvMadiColumn: "الماضي - السورة/الجزء",
+  csvGradeColumn: "الدرجة",
+  homeworkPrintDialogTitle: "تصدير الواجبات",
 };

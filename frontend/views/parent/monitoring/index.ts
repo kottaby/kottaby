@@ -15,6 +15,7 @@ export * from "./AttendanceSummary";
 export * from "./AttendanceTab";
 export * from "./EvaluationsSummary";
 export * from "./EvaluationsTab";
+export * from "./HomeworkPrintExportDialog";
 export * from "./HomeworkSummary";
 export * from "./HomeworkTab";
 export * from "./ParentChildDetailContainer";

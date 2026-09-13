@@ -156,4 +156,8 @@ export const parentMonitoringEn: ParentMonitoringLabels = {
   sortDateAsc: "Date (oldest)",
   sortRatingDesc: "Rating (highest)",
   sortRatingAsc: "Rating (lowest)",
+  csvJadidColumn: "Jadid Surah/Juz",
+  csvMadiColumn: "Madi Surah/Juz",
+  csvGradeColumn: "Grade",
+  homeworkPrintDialogTitle: "Export Homework",
 };

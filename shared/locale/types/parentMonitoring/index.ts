@@ -314,4 +314,14 @@ export interface ParentMonitoringLabels {
   readonly sortRatingDesc: string;
   /** Sort option: by rating (lowest first). */
   readonly sortRatingAsc: string;
+
+  // ─── Homework CSV export columns ──────────────────────────────────────
+  /** CSV column header for the Jadid surah/juz. */
+  readonly csvJadidColumn: string;
+  /** CSV column header for the Madi surah/juz. */
+  readonly csvMadiColumn: string;
+  /** CSV column header for the grade. */
+  readonly csvGradeColumn: string;
+  /** Dialog title for the homework export. */
+  readonly homeworkPrintDialogTitle: string;
 }
