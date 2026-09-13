@@ -1483,3 +1483,98 @@ The Parent Read-Only Monitoring Portal is COMPLETE and shipped on branch `feat/p
 4. **Redis-backed rate limiter**: For production multi-instance deployments, replace the in-memory Map with a Redis-backed sliding window limiter. The contract (`checkRateLimit`) is already in place — only the implementation body needs to change.
 
 5. **Print layout optimization**: Add a dedicated print CSS stylesheet (`@media print`) that hides the portal chrome (header, tabs, switcher) and shows only the report rows in a clean printable format.
+
+---
+Task ID: webDevReview-R3
+Agent: webDevReview (scheduled cron, round 3)
+Task: Calendar month nav + print stylesheet + enhanced CSV + attendance summary stats
+
+## Current Project Status
+
+The Parent Read-Only Monitoring Portal is COMPLETE and shipped on branch `feat/parent-read-only-monitoring-portal`. Prior rounds completed all 22 spec-implementation tasks (318 tests) + R1 styling enhancements (avatars, icons, status colors, refresh) + R2 rate limiting (D5) + print/export + calendar view. This round (R3) focused on implementing the priority items from the R2 handover: calendar month navigation, print layout optimization, enhanced CSV export, and a new attendance summary stats card.
+
+## Completed Modifications
+
+### 1. Calendar Month Navigation (R2 priority #2)
+- **`AttendanceCalendar.helpers.ts`** — REFACTORED:
+  - Added `CalendarMonth` interface (`{ year, month }`)
+  - Added `shiftMonth(cm, delta)` — navigates prev/next month with year rollover
+  - Added `isCurrentMonth(cm)` — prevents forward navigation past current month
+  - Added `formatMonthLabel(cm, locale)` — localized month/year label
+  - `buildCalendarGrid()` now accepts a `target: CalendarMonth` parameter
+- **`AttendanceCalendar.tsx`** — ENHANCED:
+  - Added `useState<CalendarMonth>(currentMonth)` for the viewable month
+  - Added prev/next `IconButton` navigation (ChevronLeft/Right)
+  - Forward button disabled when on current month (no future browsing)
+  - Month label updates dynamically with navigation
+  - Localized month/year display (en/ar)
+
+### 2. Print Layout Optimization (R2 priority #5)
+- **`app/index.css`** — ADDED `@media print` stylesheet:
+  - Hides portal chrome: `.portal-header`, `.portal-tabs`, `.portal-switcher`, `.portal-refresh-button`, `.portal-print-button`
+  - Hides dashboard chrome: AppBar, Drawer, Toolbar, Fab, IconButton
+  - Forces light-on-white color scheme for print readability
+  - `break-inside: avoid` on Cards and Stacks (no mid-row page breaks)
+  - `.print-timestamp` visible only in print (hidden on screen)
+  - Resets `main` to full width (no sidebar offset)
+- **`ParentChildDetailContainer.tsx`** — added `portal-header`, `portal-tabs`, `portal-refresh-button` classNames
+- **`ParentChildDetailContainer.parts.tsx`** — added `portal-switcher` className
+- **`ReportsTab.tsx`** — added `printable-section` class + `print-timestamp` footer
+
+### 3. Enhanced CSV Export (R2 priority #4)
+- **`PrintExportDialog.tsx`** — ENHANCED:
+  - Added **status column** (date, status, rating, notes — was date, rating, notes)
+  - Added **BOM** (`\uFEFF`) prefix for Excel UTF-8 compatibility
+  - Added **CSV metadata header** (`# childName — timestamp`)
+  - **Unique filename** with `Date.now()` suffix (was static name)
+  - Now accepts `childName` prop for the metadata header
+  - `escapeCsv()` helper for proper quote escaping
+- **`ReportsTab.tsx`** — passes `childName` to the dialog
+
+### 4. Attendance Summary Stats Card (new feature)
+- **`AttendanceSummary.tsx`** — NEW component:
+  - 4-stat card: Total Sessions, Completed, Upcoming (Scheduled), Completion Rate (%)
+  - `computeStats()` derives stats from session rows
+  - `resolvePalette()` helper for clean theme-palette access (no nested ternaries)
+  - `StatCard` sub-component with colored icon circle + value + label
+  - Integrated into AttendanceTab list view (renders above the rows)
+  - Only renders when rows exist (empty state takes precedence)
+- 5 new i18n keys: `statTotalSessions`, `statCompletedSessions`, `statCompletionRate`, `statUpcomingSessions`, `summaryHeading` (en/ar parity)
+
+### 5. i18n Keys (7 new total)
+- Print timestamp + CSV status: `printTimestampLabel` (function), `csvStatusColumn`
+- Summary stats: `statTotalSessions`, `statCompletedSessions`, `statCompletionRate`, `statUpcomingSessions`, `summaryHeading`
+- English + Arabic parity maintained (121 parity tests pass, up from 113)
+
+## Verification Results
+- **tsgo**: 0 errors (project-wide)
+- **biome**: clean (1823 files, no fixes needed)
+- **Parity tests**: 121 pass / 0 fail (7 new keys + 1 new function slot)
+- **UI component tests**: 59 pass / 0 fail (285 expect calls)
+- **sub-loop**: all new/modified files pass `--lifecycle duplicates`
+- **Browser QA**: home page renders correctly (Arabic RTL). Dev server instability persists (Turbopack).
+- **Commits**: 3 new commits (`e12cc0b` + `b4a6197` + this round)
+
+## Unresolved Issues / Risks
+
+1. **Dev server instability** (unchanged): Turbopack dies after 1-2 requests (sandbox memory limitation). Code verified via 121 parity + 59 UI tests.
+
+2. **Rate limiter is in-memory** (unchanged): Appropriate for sandbox/CI; Redis-backed needed for production multi-instance.
+
+3. **Calendar shows months relative to current date only**: Forward navigation is disabled past the current month (no future browsing). Backward navigation is unlimited. This is a UX decision — parents can review history but not browse future scheduled sessions in calendar form (the list view shows all sessions including future scheduled ones).
+
+4. **Print stylesheet not browser-verified**: The `@media print` rules are CSS-standard and well-tested patterns, but the actual print output hasn't been visually verified (dev server instability prevents browser print preview QA). The class-based hiding is straightforward CSS.
+
+5. **CSV export is client-side only**: No server round-trip; the Blob download is triggered client-side. For very large datasets (>1000 rows), a server-side CSV stream endpoint would be more memory-efficient.
+
+## Priority Recommendations for Next Phase
+
+1. **E2E browser journey coverage** (deferred D3 → DEV1-019): Write Playwright E2E tests that log in as a parent and verify the portal renders with all the enhanced features (calendar, summary stats, print/export). This remains the most impactful next step for visual QA.
+
+2. **Curriculum-depth statistics** (deferred D1): Implement percentage-through-curriculum and per-ayah completion maps over the `lessons`/`progress` tables. The attendance summary stats card pattern (computeStats + StatCard) can be reused for a curriculum progress summary.
+
+3. **Redis-backed rate limiter**: For production multi-instance deployments, replace the in-memory Map with a Redis-backed sliding window limiter.
+
+4. **Homework progress summary**: Add a similar summary card to the Homework tab showing Jadid/Madi track progress, latest surah/juz, and grade trends.
+
+5. **Reports rating chart**: Add a simple line/bar chart showing the child's rating trend over time (using Recharts which is already a dependency). This would give parents a visual sense of progress.
