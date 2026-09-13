@@ -8,14 +8,15 @@
  * exactly like `frontend/graphql/test/teachers/applicant-profile.test.ts`.
  *
  * Documents:
- *  - The suite pins LOCAL `parse`d documents: the shared
- *    `purchaseVerificationPlanMutationDocument` TypedDocumentNode lands with
- *    the purchase-dialog work (`frontend/graphql/sharedDocuments/billing/`),
- *    and these denial probes never observe payload data — the resolver
- *    throws before any field resolves. The same file's precedent (Tier-4
- *    BOLA probes in `applicant-profile.test.ts`) already established local
- *    `parse` documents; note Apollo's `gql` is deliberately not imported
- *    because the `@/backend/db` fixture chain flips bun's module conditions
+ *  - The suite DELIBERATELY pins LOCAL `parse`d documents even though the
+ *    shared `purchaseVerificationPlanMutationDocument` TypedDocumentNode
+ *    exists (`frontend/graphql/sharedDocuments/billing/`): these denial
+ *    probes never observe payload data — the resolver throws before any
+ *    field resolves — so the minimal local document is the honest fixture.
+ *    The same file's precedent (Tier-4 BOLA probes in
+ *    `applicant-profile.test.ts`) establishes local `parse` documents;
+ *    note Apollo's `gql` is deliberately not imported because the
+ *    `@/backend/db` fixture chain flips bun's module conditions
  *    (`graphql-tag`'s UMD build crashes) — `parse` yields the same
  *    DocumentNode.
  *  - The mutation is INPUTLESS on the wire: any argument against

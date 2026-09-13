@@ -161,13 +161,13 @@
 
 ## Phase 5 — Journey Green + Post-Implementation Review
 
-- [ ] 10. **Journey green + full layer suites**
+- [x] 10. **Journey green + full layer suites**
   - Re-run journey: `bun run test/scripts/run-test.ts test/workflows/teachers/verification-plan-purchase.journey.test.ts` → green; run TWICE back-to-back (idempotent teardown proof).
   - Full layer sweeps: `bun run test:db:sequential` (changed repos) · `bun run test:services:sequential` · `bun run test:graphql` · `bun run test:ui:components`.
   - Fix any cross-test regressions.
   - _Requirements: REQ-8.1-8.5_
 
-- [ ] 11. **Post-implementation review wave (MANDATORY, >10 tasks)**
+- [x] 11. **Post-implementation review wave (MANDATORY, >10 tasks)**
   - Parallel review subagents over the git diff of this plan only: `review-types`, `review-backend` (incl. concurrency/TOCTOU), `review-frontend` (MUI v9/Apollo/i18n), `security-probing` (BOLA/BOPLA/BFLA on the new mutation + wildcard/like probes + webhook surface regression).
   - Aggregate CRITICAL/HIGH/MEDIUM/LOW; filter pre-existing noise; fix per file cluster; re-verify via sub-loop.
   - Re-review until zero feature-specific findings; write `outcome/post-implementation-review.md`.

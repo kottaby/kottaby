@@ -8,8 +8,9 @@
  * The plan descriptor is REAL catalog data: the plan-catalog query runs
  * only while the dialog is open (`skip`) and the active row is
  * title-matched on the shared verification-plan title constant — no plan
- * value is ever hardcoded client-side. A missing active row disables the
- * confirm affordance and renders the generic error copy.
+ * value is ever hardcoded client-side. A missing active row — or a failed
+ * catalog fetch — disables the confirm affordance and renders the generic
+ * error copy.
  *
  * Confirm delegates to {@link useVerificationPurchase} (the write path with
  * the per-attempt idempotency header and the code-branched denial notices).
@@ -23,7 +24,7 @@
 
 import { useQuery } from "@apollo/client/react";
 import {
-  CloseRounded as CloseIcon,
+  CloseOutlined as CloseIcon,
   LockOutlined as ConfirmIcon,
   SchoolOutlined as PlanIcon,
 } from "@mui/icons-material";
@@ -64,11 +65,20 @@ interface VerificationPurchaseDialogProps {
 interface PlanSlotProps {
   readonly verificationPlan: PlanCatalogQuery_planCatalog | null;
   readonly planLoaded: boolean;
+  /** The catalog query settled with an error — wins over the in-flight probe. */
+  readonly planErrored: boolean;
   readonly t: ApplicantLabels;
 }
 
-/** Plan descriptor slot: in-flight probe, missing-plan denial, or the line. */
-function PlanSlot({ verificationPlan, planLoaded, t }: Readonly<PlanSlotProps>): ReactNode {
+/** Plan descriptor slot: in-flight probe, catalog failure, missing-plan denial, or the line. */
+function PlanSlot({ verificationPlan, planLoaded, planErrored, t }: Readonly<PlanSlotProps>): ReactNode {
+  if (planErrored) {
+    return (
+      <Alert severity="error" variant="outlined">
+        {t.purchaseGenericError}
+      </Alert>
+    );
+  }
   if (!planLoaded) {
     return <CircularProgress size={18} sx={theme => ({ color: theme.palette.onSurfaceVariant })} />;
   }
@@ -114,7 +124,7 @@ export function VerificationPurchaseDialog({
   const t = useAppTranslation(Applicant);
   const tc = useAppTranslation(Common);
   const { purchasing, confirmPurchase } = useVerificationPurchase({ onNotice, onClose });
-  const { data } = useQuery(planCatalogQueryDocument, { skip: !open });
+  const { data, error } = useQuery(planCatalogQueryDocument, { skip: !open });
 
   const verificationPlan = data?.planCatalog.find(planRow => planRow.title === VERIFICATION_PLAN_TITLE) ?? null;
   const confirmDisabled = purchasing || verificationPlan === null;
@@ -138,7 +148,12 @@ export function VerificationPurchaseDialog({
       </DialogTitle>
       <DialogContent sx={{ display: "grid", gap: 2 }}>
         <DialogContentText>{t.purchaseDialogDescription}</DialogContentText>
-        <PlanSlot verificationPlan={verificationPlan} planLoaded={data !== undefined} t={t} />
+        <PlanSlot
+          verificationPlan={verificationPlan}
+          planLoaded={data !== undefined}
+          planErrored={error !== undefined}
+          t={t}
+        />
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5 }}>
         <Button onClick={onClose} disabled={purchasing} sx={{ minHeight: 44 }}>

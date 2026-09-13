@@ -20,6 +20,9 @@ import type { PurchaseNotice } from "@/frontend/views/teachers/dashboard/Verific
 import { VerificationPurchaseDialog } from "@/frontend/views/teachers/dashboard/VerificationPurchaseDialog";
 import { Applicant, Errors, useAppLocale, useAppTranslation } from "@/shared/locale";
 
+/** Snackbar auto-hide window for the card-level purchase-notice slot. */
+const SNACKBAR_AUTOHIDE_MS = 4000;
+
 /**
  * ApplicantStatusCard — the teacher-applicant verification-lifecycle status
  * card mounted above the fold on `/teacher/dashboard`.
@@ -137,7 +140,7 @@ export function ApplicantStatusCard(): ReactNode {
       </StatusShell>
       {/* Purchase confirmation dialog + the transient-notice slot it reports into. */}
       <VerificationPurchaseDialog open={purchaseDialogOpen} onClose={closePurchaseDialog} onNotice={setNotice} />
-      <NoticeSnackbar notice={notice} autoHideDuration={4000} onClose={dismissNotice} />
+      <NoticeSnackbar notice={notice} autoHideDuration={SNACKBAR_AUTOHIDE_MS} onClose={dismissNotice} />
     </>
   );
 }
