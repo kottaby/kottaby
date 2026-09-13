@@ -469,8 +469,7 @@ describe("consumer import conventions — barrel ≡ deep import identity", () =
 
     // The student teacher-evaluation documents (compile-time proof that the
     // `Evaluation` selection conforms to the generated operation types).
-    const typedMyTeacherEvaluations: TypedDocumentNode<MyTeacherEvaluationsQuery> =
-      myTeacherEvaluationsQueryDocument;
+    const typedMyTeacherEvaluations: TypedDocumentNode<MyTeacherEvaluationsQuery> = myTeacherEvaluationsQueryDocument;
     const typedSubmitTeacherEvaluation: TypedDocumentNode<
       SubmitTeacherEvaluationMutation,
       SubmitTeacherEvaluationMutationVariables

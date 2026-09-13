@@ -40,31 +40,29 @@ import type { EvaluationReturnType } from "@/backend/types";
  * normalization), the two participant ids, the optional session join, the
  * optional score, then the creation stamp.
  */
-export const EvaluationPothosObject = gqlSchemaBuilder
-  .objectRef<EvaluationReturnType>("Evaluation")
-  .implement({
-    fields: t => ({
-      // ID FIRST — Apollo cache normalization requires `id` on every
-      // entity-shaped object (identity PK, surfaced as GraphQL `ID!`).
-      id: t.exposeID("id"),
-      // The rated subject (the session's teacher, server-derived) — `Int!`.
-      evaluatedId: t.exposeInt("evaluatedId"),
-      // The rater (the calling student, server-derived from the verified
-      // context) — `Int!`.
-      evaluatorId: t.exposeInt("evaluatorId"),
-      // The rated session join — nullable: standalone applicant evaluations
-      // carry no session, and a deleted session nulls the link (SET NULL)
-      // while the rating row survives.
-      sessionId: t.exposeInt("sessionId", { nullable: true }),
-      // The 0-100 score (whole stars × 20, derived server-side) — nullable
-      // on the column, so honest nullability on the wire.
-      score: t.exposeInt("score", { nullable: true }),
-      // Creation instant — NOT NULL column, non-nullable `DateTime!` scalar
-      // (registered in `shared/scalar.pothos.ts`; serializes `Date` to
-      // ISO-8601 UTC).
-      createdAt: t.expose("createdAt", { type: "DateTime" }),
-    }),
-  });
+export const EvaluationPothosObject = gqlSchemaBuilder.objectRef<EvaluationReturnType>("Evaluation").implement({
+  fields: t => ({
+    // ID FIRST — Apollo cache normalization requires `id` on every
+    // entity-shaped object (identity PK, surfaced as GraphQL `ID!`).
+    id: t.exposeID("id"),
+    // The rated subject (the session's teacher, server-derived) — `Int!`.
+    evaluatedId: t.exposeInt("evaluatedId"),
+    // The rater (the calling student, server-derived from the verified
+    // context) — `Int!`.
+    evaluatorId: t.exposeInt("evaluatorId"),
+    // The rated session join — nullable: standalone applicant evaluations
+    // carry no session, and a deleted session nulls the link (SET NULL)
+    // while the rating row survives.
+    sessionId: t.exposeInt("sessionId", { nullable: true }),
+    // The 0-100 score (whole stars × 20, derived server-side) — nullable
+    // on the column, so honest nullability on the wire.
+    score: t.exposeInt("score", { nullable: true }),
+    // Creation instant — NOT NULL column, non-nullable `DateTime!` scalar
+    // (registered in `shared/scalar.pothos.ts`; serializes `Date` to
+    // ISO-8601 UTC).
+    createdAt: t.expose("createdAt", { type: "DateTime" }),
+  }),
+});
 
 /**
  * The student-controlled submission whitelist (BOPLA): exactly one field,
