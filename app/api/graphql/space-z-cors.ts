@@ -10,15 +10,30 @@
 
 import { NextResponse } from "next/server";
 
-/** Preview-panel origin marker — only origins ending in this suffix are echoed. */
+/** Target host for preview-panel CORS allowance. */
+const SPACE_Z_DOMAIN = "space-z.ai";
 const SPACE_Z_PREVIEW_ORIGIN_SUFFIX = ".space-z.ai";
 
 /**
+ * Validates whether an origin string belongs to space-z.ai or its subdomains.
+ * Uses URL parsing to prevent string matching bypasses (e.g. `https://space-z.ai.attacker.com`).
+ */
+export function isAllowedSpaceZOrigin(origin: string | null): origin is string {
+  if (!origin) return false;
+  try {
+    const url = new URL(origin);
+    return url.hostname === SPACE_Z_DOMAIN || url.hostname.endsWith(SPACE_Z_PREVIEW_ORIGIN_SUFFIX);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Echoes the preview-panel CORS response headers onto an outgoing response
- * when (and only when) the request origin is a `*.space-z.ai` origin.
+ * when (and only when) the request origin is a `*.space-z.ai` or `space-z.ai` origin.
  */
 export function applySpaceZCorsHeaders(headers: Headers, origin: string | null): void {
-  if (origin?.endsWith(SPACE_Z_PREVIEW_ORIGIN_SUFFIX)) {
+  if (isAllowedSpaceZOrigin(origin)) {
     headers.set("Access-Control-Allow-Origin", origin);
     headers.set("Access-Control-Allow-Credentials", "true");
     headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -34,7 +49,7 @@ export function applySpaceZCorsHeaders(headers: Headers, origin: string | null):
  * `Access-Control-Max-Age` on allowance, bare 403 on any other origin.
  */
 export function spaceZCorsPreflightResponse(origin: string | null): NextResponse {
-  if (origin?.endsWith(SPACE_Z_PREVIEW_ORIGIN_SUFFIX)) {
+  if (isAllowedSpaceZOrigin(origin)) {
     return new NextResponse(null, {
       status: 204,
       headers: {
