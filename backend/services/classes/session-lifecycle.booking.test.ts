@@ -9,8 +9,8 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { session } from "@/backend/db/schema/classes/session";
 import { sessionRequestIdempotency } from "@/backend/db/schema/classes/session-request-idempotency";
