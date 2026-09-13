@@ -412,38 +412,77 @@ describe("assertBookingBoundary", () => {
  * denials are captured with a try/catch helper; read-back oracles assert
  * the zero-write contract on every denial.
  */
+/** The live balance lanes read back after a booking attempt. */
+interface LaneSnapshot {
+  readonly trial: number;
+  readonly hifz: number | null;
+  readonly tajweed: number | null;
+  readonly reviews: number | null;
+}
+/** Student + certified teacher — the booking ladder's row dependencies. */
+interface BookingActor {
+  readonly studentId: number;
+  readonly teacherId: number;
+}
+/** Creates one student actor and one certified teacher actor. */
+async function createBookingActor(
+  tx: DBTransaction,
+  studentOverrides: Partial<StudentSelectType> = {}
+): Promise<BookingActor> {
+  const studentUser = await createTestUser(tx, { role: "student" });
+  const student = await createTestStudent(tx, studentUser.id, studentOverrides);
+  const teacherUser = await createTestUser(tx, { role: "teacher" });
+  await createTestTeacherRow(tx, teacherUser.id);
+  return { studentId: student.id, teacherId: teacherUser.id };
+}
+/** Read-back oracle: the student's live balance lanes (on the tx). */
+async function readLanes(tx: DBTransaction, studentId: number): Promise<LaneSnapshot> {
+  const rows = await tx.select().from(students).where(eq(students.id, studentId)).limit(1);
+  const row = rows[0];
+  if (!row) {
+    throw new Error("fixture vanished: student row not found");
+  }
+  return {
+    trial: row.balanceTrial,
+    hifz: row.balanceHifz,
+    tajweed: row.balanceTajweed,
+    reviews: row.balanceReviews,
+  };
+}
+/** Read-back oracle: the student's booked sessions count (on the tx). */
+async function countStudentSessions(tx: DBTransaction, studentId: number): Promise<number> {
+  const rows = await tx.select({ id: session.id }).from(session).where(eq(session.studentId, studentId));
+  return rows.length;
+}
+/** Read-back oracle: the student's burned claim keys count (on the tx). */
+async function countStudentClaims(tx: DBTransaction, studentId: number): Promise<number> {
+  const rows = await tx
+    .select({ id: sessionRequestIdempotency.id })
+    .from(sessionRequestIdempotency)
+    .where(eq(sessionRequestIdempotency.userId, studentId));
+  return rows.length;
+}
+/** Try/catch denial capture — never a pinned rejection inside the rollback. */
+async function expectBookingDenial(attempt: () => Promise<unknown>): Promise<ValidationError> {
+  let errorCaught: unknown = null;
+  try {
+    await attempt();
+  } catch (error) {
+    errorCaught = error;
+  }
+  expect(errorCaught).toBeInstanceOf(ValidationError);
+  if (!(errorCaught instanceof ValidationError)) {
+    throw new Error("expected the booking to deny with a ValidationError");
+  }
+  return errorCaught;
+}
+
 describe("debitBookingLadder expiry gate — DB-backed ladder denials", () => {
   /** One hour in milliseconds — the fixture backdate lag (window-vs-status). */
   const BACKDATE_LAG_MS = 60 * 60 * 1000;
 
   /** One day in milliseconds — the subscription window fixture unit. */
   const MS_PER_DAY = 86_400_000;
-
-  /** The live balance lanes read back after a booking attempt. */
-  interface LaneSnapshot {
-    readonly trial: number;
-    readonly hifz: number | null;
-    readonly tajweed: number | null;
-    readonly reviews: number | null;
-  }
-
-  /** Student + certified teacher — the booking ladder's row dependencies. */
-  interface BookingActor {
-    readonly studentId: number;
-    readonly teacherId: number;
-  }
-
-  /** Creates one student actor and one certified teacher actor. */
-  async function createBookingActor(
-    tx: DBTransaction,
-    studentOverrides: Partial<StudentSelectType> = {}
-  ): Promise<BookingActor> {
-    const studentUser = await createTestUser(tx, { role: "student" });
-    const student = await createTestStudent(tx, studentUser.id, studentOverrides);
-    const teacherUser = await createTestUser(tx, { role: "teacher" });
-    await createTestTeacherRow(tx, teacherUser.id);
-    return { studentId: student.id, teacherId: teacherUser.id };
-  }
 
   /** Seeds a LIVE in-window subscription on the lane via a credited plan. */
   async function createLiveLaneSubscription(
@@ -471,36 +510,6 @@ describe("debitBookingLadder expiry gate — DB-backed ladder denials", () => {
     return SubscriptionExpiryService.expireDue(tx);
   }
 
-  /** Read-back oracle: the student's live balance lanes (on the tx). */
-  async function readLanes(tx: DBTransaction, studentId: number): Promise<LaneSnapshot> {
-    const rows = await tx.select().from(students).where(eq(students.id, studentId)).limit(1);
-    const row = rows[0];
-    if (!row) {
-      throw new Error("fixture vanished: student row not found");
-    }
-    return {
-      trial: row.balanceTrial,
-      hifz: row.balanceHifz,
-      tajweed: row.balanceTajweed,
-      reviews: row.balanceReviews,
-    };
-  }
-
-  /** Read-back oracle: the student's booked sessions count (on the tx). */
-  async function countStudentSessions(tx: DBTransaction, studentId: number): Promise<number> {
-    const rows = await tx.select({ id: session.id }).from(session).where(eq(session.studentId, studentId));
-    return rows.length;
-  }
-
-  /** Read-back oracle: the student's burned claim keys count (on the tx). */
-  async function countStudentClaims(tx: DBTransaction, studentId: number): Promise<number> {
-    const rows = await tx
-      .select({ id: sessionRequestIdempotency.id })
-      .from(sessionRequestIdempotency)
-      .where(eq(sessionRequestIdempotency.userId, studentId));
-    return rows.length;
-  }
-
   /** Books through the real transactional body with a unique claim key. */
   function book(
     tx: DBTransaction,
@@ -509,21 +518,6 @@ describe("debitBookingLadder expiry gate — DB-backed ladder denials", () => {
     claimKey: string = `gate-${randomUUID()}`
   ): Promise<SessionReturnType> {
     return bookSessionInTx(actor.studentId, { teacherId: actor.teacherId, intent }, claimKey, new Date(), tx, t());
-  }
-
-  /** Try/catch denial capture — never a pinned rejection inside the rollback. */
-  async function expectBookingDenial(attempt: () => Promise<unknown>): Promise<ValidationError> {
-    let errorCaught: unknown = null;
-    try {
-      await attempt();
-    } catch (error) {
-      errorCaught = error;
-    }
-    expect(errorCaught).toBeInstanceOf(ValidationError);
-    if (!(errorCaught instanceof ValidationError)) {
-      throw new Error("expected the booking to deny with a ValidationError");
-    }
-    return errorCaught;
   }
 
   test("expired + zeroed lane: denied with SUBSCRIPTION_EXPIRED before any write", async () => {
