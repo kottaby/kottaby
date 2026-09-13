@@ -82,6 +82,7 @@ export const errorsEn: ErrorsLabels = {
   homeworkRequiresReport: "A session report must be submitted before homework can be created.",
   teacherInActiveSession: "This teacher is currently in an active session and is unavailable.",
   teacherNotFound: "The selected teacher was not found.",
+  subscriptionExpired: "Your subscription has expired.",
   insufficientBalance: "Your balance is insufficient for this request.",
   idempotencyKeyRequired: "A request idempotency key is required. Please retry the request.",
   invalidSessionIntent: "The requested session intent is not valid for this request.",

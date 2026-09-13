@@ -53,3 +53,30 @@ export type PurchaseSubscriptionReturnType = {
   readonly payment: StudentPaymentReturnType;
   readonly checkout: PaymentCheckoutSession;
 };
+
+/**
+ * Identity projection of a subscription row flipped to the expired
+ * status by the batch expiry statement. Each expiring subscription is
+ * reported only by the fields its aftermath needs — which subscription
+ * expired, for whom, and under which plan — so the follow-up step can
+ * resolve the plan's credit lane and settle the owning student's
+ * balances within the same transaction. No other columns participate
+ * in that settlement.
+ */
+export type ExpiredDueSubscriptionRow = {
+  readonly id: number;
+  readonly userId: number;
+  readonly planId: number;
+};
+
+/**
+ * Counts-only result of an expiry sweep run: how many subscriptions
+ * were flipped to expired and how many balance lanes were zeroed as a
+ * consequence. The shape carries no row identifiers, so the scheduled
+ * job envelope can return it verbatim, and re-running an already
+ * applied sweep honestly reports zeroes instead of replaying effects.
+ */
+export type SubscriptionExpirySweepReturnType = {
+  readonly expired: number;
+  readonly lanesZeroed: number;
+};

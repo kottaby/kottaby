@@ -40,7 +40,20 @@ interface SessionsEmptyStateProps {
 /** Centered tinted-icon empty state for the sessions lists. */
 export function SessionsEmptyState({ testId, icon: Icon, title, body }: Readonly<SessionsEmptyStateProps>): ReactNode {
   return (
-    <Stack data-testid={testId} sx={{ alignItems: "center", gap: 2, py: { xs: 8, sm: 12 }, textAlign: "center" }}>
+    <Stack
+      data-testid={testId}
+      sx={{
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 2,
+        py: { xs: 8, sm: 12 },
+        // Fill + center within the content region on tall viewports so the
+        // composition sits in the vertical middle instead of hugging the top
+        // above a dead band. Viewport-relative (svh) — no magic px constants.
+        minHeight: { xs: "55svh", sm: "62svh" },
+        textAlign: "center",
+      }}
+    >
       <Avatar
         variant="rounded"
         sx={theme => ({
@@ -51,7 +64,7 @@ export function SessionsEmptyState({ testId, icon: Icon, title, body }: Readonly
           borderRadius: 3,
         })}
       >
-        <Icon sx={{ fontSize: 28 }} />
+        <Icon sx={{ fontSize: 28, display: "block" }} />
       </Avatar>
       <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
         {title}

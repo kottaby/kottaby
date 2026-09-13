@@ -34,6 +34,7 @@ matches the finding, say so in the wave report: that gap is a playbook candidate
 | Closed Select shows an empty value area for the "" option | MUI does not call `renderValue` for `value=""` | Add `displayEmpty` so the "" MenuItem text renders in the closed control | Keep the shrunk label so the field still names itself |
 | Autocomplete renders as a plain text input (no chevron) | `renderInput`'s explicit `slotProps` REPLACES the spread `params.slotProps`, dropping the endAdornment | Merge: `slotProps={{ ...params.slotProps, htmlInput: {...} }}` | Also lift `.MuiAutocomplete-popupIndicator` color off `action.active` on dark surfaces |
 | Multiline outlined field with forced shrunk label clips glyphs | Forced `inputLabel: { shrink: true }` on `multiline` mis-positions the notch label | Don't force shrink on multiline fields; the un-shrunk in-field label is the hint | Single-line fields keep the forced shrink fine |
+| VLM reports sub-8px misalignments ("label 2px high", "icon off-center", "gap is 4px not 8px") | VLM eyeball noise, not real defects — such claims contradict each other across passes | Pixel-verify with DOM `getBoundingClientRect` (element-vs-container center deltas) BEFORE any fix; if delta ≤ 1-2px or the spacing equals a design token, adjudicate as false positive and record it | Contradictory readings of the same element across passes/inspectors are the noise signature; never ship a fix for an unmeasured sub-8px claim |
 
 ## Convergence rule
 
