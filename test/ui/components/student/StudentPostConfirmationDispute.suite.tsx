@@ -37,6 +37,7 @@ import type { MockLink } from "@apollo/client/testing";
 import { cleanup, waitFor, within } from "@testing-library/react";
 import {
   type MyStudentSessionsQuery_myStudentSessions_items,
+  type OpenSessionDisputeMutation,
   SessionStatus,
 } from "@/frontend/graphql/generated/gql/graphql";
 import {
@@ -306,6 +307,29 @@ describe("shared dispute status vocabulary (byte-stable)", () => {
     }
     expect(resolveStudentDisputeMutation(null).mutationDocument).toBe(openSessionDisputeMutationDocument);
     expect(resolveStudentDisputeMutation(undefined).mutationDocument).toBe(openSessionDisputeMutationDocument);
+  });
+
+  test("resultAccessor — the dispute-family projection is drift-proof: EITHER binding projects EITHER generation's payload (CR-10 completion-time binding drift)", () => {
+    // The container re-binds the dialog while the mutation is in flight
+    // (the mutation's own cache update flips the row to Disputed, which
+    // re-resolves the binding to the other generation before onCompleted
+    // fires). The projection must therefore accept BOTH envelope keys —
+    // exactly the live-found defect this pin locks out.
+    const postBinding = resolveStudentDisputeMutation(disputeShape(SessionStatus.Completed, CONFIRMED_ISO, false));
+    const heldBinding = resolveStudentDisputeMutation(disputeShape(SessionStatus.Scheduled, null, true));
+
+    // Each binding projects its OWN payload...
+    expect(postBinding.resultAccessor({ openPostConfirmationDispute: disputedPayload("901") })?.id).toBe("901");
+    expect(heldBinding.resultAccessor({ openSessionDispute: disputedPayload("902") })?.id).toBe("902");
+    // ...AND the cross-generation envelopes (the drift the live run hit).
+    expect(postBinding.resultAccessor({ openSessionDispute: disputedPayload("903") })?.id).toBe("903");
+    expect(heldBinding.resultAccessor({ openPostConfirmationDispute: disputedPayload("904") })?.id).toBe("904");
+    // Honest edges: null data → null (dialog's cache arm skips), an EMPTY
+    // envelope (neither key — a foreign operation's shape) → undefined
+    // (onCompleted skips without throwing).
+    expect(postBinding.resultAccessor(null)).toBeNull();
+    expect(postBinding.resultAccessor(undefined)).toBeNull();
+    expect(heldBinding.resultAccessor({} as unknown as OpenSessionDisputeMutation)).toBeUndefined();
   });
 });
 

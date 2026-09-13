@@ -60,23 +60,46 @@ export interface SessionDisputeMutationProps {
 }
 
 /**
+ * The dispute-family payload projection — the ONE result accessor BOTH
+ * bindings share, accepting EITHER generation's payload key.
+ *
+ * WHY the projection must be generation-agnostic (live-found defect,
+ * CR-10 cross-user QA): the container derives the dialog's binding from
+ * the LIVE row on every render (`resolveStudentDisputeMutation` below).
+ * The dispute mutation's own `update` flips the row to `Disputed`
+ * mid-flight, so the container re-renders and RE-BINDS the dialog to the
+ * other generation BEFORE the in-flight mutation's completion callbacks
+ * fire (`useMutation` reads the latest options at completion time; the
+ * document and `update` of the running operation stay call-time-captured,
+ * which is why the row flip and the DB write were always correct). A
+ * generation-narrow accessor then read the other generation's envelope,
+ * projected `undefined`, and `onCompleted` skipped `onDisputed` — the
+ * dialog stayed open with NO success snackbar while the dispute HAD filed.
+ * Projecting whichever dispute-family key is present makes the completion
+ * path drift-proof: both operations return the same shared dispute-family
+ * `Session` row, so the projection is contract-identical for either
+ * generation no matter which binding reads it.
+ */
+function projectDisputeFamilyPayload(
+  data: SessionDisputeMutationData | null | undefined
+): SessionDisputePayloadRow | null | undefined {
+  if (data === null || data === undefined) return null;
+  if ("openSessionDispute" in data) return data.openSessionDispute;
+  return "openPostConfirmationDispute" in data ? data.openPostConfirmationDispute : undefined;
+}
+
+/**
  * The pre-completion (held-escrow) dispute arm — the SHIPPED participant
  * escalation, byte-stable on every surface that keeps it bound.
  */
 export const OPEN_SESSION_DISPUTE_MUTATION: SessionDisputeMutationProps = {
   mutationDocument: openSessionDisputeMutationDocument,
-  resultAccessor: data => {
-    if (data === null || data === undefined) return null;
-    return "openSessionDispute" in data ? data.openSessionDispute : undefined;
-  },
+  resultAccessor: projectDisputeFamilyPayload,
 };
 
 const OPEN_POST_CONFIRMATION_DISPUTE_MUTATION: SessionDisputeMutationProps = {
   mutationDocument: openPostConfirmationDisputeMutationDocument,
-  resultAccessor: data => {
-    if (data === null || data === undefined) return null;
-    return "openPostConfirmationDispute" in data ? data.openPostConfirmationDispute : undefined;
-  },
+  resultAccessor: projectDisputeFamilyPayload,
 };
 
 /**
