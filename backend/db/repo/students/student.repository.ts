@@ -3,15 +3,16 @@ import { and, asc, desc, eq, ilike, isNotNull, isNull, or, type SQL, sql } from 
 import { type AnyPgColumn, alias } from "drizzle-orm/pg-core";
 import { db, queryDb } from "@/backend/db";
 import * as studentRepositoryCreditLaneImpl from "@/backend/db/repo/students/student.repository.credit-lane.helpers";
+import * as studentRepositoryZeroLaneImpl from "@/backend/db/repo/students/student.repository.zero-lane.helpers";
 import { students } from "@/backend/db/schema/students/students";
 import { users } from "@/backend/db/schema/users/users";
 import type { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
+import type { ParentLinkedChildReturnType } from "@/backend/types";
 import type {
   DBQueryExecutor,
   DBTransaction,
   HandshakeDiscoveryRowType,
-  ParentLinkedChildReturnType,
   StudentLinkTargetRowType,
   StudentSelectType,
 } from "@/backend/types";
@@ -457,31 +458,16 @@ export namespace StudentRepository {
     return studentRepositoryCreditLaneImpl.creditLaneBalance(studentId, lane, amount, tx);
   }
 
-  /**
-   * Lists the admin student directory: `students` rows INNER JOINed to
-   * their `users` accounts on the shared PK, with the linked parent's
-   * display identity resolved via a LEFT JOIN on `users`-as-parent
-   * (`students.parent_id`) — an unlinked student keeps its row with null
-   * parent columns. Ordered newest-account-first (deterministic
-   * `created_at DESC, id DESC` so consecutive pages never duplicate or
-   * drop a row inserted mid-pagination).
-   *
-   * Directory filters are dynamic AND chains of scalar predicates — no
-   * prepared statements (no reuse win, per repo policy), no `inArray`. The
-   * search pattern arrives already escaped + `%…%`-wrapped from the service
-   * layer and is bound as a Drizzle parameter.
-   *
-   * Runs the page query and the same-filter `count(*)` in one round-trip
-   * pair so the caller can surface an honest `total` — an out-of-range
-   * page yields an empty `rows` array with the unchanged count (never an
-   * error, never clamped results). The parent join is page-query-only: no
-   * directory filter references the parent alias, so the count runs over
-   * the student⊕user join alone.
-   *
-   * @returns The raw directory rows plus the unfiltered-by-page total (NOT
-   *          the return type — the service layer maps rows →
-   *          `AdminStudentItemReturnType`).
-   */
+  /** boolean for lanes-zeroed counting). */
+  export async function zeroLaneIfNoCoveringSubscription(
+    studentId: number,
+    lane: SubscriptionCreditLane,
+    tx?: DBTransaction
+  ): Promise<boolean> {
+    return studentRepositoryZeroLaneImpl.zeroLaneIfNoCoveringSubscription(studentId, lane, tx);
+  }
+
+  /** (`students. */
   export async function listDirectory(
     filters: NormalizedAdminStudentFilters,
     limit: number,
@@ -526,16 +512,12 @@ export namespace StudentRepository {
     return { rows, total: countRows[0]?.count ?? 0 };
   }
 
-  /** the `parent_id` grant and severed when the child's `users. */
+  /** Lists the caller's confirmed-linked children, oldest-first. Soft-deleted excluded. */
   export async function listLinkedChildrenByParentId(
     parentId: number,
     tx?: DBTransaction
   ): Promise<ParentLinkedChildReturnType[]> {
-    return (tx ?? db)
-      .select({ id: students.id, fullName: users.fullName, createdAt: students.createdAt })
-      .from(students)
-      .innerJoin(users, eq(users.id, students.id))
-      .where(and(eq(students.parentId, parentId), eq(users.isDeleted, false)))
-      .orderBy(asc(students.createdAt), asc(students.id));
+    return (tx ?? db).select({ id: students.id, fullName: users.fullName, createdAt: students.createdAt }).from(students).innerJoin(users, eq(users.id, students.id)).where(and(eq(students.parentId, parentId), eq(users.isDeleted, false))).orderBy(asc(students.createdAt), asc(students.id));
   }
+
 }
