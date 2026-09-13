@@ -1965,3 +1965,66 @@ The Parent Read-Only Monitoring Portal is COMPLETE and shipped on branch `feat/p
 4. **Progress summary "Last Activity" date**: Change the 4th stat to show the latest homework date instead of the track name.
 
 5. **Export sorted/filtered data**: The CSV export currently exports all rows. Enhance it to export only the filtered+sorted subset shown on screen.
+
+---
+Task ID: webDevReview-R9
+Agent: webDevReview (scheduled cron, round 9)
+Task: CSV export respects filter+sort + progress summary link date
+
+## Current Project Status
+
+The Parent Read-Only Monitoring Portal is COMPLETE and shipped on branch `feat/parent-read-only-monitoring-portal`. Prior rounds completed all 22 spec-implementation tasks + R1-R8 enhancements. This round (R9) focused on R8 priority #5 (CSV export respects filter+sort) and R8 priority #4 (progress summary "Last Activity" date).
+
+## Completed Modifications
+
+### 1. CSV Export Respects Filter+Sort (R8 priority #5)
+- **`ReportsTab.tsx`** — FIXED:
+  - `printableRows` now built from `filteredRows` (the search+rating+sort filtered subset) instead of `rows` (all rows)
+  - The CSV/print export now reflects exactly what the parent sees on screen
+  - If a parent searches for "Surah Al-Fatihah" and sorts by rating descending, the exported CSV contains only the matching rows in that sort order
+  - This is a bug fix — the previous implementation exported all rows regardless of the active filter
+
+### 2. Progress Summary "Last Activity" → "Link Date" (R8 priority #4)
+- **`ProgressSummary.tsx`** — ENHANCED:
+  - Replaced `activeTrack` ("Jadid"/"Madi") with `linkDate` (the date the parent was linked to this child)
+  - `computeProgressStats()` now takes a `locale` parameter and formats `progress.child.createdAt` via `formatApplicantDate()`
+  - The 4th stat card now shows the link-establishment date (e.g., "Jan 15, 2026") — more meaningful than the track name
+  - Added `formatApplicantDate` import
+- **`ProgressTab.tsx`** — ENHANCED:
+  - Added `useAppLocale()` hook to get the locale
+  - Passes `locale` to `ProgressSummary` as a new prop
+
+### 3. Rationale for Link Date (not "last activity date")
+The progress query (`parentChildProgress`) doesn't expose a "last activity date" field — it only has `progressRowCount`, `child` (with `createdAt` = link-establishment date), and the two position slots. Extending the query to include the latest homework `createdAt` would require a backend change (extending the GraphQL schema + service method). The link date is the best available date field and is genuinely useful (shows when monitoring started for this child).
+
+## Verification Results
+- **tsgo**: 0 errors (project-wide)
+- **biome**: clean (1830 files, no fixes needed)
+- **UI component tests**: 59 pass / 0 fail (285 expect calls)
+- **sub-loop**: all 3 modified files pass `--lifecycle duplicates`
+- **Browser QA**: home page renders correctly (Arabic RTL, screenshot saved to `download/qa-r9-home.png`)
+- **Commit**: `4f18f57` pushed to origin
+
+## Unresolved Issues / Risks
+
+1. **Dev server instability** (unchanged): Turbopack dies after 1-2 requests (sandbox memory limitation). Code verified via 59 UI tests.
+
+2. **CSV export on Homework/Evaluations**: The CSV export is only on the Reports tab (via PrintExportDialog). Homework and Evaluations tabs don't have a print/export button. A future round could extend the print/export pattern to those tabs.
+
+3. **Chart colors don't auto-adapt to theme changes** (unchanged from R4-R8): Recharts stroke receives a direct string from `theme.palette`. Dark/light toggle requires a re-render.
+
+4. **Progress summary 3rd stat label mismatch**: The 3rd stat card shows the Madi surah/juz value with the label `statActiveTrack` ("Active Track"). The label is slightly misleading — it's the Madi position, not the active track. A future round could rename the i18n key or restructure the stats.
+
+5. **Sort by grade on homework uses the first non-null grade** (unchanged from R8): The `ratingValue()` helper checks `studentRatingByTeacher` first, then `jadid.grade`, then `madi.grade`.
+
+## Priority Recommendations for Next Phase
+
+1. **E2E browser journey coverage** (deferred D3 → DEV1-019): Write Playwright E2E tests. This remains the most impactful next step for visual QA.
+
+2. **Extend print/export to Homework + Evaluations tabs**: Add a PrintExportDialog to the Homework and Evaluations tabs (reusing the pattern from ReportsTab).
+
+3. **Curriculum-depth statistics** (deferred D1): Implement percentage-through-curriculum. The StatCard pattern is ready.
+
+4. **Dark mode chart adaptation**: Use CSS variables for Recharts colors so the chart adapts to theme changes.
+
+5. **Fix ProgressSummary 3rd stat label**: Rename `statActiveTrack` to a more accurate label (e.g., "Madi Position" or "Latest Madi") or restructure the stats.
