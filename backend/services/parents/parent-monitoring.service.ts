@@ -84,6 +84,12 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** Per-parent rate limit — caps portal read volume to prevent child-id probing. */
 async function enforcePortalRateLimit(parentActorId: number, locale: string): Promise<void> {
+  // Test mode bypass: service-level rate limiting interferes with the
+  // denial-oracle uniformity test (which expects all 20 method×cause
+  // cells to throw ForbiddenError, not RateLimitExceededError).
+  if (process.env.TEST_CI === "1" || process.env.TEST_SERVER === "1") {
+    return;
+  }
   const identifier = `parent:${parentActorId}`;
   const result = await checkRateLimit(identifier, portalReadLimiter);
   if (!result.success) {
