@@ -177,6 +177,12 @@ const MANDATED_KEYS = [
   "statAverageScore",
   "statHighestScore",
   "statRatedSessions",
+  // Search / filter
+  "searchPlaceholder",
+  "searchClearLabel",
+  "searchNoResults",
+  "filterByRatingLabel",
+  "filterAllRatings",
 ] as const;
 
 /**

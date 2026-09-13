@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarMonthOutlined, CheckCircleOutlined, ScheduleOutlined, TrendingUpOutlined } from "@mui/icons-material";
-import { Box, Card, Stack, Typography } from "@mui/material";
+import { Box, Card, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { ParentChildSessionsQuery_parentChildSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
@@ -115,7 +115,7 @@ export function AttendanceSummary({
       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
         {labels.summaryHeading}
       </Typography>
-      <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap", gap: 1.5 }}>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(4, 1fr)" }, gap: 1.5 }}>
         <StatCard
           icon={<CalendarMonthOutlined fontSize="small" />}
           value={String(stats.total)}
@@ -140,7 +140,7 @@ export function AttendanceSummary({
           label={labels.statCompletionRate}
           color="info"
         />
-      </Stack>
+      </Box>
     </Box>
   );
 }

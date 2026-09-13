@@ -146,4 +146,9 @@ export const parentMonitoringEn: ParentMonitoringLabels = {
   statAverageScore: "Average Score",
   statHighestScore: "Highest Score",
   statRatedSessions: "Rated Sessions",
+  searchPlaceholder: "Search by notes or date...",
+  searchClearLabel: "Clear search",
+  searchNoResults: "No results match your search",
+  filterByRatingLabel: "Filter by rating",
+  filterAllRatings: "All ratings",
 };

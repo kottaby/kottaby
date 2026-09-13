@@ -1,7 +1,7 @@
 "use client";
 
 import { GradeOutlined, RateReviewOutlined, StarOutlined, TrendingUpOutlined } from "@mui/icons-material";
-import { Box, Card, Stack, Typography } from "@mui/material";
+import { Box, Card, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { ParentChildReportsQuery_parentChildReports_items } from "@/frontend/graphql/generated/gql/graphql";
 import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
@@ -114,7 +114,7 @@ export function EvaluationsSummary({
       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
         {labels.evaluationsSummaryHeading}
       </Typography>
-      <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap", gap: 1.5 }}>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(4, 1fr)" }, gap: 1.5 }}>
         <StatCard
           icon={<RateReviewOutlined fontSize="small" />}
           value={String(stats.total)}
@@ -139,7 +139,7 @@ export function EvaluationsSummary({
           label={labels.statRatedSessions}
           color="info"
         />
-      </Stack>
+      </Box>
     </Box>
   );
 }

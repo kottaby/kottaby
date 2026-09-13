@@ -159,4 +159,9 @@ export const parentMonitoringAr: ParentMonitoringLabels = {
   statAverageScore: "متوسط الدرجة",
   statHighestScore: "أعلى درجة",
   statRatedSessions: "الحصص المقيّمة",
+  searchPlaceholder: "ابحث بالملاحظات أو التاريخ...",
+  searchClearLabel: "مسح البحث",
+  searchNoResults: "لا توجد نتائج مطابقة لبحثك",
+  filterByRatingLabel: "تصفية حسب التقييم",
+  filterAllRatings: "كل التقييمات",
 };

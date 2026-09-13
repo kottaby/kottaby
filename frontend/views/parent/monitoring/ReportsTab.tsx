@@ -1,19 +1,17 @@
 "use client";
 
 import { useQuery } from "@apollo/client/react";
-import { DescriptionOutlined, PrintOutlined } from "@mui/icons-material";
+import { PrintOutlined } from "@mui/icons-material";
 import { Box, IconButton, Stack, Typography } from "@mui/material";
-import { type ReactNode, useState } from "react";
-import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
-import { IconCircleEmptyState } from "@/frontend/components/ui/IconCircleEmptyState";
+import { type ReactNode, useMemo, useState } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import { parentChildReportsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { type PrintableReportRow, PrintExportDialog } from "@/frontend/views/parent/monitoring/PrintExportDialog";
-import { RatingTrendChart } from "@/frontend/views/parent/monitoring/RatingTrendChart";
-import { ReportRow, ReportsSkeleton } from "@/frontend/views/parent/monitoring/ReportsTab.parts";
+import { renderReportsBody } from "@/frontend/views/parent/monitoring/ReportsTab.body";
+import { filterReportRows, type SearchFilterState } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
@@ -22,6 +20,7 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
   const commonT = useAppTranslation(Common);
   const locale = useAppLocale();
   const [printOpen, setPrintOpen] = useState(false);
+  const [searchState, setSearchState] = useState<SearchFilterState>({ query: "", ratingFilter: null });
   const { data, loading, error, refetch } = useQuery(parentChildReportsQueryDocument, {
     variables: { studentId: props.studentId, page: undefined, pageSize: undefined },
   });
@@ -29,62 +28,36 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
   const denied =
     errorCode !== null &&
     mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
+  const rows = data?.parentChildReports?.items;
+  const filteredRows = useMemo(
+    () =>
+      rows !== undefined
+        ? filterReportRows(rows, searchState, (row, q) =>
+            formatApplicantDate(row.sessionStartedAt ?? row.createdAt, locale)
+              .toLowerCase()
+              .includes(q)
+          )
+        : undefined,
+    [rows, searchState, locale]
+  );
   if (denied) {
     return <PermissionDeniedFallback />;
   }
-  const rows = data?.parentChildReports?.items;
   const showPrintButton = rows !== undefined && rows.length > 0;
-  let body: ReactNode;
-  if (rows === undefined) {
-    body =
-      error === undefined ? (
-        <ReportsSkeleton />
-      ) : (
-        <ErrorRetryAlert
-          title={te.internalServerError}
-          retryLabel={commonT.retry}
-          retryPending={loading}
-          onRetry={() => {
-            void refetch();
-          }}
-        >
-          <Typography variant="body2">{t.loadErrorBody}</Typography>
-        </ErrorRetryAlert>
-      );
-  } else if (rows.length === 0) {
-    body = (
-      <IconCircleEmptyState
-        testId="parent-reports-empty"
-        icon={<DescriptionOutlined sx={{ fontSize: 36 }} />}
-        title={t.reportsEmptyTitle}
-        body={t.reportsEmptyBody}
-      />
-    );
-  } else {
-    body = (
-      <>
-        <RatingTrendChart items={rows} labels={t} locale={locale} />
-        <Box
-          className="printable-section"
-          component="output"
-          aria-label={t.reportsSectionTitle}
-          data-testid="parent-reports-list"
-          sx={{ display: "grid", gap: 2 }}
-        >
-          {rows.map(row => (
-            <ReportRow key={row.id} row={row} labels={t} locale={locale} deepLinkSessionId={props.session} />
-          ))}
-          <Typography
-            className="print-timestamp"
-            variant="caption"
-            sx={theme => ({ color: theme.palette.text.secondary })}
-          >
-            {t.printTimestampLabel(formatApplicantDate(new Date().toISOString(), locale))}
-          </Typography>
-        </Box>
-      </>
-    );
-  }
+  const body = renderReportsBody(
+    rows,
+    filteredRows,
+    error,
+    loading,
+    te,
+    commonT,
+    t,
+    locale,
+    props.session,
+    searchState,
+    setSearchState,
+    refetch
+  );
   const printableRows: readonly PrintableReportRow[] =
     rows?.map(row => ({
       date: formatApplicantDate(row.sessionStartedAt ?? row.createdAt, locale),

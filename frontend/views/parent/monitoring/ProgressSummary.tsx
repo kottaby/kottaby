@@ -1,7 +1,7 @@
 "use client";
 
 import { AutoStoriesOutlined, BookmarkBorderOutlined, ReplayOutlined, TrendingUpOutlined } from "@mui/icons-material";
-import { Box, Card, Stack, Typography } from "@mui/material";
+import { Box, Card, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { ParentChildProgressQuery_parentChildProgress } from "@/frontend/graphql/generated/gql/graphql";
 import { formatSurahJuzRef } from "@/frontend/views/parent/monitoring/parentMonitoringDisplay";
@@ -115,7 +115,7 @@ export function ProgressSummary({
       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
         {labels.progressSummaryHeading}
       </Typography>
-      <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap", gap: 1.5 }}>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(4, 1fr)" }, gap: 1.5 }}>
         <StatCard
           icon={<TrendingUpOutlined fontSize="small" />}
           value={String(stats.rowCount)}
@@ -140,7 +140,7 @@ export function ProgressSummary({
           label={labels.statLastActivity}
           color="info"
         />
-      </Stack>
+      </Box>
     </Box>
   );
 }

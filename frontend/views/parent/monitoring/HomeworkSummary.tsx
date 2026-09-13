@@ -1,7 +1,7 @@
 "use client";
 
 import { AssignmentOutlined, AutoStoriesOutlined, GradeOutlined, ReplayOutlined } from "@mui/icons-material";
-import { Box, Card, Stack, Typography } from "@mui/material";
+import { Box, Card, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { ParentChildHomeworkQuery_parentChildHomework_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatSurahJuzRef } from "@/frontend/views/parent/monitoring/parentMonitoringDisplay";
@@ -126,7 +126,7 @@ export function HomeworkSummary({
       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
         {labels.homeworkSummaryHeading}
       </Typography>
-      <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap", gap: 1.5 }}>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(4, 1fr)" }, gap: 1.5 }}>
         <StatCard
           icon={<AssignmentOutlined fontSize="small" />}
           value={String(stats.count)}
@@ -151,7 +151,7 @@ export function HomeworkSummary({
           label={labels.statAverageGrade}
           color="info"
         />
-      </Stack>
+      </Box>
     </Box>
   );
 }

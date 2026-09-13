@@ -290,4 +290,16 @@ export interface ParentMonitoringLabels {
   readonly statHighestScore: string;
   /** Label for the rated sessions count stat. */
   readonly statRatedSessions: string;
+
+  // ─── Search / filter feature ──────────────────────────────────────────
+  /** Placeholder for the search input on reports/homework tabs. */
+  readonly searchPlaceholder: string;
+  /** Accessible label for the clear search button. */
+  readonly searchClearLabel: string;
+  /** Label shown when no rows match the search query. */
+  readonly searchNoResults: string;
+  /** Label for the rating filter dropdown. */
+  readonly filterByRatingLabel: string;
+  /** Label for the "all ratings" filter option. */
+  readonly filterAllRatings: string;
 }
