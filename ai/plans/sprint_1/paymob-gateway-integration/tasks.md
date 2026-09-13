@@ -160,12 +160,12 @@
 
 ## Phase 9: Final Gate & Knowledge Propagation
 
-- [ ] 9.1 Final quality gate
+- [x] 9.1 Final quality gate
   - `bun quality-gate` green; baseline counts vs `outcome/0.1-outcome.md`; ledger gate `awk '/^## Ledger Table/,/^## Status Values/' deferred-items.md | grep -c "❌\|⚠️"` == 0; traceability loop (`for r in $(grep -oE 'REQ-[0-9]+' specs.md | sort -u); do grep -q "$r" tasks.md || echo MISSING: $r; done`) zero misses; `outcome/9.1-outcome.md` written.
   - _Requirements: REQ-001, REQ-002, REQ-082_
-- [ ] 9.2 Knowledge propagation
+- [x] 9.2 Knowledge propagation
   - CREATE `docs/billing/paymob-gateway.md` (endpoints, HMAC, env matrix, flows, dashboard setup, test-credential runbook, troubleshooting); root `AGENTS.md` Important References one-liner; `backend/services/AGENTS.md` minimal rule line(s) + doc pointer; mark cross-plan amendments A1–A5 consumed/orphaned in the subscription-purchase plan's ledger coordination.
-  - [ ] 9.2.QL · [ ] 9.2.SR · [ ] 9.2.IV
+  - [x] 9.2.QL · [x] 9.2.SR · [x] 9.2.IV
   - _Requirements: REQ-080, REQ-081_
 
 ---
