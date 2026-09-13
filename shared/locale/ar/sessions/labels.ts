@@ -78,5 +78,6 @@ export const sessionsAr: SessionsLabels = {
   rateTeacherDialogCancel: "إلغاء",
   rateTeacherSuccess: "تم إرسال تقييمك للمعلم.",
   teacherRatedChip: "تم التقييم",
+  ratingEmptyLabelText: "فارغ",
   ratingStarAriaLabel: (position: number) => `النجمة ${position} من 5`,
 };

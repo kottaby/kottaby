@@ -123,6 +123,14 @@ const MANDATED_SESSIONS_KEYS = [
   "disputeReasonCollapse",
   "pagerPreviousLabel",
   "pagerNextLabel",
+  "rateTeacher",
+  "rateTeacherTooltip",
+  "rateTeacherDialogTitle",
+  "rateTeacherDialogSubmit",
+  "rateTeacherDialogCancel",
+  "rateTeacherSuccess",
+  "teacherRatedChip",
+  "ratingEmptyLabelText",
 ] as const;
 
 /**

@@ -80,5 +80,6 @@ export const sessionsEn: SessionsLabels = {
   rateTeacherDialogCancel: "Cancel",
   rateTeacherSuccess: "Your teacher rating was submitted.",
   teacherRatedChip: "Rated",
+  ratingEmptyLabelText: "Empty",
   ratingStarAriaLabel: (position: number) => `Star ${position} of 5`,
 };

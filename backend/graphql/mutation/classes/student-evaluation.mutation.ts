@@ -46,7 +46,7 @@ import {
   EvaluationPothosObject,
   SubmitTeacherEvaluationPothosInput,
 } from "@/backend/graphql/pothos/teachers/evaluation.pothos";
-import { requirePositiveIntId } from "@/backend/graphql/shared";
+import { coerceDecimalSessionId } from "@/backend/graphql/shared";
 import { UnauthorizedError } from "@/backend/lib/errors";
 import { StudentEvaluationService } from "@/backend/services/teachers";
 
@@ -80,11 +80,14 @@ gqlSchemaBuilder.mutationField("submitTeacherEvaluation", t =>
       if (!ctx.user) {
         throw new UnauthorizedError((await ctx.t("errorsTranslations")).unauthorized);
       }
-      // `ID` arrives as a string on the wire; the house
-      // `requirePositiveIntId` guard performs the boundary parse (no
-      // `as number`), and the service re-asserts the positive-safe-integer
-      // shape pre-DB with the localized message.
-      const sessionId = requirePositiveIntId(Number(args.sessionId), "sessionId");
+      // `ID` arrives as a string on the wire; the shared coercion guard
+      // admits only a positive decimal-integer id — a lazy parse ("1e0",
+      // "0x1", " 1") would silently address a DIFFERENT session than the
+      // one named on the wire, so a non-decimal id arrives at the service
+      // as NaN and dies in its pre-DB VALIDATION shape guard (the
+      // localized-message channel stays the service's, per the recitation
+      // mutation precedent).
+      const sessionId = coerceDecimalSessionId(args.sessionId);
       // BOPLA field-by-field hand-off — the rating is the ONLY client-owned
       // value and maps member by member into the service input (NO spread);
       // the rater identity stays server-bound and every stored column is

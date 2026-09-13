@@ -181,6 +181,12 @@ export interface SessionsLabels {
   /** Read-only chip shown on a session row the student has already rated. */
   readonly teacherRatedChip: string;
   /**
+   * Accessible label for the rating control's empty-value radio (MUI
+   * `Rating`'s `emptyLabelText` — the built-in "Empty" default, localized so
+   * the control carries no untranslated MUI-owned copy).
+   */
+  readonly ratingEmptyLabelText: string;
+  /**
    * Per-star accessible label for the rating control — interpolates ONLY the
    * star position through the single argument `position` (typed template
    * function, not an ICU string; identical signature in both locales).

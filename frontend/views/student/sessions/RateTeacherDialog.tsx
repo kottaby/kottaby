@@ -49,7 +49,10 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
  *
  * Control discipline: MUI `Rating` 1..5 whole stars (`*Outlined` icons
  * only), per-star accessible labels resolved through the interpolated
- * `sessions.ratingStarAriaLabel(position)` template, dialog
+ * `sessions.ratingStarAriaLabel(position)` template, the empty-value radio
+ * labeled by `sessions.ratingEmptyLabelText` (no untranslated MUI copy),
+ * the inline validation error tied to the control via a conditional
+ * `aria-describedby` (present only while the error is raised), dialog
  * title/cancel/submit copy from the `sessions` namespace, submit disabled
  * until a star is chosen, `aria-busy` on the submit while in flight,
  * dismissal gated while the mutation is pending, full-screen under `sm`,
@@ -158,10 +161,13 @@ export function RateTeacherDialog({
       </DialogTitle>
       <DialogContent sx={{ display: "grid", gap: 2 }}>
         <Stack sx={{ alignItems: "center", py: 2, gap: 1 }}>
+          {/* The describedby names the helper text ONLY while it renders. */}
           <Rating
             name="teacher-rating"
             value={rating}
             getLabelText={t.ratingStarAriaLabel}
+            emptyLabelText={t.ratingEmptyLabelText}
+            aria-describedby={ratingFieldError !== null ? "rate-teacher-rating-error" : undefined}
             icon={<StarOutlined fontSize="large" />}
             emptyIcon={<StarBorderOutlined fontSize="large" />}
             onChange={(_event, value) => {

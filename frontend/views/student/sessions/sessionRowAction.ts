@@ -1,8 +1,8 @@
 /**
- * One extra lifecycle affordance rendered beside the Cancel button (teacher
- * Start/Complete today, the student Confirm tomorrow, the student Rate once
- * the row is dual-confirmed; generically shaped so the row stays
- * role-agnostic). `disabled` is the CALLER'S per-mutation in-flight state —
+ * One extra lifecycle affordance rendered beside the Cancel button (the
+ * teacher starts/completes the session, the student confirms its completion,
+ * the student rates once the row is dual-confirmed; generically shaped so
+ * the row stays role-agnostic). `disabled` is the CALLER'S per-mutation in-flight state —
  * the row never owns mutation bookkeeping. `readOnly` renders a
  * NON-interactive chip instead of a Button (`onIntent` unused) — the
  * write-once end-state of the rate affordance.
