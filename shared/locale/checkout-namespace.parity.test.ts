@@ -79,7 +79,6 @@ const CHECKOUT_STRING_KEYS = [
   "subscriptionsPageSubtitle",
   "subscriptionsMetaTitle",
   "subscriptionsMetaDescription",
-  "planColumn",
   "statusColumn",
   "startDateColumn",
   "endDateColumn",

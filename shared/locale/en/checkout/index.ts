@@ -50,7 +50,6 @@ export const checkoutEn: CheckoutLabels = {
   subscriptionsPageSubtitle: "Your subscription plans and their payment status.",
   subscriptionsMetaTitle: "My Subscriptions",
   subscriptionsMetaDescription: "Review your subscription plans, their payment status, and validity periods.",
-  planColumn: "Plan",
   statusColumn: "Status",
   startDateColumn: "Starts",
   endDateColumn: "Expires",

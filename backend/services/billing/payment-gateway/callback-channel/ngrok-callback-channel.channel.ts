@@ -1,3 +1,5 @@
+import { spawn as spawnChildProcess } from "node:child_process";
+
 import { DomainError } from "@/backend/lib/errors";
 import {
   buildSimulatedProcessedCallback,
@@ -9,17 +11,19 @@ import type { CallbackChannelKind, CallbackChannelPort, SimulatedCallbackDeliver
  * Ngrok callback channel — the development tunnel delivery path.
  *
  * When an operator configures a reserved ngrok domain, this channel makes
- * the LOCAL dev server reachable from the OUTSIDE: it starts the ngrok
- * agent (spawning `ngrok http --url="https://<domain>" <port>` — the
- * documented flag; `--domain` is deprecated on current agent versions) and
- * verifies readiness by probing the PUBLIC domain's health surface. The
- * probe MUST hit the public URL, never the local agent API: the loopback
- * agent port may already belong to another agent on the host, so a local
- * agent answer proves nothing about THIS tunnel. Readiness retries the
- * public probe until a deadline expires — the agent needs a moment to
- * establish the session — and any failure (missing binary, auth error,
- * DNS, timeout, the dev server being down) surfaces as a typed unreachable
- * error the factory translates into the simulation fallback.
+ * the LOCAL dev server reachable from the OUTSIDE: it adopts a tunnel that
+ * already answers at the PUBLIC domain (an operator-started agent, e.g.
+ * `bun run ngrok`) instead of spawning a duplicate, and otherwise starts
+ * the ngrok agent itself (spawning `ngrok http --url="https://<domain>"
+ * <port>` — the documented flag; `--domain` is deprecated on current agent
+ * versions) and verifies readiness by probing the PUBLIC domain's health
+ * surface. The probe MUST hit the public URL, never the local agent API:
+ * the loopback agent port may already belong to another agent on the host,
+ * so a local agent answer proves nothing about THIS tunnel. Readiness
+ * retries the public probe until a deadline expires — the agent needs a
+ * moment to establish the session — and any failure (missing binary, auth
+ * error, DNS, timeout, the dev server being down) surfaces as a typed
+ * unreachable error the factory translates into the simulation fallback.
  *
  * Secret posture: the authtoken reaches the agent through the child
  * process environment, never the command line (command lines are visible
@@ -79,13 +83,16 @@ export type NgrokAgentSpawn = (args: {
  */
 export type NgrokCleanupRegistration = (terminate: () => void) => void;
 
-/** Default spawn: the ngrok agent CLI as a child of this process. */
+/**
+ * Default spawn: the ngrok agent CLI as a child of this process. The dev
+ * server is a Node process (`next dev` runs under `node`), so the spawn
+ * goes through `node:child_process` — the API works identically under the
+ * Bun test runner and under Node, where the Bun global does not exist.
+ */
 const defaultSpawnAgent: NgrokAgentSpawn = ({ command, env }) => {
-  const child = Bun.spawn([...command], {
-    env: { ...env },
-    stdin: "ignore",
-    stdout: "ignore",
-    stderr: "ignore",
+  const child = spawnChildProcess(command[0] ?? "ngrok", command.slice(1), {
+    env: { ...env, NODE_ENV: process.env.NODE_ENV },
+    stdio: "ignore",
   });
   return { kill: () => child.kill() };
 };
@@ -141,9 +148,12 @@ export class NgrokCallbackChannel implements CallbackChannelPort, CallbackChanne
   }
 
   /**
-   * Starts the agent (once per channel) and probes the PUBLIC health
-   * surface until it answers or the readiness budget elapses. Idempotent:
-   * a ready channel returns immediately without re-spawning or re-probing.
+   * Adopts a tunnel that already answers at the PUBLIC health surface (one
+   * probe, no agent spawn — an operator-started agent, e.g. `bun run
+   * ngrok`, is reused instead of colliding with it at ERR_NGROK_334), and
+   * otherwise starts the agent and probes until it answers or the
+   * readiness budget elapses. Idempotent: a ready channel returns
+   * immediately without re-spawning or re-probing.
    *
    * @throws DomainError (`PAYMENT_CALLBACK_NGROK_UNREACHABLE`) when the
    *   agent cannot be started or the public probe never answers in budget,
@@ -153,6 +163,10 @@ export class NgrokCallbackChannel implements CallbackChannelPort, CallbackChanne
   async ensureReady(): Promise<void> {
     this.assertDevelopmentRuntime();
     if (this.ready) {
+      return;
+    }
+    if ((await this.probeHealth()).reachable) {
+      this.ready = true;
       return;
     }
     this.spawnAgentOnce();

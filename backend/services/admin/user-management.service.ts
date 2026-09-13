@@ -8,11 +8,11 @@
  *  - `createUser` — admin-provisioned user creation (student / teacher / parent
  *    roles only; `admin` is rejected via a runtime role pre-guard).
  *  - `updateUser` — whitelisted profile patch (five fields only).
- *  - `setUserDeleted` — soft-delete / reactivate via a single guarded UPDATE.
- *  - `setUserSuspended` — suspend / release-suspension via a single guarded
- *    UPDATE that also stamps the suspension window
- *    (`suspended_at` + `suspended_period_days`).
- *  - `setUserBlocked` — block / unblock via a single guarded UPDATE.
+ *  - `setUserDeleted` / `setUserSuspended` / `setUserBlocked` — governance
+ *    mutations over the shared in-transaction pipeline
+ *    (`runGovernanceMutation` in `user-governance.helpers.ts`: self-guard,
+ *    governance ladder, audit row, detail re-read); each method owns only
+ *    its actor-guard variant and axis-specific validations.
  *
  * Plus two pure-read companions: `getStats` (directory-wide aggregate counters)
  * and `getUserActivity` (per-user audit-timeline read-back).
@@ -24,49 +24,31 @@
  *    callers (`actorId = 0`) receive `UnauthorizedError`; authenticated
  *    non-admins receive `ForbiddenError`. Denial paths emit ZERO audit
  *    rows and perform ZERO writes — the actor check happens BEFORE any
- *    transaction opens.
- *    Governance mutations (`setUserSuspended` / `setUserBlocked`) use the
- *    STRICT variant (`assertActiveActorAdmin`) which additionally rejects
- *    governed actors (deleted / blocked / actively-suspended) — the
- *    blast radius of a governance mutation is high enough to warrant
- *    re-validating the actor's governance state. The legacy CRUD methods
- *    (list / detail / create / update / soft-delete) keep the relaxed
- *    variant per REQ-031 (no behavior change).
+ *    transaction opens. Governance mutations use the STRICT variant
+ *    (`assertActiveActorAdmin`, also rejecting governed actors); the
+ *    legacy CRUD methods keep the relaxed variant per REQ-031.
  *  - BOPLA: `createUser` and `updateUser` build their payloads field-by-field
- *    (never `{ ...input }` spreads) via `user-management.helpers.ts`.
- *    Transport-tampered extra fields are ignored by construction.
- *    Server-controlled fields (`id`, governance flags, timestamps, balances,
- *    `passwordHash`, `parentId`, handshake code) are structurally absent
- *    from the input whitelist and never appear in the `SET` clause.
+ *    (never `{ ...input }` spreads) via `user-management.helpers.ts`;
+ *    server-controlled fields are structurally absent from the input
+ *    whitelist and never appear in the `SET` clause.
  *  - Atomicity: every mutation runs inside a single `withTransaction`
  *    block — the `users` insert / update, the role-child insert, and the
- *    audit-log row share the same commit/rollback fate. A failure
- *    mid-flow rolls back ALL writes (zero residual rows).
+ *    audit-log row share the same commit/rollback fate (zero residual rows).
  *  - Audit emission: a successful mutation appends exactly one
- *    `audit_logs` row INSIDE the same transaction, composed via the
- *    `AuditLogWriteContract` (composition-only — the contract is built
- *    by this service, never by the writer). Denial paths emit ZERO
+ *    `audit_logs` row INSIDE the same transaction; denial paths emit ZERO
  *    audit rows (no-trail-pollution).
- *  - Self-protection: `setUserDeleted(id, deleted=true)` with `id === actorId`
- *    throws `ConflictError(USER_SELF_DEACTIVATION_FORBIDDEN)` BEFORE any
- *    write — zero rows mutated, zero audit rows appended. The same guard
- *    applies to `setUserSuspended` (`USER_SELF_SUSPENSION_FORBIDDEN`) and
- *    `setUserBlocked` (`USER_SELF_BLOCK_FORBIDDEN`).
  *  - Logging: expected rejections via `logger.logDomainError` carrying
  *    `{ code, entity: "user", entityId }` (ids + codes only — no PII);
  *    unexpected failures via `logger.error`. NEVER `console.*`.
  *  - i18n: all user-facing messages resolve through
  *    `getServerTranslations(locale).errorsTranslations` (and the
- *    `adminUsers` sub-block); property access only, never `t('key')`
- *    string-concatenated lookup.
- *  - `passwordHash` is structurally absent from every output shape
- *    (`AdminUserSafeSelect = Omit<UserSelectType, "passwordHash">`); the
+ *    `adminUsers` sub-block); property access only.
+ *  - `passwordHash` is structurally absent from every output shape; the
  *    actor-check read fetches the row but only the `role` field is
  *    accessed — the hash is never logged, returned, or compared here.
  *  - Trial grant: the student-creation branch OMITS the trial-grant call
- *    entirely (the trial lane is dormant — no `balance_trial` column
- *    exists on `students` yet). When the trial lane lands in a future
- *    schema delta, the conditional `StudentTrialService.grantFreeTrial`
+ *    entirely (the trial lane is dormant). When the trial lane lands in a
+ *    future schema delta, the conditional `StudentTrialService.grantFreeTrial`
  *    call will be wired into the student-creation flow.
  */
 import { AdminUserRepository, UserRepository } from "@/backend/db/repo";
@@ -75,8 +57,9 @@ import { hashPassword } from "@/backend/lib/auth/password";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ConflictError, NotFoundError, translateDbError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import { assertActiveActorAdmin, assertActorAdmin } from "@/backend/services/admin/admin-guards.helpers";
+import { assertActorAdmin } from "@/backend/services/admin/admin-guards.helpers";
 import { AuditService } from "@/backend/services/admin/audit.service";
+import { setBlockedAxis, setDeletedAxis, setSuspendedAxis } from "@/backend/services/admin/user-governance.helpers";
 import {
   buildAuditContract,
   buildCreateUserInsert,
@@ -109,12 +92,6 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** Entity label passed to `NotFoundError` — yields code `USER_NOT_FOUND`. */
 const USER_ENTITY = "USER";
-
-/** Inclusive lower bound on `setUserSuspended`'s `periodDays` parameter. */
-const SUSPENSION_PERIOD_MIN_DAYS = 1;
-
-/** Inclusive upper bound on `setUserSuspended`'s `periodDays` parameter (~10 years). */
-const SUSPENSION_PERIOD_MAX_DAYS = 3650;
 
 export namespace AdminUserManagementService {
   /**
@@ -397,12 +374,10 @@ export namespace AdminUserManagementService {
   }
 
   /**
-   * Soft-delete / reactivate via a single guarded UPDATE. Self-protection
-   * FIRST: `id === actorId` → `ConflictError(USER_SELF_DEACTIVATION_FORBIDDEN)`,
-   * zero writes, zero audit. `setDeletedOnce` returns null on zero-row
-   * match → `existsById` probe disambiguates `USER_NOT_FOUND` vs the
-   * typed conflict (`USER_ALREADY_DELETED` / `USER_NOT_DELETED`). Success
-   * → audit (`Delete` | `Reactivate`) → return detail.
+   * Soft-delete / reactivate via a single guarded UPDATE. The shared
+   * in-transaction pipeline (self-guard, governance ladder, audit row,
+   * detail re-read) lives in `runGovernanceMutation`; this method owns the
+   * relaxed actor guard (REQ-031) and the id re-assertion only.
    */
   export async function setUserDeleted(
     id: number,
@@ -411,83 +386,15 @@ export namespace AdminUserManagementService {
     locale: string,
     outerTx?: DBTransaction
   ): Promise<AdminUserDetailReturnType> {
-    await assertActorAdmin(actorId, locale, outerTx);
-
-    const tErrors = getServerTranslations(locale).errorsTranslations;
-
-    if (!isPositiveSafeInteger(id)) {
-      throw new ValidationError(tErrors.validation);
-    }
-
-    return withTransaction(outerTx, async tx => {
-      // Self-protection FIRST — zero writes, zero audit on denial.
-      if (id === actorId) {
-        logger.logDomainError("Admin self-deactivation denied", {
-          code: "USER_SELF_DEACTIVATION_FORBIDDEN",
-          entity: "user",
-          entityId: id,
-        });
-        throw new ConflictError("USER_SELF_DEACTIVATION_FORBIDDEN", tErrors.adminUsers.userSelfDeactivationForbidden);
-      }
-
-      const updated = await AdminUserRepository.setDeletedOnce(id, deleted, tx);
-      if (updated === null) {
-        // Zero rows matched — disambiguate via the cold-path existence probe.
-        const exists = await AdminUserRepository.existsById(id, tx);
-        if (!exists) {
-          logger.logDomainError("Admin user delete/reactivate: user not found", {
-            code: "USER_NOT_FOUND",
-            entity: "user",
-            entityId: id,
-          });
-          throw new NotFoundError(USER_ENTITY, tErrors.adminUsers.userNotFound);
-        }
-        // User exists but is in the wrong state for the requested transition.
-        const code = deleted ? "USER_ALREADY_DELETED" : "USER_NOT_DELETED";
-        const message = deleted ? tErrors.adminUsers.userAlreadyDeleted : tErrors.adminUsers.userNotDeleted;
-        logger.logDomainError("Admin user delete/reactivate: state conflict", {
-          code,
-          entity: "user",
-          entityId: id,
-        });
-        throw new ConflictError(code, message);
-      }
-
-      await AuditService.createAuditLog(
-        buildAuditContract(actorId, deleted ? AuditActionType.Delete : AuditActionType.Reactivate, id, { deleted }),
-        tx
-      );
-
-      return getUserDetail(id, locale, actorId, tx);
-    });
+    return setDeletedAxis(id, deleted, actorId, locale, tx => getUserDetail(id, locale, actorId, tx), outerTx);
   }
 
   /**
    * Suspend / release-suspension via a single guarded UPDATE that also
    * stamps the suspension window (`suspended_at` + `suspended_period_days`).
-   *
-   * Pipeline mirrors `setUserDeleted` with the suspend axis + window
-   * metadata: (1) strict active-admin actor guard
-   * (`assertActiveActorAdmin`) pre-transaction when no `outerTx`; (2) `id`
-   * positive-safe-int re-assertion; (3) `suspended === true` ⇒ `periodDays`
-   * validated as a whole number in `1..3650` (else `ValidationError`
-   * naming `periodDays`); `suspended === false` ⇒ `periodDays` IGNORED;
-   * (4) `withTransaction(outerTx, …)`: self-check `id === actorId` →
-   * `USER_SELF_SUSPENSION_FORBIDDEN` BEFORE any write; guarded repo call
-   * → row ⇒ proceed; `null` ⇒ classifier via `findGovernanceState(id, tx)`
-   * → `null` ⇒ `USER_NOT_FOUND`; `isDeleted === true` →
-   * `USER_ALREADY_DELETED`; axis already in requested state →
-   * `USER_ALREADY_SUSPENDED` / `USER_NOT_SUSPENDED` per direction; (5) ONE
-   * in-tx audit row via `buildAuditContract` (suspend → `AuditActionType.Suspend`
-   * + `{ changedFields, suspended: true, suspendedPeriodDays }`; unsuspend →
-   * `AuditActionType.Reactivate` + `{ changedFields, suspended: false }`);
-   * (6) return `getUserDetail(id, locale, actorId, tx)` (composition reuse —
-   * the relaxed inner re-check pass is defense-in-depth; the strict guard
-   * is the authoritative actor gate).
-   *
-   * Denials: EXACTLY ONE `logger.logDomainError(message, { code, entity,
-   * entityId, locale })`; ZERO audit rows; ZERO notification rows; happy
-   * path SILENT (REQ-053). Zero PII in audit `details`.
+   * The full axis body (STRICT actor guard, `periodDays` validation, the
+   * shared pipeline) lives in `setSuspendedAxis` — this delegate keeps the
+   * wire-identical contract.
    */
   export async function setUserSuspended(
     id: number,
@@ -497,96 +404,22 @@ export namespace AdminUserManagementService {
     locale: string,
     outerTx?: DBTransaction
   ): Promise<AdminUserDetailReturnType> {
-    await assertActiveActorAdmin(actorId, locale, outerTx);
-
-    const tErrors = getServerTranslations(locale).errorsTranslations;
-
-    if (!isPositiveSafeInteger(id)) {
-      throw new ValidationError(tErrors.validation);
-    }
-
-    // periodDays validated ONLY on suspend; unsuspend IGNORES it.
-    if (
-      suspended &&
-      (periodDays === null ||
-        !Number.isInteger(periodDays) ||
-        periodDays < SUSPENSION_PERIOD_MIN_DAYS ||
-        periodDays > SUSPENSION_PERIOD_MAX_DAYS)
-    ) {
-      throw new ValidationError("SUSPENSION_PERIOD_INVALID", tErrors.adminUsers.suspensionPeriodInvalid, undefined, [
-        { field: "periodDays", code: "SUSPENSION_PERIOD_INVALID", message: tErrors.adminUsers.suspensionPeriodInvalid },
-      ]);
-    }
-
-    return withTransaction(outerTx, async tx => {
-      if (id === actorId) {
-        logger.logDomainError("Admin self-suspension denied", {
-          code: "USER_SELF_SUSPENSION_FORBIDDEN",
-          entity: "user",
-          entityId: id,
-          locale,
-        });
-        throw new ConflictError("USER_SELF_SUSPENSION_FORBIDDEN", tErrors.adminUsers.userSelfSuspensionForbidden);
-      }
-
-      const updated = await AdminUserRepository.setSuspendedOnce(id, suspended, suspended ? periodDays : null, tx);
-
-      if (updated === null) {
-        const governanceState = await AdminUserRepository.findGovernanceState(id, tx);
-        if (governanceState === null) {
-          logger.logDomainError("Admin user suspend/reactivate: user not found", {
-            code: "USER_NOT_FOUND",
-            entity: "user",
-            entityId: id,
-            locale,
-          });
-          throw new NotFoundError(USER_ENTITY, tErrors.adminUsers.userNotFound);
-        }
-        if (governanceState.isDeleted === true) {
-          logger.logDomainError("Admin user suspend/reactivate: target already deleted", {
-            code: "USER_ALREADY_DELETED",
-            entity: "user",
-            entityId: id,
-            locale,
-          });
-          throw new ConflictError("USER_ALREADY_DELETED", tErrors.adminUsers.userAlreadyDeleted);
-        }
-        const code = suspended ? "USER_ALREADY_SUSPENDED" : "USER_NOT_SUSPENDED";
-        const message = suspended ? tErrors.adminUsers.userAlreadySuspended : tErrors.adminUsers.userNotSuspended;
-        logger.logDomainError("Admin user suspend/reactivate: state conflict", {
-          code,
-          entity: "user",
-          entityId: id,
-          locale,
-        });
-        throw new ConflictError(code, message);
-      }
-
-      const changedFields = ["suspended", "suspendedAt", "suspendedPeriodDays"];
-      const actionType = suspended ? AuditActionType.Suspend : AuditActionType.Reactivate;
-      const details = suspended
-        ? { changedFields, suspended: true, suspendedPeriodDays: periodDays }
-        : { changedFields, suspended: false };
-      await AuditService.createAuditLog(buildAuditContract(actorId, actionType, id, details), tx);
-
-      return getUserDetail(id, locale, actorId, tx);
-    });
+    return setSuspendedAxis(
+      id,
+      suspended,
+      periodDays,
+      actorId,
+      locale,
+      tx => getUserDetail(id, locale, actorId, tx),
+      outerTx
+    );
   }
 
   /**
    * Block / unblock via a single guarded UPDATE that stamps `blocked_at`
-   * on the block direction and clears it on the unblock direction. Block
-   * is an indefinite administrative deny (no lapse window — the column
-   * pair carries no period-days companion).
-   *
-   * Pipeline mirrors `setUserSuspended` with the blocked axis + axis
-   * codes. Audit `details` carries the block field names + axis state
-   * only (zero PII):
-   *   block   → `AuditActionType.Suspend` + `{ changedFields: ["isBlocked","blockedAt"], blocked: true }`
-   *   unblock → `AuditActionType.Reactivate` + `{ …, blocked: false }`
-   *
-   * Denials: EXACTLY ONE `logger.logDomainError`; ZERO audit rows; ZERO
-   * notification rows; happy path SILENT (REQ-053).
+   * on the block direction and clears it on the unblock direction. The
+   * full axis body lives in `setBlockedAxis` — this delegate keeps the
+   * wire-identical contract.
    */
   export async function setUserBlocked(
     id: number,
@@ -595,65 +428,6 @@ export namespace AdminUserManagementService {
     locale: string,
     outerTx?: DBTransaction
   ): Promise<AdminUserDetailReturnType> {
-    await assertActiveActorAdmin(actorId, locale, outerTx);
-
-    const tErrors = getServerTranslations(locale).errorsTranslations;
-
-    if (!isPositiveSafeInteger(id)) {
-      throw new ValidationError(tErrors.validation);
-    }
-
-    return withTransaction(outerTx, async tx => {
-      if (id === actorId) {
-        logger.logDomainError("Admin self-block denied", {
-          code: "USER_SELF_BLOCK_FORBIDDEN",
-          entity: "user",
-          entityId: id,
-          locale,
-        });
-        throw new ConflictError("USER_SELF_BLOCK_FORBIDDEN", tErrors.adminUsers.userSelfBlockForbidden);
-      }
-
-      const updated = await AdminUserRepository.setBlockedOnce(id, blocked, tx);
-
-      if (updated === null) {
-        const governanceState = await AdminUserRepository.findGovernanceState(id, tx);
-        if (governanceState === null) {
-          logger.logDomainError("Admin user block/unblock: user not found", {
-            code: "USER_NOT_FOUND",
-            entity: "user",
-            entityId: id,
-            locale,
-          });
-          throw new NotFoundError(USER_ENTITY, tErrors.adminUsers.userNotFound);
-        }
-        if (governanceState.isDeleted === true) {
-          logger.logDomainError("Admin user block/unblock: target already deleted", {
-            code: "USER_ALREADY_DELETED",
-            entity: "user",
-            entityId: id,
-            locale,
-          });
-          throw new ConflictError("USER_ALREADY_DELETED", tErrors.adminUsers.userAlreadyDeleted);
-        }
-        const code = blocked ? "USER_ALREADY_BLOCKED" : "USER_NOT_BLOCKED";
-        const message = blocked ? tErrors.adminUsers.userAlreadyBlocked : tErrors.adminUsers.userNotBlocked;
-        logger.logDomainError("Admin user block/unblock: state conflict", {
-          code,
-          entity: "user",
-          entityId: id,
-          locale,
-        });
-        throw new ConflictError(code, message);
-      }
-
-      const actionType = blocked ? AuditActionType.Suspend : AuditActionType.Reactivate;
-      const details = blocked
-        ? { changedFields: ["isBlocked", "blockedAt"], blocked: true }
-        : { changedFields: ["isBlocked", "blockedAt"], blocked: false };
-      await AuditService.createAuditLog(buildAuditContract(actorId, actionType, id, details), tx);
-
-      return getUserDetail(id, locale, actorId, tx);
-    });
+    return setBlockedAxis(id, blocked, actorId, locale, tx => getUserDetail(id, locale, actorId, tx), outerTx);
   }
 }

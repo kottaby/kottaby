@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "NEXT_DIST_DIR=.next-dev NODE_OPTIONS='--max-old-space-size=2048' next dev --turbopack",
     "dev:safe": "NEXT_DIST_DIR=.next-dev bun scripts/safe-dev.ts",
+    "ngrok": "bun scripts/ngrok.ts",
     "debug": "NEXT_DIST_DIR=.next-dev next dev --turbopack --port 3000",
     "dev:inspect": "NEXT_DIST_DIR=.next-dev NODE_OPTIONS='--inspect' next dev --turbopack --port 3000",
     "build": "bun run scripts/lib/run-locked-cmd.ts build NODE_ENV=production next build",

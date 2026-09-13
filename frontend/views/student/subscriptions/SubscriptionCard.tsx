@@ -98,7 +98,7 @@ export function SubscriptionCard({ row, t, locale, onRetry }: Readonly<Subscript
     >
       <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "flex-start", gap: 2 }}>
         <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, minWidth: 0 }}>
-          {t.planColumn} · {String(row.planId)}
+          {row.plan.title}
         </Typography>
         <Chip
           data-testid={`${SUBSCRIPTION_ROW_TEST_ID_PREFIX}-${row.id}${SUBSCRIPTION_ROW_STATUS_SUFFIX}`}

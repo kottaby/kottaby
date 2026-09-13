@@ -110,8 +110,6 @@ export interface CheckoutLabels {
   readonly subscriptionsMetaTitle: string;
   /** Localized page metadata — subscriptions route meta description. */
   readonly subscriptionsMetaDescription: string;
-  /** List column label — the subscribed plan. */
-  readonly planColumn: string;
   /** List column label — the subscription lifecycle chip. */
   readonly statusColumn: string;
   /** List column label — the period start (blank while pending). */

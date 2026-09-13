@@ -74,6 +74,7 @@ const INSTANT_ACTIVATION_PAYLOAD = {
       __typename: "StudentSubscription",
       id: "901",
       planId: 402,
+      plan: { __typename: "Plan", id: "402", title: "Tajweed Program" },
       status: "Pending",
       startDate: null,
       endDate: null,
@@ -174,8 +175,8 @@ describe("PlansCheckoutFunnelJourney (cross-container cache interplay)", () => {
       expect(screen.queryByTestId(PAYMENT_RESULT_LOADING_TEST_ID)).toBeNull();
       expect(screen.getByText(t.resultPendingTitle)).toBeDefined();
       expect(screen.queryByText(t.resultSuccessTitle)).toBeNull();
-      // The summary rides the mutation's own write (the payload's plan id).
-      expect(screen.getByText(String(PAYLOAD_PENDING_ROW.planId))).toBeDefined();
+      // The summary rides the mutation's own write (the payload's plan title).
+      expect(screen.getByText(PAYLOAD_PENDING_ROW.plan.title)).toBeDefined();
     });
 
     test(`[${locale}] journey 2 — catalog re-query converges on the same Plan entries across providers`, async () => {

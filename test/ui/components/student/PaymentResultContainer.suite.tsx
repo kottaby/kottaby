@@ -117,6 +117,7 @@ const ACTIVE_CACHE_ROW = {
   __typename: "StudentSubscription",
   id: "sub-cache-active",
   planId: 3,
+  plan: { __typename: "Plan", id: "3", title: "Hifz Intensive" },
   status: SubscriptionStatus.Active,
   startDate: "2099-01-10T08:45:00.000Z",
   endDate: "2099-02-10T08:45:00.000Z",

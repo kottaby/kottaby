@@ -86,7 +86,6 @@ import {
   createTestUser,
 } from "@/backend/db/test/entity-setup";
 import { constraintNameOf, expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
-import { secondPrecisionMs } from "@/test/workflows/helpers/second-precision";
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
@@ -114,6 +113,7 @@ import type {
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 import { isPgliteProvider } from "@/test/helpers/skip-when-pglite";
+import { secondPrecisionMs } from "@/test/workflows/helpers/second-precision";
 
 /** Concurrent-transaction cases run ONLY on a real multi-connection PostgreSQL. */
 const testOnRealPostgres = isPgliteProvider() ? test.skip : test;
@@ -1483,7 +1483,6 @@ describe("SubscriptionActivationService — cross-student isolation + forged fai
     });
   });
 });
-
 
 describe("SubscriptionActivationService — validity-window arithmetic lock-in (Tier 2: boundaries)", () => {
   test("committed window: endDate − startDate === plan.intervalDays × 86_400_000 exactly, anchored at the activation instant", async () => {

@@ -27,7 +27,7 @@ export function ResultSummaryRows({ newest, t }: Readonly<ResultSummaryRowsProps
   const locale = useAppLocale();
   return (
     <Stack sx={{ gap: 1, width: "100%" }}>
-      <SummaryRow label={t.planLabel} value={String(newest.planId)} />
+      <SummaryRow label={t.planLabel} value={newest.plan.title} />
       <SummaryRow label={t.statusColumn} value={statusChipLabel(newest.status, t)} />
       <SummaryRow
         label={t.startDateColumn}

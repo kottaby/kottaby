@@ -328,6 +328,30 @@ Automated live verification (`PAYMOB_LIVE_TESTS=1` gates every suite; skips clea
   the free tier. Paymob's AWS WAF also blocks the default headless-Chromium user agent with a
   bare 403 — the E2E presents a regular desktop Chrome UA.
 
+### 9.1 Ngrok tunnel: dev-server warm-up + manual script
+
+Two ways to bring the reserved-domain tunnel up in development (both need BOTH
+`NGROK_AUTHTOKEN` and `NGROK_DOMAIN` in `.env`):
+
+- **Dev-server warm-up (automatic):** root `instrumentation.ts` resolves the callback channel
+  through the factory at server boot (`bun run dev`) — with both keys set and the public
+  `/api/health` probe answering, the ngrok channel spawns the agent itself and the boot log
+  names the live channel (`Payment callback channel warmed up { kind, publicBaseUrl }`). The
+  agent is adopted probe-first: if an operator-started agent already answers at the reserved
+  domain, no second agent is spawned. Keys unset or probe failing → the one structured
+  simulation-fallback log (`ngrok-not-configured` / `ngrok-unreachable`); development is never
+  blocked. Test servers (`TEST_SERVER=1`) and production never warm the tunnel.
+- **Manual script:** `bun run ngrok` (`scripts/ngrok.ts`) — same env keys (flags
+  `--port`/`--domain`/`--authtoken`/`--env-file` override), spawns
+  `ngrok http <port> --url=<domain>` with the authtoken in the child env (never the command
+  line), and prints the exact Callback URL (`https://<domain>/api/payments/webhook`) and result
+  redirect for Paymob dashboard/intention testing.
+
+Interplay: run the manual script while the dev server already holds the reserved domain →
+ngrok answers `ERR_NGROK_334` (the script's output maps it). Run it first → the dev server's
+channel adopts the running tunnel via its public probe (no double spawn). The channel's
+default spawn runs under Node (`node:child_process`) so `next dev` can start the agent itself.
+
 ---
 
 ## 10. Troubleshooting

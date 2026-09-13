@@ -110,6 +110,7 @@ function purchaseInFlightMock(planId: string): MockLink.MockedResponse {
             __typename: "StudentSubscription",
             id: "901",
             planId: 402,
+            plan: { __typename: "Plan", id: "402", title: "Tajweed Program" },
             status: "Pending",
             startDate: null,
             endDate: null,

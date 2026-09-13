@@ -255,9 +255,26 @@ describe("getCallbackChannel resolution", () => {
     expect(channel.kind).toBe("ngrok");
     expect(channel.publicBaseUrl).toBe("https://factory-test-domain.ngrok.app");
     expect(typeof channel.deliverTestCallback).toBe("function");
-    expect(capturedSpawnCommand).toEqual(["ngrok", "http", "--url=https://factory-test-domain.ngrok.app", "4100"]);
+    expect(capturedSpawnCommand).toEqual([]);
     expect(probedUrls).toEqual(["https://factory-test-domain.ngrok.app/api/health"]);
     expect(infoSpy).not.toHaveBeenCalled();
+  });
+
+  test("composes the dev-port spawn command when the first probe misses", async () => {
+    enableDevPaymobWithTunnelEnv();
+    process.env.NGROK_PORT = "4100";
+    configureCallbackChannelTestDelivery({
+      spawnAgent: ({ command }) => {
+        capturedSpawnCommand = [...command];
+        return { kill: () => {} };
+      },
+      fetch: async () => new Response(null, { status: 503 }),
+    });
+
+    await getCallbackChannel();
+
+    expect(readFallbackReason()).toBe("ngrok-unreachable");
+    expect(capturedSpawnCommand).toEqual(["ngrok", "http", "--url=https://factory-test-domain.ngrok.app", "4100"]);
   });
 
   test("falls back to simulation with a named reason when the tunnel probe never answers", async () => {
@@ -339,7 +356,7 @@ describe("getCallbackChannel resolution", () => {
       },
       fetch: async () => {
         probeCount += 1;
-        return new Response(null, { status: 200 });
+        return new Response(null, { status: probeCount === 1 ? 503 : 200 });
       },
     });
 
@@ -348,7 +365,54 @@ describe("getCallbackChannel resolution", () => {
     await channel.ensureReady();
 
     expect(spawnCount).toBe(1);
-    expect(probeCount).toBe(1);
+    expect(probeCount).toBe(2);
+  });
+
+  test("adopts an already-running tunnel — the first passing probe spawns no agent", async () => {
+    enableDevPaymobWithTunnelEnv();
+    let spawnCount = 0;
+    const probedUrls: string[] = [];
+    configureCallbackChannelTestDelivery({
+      spawnAgent: () => {
+        spawnCount += 1;
+        return { kill: () => {} };
+      },
+      fetch: async url => {
+        probedUrls.push(url);
+        return new Response(null, { status: 200 });
+      },
+    });
+
+    const channel = await getCallbackChannel();
+    await channel.ensureReady();
+
+    expect(channel.kind).toBe("ngrok");
+    expect(channel.publicBaseUrl).toBe("https://factory-test-domain.ngrok.app");
+    expect(spawnCount).toBe(0);
+    expect(probedUrls).toEqual(["https://factory-test-domain.ngrok.app/api/health"]);
+  });
+
+  test("spawns the agent only after the first probe misses", async () => {
+    enableDevPaymobWithTunnelEnv();
+    let spawnCount = 0;
+    let probeCount = 0;
+    configureCallbackChannelTestDelivery({
+      spawnAgent: () => {
+        spawnCount += 1;
+        return { kill: () => {} };
+      },
+      fetch: async () => {
+        probeCount += 1;
+        return new Response(null, { status: probeCount === 1 ? 503 : 200 });
+      },
+    });
+
+    const channel = await getCallbackChannel();
+    await channel.ensureReady();
+
+    expect(channel.kind).toBe("ngrok");
+    expect(probeCount).toBe(2);
+    expect(spawnCount).toBe(1);
   });
 
   test("strips a trailing slash from the configured domain before composing the spawn command", async () => {
@@ -362,16 +426,18 @@ describe("getCallbackChannel resolution", () => {
       },
       fetch: async url => {
         probedUrls.push(url);
-        return new Response(null, { status: 200 });
+        // First probe misses (drives the spawn), second answers.
+        return new Response(null, { status: probedUrls.length === 1 ? 503 : 200 });
       },
     });
 
     const channel = await getCallbackChannel();
+    await channel.ensureReady();
 
     expect(channel.kind).toBe("ngrok");
     expect(channel.publicBaseUrl).toBe("https://factory-test-domain.ngrok.app");
     expect(capturedSpawnCommand).toEqual(["ngrok", "http", "--url=https://factory-test-domain.ngrok.app", "3000"]);
-    expect(probedUrls).toEqual(["https://factory-test-domain.ngrok.app/api/health"]);
+    expect(probedUrls[0]).toBe("https://factory-test-domain.ngrok.app/api/health");
   });
 
   test("falls back with ngrok-not-configured for a domain carrying a scheme prefix", async () => {

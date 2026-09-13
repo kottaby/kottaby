@@ -87,6 +87,7 @@ function subscriptionFixture(overrides?: Partial<MySubscriptionsQuery_mySubscrip
     __typename: "StudentSubscription",
     id: "6101",
     planId: 3,
+    plan: { id: "3", title: "Hifz Intensive" },
     status: SubscriptionStatus.Active,
     startDate: CREATED_ISO,
     endDate: "2099-02-10T08:45:00.000Z",

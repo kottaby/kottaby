@@ -56,7 +56,6 @@ export const checkoutAr: CheckoutLabels = {
   subscriptionsPageSubtitle: "خطط اشتراكك وحالة الدفع الخاصة بها.",
   subscriptionsMetaTitle: "اشتراكاتي",
   subscriptionsMetaDescription: "اطّلع على خطط اشتراكك وحالة الدفع ومدد الصلاحية.",
-  planColumn: "الخطة",
   statusColumn: "الحالة",
   startDateColumn: "تاريخ البدء",
   endDateColumn: "تاريخ الانتهاء",

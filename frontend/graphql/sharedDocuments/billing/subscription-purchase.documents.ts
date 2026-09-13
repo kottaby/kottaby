@@ -19,7 +19,11 @@ import type {
  * documents so the cache-normalized shape never forks: the pending pair the
  * mutation returns converges on the same `StudentSubscription:<id>` entries
  * the list query watches (per `sharedDocuments/AGENTS.md` "id Field
- * Requirement" — `id` FIRST on every row object Apollo normalizes).
+ * Requirement" — `id` FIRST on every row object Apollo normalizes). The
+ * nested `plan { id title }` selection is part of that shared shape: it
+ * selects the human-readable plan title the student surfaces render, and
+ * its `Plan:<id>` entry normalizes alongside the row (the plan id is also
+ * selected on the row itself so the mutation payload converges on it too).
  *
  * The purchase payload's `PurchaseSubscriptionPayload` and `PaymentCheckout`
  * wrappers are embedded value objects that carry no `id` by design: the
@@ -61,6 +65,10 @@ export const purchaseSubscriptionMutationDocument: TypedDocumentNode<
       subscription {
         id
         planId
+        plan {
+          id
+          title
+        }
         status
         startDate
         endDate
@@ -101,6 +109,10 @@ export const mySubscriptionsQueryDocument: TypedDocumentNode<MySubscriptionsQuer
     mySubscriptions {
       id
       planId
+      plan {
+        id
+        title
+      }
       status
       startDate
       endDate

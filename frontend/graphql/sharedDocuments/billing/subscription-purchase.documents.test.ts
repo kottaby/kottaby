@@ -163,10 +163,14 @@ const PURCHASE_DOCUMENT_TABLE: readonly PurchaseDocumentRow[] = [
 
 // The full `StudentSubscription` row (definition order, `id` first) — the
 // byte-identical selection BOTH documents pin so the cache-normalized shape
-// never forks between the purchase write and the list read.
+// never forks between the purchase write and the list read. The nested
+// `plan { id title }` sub-selection is part of that shared shape (the plan
+// title the student surfaces render); the row-level `planId` stays so the
+// mutation payload converges on the same `Plan:<id>` cache entry.
 const STUDENT_SUBSCRIPTION_ROW: readonly string[] = [
   "id",
   "planId",
+  "plan",
   "status",
   "startDate",
   "endDate",
@@ -176,6 +180,9 @@ const STUDENT_SUBSCRIPTION_ROW: readonly string[] = [
   "createdAt",
   "updatedAt",
 ];
+
+/** The `plan` relation's sub-selection (the resolved catalog row's identity + title). */
+const STUDENT_SUBSCRIPTION_PLAN_ROW: readonly string[] = ["id", "title"];
 
 // The full `StudentPayment` ledger row (definition order, `id` first) — money
 // as decimal strings (`amount`/`currency`), settlement state for the pending
@@ -223,13 +230,24 @@ describe("subscription-purchase documents — named operations + channel + varia
 });
 
 describe("subscription-purchase documents — selection snapshots", () => {
-  test("every StudentSubscription-typed selection selects the full ten-field row with id first", () => {
+  test("every StudentSubscription-typed selection selects the full eleven-field row with id first", () => {
     for (const path of ["purchaseSubscription.subscription", "mySubscriptions"]) {
       const operation = path.startsWith("mySubscriptions")
         ? operationOrThrow(mySubscriptionsQueryDocument)
         : operationOrThrow(purchaseSubscriptionMutationDocument);
       const selection = selectionPath(operation, path);
       expect(fieldNames(selection)).toEqual([...STUDENT_SUBSCRIPTION_ROW]);
+      expect(fieldNames(selection)[0]).toBe("id");
+    }
+  });
+
+  test("every plan relation selects exactly the resolved row's identity + title with id first", () => {
+    for (const path of ["purchaseSubscription.subscription.plan", "mySubscriptions.plan"]) {
+      const operation = path.startsWith("mySubscriptions")
+        ? operationOrThrow(mySubscriptionsQueryDocument)
+        : operationOrThrow(purchaseSubscriptionMutationDocument);
+      const selection = selectionPath(operation, path);
+      expect(fieldNames(selection)).toEqual([...STUDENT_SUBSCRIPTION_PLAN_ROW]);
       expect(fieldNames(selection)[0]).toBe("id");
     }
   });
@@ -262,13 +280,14 @@ describe("subscription-purchase documents — selection snapshots", () => {
     const viaMutation = selectionPath(mutationOperation, "purchaseSubscription.subscription");
     const viaQuery = selectionPath(queryOperation, "mySubscriptions");
     expect(fieldNames(viaMutation)).toEqual(fieldNames(viaQuery));
-    // Flat row objects: no row field opens a nested sub-selection.
+    // The ONLY nested sub-selection is the `plan` relation (identity +
+    // title); every other row field stays flat.
     const nestedFields = (row: FieldNode): string[] =>
       subFields(row)
         .filter(field => field.selectionSet !== undefined)
         .map(field => field.name.value);
-    expect(nestedFields(viaQuery)).toEqual([]);
-    expect(nestedFields(viaMutation)).toEqual([]);
+    expect(nestedFields(viaQuery)).toEqual(["plan"]);
+    expect(nestedFields(viaMutation)).toEqual(["plan"]);
   });
 });
 

@@ -161,7 +161,7 @@ export default defineConfig({
       rules: {
         "no-underscore-dangle": "off",
       },
-    }
+    },
   ],
   ignorePatterns: [
     "**/.*/**",

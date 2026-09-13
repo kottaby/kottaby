@@ -28,9 +28,10 @@ export function cronUnauthorizedError(): DomainError {
  * Timing-safe bearer comparison: both sides are hashed to fixed-length
  * SHA-256 digests first, so `timingSafeEqual` never sees (or leaks via
  * early exit) length differences between the presented and expected
- * secrets.
+ * secrets. Shared by the reconcile route and the sweep-endpoint factory
+ * (the ONE comparison — the envelopes cannot drift apart).
  */
-function bearerSecretMatches(presented: string | null, expected: string): boolean {
+export function bearerSecretMatches(presented: string | null, expected: string): boolean {
   if (presented === null || presented.length === 0) {
     return false;
   }
