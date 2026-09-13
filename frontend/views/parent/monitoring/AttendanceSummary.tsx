@@ -4,8 +4,8 @@ import { CalendarMonthOutlined, CheckCircleOutlined, ScheduleOutlined, TrendingU
 import { Box, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { ParentChildSessionsQuery_parentChildSessions_items } from "@/frontend/graphql/generated/gql/graphql";
-import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 import { SharedStatCard } from "@/frontend/views/parent/monitoring/SharedStatCard";
+import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 
 interface SummaryStats {
   readonly total: number;

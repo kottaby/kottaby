@@ -2,13 +2,8 @@
   "threshold": 100,
   "minTokens": 75,
   "minLines": 8,
-  "format": [
-    "typescript",
-    "tsx"
-  ],
-  "path": [
-    "."
-  ],
+  "format": ["typescript", "tsx"],
+  "path": ["."],
   "ignore": [
     "**/ai/**",
     "**/.agents/**",

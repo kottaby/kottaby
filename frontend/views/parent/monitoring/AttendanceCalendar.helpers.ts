@@ -1,7 +1,5 @@
 import type { ParentChildSessionsQuery_parentChildSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 
-
-
 export interface CalendarDay {
   readonly day: number;
   readonly sessions: readonly ParentChildSessionsQuery_parentChildSessions_items[];
@@ -11,7 +9,6 @@ export interface CalendarMonth {
   readonly year: number;
   readonly month: number;
 }
-
 
 export function shiftMonth(cm: CalendarMonth, delta: number): CalendarMonth {
   const total = cm.year * 12 + cm.month + delta;
@@ -43,7 +40,9 @@ export function buildCalendarGrid(
     }
   }
   const days: CalendarDay[] = [];
-  for (let i = 0; i < startWeekday; i++) { days.push({ day: 0, sessions: [] }); }
+  for (let i = 0; i < startWeekday; i++) {
+    days.push({ day: 0, sessions: [] });
+  }
   for (let day = 1; day <= daysInMonth; day++) {
     days.push({ day, sessions: sessionsByDate.get(day) ?? [] });
   }

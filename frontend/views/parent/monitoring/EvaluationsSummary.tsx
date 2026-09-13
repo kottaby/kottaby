@@ -4,9 +4,8 @@ import { GradeOutlined, RateReviewOutlined, StarOutlined, TrendingUpOutlined } f
 import { Box, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { ParentChildReportsQuery_parentChildReports_items } from "@/frontend/graphql/generated/gql/graphql";
-import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 import { SharedStatCard } from "@/frontend/views/parent/monitoring/SharedStatCard";
-
+import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 
 function computeEvaluationStats(items: readonly ParentChildReportsQuery_parentChildReports_items[]): {
   readonly total: number;

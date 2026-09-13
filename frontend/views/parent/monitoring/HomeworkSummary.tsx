@@ -5,9 +5,8 @@ import { Box, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { ParentChildHomeworkQuery_parentChildHomework_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatSurahJuzRef } from "@/frontend/views/parent/monitoring/parentMonitoringDisplay";
-import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 import { SharedStatCard } from "@/frontend/views/parent/monitoring/SharedStatCard";
-
+import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 
 interface HomeworkStats {
   readonly count: number;

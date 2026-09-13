@@ -7,10 +7,10 @@ import { type ReactNode, useMemo, useState } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import { parentChildHomeworkQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
-import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
-import { PrintExportDialog } from "@/frontend/views/parent/monitoring/PrintExportDialog";
+import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { renderHomeworkBody } from "@/frontend/views/parent/monitoring/HomeworkTab.body";
+import { PrintExportDialog } from "@/frontend/views/parent/monitoring/PrintExportDialog";
 import {
   DEFAULT_SORT,
   filterHomeworkRows,
@@ -63,7 +63,18 @@ export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
     refetch
   );
   const showPrintButton = rows !== undefined && rows.length > 0;
-  const printableRows = filteredRows !== undefined ? filteredRows.map(item => ({ date: formatApplicantDate(item.createdAt, locale), col2: item.jadid?.surahJuz ?? "", col3: item.madi?.surahJuz ?? "", col4: [item.jadid?.grade, item.madi?.grade].filter(g => g !== null && g !== undefined).map(g => String(g)).join("/") })) : [];
+  const printableRows =
+    filteredRows !== undefined
+      ? filteredRows.map(item => ({
+          date: formatApplicantDate(item.createdAt, locale),
+          col2: item.jadid?.surahJuz ?? "",
+          col3: item.madi?.surahJuz ?? "",
+          col4: [item.jadid?.grade, item.madi?.grade]
+            .filter(g => g !== null && g !== undefined)
+            .map(g => String(g))
+            .join("/"),
+        }))
+      : [];
   return (
     <Stack spacing={2} sx={{ width: "100%" }}>
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>

@@ -6,9 +6,8 @@ import type { ReactNode } from "react";
 import type { ParentChildProgressQuery_parentChildProgress } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { formatSurahJuzRef } from "@/frontend/views/parent/monitoring/parentMonitoringDisplay";
-import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 import { SharedStatCard } from "@/frontend/views/parent/monitoring/SharedStatCard";
-
+import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 
 function computeProgressStats(
   progress: ParentChildProgressQuery_parentChildProgress,
