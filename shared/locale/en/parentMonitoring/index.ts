@@ -151,4 +151,9 @@ export const parentMonitoringEn: ParentMonitoringLabels = {
   searchNoResults: "No results match your search",
   filterByRatingLabel: "Filter by rating",
   filterAllRatings: "All ratings",
+  sortByLabel: "Sort by",
+  sortDateDesc: "Date (newest)",
+  sortDateAsc: "Date (oldest)",
+  sortRatingDesc: "Rating (highest)",
+  sortRatingAsc: "Rating (lowest)",
 };

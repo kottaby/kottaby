@@ -183,6 +183,12 @@ const MANDATED_KEYS = [
   "searchNoResults",
   "filterByRatingLabel",
   "filterAllRatings",
+  // Sort
+  "sortByLabel",
+  "sortDateDesc",
+  "sortDateAsc",
+  "sortRatingDesc",
+  "sortRatingAsc",
 ] as const;
 
 /**

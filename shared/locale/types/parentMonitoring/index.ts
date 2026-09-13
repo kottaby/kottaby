@@ -302,4 +302,16 @@ export interface ParentMonitoringLabels {
   readonly filterByRatingLabel: string;
   /** Label for the "all ratings" filter option. */
   readonly filterAllRatings: string;
+
+  // ─── Sort functionality ──────────────────────────────────────────────
+  /** Label for the sort dropdown. */
+  readonly sortByLabel: string;
+  /** Sort option: by date (newest first). */
+  readonly sortDateDesc: string;
+  /** Sort option: by date (oldest first). */
+  readonly sortDateAsc: string;
+  /** Sort option: by rating (highest first). */
+  readonly sortRatingDesc: string;
+  /** Sort option: by rating (lowest first). */
+  readonly sortRatingAsc: string;
 }

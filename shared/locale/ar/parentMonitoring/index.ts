@@ -164,4 +164,9 @@ export const parentMonitoringAr: ParentMonitoringLabels = {
   searchNoResults: "لا توجد نتائج مطابقة لبحثك",
   filterByRatingLabel: "تصفية حسب التقييم",
   filterAllRatings: "كل التقييمات",
+  sortByLabel: "ترتيب حسب",
+  sortDateDesc: "التاريخ (الأحدث)",
+  sortDateAsc: "التاريخ (الأقدم)",
+  sortRatingDesc: "التقييم (الأعلى)",
+  sortRatingAsc: "التقييم (الأقل)",
 };

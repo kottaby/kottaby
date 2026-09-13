@@ -14,7 +14,11 @@ import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.ma
 import { HomeworkSummary } from "@/frontend/views/parent/monitoring/HomeworkSummary";
 import { HomeworkRow, HomeworkSkeleton } from "@/frontend/views/parent/monitoring/HomeworkTab.parts";
 import { SearchFilterBar } from "@/frontend/views/parent/monitoring/SearchFilterBar";
-import { filterHomeworkRows, type SearchFilterState } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
+import {
+  DEFAULT_SORT,
+  filterHomeworkRows,
+  type SearchFilterState,
+} from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
@@ -22,7 +26,11 @@ export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
   const te = useAppTranslation(Errors);
   const commonT = useAppTranslation(Common);
   const locale = useAppLocale();
-  const [searchState, setSearchState] = useState<SearchFilterState>({ query: "", ratingFilter: null });
+  const [searchState, setSearchState] = useState<SearchFilterState>({
+    query: "",
+    ratingFilter: null,
+    sort: DEFAULT_SORT,
+  });
   const { data, loading, error, refetch } = useQuery(parentChildHomeworkQueryDocument, {
     variables: { studentId: props.studentId, page: undefined, pageSize: undefined },
   });

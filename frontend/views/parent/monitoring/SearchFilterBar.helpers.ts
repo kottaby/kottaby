@@ -1,7 +1,12 @@
 export interface SearchFilterState {
   readonly query: string;
   readonly ratingFilter: number | null;
+  readonly sort: SortMode;
 }
+
+export type SortMode = "dateDesc" | "dateAsc" | "ratingDesc" | "ratingAsc";
+
+export const DEFAULT_SORT: SortMode = "dateDesc";
 
 interface FilterableReportRow {
   readonly teacherNotes: string | null;
@@ -30,7 +35,7 @@ export function filterReportRows<T extends FilterableReportRow>(
     }
     filtered.push(row);
   }
-  return filtered;
+  return sortRows(filtered, state.sort);
 }
 
 interface FilterableHomeworkRow {
@@ -67,5 +72,61 @@ export function filterHomeworkRows<T extends FilterableHomeworkRow>(
     }
     filtered.push(row);
   }
-  return filtered;
+  return sortRows(filtered, state.sort);
+}
+
+function sortRows<
+  T extends {
+    readonly sessionStartedAt?: string | null;
+    readonly createdAt: string;
+    readonly studentRatingByTeacher?: number | null;
+    readonly jadid?: { readonly grade: number | null } | null;
+    readonly madi?: { readonly grade: number | null } | null;
+  },
+>(rows: readonly T[], mode: SortMode): readonly T[] {
+  const sorted = [...rows];
+  if (mode === "dateDesc") {
+    sorted.sort((a, b) => compareDates(b, a));
+  } else if (mode === "dateAsc") {
+    sorted.sort((a, b) => compareDates(a, b));
+  } else if (mode === "ratingDesc") {
+    sorted.sort((a, b) => ratingValue(b) - ratingValue(a));
+  } else {
+    sorted.sort((a, b) => ratingValue(a) - ratingValue(b));
+  }
+  return sorted;
+}
+
+function compareDates(
+  a: { readonly sessionStartedAt?: string | null; readonly createdAt: string },
+  b: { readonly sessionStartedAt?: string | null; readonly createdAt: string }
+): number {
+  const aDate = a.sessionStartedAt ?? a.createdAt;
+  const bDate = b.sessionStartedAt ?? b.createdAt;
+  if (aDate < bDate) {
+    return -1;
+  }
+  if (aDate > bDate) {
+    return 1;
+  }
+  return 0;
+}
+
+function ratingValue(row: {
+  readonly studentRatingByTeacher?: number | null;
+  readonly jadid?: { readonly grade: number | null } | null;
+  readonly madi?: { readonly grade: number | null } | null;
+}): number {
+  if (row.studentRatingByTeacher !== null && row.studentRatingByTeacher !== undefined) {
+    return row.studentRatingByTeacher;
+  }
+  const jadidGrade = row.jadid?.grade;
+  const madiGrade = row.madi?.grade;
+  if (jadidGrade !== null && jadidGrade !== undefined) {
+    return jadidGrade;
+  }
+  if (madiGrade !== null && madiGrade !== undefined) {
+    return madiGrade;
+  }
+  return 0;
 }

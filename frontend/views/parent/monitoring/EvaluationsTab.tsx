@@ -14,7 +14,11 @@ import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.ma
 import { EvaluationsSummary } from "@/frontend/views/parent/monitoring/EvaluationsSummary";
 import { EvaluationRow, EvaluationsSkeleton } from "@/frontend/views/parent/monitoring/EvaluationsTab.parts";
 import { SearchFilterBar } from "@/frontend/views/parent/monitoring/SearchFilterBar";
-import { filterReportRows, type SearchFilterState } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
+import {
+  DEFAULT_SORT,
+  filterReportRows,
+  type SearchFilterState,
+} from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 export function EvaluationsTab(props: Readonly<EvaluationsTabProps>): ReactNode {
@@ -22,7 +26,11 @@ export function EvaluationsTab(props: Readonly<EvaluationsTabProps>): ReactNode 
   const te = useAppTranslation(Errors);
   const commonT = useAppTranslation(Common);
   const locale = useAppLocale();
-  const [searchState, setSearchState] = useState<SearchFilterState>({ query: "", ratingFilter: null });
+  const [searchState, setSearchState] = useState<SearchFilterState>({
+    query: "",
+    ratingFilter: null,
+    sort: DEFAULT_SORT,
+  });
   const { data, loading, error, refetch } = useQuery(parentChildReportsQueryDocument, {
     variables: { studentId: props.studentId, page: undefined, pageSize: undefined },
   });

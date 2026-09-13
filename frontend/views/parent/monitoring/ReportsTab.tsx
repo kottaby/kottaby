@@ -11,7 +11,11 @@ import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { type PrintableReportRow, PrintExportDialog } from "@/frontend/views/parent/monitoring/PrintExportDialog";
 import { renderReportsBody } from "@/frontend/views/parent/monitoring/ReportsTab.body";
-import { filterReportRows, type SearchFilterState } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
+import {
+  DEFAULT_SORT,
+  filterReportRows,
+  type SearchFilterState,
+} from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
@@ -20,7 +24,11 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
   const commonT = useAppTranslation(Common);
   const locale = useAppLocale();
   const [printOpen, setPrintOpen] = useState(false);
-  const [searchState, setSearchState] = useState<SearchFilterState>({ query: "", ratingFilter: null });
+  const [searchState, setSearchState] = useState<SearchFilterState>({
+    query: "",
+    ratingFilter: null,
+    sort: DEFAULT_SORT,
+  });
   const { data, loading, error, refetch } = useQuery(parentChildReportsQueryDocument, {
     variables: { studentId: props.studentId, page: undefined, pageSize: undefined },
   });

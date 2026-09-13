@@ -1,6 +1,6 @@
 "use client";
 
-import { ClearOutlined, SearchOutlined } from "@mui/icons-material";
+import { ClearOutlined, SearchOutlined, SortOutlined } from "@mui/icons-material";
 import {
   FormControl,
   IconButton,
@@ -13,7 +13,7 @@ import {
   Typography,
 } from "@mui/material";
 import type { ReactNode } from "react";
-import type { SearchFilterState } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
+import { DEFAULT_SORT, type SearchFilterState } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
 import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 
 export function SearchFilterBar({
@@ -22,14 +22,16 @@ export function SearchFilterBar({
   onChange,
   resultCount,
   totalCount,
+  showRatingFilter = true,
 }: Readonly<{
   state: SearchFilterState;
   labels: ParentMonitoringLabels;
   onChange: (next: SearchFilterState) => void;
   resultCount: number;
   totalCount: number;
+  showRatingFilter?: boolean;
 }>): ReactNode {
-  const hasFilter = state.query !== "" || state.ratingFilter !== null;
+  const hasFilter = state.query !== "" || state.ratingFilter !== null || state.sort !== DEFAULT_SORT;
   return (
     <Stack spacing={1.5} sx={{ width: "100%" }}>
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ width: "100%" }}>
@@ -62,23 +64,44 @@ export function SearchFilterBar({
             },
           }}
         />
-        <FormControl size="small" sx={{ minWidth: 140 }}>
-          <InputLabel id="rating-filter-label">{labels.filterByRatingLabel}</InputLabel>
+        {showRatingFilter ? (
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <InputLabel id="rating-filter-label">{labels.filterByRatingLabel}</InputLabel>
+            <Select
+              labelId="rating-filter-label"
+              label={labels.filterByRatingLabel}
+              value={state.ratingFilter === null ? "all" : String(state.ratingFilter)}
+              onChange={e => {
+                const v = e.target.value;
+                onChange({ ...state, ratingFilter: v === "all" ? null : Number(v) });
+              }}
+            >
+              <MenuItem value="all">{labels.filterAllRatings}</MenuItem>
+              <MenuItem value="5">5 / 5</MenuItem>
+              <MenuItem value="4">4 / 5</MenuItem>
+              <MenuItem value="3">3 / 5</MenuItem>
+              <MenuItem value="2">2 / 5</MenuItem>
+              <MenuItem value="1">1 / 5</MenuItem>
+            </Select>
+          </FormControl>
+        ) : null}
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <InputLabel id="sort-label">{labels.sortByLabel}</InputLabel>
           <Select
-            labelId="rating-filter-label"
-            label={labels.filterByRatingLabel}
-            value={state.ratingFilter === null ? "all" : String(state.ratingFilter)}
-            onChange={e => {
-              const v = e.target.value;
-              onChange({ ...state, ratingFilter: v === "all" ? null : Number(v) });
-            }}
+            labelId="sort-label"
+            label={labels.sortByLabel}
+            value={state.sort}
+            onChange={e => onChange({ ...state, sort: e.target.value })}
+            startAdornment={
+              <InputAdornment position="start">
+                <SortOutlined fontSize="small" />
+              </InputAdornment>
+            }
           >
-            <MenuItem value="all">{labels.filterAllRatings}</MenuItem>
-            <MenuItem value="5">5 / 5</MenuItem>
-            <MenuItem value="4">4 / 5</MenuItem>
-            <MenuItem value="3">3 / 5</MenuItem>
-            <MenuItem value="2">2 / 5</MenuItem>
-            <MenuItem value="1">1 / 5</MenuItem>
+            <MenuItem value="dateDesc">{labels.sortDateDesc}</MenuItem>
+            <MenuItem value="dateAsc">{labels.sortDateAsc}</MenuItem>
+            <MenuItem value="ratingDesc">{labels.sortRatingDesc}</MenuItem>
+            <MenuItem value="ratingAsc">{labels.sortRatingAsc}</MenuItem>
           </Select>
         </FormControl>
       </Stack>
