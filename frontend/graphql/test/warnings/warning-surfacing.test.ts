@@ -322,6 +322,11 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * resolves to the canonical `SessionRecitation` payload with every denial
  * (`RECITATION_ALREADY_EXISTS`, `SESSION_NOT_FOUND`) riding `errors[]`, so it
  * is warning-incapable like the session-family mutations enumerated above.
+ *
+ * Refreshed for teacher evaluation submission: `submitTeacherEvaluation`
+ * resolves to the canonical `Evaluation` payload (denials ride `errors[]`,
+ * never a partial-success wrapper), so it is warning-incapable like the
+ * session-report and recitation mutations enumerated above.
  */
 const KNOWN_LIVE_MUTATION_FIELDS = [
   "adminBroadcastNotification",
@@ -357,6 +362,7 @@ const KNOWN_LIVE_MUTATION_FIELDS = [
   "setSessionRecitation",
   "startSession",
   "submitSessionReport",
+  "submitTeacherEvaluation",
   "updateMyLocale",
   "updatePlan",
 ];

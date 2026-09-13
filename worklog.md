@@ -152,3 +152,22 @@ Stage Summary:
 - IV attested: test/ui/AGENTS.md + tasks.md protocol read and observed (preload warming incl. Sessions, getLabels discipline, MUI class gotchas, no oxlint-disable)
 - Deliverables: outcome/4.4-outcome.md (mapping table, files, raw counts, verdict evidence, attestations, carry-forward); tasks.md 4.4 + 4.4.* flipped [x]; this worklog entry; backups in /tmp/task44z-backup/ (cp --parents) + logs /tmp/task44z-*.log
 - No commit/push/build (per instruction)
+
+---
+
+Task ID: 5.2
+Agent: Knowledge-Propagation Agent (Task 5.2 final deliverables)
+Task: Sprint 3 student-evaluation plan — task 5.2 knowledge propagation (canonical doc + consumer-line pointer, REQ-014)
+
+Work Log:
+- Context read: ALL 26 outcome files (1.1-4.4, midpoint-review-R1, phase0-baseline, plan-review-R1, post-implementation-review, rounds 1-10); tasks.md 5.2 + subs; specs REQ-014; plan §4.5 forward contract + D1-D13; SKILL.md propagation policy (docs-only; AGENTS.md/.agents hand-curated, untouched); sibling doc style (docs/teachers/applicant-lifecycle.md, docs/sessions/session-lifecycle.md)
+- Recurring patterns extracted (2+ occurrences each): unique-arbiter write-once/no pre-check SELECT, oracle byte-identity, server-derived identities, rating×20 scale, 23505→typed conflict, sessionRatingRange non-reuse, bounded single denial log, read-only session consumption, $all conjunction semantics, NULL session_id = applicant evaluations excluded from aggregation
+- Created docs/teachers/student-evaluation-submission.md (7 sections: Scope & Surfaces / Rating Write Contract / Score Conversion & Average-Rating Forward Contract / Error Contract / Security Posture / What NOT to Do / References); zero plan-artifact references (grep REQ-|DEV2|DEV3|tasks.md|plan.md|sprint|outcome|5.2 → 0 hits); real code paths cited
+- Appended link-only pointer to the ratings consumer line docs/sessions/session-lifecycle.md:163 (no semantic change)
+- Verification: 34/34 file:line pins re-verified by sed pattern match (/tmp/task52-verify-refs.log); analytics citation widened to :359-403 to include its soft-delete filter; relative link resolves; markdown tables column-consistent (escaped-pipe cell matches house convention, applicant-lifecycle.md:19); 5.2.QL n/a with config evidence (docs/** ignored by eslint.config.mjs:46 + oxlint.config.mts:193; tsconfig has no .md; biome has no markdown parser; no markdown lint wired into sub-loop/package.json)
+- Deliverables: outcome/5.2-outcome.md (summary, propagation table, files, verification, carry-forward: none); tasks.md 5.2 + 5.2.* flipped [x]; this worklog entry; backups /tmp/task52-backup/ (cp --parents); logs /tmp/task52-verify-refs.log
+
+Stage Summary:
+- REQ-014 satisfied: canonical doc published (write contract, gate predicate, score conversion + aggregation forward contract, error-code table, security posture, what-NOT-to-do); session-lifecycle consumer line points at it
+- Doc discloses the error contract accurately (six codes × producer × HTTP-free semantics × client surface × i18n key, cross-checked against shipped sources) and the aggregation forward contract (avg(score)/20 → teacher.average_rating, NULL session_id rows excluded)
+- AGENTS.md / .agents/instructions/ untouched; no source/test files touched; no commit/push/build (per instruction)

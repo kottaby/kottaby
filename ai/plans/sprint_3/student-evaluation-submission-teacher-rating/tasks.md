@@ -220,36 +220,36 @@
 
 ## Phase 5 — Review Wave & Knowledge Propagation
 
-### - [ ] 5.1 Post-Implementation Review Wave (parallel subagents)
+### - [x] 5.1 Post-Implementation Review Wave (parallel subagents)
 - Dispatch scoped reviewers (types / backend / frontend / security) over the plan's file set only; aggregate findings CRITICAL→LOW; fix per-file with sub-loop verification; repeat until zero feature-specific findings. Record verdicts in `outcome/5.1-review-wave-outcome.md`.
 - _Requirements: REQ-001, REQ-011, REQ-012_
-- [ ] 5.1.QL **Quality Loop**: sub-loop exit 0 on every file touched by fixes.
-- [ ] 5.1.TE **Test Engineering**: every fixhood re-runs its owning suite from §7 of `plan.md`.
-- [ ] 5.1.SEC **Security & Tenancy Audit**: reviewers reproduce the REQ-011 matrix from the wire tests.
-- [ ] 5.1.SR **Semantic Review**: zero deferred items created without a `deferred-items.md` entry.
-- [ ] 5.1.IV **Instruction Verification**: reviewers read each file's printed rule set.
+- [x] 5.1.QL **Quality Loop**: sub-loop exit 0 on every file touched by fixes.
+- [x] 5.1.TE **Test Engineering**: every fixhood re-runs its owning suite from §7 of `plan.md`.
+- [x] 5.1.SEC **Security & Tenancy Audit**: reviewers reproduce the REQ-011 matrix from the wire tests.
+- [x] 5.1.SR **Semantic Review**: zero deferred items created without a `deferred-items.md` entry.
+- [x] 5.1.IV **Instruction Verification**: reviewers read each file's printed rule set.
 
-### - [ ] 5.2 Knowledge Propagation — `docs/teachers/student-evaluation-submission.md` (NEW)
+### - [x] 5.2 Knowledge Propagation — `docs/teachers/student-evaluation-submission.md` (NEW)
 - Author the canonical doc (per the propagation template): rating write contract, gate predicate, `score = rating × 20` conversion + DEV2-017 aggregation forward contract (`avg(score)/20` → `teacher.average_rating`), error-code table, security posture, what-NOT-to-do (no pre-check SELECT, no lifecycle writes, no `sessionRatingRange` reuse).
 - Append the doc pointer to the DEV2-016 consumer line in `docs/sessions/session-lifecycle.md:163` (link only; no semantic change).
 - Do NOT touch AGENTS.md / `.agents/instructions/` (hand-curated).
 - _Requirements: REQ-014_
-- [ ] 5.2.QL **Quality Loop**: markdown lint surface — run sub-loop equivalent checks available for md; tsgo/lint unaffected by docs (record n/a with evidence).
-- [ ] 5.2.TE **Test Engineering**: n/a (documentation).
-- [ ] 5.2.SEC **Security & Tenancy Audit**: doc discloses the error contract accurately (codes + oracle policy).
-- [ ] 5.2.SR **Semantic Review**: links resolve; line refs are current at write time.
-- [ ] 5.2.IV **Instruction Verification**: n/a beyond root `AGENTS.md` doc conventions.
+- [x] 5.2.QL **Quality Loop**: markdown lint surface — run sub-loop equivalent checks available for md; tsgo/lint unaffected by docs (record n/a with evidence).
+- [x] 5.2.TE **Test Engineering**: n/a (documentation).
+- [x] 5.2.SEC **Security & Tenancy Audit**: doc discloses the error contract accurately (codes + oracle policy).
+- [x] 5.2.SR **Semantic Review**: links resolve; line refs are current at write time.
+- [x] 5.2.IV **Instruction Verification**: n/a beyond root `AGENTS.md` doc conventions.
 
-### - [ ] 5.3 Final Gate & Definition-of-Done Audit
+### - [x] 5.3 Final Gate & Definition-of-Done Audit
 - `bun quality-gate` green; re-record tsgo/biome/lint counts against the 0.1 baseline (no regressions attributable to this plan).
 - Full relevant suites green: repo, service, journey, wire (`test:graphql`), component (`test:ui:components`).
 - DoD sweep against `specs.md` §5; close out the ledger; final checkbox sweep.
 - _Requirements: REQ-001, REQ-013, all others transitively_
-- [ ] 5.3.QL **Quality Loop**: `bun quality-gate` exit 0.
-- [ ] 5.3.TE **Test Engineering**: suite table pasted into the outcome with counts.
-- [ ] 5.3.SEC **Security & Tenancy Audit**: REQ-011 matrix re-run once, end to end.
-- [ ] 5.3.SR **Semantic Review**: every REQ id from `specs.md` appears in this file (traceability audit command in §below).
-- [ ] 5.3.IV **Instruction Verification**: sweep — every edited file's printed rule set was read (attest in outcome).
+- [x] 5.3.QL **Quality Loop**: `bun quality-gate` exit 0.
+- [x] 5.3.TE **Test Engineering**: suite table pasted into the outcome with counts.
+- [x] 5.3.SEC **Security & Tenancy Audit**: REQ-011 matrix re-run once, end to end.
+- [x] 5.3.SR **Semantic Review**: every REQ id from `specs.md` appears in this file (traceability audit command in §below).
+- [x] 5.3.IV **Instruction Verification**: sweep — every edited file's printed rule set was read (attest in outcome).
 
 ## Traceability Command (run at 5.3)
 
