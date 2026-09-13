@@ -34,7 +34,12 @@
  *   are used directly — the sanctioned deviation precedent of the
  *   session-request journey);
  * - σ reaches `completed` through the REAL session-lifecycle service path
- *   (book → start → complete), never raw status surgery;
+ *   (book → start → complete), never raw status surgery; that lifecycle
+ *   completion ALSO persists the dual-confirmation handshake completion-prompt
+ *   row for the student (a shipped sibling feature) — it shares the
+ *   `SessionCompletion` type and session `relatedEntityId` with the
+ *   report-ready wave, so every notification oracle below scopes its counts to
+ *   the report-wave rows via their distinct `title` copy slot;
  * - external effects are intercepted at the injection seam:
  *   `SpiedFanoutTransport` + a suite-local Map-backed claim cache passed via
  *   the engine call options — no Redis, no WebSocket, ever;
@@ -96,7 +101,6 @@ import { getServerTranslations } from "@/shared/locale/server-graphql";
 import {
   catchJourneyError,
   countAuditLogsForActor,
-  countNotificationsForUser,
   countTeacherTransactionsForTeacher,
   countWalletsForTeacher,
   journeyPrefix,
@@ -266,7 +270,18 @@ async function homeWorkUpdatedAtBySessionId(sessionId: number): Promise<Date | n
   return result.rows[0]?.updatedAt ?? null;
 }
 
-/** All report-wave notification rows one user holds for one session. */
+/**
+ * Report-wave notification rows one user holds for one session.
+ *
+ * The dual-confirmation handshake's completion-prompt row shares the SAME
+ * `SessionCompletion` type and session `relatedEntityId` with the report-ready
+ * wave, so the count is scoped to the wave's distinct `title` copy slot in
+ * EITHER recipient locale (the student wave composes the English copy, the
+ * parent wave the Arabic one — a user only ever receives waves in their own
+ * persisted locale; the prompt composes `eventSessionCompletionPromptTitle`,
+ * which matches neither). Exact counts stay exact: the handshake rows are
+ * excluded by kind, never absorbed into a looser bound.
+ */
 async function completionRowsFor(userId: number, sessionId: number): Promise<NotificationReturnType[]> {
   return db
     .select()
@@ -275,9 +290,30 @@ async function completionRowsFor(userId: number, sessionId: number): Promise<Not
       and(
         eq(notifications.userId, userId),
         eq(notifications.type, NotificationType.SessionCompletion),
-        eq(notifications.relatedEntityId, sessionId)
+        eq(notifications.relatedEntityId, sessionId),
+        inArray(notifications.title, [NOTIFS_EN.eventSessionReportReadyTitle, NOTIFS_AR.eventSessionReportReadyTitle])
       )
     );
+}
+
+/**
+ * Inbox size scoped to the report-wave rows one user holds — the
+ * `sideEffectSnapshot` / cumulative-count oracle. Rows are matched on the
+ * wave's `SessionCompletion` type and the report-ready `title` copy slot in
+ * EITHER recipient locale (the student wave composes the English copy, the
+ * parent wave the Arabic one — a user only ever receives waves in their own
+ * persisted locale), so the handshake completion-prompt rows (same type, same
+ * relatedEntityId, different copy) never inflate the count.
+ */
+function reportWaveCountFor(userId: number): Promise<number> {
+  return db.$count(
+    notifications,
+    and(
+      eq(notifications.userId, userId),
+      eq(notifications.type, NotificationType.SessionCompletion),
+      inArray(notifications.title, [NOTIFS_EN.eventSessionReportReadyTitle, NOTIFS_AR.eventSessionReportReadyTitle])
+    )
+  );
 }
 
 /** Reads the booking-relevant escrow lanes of one student straight from the row. */
@@ -363,7 +399,7 @@ async function sideEffectSnapshot(
     cast.teacherFt.id,
     cast.adminA.id,
   ];
-  const inboxCounts = await Promise.all(actorIds.map(id => countNotificationsForUser(id)));
+  const inboxCounts = await Promise.all(actorIds.map(id => reportWaveCountFor(id)));
   const lanes = await readBookingLanes(lanesStudentId);
   return {
     notificationsS: inboxCounts[0] ?? -1,
@@ -886,9 +922,9 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     expect(new Set(claimCache.claimedKeys)).toEqual(expectedKeys);
 
     // Isolation: non-participants hold nothing.
-    expect(await countNotificationsForUser(studentSPrime.id)).toBe(0);
-    expect(await countNotificationsForUser(teacherFt.id)).toBe(0);
-    expect(await countNotificationsForUser(adminA.id)).toBe(0);
+    expect(await reportWaveCountFor(studentSPrime.id)).toBe(0);
+    expect(await reportWaveCountFor(teacherFt.id)).toBe(0);
+    expect(await reportWaveCountFor(adminA.id)).toBe(0);
 
     // The step's own submit is the ONLY delta the snapshot may show:
     // exactly +1 report, +1 home_work, +1 student wave, +1 parent wave,
@@ -979,7 +1015,7 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     tracked.register(notifications, primeWave.id);
     expect(transportSpy.publishCount).toBe(before.publishes + 1);
     expect(transportSpy.calls.at(-1)?.userIds).toEqual([studentSPrime.id]);
-    expect(await countNotificationsForUser(parentP.id)).toBe(before.notificationsP);
+    expect(await reportWaveCountFor(parentP.id)).toBe(before.notificationsP);
 
     // The step's own σ′ submit is the ONLY delta the snapshot may show:
     // the INV-P1 student-only leg — +1 inbox row for S′, +1 publish — with
@@ -1258,8 +1294,8 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     tracked.register(homeWork, sigma2HomeworkRow.id);
 
     // Cumulative waves: student + parent each +1 for σ₂ (2 each in total).
-    expect(await countNotificationsForUser(studentS.id)).toBe(2);
-    expect(await countNotificationsForUser(parentP.id)).toBe(2);
+    expect(await reportWaveCountFor(studentS.id)).toBe(2);
+    expect(await reportWaveCountFor(parentP.id)).toBe(2);
     const sigma2StudentWaves = await completionRowsFor(studentS.id, sigma2.id);
     const sigma2ParentWaves = await completionRowsFor(parentP.id, sigma2.id);
     expect(sigma2StudentWaves).toHaveLength(1);
@@ -1629,12 +1665,12 @@ describe("cross-actor journey: session report + homework (gates → co-creation 
     // homework rows σ/σ₂/σ′; 7 waves; 7 publishes.
     expect(await countReportRows([sigma.id, sigma2.id, sigma3.id, sigma4.id, sigmaPrime.id])).toBe(4);
     expect(await countHomeWorkRows([sigma.id, sigma2.id, sigma3.id, sigma4.id, sigmaPrime.id])).toBe(3);
-    expect(await countNotificationsForUser(studentS.id)).toBe(3);
-    expect(await countNotificationsForUser(parentP.id)).toBe(3);
-    expect(await countNotificationsForUser(studentSPrime.id)).toBe(1);
-    expect(await countNotificationsForUser(teacherT.id)).toBe(0);
-    expect(await countNotificationsForUser(teacherFt.id)).toBe(0);
-    expect(await countNotificationsForUser(adminA.id)).toBe(0);
+    expect(await reportWaveCountFor(studentS.id)).toBe(3);
+    expect(await reportWaveCountFor(parentP.id)).toBe(3);
+    expect(await reportWaveCountFor(studentSPrime.id)).toBe(1);
+    expect(await reportWaveCountFor(teacherT.id)).toBe(0);
+    expect(await reportWaveCountFor(teacherFt.id)).toBe(0);
+    expect(await reportWaveCountFor(adminA.id)).toBe(0);
     expect(transportSpy.publishCount).toBe(7);
     // Every envelope ever published was addressed to a wave recipient only.
     const addressees = new Set(transportSpy.publishedUserIds);
