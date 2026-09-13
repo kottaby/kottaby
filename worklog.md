@@ -1578,3 +1578,86 @@ The Parent Read-Only Monitoring Portal is COMPLETE and shipped on branch `feat/p
 4. **Homework progress summary**: Add a similar summary card to the Homework tab showing Jadid/Madi track progress, latest surah/juz, and grade trends.
 
 5. **Reports rating chart**: Add a simple line/bar chart showing the child's rating trend over time (using Recharts which is already a dependency). This would give parents a visual sense of progress.
+
+---
+Task ID: webDevReview-R4
+Agent: webDevReview (scheduled cron, round 4)
+Task: Homework summary card + reports rating trend chart (Recharts)
+
+## Current Project Status
+
+The Parent Read-Only Monitoring Portal is COMPLETE and shipped on branch `feat/parent-read-only-monitoring-portal`. Prior rounds completed all 22 spec-implementation tasks (318 tests) + R1 styling + R2 rate limiting/print/calendar + R3 calendar nav/print CSS/CSV/summary stats. This round (R4) focused on implementing R3 priority items #4 (homework summary) and #5 (reports rating chart).
+
+## Completed Modifications
+
+### 1. Homework Summary Stats Card (R3 priority #4)
+- **`HomeworkSummary.tsx`** — NEW component:
+  - 4-stat card: Homework Count, Latest Jadid (surah/juz), Latest Madi (surah/juz), Average Grade
+  - `computeHomeworkStats()` derives stats from homework items:
+    - Count: total homework rows
+    - Latest Jadid: first non-null surahJuz from the jadid track (newest-first ordering)
+    - Latest Madi: first non-null surahJuz from the madi track
+    - Average Grade: mean of all non-null grades across both tracks (rounded to 1 decimal)
+  - Reuses the `StatCard` + `resolvePalette()` pattern from `AttendanceSummary` (clean theme access, no nested ternaries)
+  - Integrated into `HomeworkTab.tsx` list view (renders above the rows via fragment wrapper)
+  - Only renders when rows exist (empty state takes precedence)
+- 5 new i18n keys: `homeworkSummaryHeading`, `statLatestJadid`, `statLatestMadi`, `statAverageGrade`, `statHomeworkCount`
+
+### 2. Reports Rating Trend Chart (R3 priority #5)
+- **`RatingTrendChart.tsx`** — NEW component using Recharts:
+  - Line chart showing the child's teacher-rating trend over time
+  - `buildRatingData()` extracts rated sessions (non-null `studentRatingByTeacher`) newest-first, then reverses for chronological left-to-right display
+  - Empty state with `ShowChartOutlined` icon when no ratings exist
+  - Theme-aware colors via `useTheme()` hook (no hardcoded hex values):
+    - Grid stroke: `theme.palette.divider`
+    - Line stroke: `theme.palette.primary.main`
+    - Tooltip background: `theme.palette.background.paper`
+    - Tooltip border: `theme.palette.divider`
+  - `ResponsiveContainer` for mobile/desktop adaptation (100% width, 200px height)
+  - Y-axis domain [0, 5] matching the 5-point rating scale
+  - X-axis shows session dates (locale-formatted)
+  - Integrated into `ReportsTab.tsx` (renders above the report rows via fragment wrapper)
+- 4 new i18n keys: `ratingTrendHeading`, `ratingTrendAxisLabel`, `ratingTrendSessionLabel`, `ratingTrendEmpty`
+
+### 3. i18n Keys (9 new total)
+- Homework summary: `homeworkSummaryHeading`, `statLatestJadid`, `statLatestMadi`, `statAverageGrade`, `statHomeworkCount`
+- Rating chart: `ratingTrendHeading`, `ratingTrendAxisLabel`, `ratingTrendSessionLabel`, `ratingTrendEmpty`
+- English + Arabic parity maintained (130 parity tests pass, up from 121)
+
+### 4. Component Integration
+- **`HomeworkTab.tsx`** — added `HomeworkSummary` import + fragment wrapper in the data branch
+- **`ReportsTab.tsx`** — added `RatingTrendChart` import + fragment wrapper; compressed JSX to stay under the 100-line function-body limit (oxlint `max-lines-per-function`)
+- **`index.ts`** barrel — added exports for both new components
+
+## Verification Results
+- **tsgo**: 0 errors (project-wide)
+- **biome**: clean (1825 files, no fixes needed)
+- **Parity tests**: 130 pass / 0 fail (9 new keys)
+- **UI component tests**: 59 pass / 0 fail (285 expect calls)
+- **sub-loop**: all 9 modified/new files pass `--lifecycle duplicates`
+- **Browser QA**: home page renders correctly (Arabic RTL, screenshot saved to `download/qa-r4-home.png`)
+- **Commit**: `5f2c283` pushed to origin
+
+## Unresolved Issues / Risks
+
+1. **Dev server instability** (unchanged): Turbopack dies after 1-2 requests (sandbox memory limitation). Code verified via 130 parity + 59 UI tests.
+
+2. **Rating chart not browser-verified**: The Recharts `LineChart` renders correctly in the component tests (Happy DOM), but the actual visual chart hasn't been verified in a real browser session (dev server instability). The Recharts library is well-established and the configuration is standard.
+
+3. **Chart colors use CSS variables fallback**: The `stroke` prop on Recharts components receives a direct string value from `theme.palette` (not a CSS variable). If the theme changes at runtime (dark/light toggle), the chart colors won't auto-update until a re-render. This is a known Recharts limitation (it doesn't support MUI's sx callback pattern).
+
+4. **Homework average grade includes both tracks**: The `computeHomeworkStats()` function averages grades from both Jadid and Madi tracks. If a parent wants per-track averages, that would require a separate stat card or a different calculation. The current single-average approach is simpler and more useful for a quick overview.
+
+5. **Rating chart shows only rated sessions**: Sessions without a teacher rating (`studentRatingByTeacher === null`) are excluded from the chart. The chart's x-axis dates may have gaps if some sessions were unrated. This is intentional — the chart shows the rating trend, not the attendance history.
+
+## Priority Recommendations for Next Phase
+
+1. **E2E browser journey coverage** (deferred D3 → DEV1-019): Write Playwright E2E tests that log in as a parent and verify the portal renders with all enhanced features (calendar, summary stats, rating chart, print/export). This remains the most impactful next step for visual QA.
+
+2. **Curriculum-depth statistics** (deferred D1): Implement percentage-through-curriculum and per-ayah completion maps over the `lessons`/`progress` tables. The StatCard pattern can be reused for a curriculum progress summary on the Progress tab.
+
+3. **Progress tab summary card**: Add a summary card to the Progress tab (matching the Attendance and Homework tabs) showing latest Jadid/Madi positions, progress row count, and a simple progress indicator.
+
+4. **Chart interactivity**: Add a tooltip formatter that shows the session date + rating value in a localized format. Currently the default Recharts tooltip shows raw data.
+
+5. **Dark mode chart colors**: Investigate using CSS variables for Recharts colors so the chart adapts to dark/light theme changes. This may require a custom wrapper or a `useTheme` re-render trigger.
