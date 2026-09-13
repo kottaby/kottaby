@@ -70,6 +70,7 @@ import {
 
 const CREATED_ISO = "2099-01-05T08:00:00.000Z";
 const CONFIRMED_ISO = "2099-01-09T16:00:00.000Z";
+const RESOLVED_ISO = "2099-01-11T10:00:00.000Z";
 const ENDED_ISO = "2099-01-09T17:30:00.000Z";
 const DISPUTED_ISO = "2099-01-10T13:20:00.000Z";
 
@@ -237,17 +238,19 @@ function shippedDisputeSuccessMock(id: string): MockLink.MockedResponse {
 // ---------------------------------------------------------------------------
 // Predicate-level byte-stability pins (locale-independent)
 
-/** A minimal dispute-shape row for the predicate pins. */
+/** A minimal dispute-shape row for the predicate pins (resolved stamp defaults to unset). */
 function disputeShape(
   status: SessionStatus,
   confirmedByStudentAt: string | null,
-  feeHeld: boolean
+  feeHeld: boolean,
+  resolvedAt: string | null = null
 ): {
   status: SessionStatus;
   confirmedByStudentAt: string | null;
   feeHeld: boolean;
+  resolvedAt: string | null;
 } {
-  return { status, confirmedByStudentAt, feeHeld };
+  return { status, confirmedByStudentAt, feeHeld, resolvedAt };
 }
 
 describe("shared dispute status vocabulary (byte-stable)", () => {
@@ -273,6 +276,15 @@ describe("shared dispute status vocabulary (byte-stable)", () => {
     // Terminal non-completed statuses never reach the escalation.
     expect(isDisputable(disputeShape(SessionStatus.Cancelled, null, false), "student")).toBe(false);
     expect(isDisputable(disputeShape(SessionStatus.Disputed, null, false), "student")).toBe(false);
+    // Arbitration terminality: the resolved stamp disarms the escalation
+    // even on the exact consumed-completed shape (the admin's decision is
+    // binding — no re-dispute affordance).
+    expect(isDisputable(disputeShape(SessionStatus.Completed, CONFIRMED_ISO, false, RESOLVED_ISO), "student")).toBe(
+      false
+    );
+    expect(isDisputable(disputeShape(SessionStatus.Completed, CONFIRMED_ISO, false, RESOLVED_ISO), "teacher")).toBe(
+      false
+    );
   });
 
   test("resolveStudentDisputeMutation — the post-confirmation row binds the post-confirmation document; every other shape keeps the shipped document", () => {

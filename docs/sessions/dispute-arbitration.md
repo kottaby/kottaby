@@ -53,7 +53,7 @@ stateDiagram-v2
 `SessionArbitrationService.openPostConfirmationDispute` → `SessionRepository.openPostConfirmationDisputeOnce`:
 
 - ONE guarded single-statement UPDATE fusing `id ∧ student_id = caller ∧ status = 'completed' ∧ confirmed_by_student_at IS NOT NULL ∧ fee_held = false`; SET `status = 'disputed'`, `dispute_reason`, `disputed_at`, `updated_at`. Escrow columns and completion stamps are deliberately untouched.
-- Denials: a non-participant — including the row's own teacher — is oracle-collapsed behind `SESSION_NOT_FOUND`; a wrong shape (held, unstamped, or not `completed`) is the state conflict `SESSION_INVALID_TRANSITION`; an empty/whitespace/oversized reason is `VALIDATION` (required-reason normalization, ≤ 500 chars, applied pre-DB).
+- Denials: a non-participant — including the row's own teacher — is oracle-collapsed behind `SESSION_NOT_FOUND`; a wrong shape (held, unstamped, or not `completed`) is the state conflict `SESSION_INVALID_TRANSITION`; **an already-arbitrated row (`resolved_at` stamped — both resolution families stamp it) is the same state conflict: arbitration is TERMINAL, so a decided case can never re-enter the disputed state and a second arbitration can never move money for the same fee again** (the probe classifier denies pre-DB and the guarded statement carries the matching `resolved_at IS NULL` leg, so the denial holds under races); an empty/whitespace/oversized reason is `VALIDATION` (required-reason normalization, ≤ 500 chars, applied pre-DB).
 - Zero audit rows — opening a dispute is a participant action, mirroring the held generation.
 - Exactly-once: a concurrent duplicate submit is the state-conflict loser; the recorded reason is never rewritten.
 
@@ -62,7 +62,7 @@ stateDiagram-v2
 `SessionRepository.resolveConsumedDisputeOnce`:
 
 - ONE guarded UPDATE fusing `id ∧ status = 'disputed' ∧ fee_held = false`; SET `status = 'completed'`, `resolution_note` (optional, trimmed ≤ 500, whitespace → NULL), `resolved_at`, `updated_at`.
-- The statement `.returning()`-projects the 8-column arbitration probe (`id, status, studentId, teacherId, fee, feeHeld, heldBalanceLane, confirmedByStudentAt`) — the financial legs consume it with no re-read. A zero-row match means the row was already resolved or is held-class: the state conflict, before any money moves.
+- The statement `.returning()`-projects the arbitration probe (`id, status, studentId, teacherId, fee, feeHeld, heldBalanceLane, confirmedByStudentAt`, plus `resolvedAt` — the terminality marker the student re-dispute classifier reads) — the financial legs consume it with no re-read. A zero-row match means the row was already resolved or is held-class: the state conflict, before any money moves.
 
 ### 4.3 Transaction composition & race posture
 

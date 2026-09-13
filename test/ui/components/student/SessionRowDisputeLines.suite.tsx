@@ -186,6 +186,45 @@ describe("SessionRow dispute lines — participant arbitration transparency", ()
     expect(liveScreen.getByTestId("session-resolution-note-7306")).toBeDefined();
   });
 
+  test("arbitration terminality affordance — an arbitrated row renders NO re-dispute CTA on the student surface", () => {
+    renderWithMocks(
+      <SessionRow
+        session={arbitratedRow({ id: "7308" })}
+        onCancelIntent={() => undefined}
+        onDisputeIntent={() => undefined}
+        role={STUDENT_ROLE}
+      />,
+      [],
+      "en"
+    );
+    // The row was decided by the admin (resolution stamp set) — the
+    // post-confirmation dispute CTA must NOT render, mirroring the
+    // service-side terminality denial exactly.
+    expect(liveScreen.queryByTestId("session-action-7308-dispute")).toBeNull();
+  });
+
+  test("affordance control — a NOT-yet-disputed consumed completed row still renders the post-confirmation CTA", () => {
+    renderWithMocks(
+      <SessionRow
+        session={cleanRow({
+          id: "7309",
+          status: SessionStatus.Completed,
+          confirmedByStudentAt: DISPUTED_ISO,
+          feeHeld: false,
+        })}
+        onCancelIntent={() => undefined}
+        onDisputeIntent={() => undefined}
+        role={STUDENT_ROLE}
+      />,
+      [],
+      "en"
+    );
+    expect(liveScreen.getByTestId("session-action-7309-dispute")).toBeDefined();
+    // And still no audit lines (nothing disputed or resolved yet).
+    expect(liveScreen.queryByTestId("session-dispute-reason-7309")).toBeNull();
+    expect(liveScreen.queryByTestId("session-resolution-note-7309")).toBeNull();
+  });
+
   test("teacher surface sees the arbitrated outcome too (shared row part, zero role logic)", () => {
     const locale: AppLocale = "en";
     renderWithMocks(

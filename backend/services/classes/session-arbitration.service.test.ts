@@ -369,6 +369,40 @@ describe("SessionArbitrationService — post-confirmation dispute open (runInRol
     });
   });
 
+  test("arbitration terminality: an already-arbitrated row (resolved_at stamped) is the state conflict — the decided case can never re-enter the disputed state, with zero writes", async () => {
+    await runInRollback(async tx => {
+      const actors = await createArbitrationActors(tx);
+      // A row the admin already decided: completed, dual-confirmed, escrow
+      // consumed, AND the resolution stamp set (the PostRefund outcome's
+      // post-arbitration shape — resolution_note written by the admin,
+      // resolved_at stamped by the completion leg).
+      const decidedAt = new Date();
+      const arbitrated = await insertArbitrationSessionRow(tx, actors, {
+        resolutionNote: "half the slot was lost to connection failures",
+        resolvedAt: decidedAt,
+      });
+
+      const error = await expectRepoError(() =>
+        SessionArbitrationService.openPostConfirmationDispute(
+          actors.studentUserId,
+          arbitrated.id,
+          "second dispute on a decided case",
+          "en",
+          tx
+        )
+      );
+      expectDomainDenial(error, "SESSION_INVALID_TRANSITION", t().sessionInvalidTransition);
+
+      // Zero writes anywhere: the decision stands untouched.
+      const after = await readSessionRow(tx, arbitrated.id);
+      expect(after?.status).toBe(SessionStatus.Completed);
+      expect(after?.resolutionNote).toBe("half the slot was lost to connection failures");
+      expect(after?.resolvedAt).not.toBeNull();
+      expect(after?.disputedAt).toBeNull();
+      expect(await countAuditRowsForActor(tx, actors.studentUserId)).toBe(0);
+    });
+  });
+
   test("double submission: the second open is the state-conflict loser and never rewrites the recorded reason", async () => {
     await runInRollback(async tx => {
       const actors = await createArbitrationActors(tx);

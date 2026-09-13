@@ -92,7 +92,7 @@ const OPEN_POST_CONFIRMATION_DISPUTE_MUTATION: SessionDisputeMutationProps = {
  */
 export function resolveStudentDisputeMutation(
   disputedSession:
-    | Pick<MyStudentSessionsQuery_myStudentSessions_items, "status" | "confirmedByStudentAt" | "feeHeld">
+    | Pick<MyStudentSessionsQuery_myStudentSessions_items, "status" | "confirmedByStudentAt" | "feeHeld" | "resolvedAt">
     | null
     | undefined
 ): SessionDisputeMutationProps {

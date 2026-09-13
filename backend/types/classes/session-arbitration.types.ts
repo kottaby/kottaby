@@ -40,7 +40,15 @@ import type { SessionReturnType, SessionSelectType } from "@/backend/types/class
  */
 export type SessionArbitrationProbeType = Pick<
   SessionSelectType,
-  "id" | "status" | "studentId" | "teacherId" | "fee" | "feeHeld" | "heldBalanceLane" | "confirmedByStudentAt"
+  | "id"
+  | "status"
+  | "studentId"
+  | "teacherId"
+  | "fee"
+  | "feeHeld"
+  | "heldBalanceLane"
+  | "confirmedByStudentAt"
+  | "resolvedAt"
 >;
 
 /**

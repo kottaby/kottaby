@@ -26,7 +26,7 @@
  *    caller decides what `null` means.
  */
 
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { session } from "@/backend/db/schema/classes/session";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
@@ -68,7 +68,13 @@ export async function openPostConfirmationDisputeOnce(
         eq(session.studentId, studentId),
         eq(session.status, SessionStatus.Completed),
         isNotNull(session.confirmedByStudentAt),
-        eq(session.feeHeld, false)
+        eq(session.feeHeld, false),
+        // Arbitration terminality: a row the admin has already decided
+        // (resolved_at stamped — BOTH resolution families stamp it) can
+        // never re-enter the disputed state. Without this leg the
+        // dispute→arbitrate→dispute loop could re-open a decided case and
+        // a second arbitration could move money for the same fee again.
+        isNull(session.resolvedAt)
       )
     )
     .returning();
@@ -115,6 +121,7 @@ export async function resolveConsumedDisputeOnce(
       feeHeld: session.feeHeld,
       heldBalanceLane: session.heldBalanceLane,
       confirmedByStudentAt: session.confirmedByStudentAt,
+      resolvedAt: session.resolvedAt,
     });
   return rows[0] ?? null;
 }
@@ -142,6 +149,7 @@ export async function findArbitrationProbe(
     feeHeld: session.feeHeld,
     heldBalanceLane: session.heldBalanceLane,
     confirmedByStudentAt: session.confirmedByStudentAt,
+    resolvedAt: session.resolvedAt,
   };
   if (tx) {
     const rows = await tx.select(projection).from(session).where(eq(session.id, id)).limit(1);
@@ -150,7 +158,8 @@ export async function findArbitrationProbe(
   const result = await queryDb<SessionArbitrationProbeType>(
     `SELECT id, status, student_id AS "studentId", teacher_id AS "teacherId", fee,
      fee_held AS "feeHeld", held_balance_lane AS "heldBalanceLane",
-     confirmed_by_student_at AS "confirmedByStudentAt"
+     confirmed_by_student_at AS "confirmedByStudentAt",
+     resolved_at AS "resolvedAt"
      FROM session WHERE id = $1 LIMIT 1`,
     [id]
   );

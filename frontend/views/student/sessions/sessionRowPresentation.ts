@@ -134,7 +134,7 @@ const POST_CONFIRMATION_DISPUTABLE_STATUSES: Record<string, true> = {
 /** The dispute-shape slice of the shared session row the predicates read. */
 type DisputeShapeRow = Pick<
   MyStudentSessionsQuery_myStudentSessions_items,
-  "status" | "confirmedByStudentAt" | "feeHeld"
+  "status" | "confirmedByStudentAt" | "feeHeld" | "resolvedAt"
 >;
 
 /**
@@ -144,7 +144,13 @@ type DisputeShapeRow = Pick<
  */
 export function isPostConfirmationDisputable(session: DisputeShapeRow): boolean {
   return (
-    session.status in POST_CONFIRMATION_DISPUTABLE_STATUSES && session.confirmedByStudentAt !== null && !session.feeHeld
+    session.status in POST_CONFIRMATION_DISPUTABLE_STATUSES &&
+    session.confirmedByStudentAt !== null &&
+    !session.feeHeld &&
+    // Arbitration terminality: an arbitrated row (resolution stamp set)
+    // renders NO re-dispute CTA — the admin's decision is binding, so the
+    // affordance matrix mirrors the service-side denial exactly.
+    session.resolvedAt === null
   );
 }
 

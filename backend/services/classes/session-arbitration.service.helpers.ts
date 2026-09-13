@@ -301,6 +301,14 @@ export function classifyOpenDisputeProbe(
   if (probe.studentId !== callerUserId) {
     rejectSessionNotFound("Post-confirmation dispute denied: caller is not the session's student", sessionId, t);
   }
+  // Arbitration terminality: a stamped `resolved_at` means an admin has
+  // already decided this row's dispute (BOTH resolution families stamp it)
+  // — the decision is binding, so the row can never re-enter the disputed
+  // state (a re-opened case could be re-arbitrated into a second money
+  // movement for the same fee).
+  if (probe.resolvedAt !== null) {
+    rejectStateConflict("Post-confirmation dispute denied: the dispute was already arbitrated", sessionId, t);
+  }
   if (probe.status !== SESSION_COMPLETED_STATUS || probe.confirmedByStudentAt === null || probe.feeHeld !== false) {
     rejectStateConflict("Post-confirmation dispute denied: session not disputable in its current state", sessionId, t);
   }
