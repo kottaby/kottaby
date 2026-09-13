@@ -157,10 +157,10 @@ Backend-first with a **test-first journey** authored right after repo primitives
 
 ### Phase 5: Hardening & Penetration
 
-- [ ] 5.1 Journey green + adversarial wave
+- [x] 5.1 Journey green + adversarial wave
   - `bun run test/scripts/run-test.ts test/workflows/sessions/post-confirmation-dispute.journey.test.ts` until green, then `bun run test/scripts/run-test.ts test/workflows`
   - Pen probes: student→arbitrate (403), admin→open dispute (oracle not-found), teacher→post-confirmation open, cross-family resolutions both directions, `partialAmount` fuzz (negative, zero, fee, over-precision, NaN string), concurrent refund+withdrawal wallet race
-  - [ ] 5.1.QL / 5.1.TE / 5.1.SEC / 5.1.SR / 5.1.IV
+  - [x] 5.1.QL / 5.1.TE / 5.1.SEC / 5.1.SR / 5.1.IV
   - Outcome: `outcome/5.1-hardening-outcome.md`
   - _Requirements: REQ-1 … REQ-10_
 

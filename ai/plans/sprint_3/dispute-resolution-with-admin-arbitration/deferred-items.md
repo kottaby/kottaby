@@ -21,6 +21,7 @@ Tracks work deliberately deferred by this plan (or discovered during execution a
 | D3 | Student-rates-teacher evaluation rows inside admin case review | planned REQ-6 | sprint-3 student-evaluation ticket | ✅ Done | planning ruling D-7 (plan.md) | Case review exposes today's real artifacts (report incl. `studentRatingByTeacher`, homework, recitation, audit). When the evaluation ticket ships, `getAdminDisputeCase` gains one composed field. |
 | D4 | Admin-notified fanout paging for very large admin cohorts | Task 2.6 | Task 6.1 review | ❌ Blocked | — | `resolveAudienceIds` bounded query is fine at current admin scale; add cursor paging only if the audit finds a cap breach. |
 | D5 | `docs/sessions/session-lifecycle.md` + state-machine diagram updates reflecting `completed → disputed` | Tasks 2.5–5.1 | Task 6.2 | 🔄 In Progress | — | Canonical doc update happens in Knowledge Propagation after behavior is final. |
+| D6 | Pre-existing main bug: held-escrow race test (`session-state-machine.journey.test.ts` "Race — two concurrent admin resolves") fails on origin/main (lane delta 0; residue cascades into audit-completeness oracle) | Task 5.1 discovery | outside plan — main owners | ✅ Done | 5.1 outcome (proven pre-existing: pure-main run 13/2; Cancel path byte-identical) | Not caused by this plan; filtered from review findings per SKILL.md |
 
 ---
 
