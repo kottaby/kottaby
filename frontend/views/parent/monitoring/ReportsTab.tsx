@@ -9,7 +9,7 @@ import { parentChildReportsQueryDocument } from "@/frontend/graphql/sharedDocume
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
-import { type PrintableReportRow, PrintExportDialog } from "@/frontend/views/parent/monitoring/PrintExportDialog";
+import { type PrintableRow, PrintExportDialog } from "@/frontend/views/parent/monitoring/PrintExportDialog";
 import { renderReportsBody } from "@/frontend/views/parent/monitoring/ReportsTab.body";
 import {
   DEFAULT_SORT,
@@ -66,12 +66,12 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
     setSearchState,
     refetch
   );
-  const printableRows: readonly PrintableReportRow[] =
+  const printableRows: readonly PrintableRow[] =
     filteredRows?.map(row => ({
       date: formatApplicantDate(row.sessionStartedAt ?? row.createdAt, locale),
-      status: row.sessionStatus,
-      rating: row.studentRatingByTeacher,
-      notes: row.teacherNotes,
+      col2: row.sessionStatus,
+      col3: row.studentRatingByTeacher === null ? t.ratingNotRated : String(row.studentRatingByTeacher),
+      col4: row.teacherNotes ?? "",
     })) ?? [];
   return (
     <Stack spacing={2} sx={{ width: "100%" }}>
@@ -102,6 +102,10 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
           }}
           rows={printableRows}
           childName={props.childName}
+          title={t.printDialogTitle}
+          colHeaders={[t.attendanceColumnDate, t.csvStatusColumn, t.reportsColumnRating, t.reportsColumnNotes]}
+          countLabel={t.reportsCount}
+          filePrefix="parent-portal-reports"
         />
       ) : null}
     </Stack>

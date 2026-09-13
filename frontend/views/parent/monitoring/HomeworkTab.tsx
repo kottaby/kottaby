@@ -7,10 +7,9 @@ import { type ReactNode, useMemo, useState } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import { parentChildHomeworkQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
-import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
-import { HomeworkPrintExportDialog } from "@/frontend/views/parent/monitoring/HomeworkPrintExportDialog";
-import { buildPrintableHomeworkRows } from "@/frontend/views/parent/monitoring/HomeworkPrintExportDialog.helpers";
+import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { PrintExportDialog } from "@/frontend/views/parent/monitoring/PrintExportDialog";
 import { renderHomeworkBody } from "@/frontend/views/parent/monitoring/HomeworkTab.body";
 import {
   DEFAULT_SORT,
@@ -64,7 +63,7 @@ export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
     refetch
   );
   const showPrintButton = rows !== undefined && rows.length > 0;
-  const printableRows = filteredRows !== undefined ? buildPrintableHomeworkRows(filteredRows, locale) : [];
+  const printableRows = filteredRows !== undefined ? filteredRows.map(item => ({ date: formatApplicantDate(item.createdAt, locale), col2: item.jadid?.surahJuz ?? "", col3: item.madi?.surahJuz ?? "", col4: [item.jadid?.grade, item.madi?.grade].filter(g => g !== null && g !== undefined).map(g => String(g)).join("/") })) : [];
   return (
     <Stack spacing={2} sx={{ width: "100%" }}>
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
@@ -87,13 +86,17 @@ export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
       </Box>
       {body}
       {printOpen ? (
-        <HomeworkPrintExportDialog
+        <PrintExportDialog
           open={printOpen}
           onClose={() => {
             setPrintOpen(false);
           }}
           rows={printableRows}
           childName={String(props.studentId)}
+          title={t.homeworkPrintDialogTitle}
+          colHeaders={[t.attendanceColumnDate, t.csvJadidColumn, t.csvMadiColumn, t.csvGradeColumn]}
+          countLabel={t.homeworkCount}
+          filePrefix="parent-portal-homework"
         />
       ) : null}
     </Stack>

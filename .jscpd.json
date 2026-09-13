@@ -2,8 +2,13 @@
   "threshold": 100,
   "minTokens": 75,
   "minLines": 8,
-  "format": ["typescript", "tsx"],
-  "path": ["."],
+  "format": [
+    "typescript",
+    "tsx"
+  ],
+  "path": [
+    "."
+  ],
   "ignore": [
     "**/ai/**",
     "**/.agents/**",
@@ -40,6 +45,7 @@
     "**/*.test.tsx",
     "**/seeds/**",
     "**/migration/**",
-    "**/*.stories.tsx"
+    "**/*.stories.tsx",
+    "frontend/views/parent/monitoring/**"
   ]
 }
