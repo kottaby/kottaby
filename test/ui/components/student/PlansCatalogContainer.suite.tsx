@@ -82,7 +82,7 @@ import type { AppLocale } from "@/shared/locale/AppLocale";
 import { Checkout as CheckoutNs } from "@/shared/locale/namespaces/checkout";
 import { getTranslations } from "@/shared/locale/server";
 import type { CheckoutLabels } from "@/shared/locale/types/checkout";
-import { componentSuiteLocales, liveScreen } from "@/test/ui/components/helpers";
+import { componentSuiteLocales, liveScreen, renderWithKeyCapture } from "@/test/ui/components/helpers";
 import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 
 // ---------------------------------------------------------------------------
@@ -197,37 +197,17 @@ function renderPlans(mocks: ReadonlyArray<MockLink.MockedResponse>, locale: AppL
   );
 }
 
-/** Assertion-free read of a mutation operation's `x-idempotency-key` header. */
-function contextIdempotencyKey(operation: ApolloLink.Operation): string | null {
-  const headers: unknown = operation.getContext().headers;
-  if (typeof headers !== "object" || headers === null) {
-    return null;
-  }
-  const value = Object.entries(headers).find(([key]) => key === "x-idempotency-key")?.[1];
-  return typeof value === "string" ? value : null;
-}
-
 /**
- * Renders the container with the idempotency key captured at the LINK tier:
- * a capturing `ApolloLink` wraps the `MockLink` and records the header each
- * mutation operation carries (the governance-suite precedent).
+ * Renders the container with the idempotency key captured at the LINK tier
+ * through the shared `renderWithKeyCapture` scaffold (the governance-suite
+ * precedent, extracted so every mutating suite consumes it once).
  */
 function renderPlansWithCapture(
   mocks: ReadonlyArray<MockLink.MockedResponse>,
   locale: AppLocale,
   onOperationSent: (idempotencyKey: string | null) => void
 ): RenderResult {
-  const capture = new ApolloLink((operation, forward) => {
-    onOperationSent(contextIdempotencyKey(operation));
-    return forward(operation);
-  });
-  const link = ApolloLink.from([capture, new MockLink([...mocks])]);
-  return renderWithWrapper(
-    <MockedProvider link={link}>
-      <PlansCatalogContainer />
-    </MockedProvider>,
-    { locale }
-  );
+  return renderWithKeyCapture(<PlansCatalogContainer />, mocks, locale, onOperationSent);
 }
 
 /** Opens the confirm dialog via one plan's Buy CTA (the dialog-arm prologue). */

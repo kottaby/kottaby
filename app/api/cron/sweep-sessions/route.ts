@@ -37,11 +37,15 @@
  * refunds. Zero row identities cross the wire: only the honest counts.
  */
 
-import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
-import { apiErrorResponse, apiSuccessResponse, resolveRequestId } from "@/backend/lib/api";
+import {
+  apiErrorResponse,
+  apiSuccessResponse,
+  cronBearerFromRequest,
+  cronUnauthorizedError,
+  resolveRequestId,
+} from "@/backend/lib/api";
 import { getEnv } from "@/backend/lib/env";
-import { DomainError } from "@/backend/lib/errors";
 import { SessionLifecycleService } from "@/backend/services/classes/session-lifecycle.service";
 
 /**
@@ -51,26 +55,6 @@ import { SessionLifecycleService } from "@/backend/services/classes/session-life
  * deployment is indistinguishable from any other unknown path (R-204).
  */
 const ENDPOINT_GONE_STATUS = 404;
-
-/** The failed-auth denial — classified to 401 (UNAUTHORIZED family). */
-function sweepUnauthorizedError(): DomainError {
-  return new DomainError("UNAUTHORIZED", "Invalid cron credentials.");
-}
-
-/**
- * Timing-safe bearer comparison: both sides are hashed to fixed-length
- * SHA-256 digests first, so `timingSafeEqual` never sees (or leaks via
- * early exit) length differences between the presented and expected
- * secrets.
- */
-function bearerSecretMatches(presented: string | null, expected: string): boolean {
-  if (presented === null || presented.length === 0) {
-    return false;
-  }
-  const presentedDigest = createHash("sha256").update(presented).digest();
-  const expectedDigest = createHash("sha256").update(expected).digest();
-  return timingSafeEqual(presentedDigest, expectedDigest);
-}
 
 export async function GET(request: NextRequest): Promise<Response> {
   // The route surface is locale-free: error classification receives the
@@ -87,10 +71,8 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Bearer gate — timing-safe compare against CRON_SECRET.
-  const secret = getEnv("CRON_SECRET");
-  const presented = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null;
-  if (secret === undefined || secret.length === 0 || !bearerSecretMatches(presented, secret)) {
-    return apiErrorResponse(sweepUnauthorizedError(), { requestId, locale: envelopeLocale });
+  if (!cronBearerFromRequest(name => request.headers.get(name), getEnv("CRON_SECRET")).ok) {
+    return apiErrorResponse(cronUnauthorizedError(), { requestId, locale: envelopeLocale });
   }
 
   // The sweep owns its transaction; a thrown failure (unreadable lane →

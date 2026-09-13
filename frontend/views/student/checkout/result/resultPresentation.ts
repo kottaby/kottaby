@@ -11,6 +11,7 @@
  */
 import type { Palette } from "@mui/material/styles";
 import { SubscriptionStatus } from "@/frontend/graphql/generated/gql/graphql";
+import { subscriptionStatusChipLabel } from "@/frontend/views/student/subscriptionStatusPresentation";
 import type { CheckoutLabels } from "@/shared/locale/types/checkout";
 
 /** The authoritative arm the container renders (server truth only). */
@@ -62,22 +63,13 @@ export function resultArmTone(arm: PaymentResultArm): ResultArmTone {
 }
 
 /**
- * The lifecycle chip label per authoritative subscription status — the
- * checkout namespace's COMPLETE `SubscriptionStatus` chip vocabulary. Every
- * codegen member resolves to its namespace chip; the impossible-value
- * fallback renders the raw wire value so the map stays total.
+ * The lifecycle chip label per authoritative subscription status — resolved
+ * through the shared `subscriptionStatusPresentation` map (every view
+ * rendering a subscription chip consumes the same checkout-namespace
+ * vocabulary; every codegen member carries an entry, so the map is total).
  */
-const STATUS_LABELS: Readonly<Record<SubscriptionStatus, (t: CheckoutLabels) => string>> = {
-  Active: t => t.statusActive,
-  Pending: t => t.statusPending,
-  Expired: t => t.statusExpired,
-  Cancelled: t => t.statusCancelled,
-  Suspended: t => t.statusSuspended,
-};
-
-/** Resolves the localized chip label for a subscription status value. */
 export function statusChipLabel(status: SubscriptionStatus, t: CheckoutLabels): string {
-  return STATUS_LABELS[status](t);
+  return subscriptionStatusChipLabel(status, t);
 }
 
 /**

@@ -1,49 +1,29 @@
 import type { MockLink } from "@apollo/client/testing";
-import {
-  type MySubscriptionsQuery,
-  type MySubscriptionsQuery_mySubscriptions,
-  SubscriptionStatus,
-} from "@/frontend/graphql/generated/gql/graphql";
+import { type MySubscriptionsQuery, SubscriptionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { mySubscriptionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
+import {
+  type SubscriptionRowFixture,
+  subscriptionsListMock as sharedSubscriptionsListMock,
+  subscriptionRow,
+} from "@/frontend/stories/pages/student/subscription-row.fixtures";
 
 /**
  * Fixtures for the `Pages/Student/CheckoutResult` story — the
  * post-checkout funnel-state matrix the result page derives from the
  * authoritative `mySubscriptions` re-query: active (success), pending
- * (still-processing), and no-rows arms. The wire shape is the normalized
- * `StudentSubscription` row (id-first, ten fields).
+ * (still-processing), and no-rows arms. The row builder + the list mock
+ * live in the shared `subscription-row.fixtures` module; this file keeps
+ * only the result page's per-arm payloads and mocks (the result page's
+ * `cache-and-network` refetch semantics need `maxUsageCount: Infinity`).
  */
 
-type SubscriptionRowFixture = MySubscriptionsQuery_mySubscriptions & { readonly __typename: "StudentSubscription" };
-
-/** Deterministic fixture row (all ten selected fields + `__typename`). */
-function subscriptionRow(overrides: Partial<SubscriptionRowFixture> & { id: string }): SubscriptionRowFixture {
-  return {
-    __typename: "StudentSubscription",
-    planId: 3,
-    status: SubscriptionStatus.Active,
-    startDate: "2099-01-10T08:45:00.000Z",
-    endDate: "2099-02-10T08:45:00.000Z",
-    paymentMethod: null,
-    paymentReference: null,
-    paymentVerifiedAt: null,
-    createdAt: "2099-01-10T08:45:00.000Z",
-    updatedAt: "2099-01-10T08:45:00.000Z",
-    ...overrides,
-  };
+/** Populated list mock — `maxUsageCount: Infinity` since cache-and-network refetches. */
+function resultSubscriptionsListMock(rows: readonly SubscriptionRowFixture[]): MockLink.MockedResponse {
+  return { ...sharedSubscriptionsListMock(rows), maxUsageCount: Number.POSITIVE_INFINITY };
 }
 
 /** The zero-argument list query's request shape (identity is session-derived). */
 const LIST_VARIABLES = {} as const;
-
-/** Populated list mock — `maxUsageCount: Infinity` since cache-and-network refetches. */
-export function subscriptionsListMock(rows: readonly SubscriptionRowFixture[]): MockLink.MockedResponse {
-  return {
-    request: { query: mySubscriptionsQueryDocument, variables: { ...LIST_VARIABLES } },
-    result: { data: { mySubscriptions: [...rows] } satisfies MySubscriptionsQuery },
-    maxUsageCount: Number.POSITIVE_INFINITY,
-  };
-}
 
 /** The success arm's re-query payload: one ACTIVE subscription row. */
 export const RESULT_ACTIVE_ROW: readonly SubscriptionRowFixture[] = [
@@ -82,3 +62,5 @@ export const RESULT_ERROR_MOCK: MockLink.MockedResponse = {
   error: new Error("mocked transport failure"),
   maxUsageCount: Number.POSITIVE_INFINITY,
 };
+
+export { resultSubscriptionsListMock as subscriptionsListMock };

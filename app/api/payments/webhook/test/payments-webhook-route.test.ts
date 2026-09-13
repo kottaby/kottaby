@@ -57,15 +57,18 @@
  *    size envelope — and the mock branch keeps settling header-signed
  *    deliveries unchanged while paymob-shaped twins 404. With paymob
  *    active, the mock header gate is SKIPPED and verification happens
- *    inside the adapter's parser: confirmed / declined / still-pending
- *    outcomes hand the mapped event (reference, outcome, amount, currency,
+ *    inside the adapter's parser: confirmed / declined outcomes hand the
+ *    mapped event (reference, outcome, amount, currency,
  *    providerTransactionId) to the activation service once per delivery and
- *    ack 200; TOKEN / refund / void / child-transaction / flat-redirect
- *    deliveries verify then ack the 200 no-op with the service NEVER
- *    invoked; a missing or empty `hmac` and unparsable bodies answer the
- *    masked 400 family; a forged or tampered signature (wrong secret,
- *    signed-over-different-bytes, uppercase re-encoding) answers the masked
- *    401 with exactly ONE correlated domain-error log line; the 64_000-byte
+ *    ack 200; a still-pending success (money has not moved) verifies then
+ *    acks the 200 no-op with the service NEVER invoked — the later
+ *    confirmed callback settles the purchase; TOKEN / refund / void /
+ *    child-transaction / flat-redirect deliveries verify then ack the 200
+ *    no-op with the service NEVER invoked; a missing or empty `hmac` and
+ *    unparsable bodies answer the masked 400 family; a forged or tampered
+ *    signature (wrong secret, signed-over-different-bytes, uppercase
+ *    re-encoding) answers the masked 401 with exactly ONE correlated
+ *    domain-error log line; the 64_000-byte
  *    cap is byte-exact on this branch too; a retrial-shaped burst of the
  *    SAME signed callback acks 200 on every delivery with exactly ONE
  *    settlement-shaped ack (the once-only guarded transition is the
@@ -1179,16 +1182,13 @@ describe("payments webhook route — paymob branch status matrix", () => {
     expect(memberString(deliveredEvent, "outcome")).toBe("failed");
   });
 
-  test("a success that is STILL pending maps to 'failed' — money has not moved", async () => {
+  test("a success that is STILL pending verifies then acks the 200 no-op — money has not moved", async () => {
     enablePaymobProvider();
     const response = await POST(paymobTransactionRequest(paymobTransactionObj({ pending: true })));
     expect(response.status).toBe(200);
-    expect(processCalls).toHaveLength(1);
-    const deliveredEvent: unknown = processCalls[0]?.event;
-    if (!isPlainJsonObject(deliveredEvent)) {
-      throw new Error("service event was not a JSON object");
-    }
-    expect(memberString(deliveredEvent, "outcome")).toBe("failed");
+    const body = await readJson(response);
+    expect(memberRecord(body, "data")).toEqual({ processed: false });
+    expect(processCalls).toHaveLength(0);
   });
 
   test("replay ack posture → 200 { processed: true, replayed: true } (retrials stop on 2xx)", async () => {

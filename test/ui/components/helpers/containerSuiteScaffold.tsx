@@ -22,7 +22,8 @@
  */
 
 import { expect } from "bun:test";
-import type { MockLink } from "@apollo/client/testing";
+import { ApolloLink } from "@apollo/client";
+import { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import {
   fireEvent,
@@ -83,6 +84,33 @@ export function renderWithMocks(
   locale: AppLocale
 ): RenderResult {
   return renderWithWrapper(<MockedProvider mocks={[...mocks]}>{ui}</MockedProvider>, { locale });
+}
+
+/**
+ * Renders `ui` under MockedProvider with the mutation idempotency key
+ * captured at the LINK tier: a capturing `ApolloLink` wraps the `MockLink`
+ * and reports the `x-idempotency-key` header each mutation operation
+ * carries through `onOperationSent` (assertion-free read — a missing or
+ * malformed header reports `null`).
+ */
+export function renderWithKeyCapture(
+  ui: ReactElement,
+  mocks: ReadonlyArray<MockLink.MockedResponse>,
+  locale: AppLocale,
+  onOperationSent: (idempotencyKey: string | null) => void
+): RenderResult {
+  const capture = new ApolloLink((operation, forward) => {
+    const headers: unknown = operation.getContext().headers;
+    let key: string | null = null;
+    if (typeof headers === "object" && headers !== null) {
+      const value = Object.entries(headers).find(([headerKey]) => headerKey === "x-idempotency-key")?.[1];
+      key = typeof value === "string" ? value : null;
+    }
+    onOperationSent(key);
+    return forward(operation);
+  });
+  const link = ApolloLink.from([capture, new MockLink([...mocks])]);
+  return renderWithWrapper(<MockedProvider link={link}>{ui}</MockedProvider>, { locale });
 }
 
 // ---------------------------------------------------------------------------

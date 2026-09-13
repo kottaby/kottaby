@@ -16,6 +16,7 @@
 
 import type { CSSObject, Theme } from "@mui/material/styles";
 import type { AdminPlatformAnalyticsQuery_adminPlatformAnalytics_revenueTrendDaily } from "@/frontend/graphql/generated/gql/graphql";
+import { groupDecimalDigits } from "@/shared/lib/group-decimal-digits";
 
 /** Shared metric-card grid: 4 columns desktop → 2 tablet → 1 mobile. */
 export const METRIC_GRID_SX = {
@@ -66,26 +67,11 @@ export const TREND_CHART_MIN_WIDTH = 520;
 
 /**
  * Groups the integer digits of an exact decimal string (`"1234567.89"` →
- * `"1,234,567.89"`) WITHOUT ever constructing a number — a character loop
- * keeps the value byte-exact and float-free. Sign and fraction digits are
- * preserved verbatim.
+ * `"1,234,567.89"`) through the shared `groupDecimalDigits` helper — never
+ * parsed to a number, byte-exact, float-free.
  */
 export function formatMoneyAmount(value: string): string {
-  const sign = value.startsWith("-") ? "-" : "";
-  const unsigned = sign ? value.slice(1) : value;
-  const dotIndex = unsigned.indexOf(".");
-  const integerPart = dotIndex === -1 ? unsigned : unsigned.slice(0, dotIndex);
-  const fractionPart = dotIndex === -1 ? "" : unsigned.slice(dotIndex);
-
-  let grouped = "";
-  for (let index = 0; index < integerPart.length; index += 1) {
-    const remaining = integerPart.length - index;
-    if (index > 0 && remaining % 3 === 0) {
-      grouped += ",";
-    }
-    grouped += integerPart[index];
-  }
-  return `${sign}${grouped}${fractionPart}`;
+  return groupDecimalDigits(value);
 }
 
 /** Locale-aware display of a plain count (digit localization only). */
