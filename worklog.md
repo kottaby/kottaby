@@ -1124,3 +1124,73 @@ Carry-forward to tasks 6.3 / 6.5:
 - The repository-tier cross-student isolation is now pinned at the DB layer. Task 6.3's wire tests can rely on the repo contract holding and focus their assertions on the GraphQL transport (role matrix + constant-shape denial copy in en AND ar).
 - The soft-delete severance test arm is the contract the J2 journey should observe end-to-end: sever the link → EVERY portal read immediately 403s and the children list excludes the child.
 - The cross-student isolation tests are the contract the J3 journey should observe: an unlinked parent probing foreign/nonexistent ids sees the SAME constant denial shape byte-identical across causes — asserted in BOTH en and ar.
+
+---
+
+Task ID: 6.5
+Agent: Journey Tests Subagent (general-purpose)
+Task: Run + finalize journey tests J1–J4 — `test/workflows/parents/parent-monitoring.journey.test.ts`
+
+Work Log:
+- Read SKILL.md (§Interleaved Test Execution — cross-actor journey lane rules: real services + real DB, committed fixtures + tracked afterAll cleanup, NO `runInRollback`, notification dispatch spied, `bun run test/scripts/run-test.ts <path>`), worklog.md (full — confirmed prior repo-test carry-forward to tasks 6.3/6.5), outcome/6.5-journey-tests-outcome.md (prior subagent authored the file + outcome; this run finalizes), tasks.md task 6.5 section (REQ-010–016, REQ-021/022, REQ-054), test/workflows/AGENTS.md (12 hard rules).
+- Confirmed `feat/parent-read-only-monitoring-portal` checked out at the start of EVERY bash command — the per-command checkout guarantees branch isolation throughout.
+- Confirmed the journey test file (`test/workflows/parents/parent-monitoring.journey.test.ts`, 1474 lines) already existed and compiled (prior subagent authored it; tsgo 0). This task's job was to RUN it, FIX any failures, verify the outcome is complete, and update the checkbox.
+
+EXECUTED — three commands in scope:
+
+1. `bun run scripts/health/sub-loop.ts test/workflows/parents/parent-monitoring.journey.test.ts --lifecycle duplicates`:
+   - tsgo (project-wide, filtered): ✅ passed (0 errors for the journey file).
+   - oxlint: ✅ passed.
+   - biome:check: ✅ passed.
+   - lint:type-aware: ✅ passed.
+   - check:duplicates: ✅ passed (skipped — journey file outside jscpd scan scope, per design).
+   - Exit 0 at the deepest lifecycle stage (duplicates) — ZERO fix-iterations needed; the prior subagent's authorship already met every quality gate.
+
+2. `bun run test/scripts/run-test.ts test/workflows/parents/parent-monitoring.journey.test.ts` (run #1):
+   - 13 pass / 0 fail / 223 `expect()` calls.
+   - Runtime: 1.68s.
+   - Journey test file path resolved; `bun test` executed via the approved runner; log saved to `logs/2026-09-13T00-35-14/...`.
+
+3. Idempotent teardown proof (run #2 + run #3, immediately consecutive):
+   - Run #2: 13 pass / 0 fail / 223 expect() calls. Runtime: 1.44s.
+   - Run #3: 13 pass / 0 fail / 223 expect() calls. Runtime: 1.57s.
+   - Three consecutive green runs prove ZERO residual state — the per-run `jrn_pmonitor_<uuid8>` prefix prevents collisions; the `TrackedFixtures` registry + `afterAll` hard-delete cascade in FK-safe reverse order leaves nothing behind.
+
+Per-journey test results (13 tests across J1–J4):
+
+| Journey | Tests | Outcome | Coverage |
+|---|---|---|---|
+| J1 — Teacher completion → parent reads via portal + deep-link | 5 | 5/5 pass | System baseline; teacher submits σ1 report+homework (rows land; EXACTLY ONE parent-wave publish to P in en); P reads σ1 surfaces (list/reports/homework/progress/sessions each return σ1's row); deep-link `parentChildReports(S1).items` contains row with `sessionId === σ1.id`; P2 (never linked to S1) reads S1 → constant 403 across all four per-student reads, P2's `listLinkedChildren` unaffected, 4 bounded logs |
+| J2 — Severed link revokes access immediately | 2 | 2/2 pass | Sever via cleared `parentId`: list excludes S1, every portal read 403s (constant shape), σ1 rows still exist (history survives but unreadable), 4 bounded logs. Sever via soft-delete (`isDeleted=true`): same constant denial shape (no branch disclosure between paths), list excludes S1, 4 bounded logs |
+| J3 — Unlinked parent probes foreign/nonexistent ids | 3 | 3/3 pass | EN locale: foreign-severed (S1), never-linked (S2), nonexistent (`ABSENT=2_000_000_000`), malformed (`0`) → byte-identical `{code:"FORBIDDEN", message:<en copy>}`; abuse-repeat arm yields same fingerprint (no state drift); 5 bounded logs. AR locale: same four probes → byte-identical `{code:"FORBIDDEN", message:<ar copy>}` (different fingerprint from en); 4 bounded logs. Cross-locale: `code` is `FORBIDDEN` in both en and ar; message differs (locale-composed copy) |
+| J4 — Multi-child parent switches views | 3 | 3/3 pass | Teacher submits σ3+σ4 reports/homework (distinct tracks per session): each submission publishes ONE parent-wave to P2 in ar (P2's persisted locale). P2's `listLinkedChildren` returns EXACTLY [S3, S4] in stable createdAt-ASC order with id ASC tiebreak. P2 per-child reads return ONLY that child's rows — `listChildReports(S3)` → σ3 (rating=5), `listChildReports(S4)` → σ4 (rating=3); `listChildHomework(S3)` → SurahAlBaqarah+Juz2, `listChildHomework(S4)` → SurahAalImran+Juz3 (no cross-contamination); `getChildProgress` + `listChildSessions` per-child isolated |
+
+6.5.QL — Quality Loop: sub-loop exit 0 at `--lifecycle duplicates` on the FIRST run — ZERO fix-iterations needed (tsgo + oxlint + biome:check + lint:type-aware + check:duplicates all passed). The prior subagent's authorship already met every quality gate at the deepest lifecycle stage.
+
+6.5.TE — Test Engineering: 13 pass / 0 fail / 223 `expect()` calls. The journeys ARE the cross-tier proof: real race via severance mid-sequence (J2 — the TOCTOU seal is structurally guaranteed by `requireLinkedChild` + data reads in ONE transaction); en/ar boundary (J3 — constant-shape denial asserted in BOTH locales, byte-identical WITHIN each locale across all four mismatch causes); abuse repeats (J3 step 1 — re-probing same foreign id yields SAME fingerprint); both severance paths (J2 — cleared-parentId ≡ soft-delete, no branch disclosure); per-child isolation (J4 step 3 — σ3's rows never appear in σ4's view and vice versa).
+
+6.5.SEC — Security & Tenancy Audit: cross-actor visibility table from plan §4.4 asserted verbatim per step. BOLA — identity from `ctx.user.id` only; `studentId` validated against caller's linked set inside `requireLinkedChild` (proven by J1 step 5 + J3). BOPLA — reads only. Enumeration oracle — constant 403 shape byte-identical across nonexistent/foreign/never-linked/severed/malformed ids (J3 step 1 + J2 steps 1–2). Soft-deleted child — `users.isDeleted=false` predicate in `listLinkedChildrenByParentId` + governance re-check in `requireLinkedChild`. Denial logging — exactly one bounded `logDomainError` per denial (4 logs for 4 per-student denials; 5 for J3 step 1's 4+1-repeat).
+
+6.5.SR — Semantic Review: NO `runInRollback` (confirmed — journey uses committed fixtures in `beforeAll` + tracked hard-delete cleanup in `afterAll`). Cleanup airtight (`try/finally` — `tracked.cleanup()` runs EVEN IF a step assertion failed; zero-residue re-probes by tracked id set AND by `jrn_pmonitor_` prefix run in the `finally` block; 3 consecutive green runs prove idempotent teardown). No seed data (every fixture via `backend/db/test/entity-setup.ts` helpers). Honest authorization (REAL `users` rows + REAL role-child rows; no role/permission monkey-patching). Comments ZERO plan-artifact references (grep-verified clean).
+
+6.5.IV — Instruction Verification: read all printed rule files (`AGENTS.md` root + `test/workflows/AGENTS.md` + `.agents/instructions/tests.instructions.md`). All 12 hard rules honored: `bun:test` imports only; `@/` path aliases; `catchJourneyError` for denial capture (never `expect(...).rejects.toThrow()`); `getServerTranslations(locale).errorsTranslations.forbidden` for translated denial substrings; `TrackedFixtures` registry with FK-safe reverse-order cleanup; `SpiedFanoutTransport` at the `options.transport` injection seam; per-run `jrn_pmonitor_<uuid8>` prefix; `recordDomainLogs()` helper silences + records `logDomainError` calls; no `oxlint-disable`, no `jscpd:ignore`, no `console.*`, no `any` casts.
+
+IMPLEMENTATION BUGS FIXED: None. The journey exercised the existing `ParentMonitoringService` (task 2.4) + `SessionLifecycleService` + `SessionReportService` + `SessionReportNotificationService` surface as-is — no implementation bugs were revealed. The portal surface held every journey assertion (constant-shape denial in en AND ar, list-exclusion-on-severance, deep-link resolution, per-child isolation, recipient-locale notification composition).
+
+Outcome file verified complete: `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/6.5-journey-tests-outcome.md` contains Summary, Files created, Files NOT modified, Journey structure (cast table + J1–J4 step-by-step coverage), 6.5.QL/TE/SEC/SR/IV sections, Implementation bugs fixed (None), Test results (13/0/223), Carry-forward. No update needed — the prior subagent's outcome documentation exactly matches the current run.
+
+Stage Summary:
+- One test file in scope (`test/workflows/parents/parent-monitoring.journey.test.ts`, 1474 lines, 13 tests).
+- Sub-loop exit 0 at `--lifecycle duplicates` on the FIRST run — ZERO fix-iterations needed.
+- `bun run test/scripts/run-test.ts`: 13 pass / 0 fail / 223 `expect()` calls. Three consecutive green runs prove idempotent teardown (zero residue).
+- Zero implementation bugs fixed (the portal surface held every journey assertion as-is).
+- Outcome file verified complete (no update needed).
+- tasks.md checkbox: `- [ ] 6.5 Journey tests J1-J4` → `- [x] 6.5 Journey tests J1-J4`.
+- Worklog block appended (this entry).
+- Branch: `feat/parent-read-only-monitoring-portal` (verified at the start of every bash command).
+
+Carry-forward to task 7.1 (post-implementation review wave):
+- The journey pins the cross-actor visibility table from plan §4.4 — any future change to `ParentMonitoringService` or `requireLinkedChild` that breaks the constant-shape denial contract or the list-exclusion-on-severance contract will fail this suite.
+- The journey pins the recipient-locale composition for the report-wave notification (en for P, ar for P2) — any drift in the notification engine's locale resolution will fail J1 step 2 or J4 step 1.
+- The journey pins the deep-link contract (`parentChildReports(S1).items` contains a row whose `sessionId === σ1.id`) — the frontend's `?session=X` resolution depends on this.
+- Task 7.1's parallel review wave can grep-scan this journey file alongside the other portal files for INV-P2 (zero mutations) + R-A (no `parent_link_requests` reads) + R-C (no `evaluations` imports) locks.

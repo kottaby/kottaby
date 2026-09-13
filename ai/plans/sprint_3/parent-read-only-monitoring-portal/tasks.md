@@ -350,7 +350,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - Write outcome: `outcome/6.4-ui-tests-outcome.md`
   - _Requirements: REQ-011, REQ-040, REQ-041, REQ-053_
 
-- [ ] 6.5 Journey tests J1-J4
+- [x] 6.5 Journey tests J1-J4
   - CREATE `test/workflows/parents/parent-monitoring.journey.test.ts` (precedent: `test/workflows/parents/student-confirmation-of-link.journey.test.ts`; read `test/workflows/AGENTS.md` + `docs/testing/workflow-journey-tests.md` FIRST; write TEST-FIRST against the plan §4.4 service contract where the consuming implementation is still in flight).
   - Real services + real DB; committed fixtures in `beforeAll` via `backend/db/test/entity-setup.ts` (never seed data); tracked hard-delete cleanup in `afterAll`; NEVER `runInRollback` in the journey lane; notification dispatch boundary spied (never real channels).
   - Journeys (specs §4): **J1** teacher completes session (real existing service surface) + submits report/homework → parent reads them via the portal services AND the `?session=` deep link resolves to the same record; never-linked parent's attempt → 403. **J2** sever the link (clear `students.parentId` / soft-delete the student via existing seams) → EVERY portal read immediately 403s and the children list excludes the child (no cache may extend visibility). **J3** unlinked parent probes foreign/nonexistent ids → constant 403 byte-identical across causes, asserted in BOTH en and ar. **J4** two confirmed children → both listed; per-child reads return that child's rows only.
