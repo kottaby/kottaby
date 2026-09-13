@@ -79,6 +79,10 @@ type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTransl
 /**
  * The ONE bounded denial-log entry a rejection emits: code, entity, entity
  * id, locale — never the submitted payload, never a counterparty value.
+ * The `entity` label names the table `entityId` points AT, not the flow's
+ * subject — every arm here carries a SESSION id, so the label is
+ * consistently `"session"` (the sibling session-gate taxonomy in
+ * `session-lifecycle.enforcement.ts` / `session-report.service.ts`).
  */
 function logDenial(message: string, code: string, entity: string, entityId: number, locale: string): void {
   logger.logDomainError(message, { code, entity, entityId, locale });
@@ -228,7 +232,7 @@ export namespace StudentEvaluationService {
       logDenial(
         "Student evaluation denied: rating outside the whole-star range",
         "VALIDATION",
-        "evaluation",
+        "session",
         sessionId,
         locale
       );
@@ -248,7 +252,7 @@ export namespace StudentEvaluationService {
         logDenial(
           "Student evaluation denied: a rating for this session was already submitted",
           "EVALUATION_ALREADY_SUBMITTED",
-          "evaluation",
+          "session",
           sessionId,
           locale
         );

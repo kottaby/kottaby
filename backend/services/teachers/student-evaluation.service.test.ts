@@ -479,7 +479,7 @@ describe("StudentEvaluationService — transactional write pipeline (runInRollba
       // one bounded denial log per attempt, none carrying the payload.
       expectDatabaseCalls(0, 0);
       expect(await countEvaluationsFor(tx, rated.id, actors.studentUserId)).toBe(0);
-      expectBoundedDenialLogs("VALIDATION", "evaluation", rejectedInputs.length);
+      expectBoundedDenialLogs("VALIDATION", "session", rejectedInputs.length);
       for (const call of logCalls()) {
         expect(JSON.stringify(call.ctx)).not.toContain("TEACHER");
       }
@@ -569,7 +569,7 @@ describe("StudentEvaluationService — transactional write pipeline (runInRollba
       expectSingleBoundedDenialLog("EVALUATION_ALREADY_SUBMITTED", rated.id);
       const ctx = logCalls()[0]?.ctx;
       if (isRecord(ctx)) {
-        expect(ctx.entity).toBe("evaluation");
+        expect(ctx.entity).toBe("session");
       }
     });
   });
@@ -599,7 +599,7 @@ describe("StudentEvaluationService — transactional write pipeline (runInRollba
       expect(await readEvaluationRow(tx, submitted.id)).not.toBeNull();
 
       // Exactly one bounded denial log (the duplicate's) in this window.
-      expectBoundedDenialLogs("EVALUATION_ALREADY_SUBMITTED", "evaluation", 1);
+      expectBoundedDenialLogs("EVALUATION_ALREADY_SUBMITTED", "session", 1);
     });
   });
 
