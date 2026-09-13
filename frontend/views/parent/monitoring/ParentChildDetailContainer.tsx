@@ -1,24 +1,14 @@
 "use client";
 
 import { useQuery } from "@apollo/client/react";
-import {
-  AssignmentOutlined,
-  CalendarMonthOutlined,
-  DescriptionOutlined,
-  RateReviewOutlined,
-  RefreshOutlined,
-  TrendingUpOutlined,
-} from "@mui/icons-material";
+import { RefreshOutlined } from "@mui/icons-material";
 import { Box, IconButton, Stack, Tab, Tabs } from "@mui/material";
 import { useRouter } from "next/navigation";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import { myLinkedChildrenQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
-import { AttendanceTab } from "@/frontend/views/parent/monitoring/AttendanceTab";
-import { EvaluationsTab } from "@/frontend/views/parent/monitoring/EvaluationsTab";
-import { HomeworkTab } from "@/frontend/views/parent/monitoring/HomeworkTab";
 import {
   buildDetailUrl,
   resolveTab,
@@ -27,38 +17,8 @@ import {
   type TabKey,
 } from "@/frontend/views/parent/monitoring/ParentChildDetailContainer.helpers";
 import { ChildSwitcher, DetailHeader } from "@/frontend/views/parent/monitoring/ParentChildDetailContainer.parts";
-import { ProgressTab } from "@/frontend/views/parent/monitoring/ProgressTab";
-import { ReportsTab } from "@/frontend/views/parent/monitoring/ReportsTab";
+import { renderTabContent, TAB_ICONS } from "@/frontend/views/parent/monitoring/ParentChildDetailContainer.tabs";
 import { ParentMonitoring, useAppTranslation } from "@/shared/locale";
-
-const TAB_ICONS: Readonly<Record<TabKey, ReactElement>> = {
-  attendance: <CalendarMonthOutlined fontSize="small" />,
-  reports: <DescriptionOutlined fontSize="small" />,
-  homework: <AssignmentOutlined fontSize="small" />,
-  evaluations: <RateReviewOutlined fontSize="small" />,
-  progress: <TrendingUpOutlined fontSize="small" />,
-};
-
-function renderTabContent(
-  tab: TabKey,
-  studentId: number,
-  session: number | null,
-  childName: string,
-  deniedAction: Readonly<{ readonly label: string; readonly onAction: () => void }>
-): ReactNode {
-  switch (tab) {
-    case "reports":
-      return <ReportsTab studentId={studentId} session={session} childName={childName} deniedAction={deniedAction} />;
-    case "homework":
-      return <HomeworkTab studentId={studentId} deniedAction={deniedAction} />;
-    case "evaluations":
-      return <EvaluationsTab studentId={studentId} deniedAction={deniedAction} />;
-    case "progress":
-      return <ProgressTab studentId={studentId} deniedAction={deniedAction} />;
-    default:
-      return <AttendanceTab studentId={studentId} deniedAction={deniedAction} />;
-  }
-}
 
 export function ParentChildDetailContainer(props: Readonly<ParentChildDetailContainerProps>): ReactNode {
   const t = useAppTranslation(ParentMonitoring);
