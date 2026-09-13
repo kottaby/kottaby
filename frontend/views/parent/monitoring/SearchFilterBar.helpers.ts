@@ -32,3 +32,40 @@ export function filterReportRows<T extends FilterableReportRow>(
   }
   return filtered;
 }
+
+interface FilterableHomeworkRow {
+  readonly createdAt: string;
+  readonly jadid: {
+    readonly surahJuz: string | null;
+    readonly fromAyah: number | null;
+    readonly toAyah: number | null;
+    readonly grade: number | null;
+  } | null;
+  readonly madi: {
+    readonly surahJuz: string | null;
+    readonly fromAyah: number | null;
+    readonly toAyah: number | null;
+    readonly grade: number | null;
+  } | null;
+}
+
+export function filterHomeworkRows<T extends FilterableHomeworkRow>(
+  rows: readonly T[],
+  state: SearchFilterState,
+  dateMatcher: (row: T, query: string) => boolean
+): readonly T[] {
+  const q = state.query.toLowerCase().trim();
+  const filtered: T[] = [];
+  for (const row of rows) {
+    if (q !== "") {
+      const jadiz = row.jadid?.surahJuz?.toLowerCase() ?? "";
+      const madiz = row.madi?.surahJuz?.toLowerCase() ?? "";
+      const dateMatch = dateMatcher(row, q);
+      if (!jadiz.includes(q) && !madiz.includes(q) && !dateMatch) {
+        continue;
+      }
+    }
+    filtered.push(row);
+  }
+  return filtered;
+}
