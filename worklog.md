@@ -1056,3 +1056,71 @@ Carry-forward to task 6.5 (E2E journey tests):
 - J4: two confirmed children → both listed; per-child reads return that child's rows only. The per-child re-keying proof here pins the Apollo cache isolation; the journey test proves the switcher navigation + per-child reads work end-to-end.
 - The bodyShapeOf redaction helper (from task 6.3) can be reused in journey tests when comparing denial bodies across multiple probes.
 - The recording-link pattern (renderPortal helper) can be reused in journey tests that need to assert wire traffic at the component level. For journey tests against the REAL wire, the recording link is N/A (the real wire is the source of truth).
+
+---
+
+Task ID: 6.1
+Agent: Backend DB Tests Subagent (general-purpose)
+Task: Repository tests — student.parent-monitoring + report.parent + home-work.parent + progress + (modified) report + home-work sibling tests
+
+Work Log:
+- Read SKILL.md (re-read), worklog.md (full), all sprint-3 outcome files (esp. 2.2-repo-children-progress-outcome.md + 2.3-repo-reports-homework-outcome.md), tasks.md task 6.1 section, AGENTS.md (root + backend + backend/db + backend/db/test + backend/db/repo), backend.instructions.md, tests.instructions.md.
+- Confirmed `feat/parent-read-only-monitoring-portal` checked out at the start of EVERY bash command (the per-command checkout guarantees branch isolation throughout).
+- Confirmed the four new test files plus the two MODIFIED sibling test files were already authored by a prior subagent (commit 44300d1) — this task's job was to RUN each suite, FIX failures, write the outcome, update the checkbox.
+- Read implementation files for context: student.repository.ts (listLinkedChildrenByParentId), report.repository.ts (listForStudent + countForStudent + shared buildParentScopedReportJoinCondition), home-work.repository.ts (listForStudent + countForStudent + shared buildParentScopedHomeWorkJoinCondition + findLatestByStudentId), progress.repository.ts (countForStudent + isDBTransaction guard).
+- Read entity-setup.ts helper signatures: createTestUser, createTestStudent, createTestParent, createTestTeacherRow, createTestSession, createTestSessionReport, createTestHomeWork — every helper takes `tx` as the FIRST parameter and returns the inserted row.
+
+EXECUTED — six test files in scope (four new + two modified):
+
+1. `backend/db/test/repo/students/student.parent-monitoring.repository.test.ts` (NEW):
+   - 15 tests covering StudentRepository.listLinkedChildrenByParentId across Tier 1 (one linked child round-trip with EXACTLY three projected columns; standalone executor returns committed fixture's children), Tier 2 (empty window, multiple children stable created_at ASC with id ASC tiebreak, explicit createdAt ordering), Tier 3 (cross-parent isolation, concurrent Promise.allSettled inserts), Tier 4 (soft-delete severance, every-child-soft-deleted → [], rollback vanishing, static source pins for the JOIN predicate + ordering + projection + namespace).
+   - Sub-loop exit 0; run-test 15 pass / 0 fail / 40 expect() calls (967ms).
+
+2. `backend/db/test/repo/classes/report.parent.repository.test.ts` (NEW):
+   - 13 tests covering ReportRepository.listForStudent / countForStudent across Tier 1 (DESC NULLS LAST + id DESC ordering, predicate cohesion across pages, eight-column projection), Tier 2 (zero rows, offset beyond end, same-instant id DESC tiebreak), Tier 3 (cross-student isolation, concurrent Promise.allSettled), Tier 4 (rollback vanishing, standalone executor path with committed fixture + afterAll hard-delete cascade).
+   - Sub-loop exit 0; run-test 13 pass / 0 fail / 52 expect() calls (1092ms).
+
+3. `backend/db/test/repo/classes/home-work.parent.repository.test.ts` (NEW):
+   - 14 tests covering HomeWorkRepository.listForStudent / countForStudent across Tier 1 (DESC NULLS LAST + id DESC ordering, predicate cohesion, twelve-column projection, fully-null Jadid/Madi passthrough), Tier 2 (zero rows, offset beyond end, same-instant tiebreak), Tier 3 (cross-student isolation, concurrent inserts), Tier 4 (rollback vanishing, standalone executor path with committed fixture + afterAll cascade).
+   - Sub-loop exit 0; run-test 14 pass / 0 fail / 62 expect() calls (1090ms).
+
+4. `backend/db/test/repo/classes/progress.repository.test.ts` (NEW):
+   - 14 tests covering ProgressRepository.countForStudent across Tier 1 (0 for unknown, N for N rows, 1 for single row, standalone executor returns committed fixture's honest total), Tier 2 (empty window, no overcounting across students), Tier 3 (concurrent inserts), Tier 4 (cross-tenant isolation, schema column set pin, rollback vanishing, static source pins for queryDb / signature / bound parameters / namespace).
+   - Sub-loop exit 0; run-test 14 pass / 0 fail / 33 expect() calls (865ms).
+
+5. `backend/db/test/repo/classes/report.repository.test.ts` (MODIFIED — static-source-pin updates):
+   - The parent-portal pair added two new queryDb read branches (listForStudent + countForStudent) into the same repo file. The existing sibling test's executor-discipline pin is updated: queryDb< match count 2 → 4; signature count 3 → 5. New source pins: `s.student_id = $1` (parent-scoped tenancy in standalone SQL), `DESC NULLS LAST, r.id DESC` + `desc(reports.id)` (parent-portal ordering). The `SELECT *` prohibition is regex-anchored on `SELECT * FROM` (JSDoc text `no \`SELECT *\`` would false-positive a naive `includes`).
+   - Sub-loop exit 0; run-test 16 pass / 0 fail / 74 expect() calls (1045ms).
+
+6. `backend/db/test/repo/classes/home-work.repository.test.ts` (MODIFIED — static-source-pin updates):
+   - Same updates as the report sibling: queryDb< count 2 → 4; signature count 4 → 6; regex-anchored SELECT * FROM prohibition; new `DESC NULLS LAST, hw.id DESC` + `desc(homeWork.id)` source pins.
+   - Sub-loop exit 0; run-test 21 pass / 0 fail / 112 expect() calls (1346ms).
+
+IMPLEMENTATION BUG FIXED — `backend/db/repo/classes/home-work.repository.ts`:
+- The pre-existing HomeWorkRepository.listForStudent standalone SQL referenced bare column names (id, session_id, current_from_ayah, …) in the SELECT list while joining `home_work hw` to `session s`. PostgreSQL (and pglite) raise `42702` (ambiguous column) when a bare column name exists in both sides of a JOIN — and `session_id` exists on both `home_work` and `session`. The pglite executor surfaced the ambiguity the moment the new parent-portal sibling test ran a cross-student isolation probe.
+- Fix: every column in the SELECT list is now qualified with the `hw.` alias (hw.id, hw.session_id, hw.current_from_ayah, …) so the standalone read resolves unambiguously. The Drizzle branch (which the parent-portal service uses by default through the transactional path) was already explicit per-column and needed no change.
+- Sub-loop re-run on the fixed implementation file: exit 0 (tsgo + oxlint + biome:check + lint:type-aware + check:duplicates all passed). No regression on the pre-existing home-work tests (21/21 pass).
+
+6.1.QL — Quality Loop: all six test files + the fixed implementation file exit 0 at sub-loop --lifecycle duplicates (tsgo + oxlint + biome:check + lint:type-aware + check:duplicates all passed on the FIRST run — zero fix-iterations needed for the test files; one fix-iteration on the home-work.repository.ts implementation file for the ambiguous-column fix).
+
+6.1.TE — Test Engineering: 93 pass / 0 fail / 373 expect() calls across the six suites. Tier 1 (branch/stmt) — every method's happy path + projected column set + executor-arm coverage. Tier 2 (boundary) — empty windows, offset beyond end, NULLS LAST ordering, same-instant id tiebreak, fully-null track passthrough. Tier 3 (chaos) — cross-student/cross-parent isolation + concurrent Promise.allSettled inserts. Tier 4 (security) — predicate cohesion (shared JOIN-condition builder), tenancy parameterization ($1 bound), soft-delete severance in the JOIN, static source pins (no SELECT * FROM, no .prepare(, no sql.placeholder, no inArray, no sql.raw, no SQL line-comments, no i18n/logger/console, one namespace per file, no plan-artifact references).
+
+6.1.SEC — Security & Tenancy Audit: cross-tenant rows never returned for another student/parent id (proven by behavioral isolation tests for all four new methods); the standalone SQL's $1 bound parameter is the ONLY identity channel; soft-delete severance predicate lives in the JOIN (never the service); no child fields leak through the count; committed fixtures hard-deleted in afterAll (rule 9).
+
+6.1.SR — Semantic Review: no seed-data reads (every fixture via entity-setup.ts inside runInRollback or a single beforeAll db.transaction); rollback hygiene (runInRollback forces ROLLBACK; afterAll hard-deletes committed fixtures in FK-dependency order with a teardown-proof assertion); no dead branches; comments ZERO plan-artifact references (grep-verified clean across all six test files).
+
+6.1.IV — Instruction Verification: read all printed rule files (AGENTS.md root + backend + backend/db + backend/db/test + backend/db/repo, backend.instructions.md, tests.instructions.md). All conventions honored: bun:test imports only, runInRollback + tx propagation, DBTransaction typed from @/backend/types (never any), toSorted(compareStrings) instead of sort(), Promise.all/Promise.allSettled for parallel fixture setup (elides no-await-in-loop), no oxlint-disable comments.
+
+Stage Summary:
+- Six test files in scope (4 new + 2 modified), all sub-loop exit 0 at the deepest lifecycle stage (duplicates).
+- 93 tests pass / 0 fail across all six suites via run-test.ts.
+- One implementation bug fixed (home-work.repository.ts ambiguous-column reference in standalone SQL) — sub-loop re-run exit 0; no regression on the pre-existing home-work tests.
+- Outcome file written: ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/6.1-repo-tests-outcome.md.
+- Worklog block appended (this entry).
+- tasks.md checkbox: `- [ ] 6.1 Repository tests` → `- [x] 6.1 Repository tests` (only the main line — subtask checkboxes left as-is per task instructions).
+- Branch: feat/parent-read-only-monitoring-portal (verified at the start of every bash command).
+
+Carry-forward to tasks 6.3 / 6.5:
+- The repository-tier cross-student isolation is now pinned at the DB layer. Task 6.3's wire tests can rely on the repo contract holding and focus their assertions on the GraphQL transport (role matrix + constant-shape denial copy in en AND ar).
+- The soft-delete severance test arm is the contract the J2 journey should observe end-to-end: sever the link → EVERY portal read immediately 403s and the children list excludes the child.
+- The cross-student isolation tests are the contract the J3 journey should observe: an unlinked parent probing foreign/nonexistent ids sees the SAME constant denial shape byte-identical across causes — asserted in BOTH en and ar.

@@ -298,7 +298,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 
 ## Phase 6 — Testing & journeys
 
-- [ ] 6.1 Repository tests
+- [x] 6.1 Repository tests
   - CREATE/EXTEND suites per plan §8: `backend/db/test/repo/students/student.parent-monitoring.repository.test.ts`, `backend/db/test/repo/classes/report.parent.repository.test.ts`, `backend/db/test/repo/classes/home-work.parent.repository.test.ts`, `backend/db/test/repo/classes/progress.repository.test.ts` (CREATE).
   - Discipline (REQ-050): every suite wrapped in `runInRollback`; `tx` passed to EVERY repo call inside the transaction; try/catch rejection helper (NEVER `expect(...).rejects.toThrow()`); fixtures built via `backend/db/test/entity-setup.ts` (verify helper signatures at authoring time; never seed data).
   - Coverage: join predicates isolate cross-student leakage; ordering (`createdAt ASC` list, `startedAt DESC NULLS LAST, id DESC` windows); pagination windows (limit/offset both pairs describe the same set); soft-deleted child excluded from the children list; progress count 0 vs N.
