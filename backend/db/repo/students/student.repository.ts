@@ -8,11 +8,11 @@ import { students } from "@/backend/db/schema/students/students";
 import { users } from "@/backend/db/schema/users/users";
 import type { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
-import type { ParentLinkedChildReturnType } from "@/backend/types";
 import type {
   DBQueryExecutor,
   DBTransaction,
   HandshakeDiscoveryRowType,
+  ParentLinkedChildReturnType,
   StudentLinkTargetRowType,
   StudentSelectType,
 } from "@/backend/types";
@@ -517,7 +517,11 @@ export namespace StudentRepository {
     parentId: number,
     tx?: DBTransaction
   ): Promise<ParentLinkedChildReturnType[]> {
-    return (tx ?? db).select({ id: students.id, fullName: users.fullName, createdAt: students.createdAt }).from(students).innerJoin(users, eq(users.id, students.id)).where(and(eq(students.parentId, parentId), eq(users.isDeleted, false))).orderBy(asc(students.createdAt), asc(students.id));
+    return (tx ?? db)
+      .select({ id: students.id, fullName: users.fullName, createdAt: students.createdAt })
+      .from(students)
+      .innerJoin(users, eq(users.id, students.id))
+      .where(and(eq(students.parentId, parentId), eq(users.isDeleted, false)))
+      .orderBy(asc(students.createdAt), asc(students.id));
   }
-
 }
