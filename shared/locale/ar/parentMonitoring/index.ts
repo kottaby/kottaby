@@ -125,4 +125,13 @@ export const parentMonitoringAr: ParentMonitoringLabels = {
   lastUpdatedLabel: (timestamp: string): string => `آخر تحديث: ${timestamp}`,
   statTotalChildren: "إجمالي الأبناء",
   statRecentSessions: "الحصص الأخيرة",
+  printLabel: "طباعة / تصدير",
+  printDialogTitle: "تصدير التقارير",
+  printOption: "طباعة",
+  exportCsvOption: "تصدير كـ CSV",
+  exportSuccess: "تم التصدير بنجاح",
+  calendarViewLabel: "عرض التقويم",
+  listViewLabel: "عرض القائمة",
+  calendarMonthLabel: "الشهر",
+
 };

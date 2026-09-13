@@ -10,10 +10,12 @@
  * not part of the public surface.
  */
 
+export * from "./AttendanceCalendar";
 export * from "./AttendanceTab";
 export * from "./EvaluationsTab";
 export * from "./HomeworkTab";
 export * from "./ParentChildDetailContainer";
 export * from "./ParentChildrenRootContainer";
+export * from "./PrintExportDialog";
 export * from "./ProgressTab";
 export * from "./ReportsTab";

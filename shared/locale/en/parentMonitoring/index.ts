@@ -112,4 +112,13 @@ export const parentMonitoringEn: ParentMonitoringLabels = {
   lastUpdatedLabel: (timestamp: string): string => `Last updated: ${timestamp}`,
   statTotalChildren: "Total Children",
   statRecentSessions: "Recent Sessions",
+  printLabel: "Print / Export",
+  printDialogTitle: "Export Reports",
+  printOption: "Print",
+  exportCsvOption: "Export as CSV",
+  exportSuccess: "Exported successfully",
+  calendarViewLabel: "Calendar View",
+  listViewLabel: "List View",
+  calendarMonthLabel: "Month",
+
 };

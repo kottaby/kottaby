@@ -1,49 +1,27 @@
 "use client";
 
 import { useQuery } from "@apollo/client/react";
-import { CalendarMonthOutlined } from "@mui/icons-material";
-import { Box, Stack, Typography } from "@mui/material";
-import type { ReactNode } from "react";
+import { CalendarMonthOutlined, ViewListOutlined } from "@mui/icons-material";
+import { Box, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import { type ReactNode, useState } from "react";
 import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
 import { IconCircleEmptyState } from "@/frontend/components/ui/IconCircleEmptyState";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import { parentChildSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
+import { AttendanceCalendar } from "@/frontend/views/parent/monitoring/AttendanceCalendar";
 import { AttendanceRow, AttendanceSkeleton } from "@/frontend/views/parent/monitoring/AttendanceTab.parts";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
-/**
- * AttendanceTab — the child's session-status-derived attendance history.
- *
- * A stateful `useQuery(parentChildSessionsQueryDocument)` re-keyed on the
- * `studentId` prop so Apollo re-fetches whenever the active child changes
- * (cache isolation: the `?student=` URL param IS the read scope). Rows
- * arrive newest-first; each row carries the lifecycle `status` enum
- * (mapped one-to-one onto the five `attendanceStatus*` label slots) plus
- * the nullable `startedAt` / `endedAt` timestamps. A `scheduled` row has
- * neither; a `started` row has only `startedAt`; a `completed` row has
- * both. `createdAt` is the row's audit stamp (used as the fallback date
- * when `startedAt` is null).
- *
- * Render state matrix (one rendering path per branch — no dead arms):
- *  - loading → skeleton region (`component="output" aria-busy`)
- *  - FORBIDDEN → `PermissionDeniedFallback` (constant-shape denial — the
- *    server's `message` is NEVER rendered)
- *  - other errors → `ErrorRetryAlert` (retry refetches)
- *  - zero rows → `IconCircleEmptyState` with localized copy
- *  - ≥1 row → per-row `Card`s with the date + status chip
- *
- * MUI v9 discipline: `sx`-only styling, colors through theme-palette
- * callbacks, `*Outlined` icons, `dir="auto"` on dates (bidi isolation).
- * Every user-facing string resolves through the `ParentMonitoring` /
- * `Errors` / `Common` namespace handles (property access only).
- */
+type ViewMode = "list" | "calendar";
+
 export function AttendanceTab(props: Readonly<AttendanceTabProps>): ReactNode {
   const t = useAppTranslation(ParentMonitoring);
   const te = useAppTranslation(Errors);
   const commonT = useAppTranslation(Common);
   const locale = useAppLocale();
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
 
   const { data, loading, error, refetch } = useQuery(parentChildSessionsQueryDocument, {
     variables: { studentId: props.studentId, page: undefined, pageSize: undefined },
@@ -58,6 +36,7 @@ export function AttendanceTab(props: Readonly<AttendanceTabProps>): ReactNode {
   }
 
   const rows = data?.parentChildSessions?.items;
+  const showCalendarToggle = rows !== undefined && rows.length > 0;
 
   let body: ReactNode;
   if (rows === undefined) {
@@ -85,6 +64,8 @@ export function AttendanceTab(props: Readonly<AttendanceTabProps>): ReactNode {
         body={t.attendanceEmptyBody}
       />
     );
+  } else if (viewMode === "calendar") {
+    body = <AttendanceCalendar sessions={rows} locale={locale} />;
   } else {
     body = (
       <Box
@@ -102,16 +83,35 @@ export function AttendanceTab(props: Readonly<AttendanceTabProps>): ReactNode {
 
   return (
     <Stack spacing={2} sx={{ width: "100%" }}>
-      <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
-        {rows === undefined ? t.attendanceSectionTitle : t.attendanceCount(rows.length)}
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
+        <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
+          {rows === undefined ? t.attendanceSectionTitle : t.attendanceCount(rows.length)}
+        </Typography>
+        {showCalendarToggle ? (
+          <ToggleButtonGroup
+            exclusive
+            value={viewMode}
+            onChange={(_, mode: ViewMode | null) => {
+              if (mode !== null) {
+                setViewMode(mode);
+              }
+            }}
+            size="small"
+          >
+            <ToggleButton value="list" aria-label={t.listViewLabel}>
+              <ViewListOutlined fontSize="small" />
+            </ToggleButton>
+            <ToggleButton value="calendar" aria-label={t.calendarViewLabel}>
+              <CalendarMonthOutlined fontSize="small" />
+            </ToggleButton>
+          </ToggleButtonGroup>
+        ) : null}
+      </Box>
       {body}
     </Stack>
   );
 }
 
-/** Props contract for the AttendanceTab (carries the active child id). */
 export interface AttendanceTabProps {
-  /** The active child id (re-keys the Apollo query — rows never leak across children). */
   readonly studentId: number;
 }

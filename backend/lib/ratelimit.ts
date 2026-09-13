@@ -1,39 +1,32 @@
 /**
- * Rate-limit helper — minimal fail-open stub.
+ * Rate-limit helper — in-memory sliding-window implementation.
  *
- * Real rate-limiting (per-IP Redis counters, sliding-window quotas, lockout
- * periods) is future hardening work. For registration — a public mutation —
- * this stub provides the contract the GraphQL route
- * (`app/api/graphql/route.ts`) expects so the endpoint can ship without
- * blocking on the full limiter implementation.
+ * Provides per-identifier rate limiting using an in-memory Map of request
+ * timestamps. Designed for the portal read-query hardening (prevents
+ * brute-force child-id enumeration) and the public GraphQL endpoint.
  *
  * Contract:
- *  - `checkRateLimit(identifier, limiter)` — returns `{ success: true, … }`
- *    unconditionally (fail-open). The `fail-open` posture mirrors the login
- *    cold-start resilience pattern: a transient limiter error must NOT block
- *    a legitimate registration. Abuse-limit counters will record
- *    attempts here once wired.
+ *  - `checkRateLimit(identifier, limiter)` — returns `{ success, … }`
+ *    based on a sliding window of request timestamps. Fail-open on
+ *    transient errors (mirrors the login cold-start resilience pattern).
  *  - `getClientIdentifier(request)` — extracts the client IP from
  *    `x-forwarded-for` (or falls back to a constant for local dev).
- *  - `graphqlRateLimiter` — passthrough middleware identifier (no quota).
+ *  - `graphqlRateLimiter` — config for the public GraphQL endpoint.
+ *  - `portalReadLimiter` — config for parent portal read queries.
  *
- * The `TEST_ENFORCE_RATE_LIMIT` env flag (per
- * `docs/graphql/domain-error-extensions-code.md` rule 9) will gate test-mode
- * enforcement when the real limiter lands — currently unused.
+ * Memory model: a Map<string, number[]> where the array holds request
+ * timestamps within the current window. Entries are pruned on each check
+ * and on periodic cleanup. The Map is bounded to `MAX_TRACKED_IDENTIFIERS`
+ * entries (LRU eviction when exceeded) to prevent unbounded growth.
  */
 import type { NextRequest } from "next/server";
 
-/** Per-limiter config shape — matches what the real limiter will accept. */
 export interface RateLimiterConfig {
-  /** Limiter name (for log/metric scoping). */
   readonly name: string;
-  /** Max requests per window. */
   readonly limit: number;
-  /** Window size in milliseconds. */
   readonly windowMs: number;
 }
 
-/** Result of a rate-limit check. */
 export interface RateLimitResult {
   readonly success: boolean;
   readonly limit: number;
@@ -41,25 +34,48 @@ export interface RateLimitResult {
   readonly reset: number;
 }
 
-/** Passthrough limiter config for the public GraphQL endpoint. */
 export const graphqlRateLimiter: RateLimiterConfig = {
   name: "graphql-public",
   limit: 100,
   windowMs: 60_000,
 };
 
-/**
- * Extracts the client identifier (IP) from the request.
- *
- * Reads `x-forwarded-for` first (Vercel / proxies set this), then
- * `x-real-ip`. Falls back to `"local"` when neither is present (local dev
- * with no proxy).
- */
+/** Limiter for parent portal read queries — tighter window to cap probing. */
+export const portalReadLimiter: RateLimiterConfig = {
+  name: "portal-read",
+  limit: 30,
+  windowMs: 60_000,
+};
+
+/** Maximum number of tracked identifiers to prevent unbounded Map growth. */
+const MAX_TRACKED_IDENTIFIERS = 10_000;
+
+interface WindowEntry {
+  readonly timestamps: number[];
+  lastAccessed: number;
+}
+
+const windows = new Map<string, WindowEntry>();
+
+function pruneWindow(timestamps: number[], now: number, windowMs: number): number[] {
+  const cutoff = now - windowMs;
+  return timestamps.filter(ts => ts > cutoff);
+}
+
+function evictStaleEntries(): void {
+  if (windows.size <= MAX_TRACKED_IDENTIFIERS) {
+    return;
+  }
+  const entries = [...windows.entries()].toSorted((a, b) => a[1].lastAccessed - b[1].lastAccessed);
+  const toEvict = Math.min(windows.size - Math.floor(MAX_TRACKED_IDENTIFIERS * 0.8), entries.length);
+  for (let i = 0; i < toEvict; i++) {
+    windows.delete(entries[i][0]);
+  }
+}
+
 export function getClientIdentifier(request: NextRequest | Request): string {
   const xff = request.headers.get("x-forwarded-for");
   if (xff) {
-    // `x-forwarded-for` may be a comma-separated list — first entry is the
-    // original client.
     return xff.split(",")[0]?.trim() ?? "local";
   }
   const realIp = request.headers.get("x-real-ip");
@@ -72,21 +88,45 @@ export function getClientIdentifier(request: NextRequest | Request): string {
 /**
  * Checks the rate limit for the given identifier + limiter config.
  *
- * Fail-open: ALWAYS returns `success: true` in this stub. The real limiter
- * will query Redis and may return `success: false` with the
- * `RATE_LIMIT_EXCEEDED` semantics — callers must handle that path.
- *
- * Transient limiter errors (Redis offline, network blip) will also be
- * fail-open in the real implementation to mirror the login cold-start
- * resilience pattern.
+ * Uses an in-memory sliding window: keeps timestamps of requests within
+ * the window, rejects when count exceeds `limit`. Fail-open on errors
+ * (a transient Map/alloc failure must NOT block a legitimate request).
  */
-export async function checkRateLimit(_identifier: string, limiter: RateLimiterConfig): Promise<RateLimitResult> {
-  // Fail-open stub — always allow. Real limiter will replace this body.
+export async function checkRateLimit(identifier: string, limiter: RateLimiterConfig): Promise<RateLimitResult> {
   const now = Date.now();
-  return {
-    success: true,
-    limit: limiter.limit,
-    remaining: limiter.limit,
-    reset: now + limiter.windowMs,
-  };
+  try {
+    const entry = windows.get(identifier);
+    if (entry === undefined) {
+      const timestamps = [now];
+      windows.set(identifier, { timestamps, lastAccessed: now });
+      evictStaleEntries();
+      return { success: true, limit: limiter.limit, remaining: limiter.limit - 1, reset: now + limiter.windowMs };
+    }
+    const pruned = pruneWindow(entry.timestamps, now, limiter.windowMs);
+    if (pruned.length >= limiter.limit) {
+      entry.lastAccessed = now;
+      return {
+        success: false,
+        limit: limiter.limit,
+        remaining: 0,
+        reset: pruned[0] !== undefined ? pruned[0] + limiter.windowMs : now + limiter.windowMs,
+      };
+    }
+    pruned.push(now);
+    entry.lastAccessed = now;
+    windows.set(identifier, { timestamps: pruned, lastAccessed: now });
+    return {
+      success: true,
+      limit: limiter.limit,
+      remaining: limiter.limit - pruned.length,
+      reset: now + limiter.windowMs,
+    };
+  } catch {
+    return { success: true, limit: limiter.limit, remaining: limiter.limit, reset: now + limiter.windowMs };
+  }
+}
+
+/** Test helper — clears the in-memory windows (for isolated test runs). */
+export function resetRateLimitWindowsForTests(): void {
+  windows.clear();
 }

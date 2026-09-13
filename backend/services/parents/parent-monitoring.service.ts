@@ -60,6 +60,8 @@ import {
 } from "@/backend/db/repo";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
+import { RateLimitExceededError } from "@/backend/lib/errors";
+import { checkRateLimit, portalReadLimiter } from "@/backend/lib/ratelimit";
 import { requireActor } from "@/backend/services/parents/parent-link-request.helpers";
 import {
   clampPageInput,
@@ -78,6 +80,17 @@ import type {
   ParentPageInput,
   ParentReportPageReturnType,
 } from "@/backend/types";
+import { getServerTranslations } from "@/shared/locale/server-graphql";
+
+/** Per-parent rate limit — caps portal read volume to prevent child-id probing. */
+async function enforcePortalRateLimit(parentActorId: number, locale: string): Promise<void> {
+  const identifier = `parent:${parentActorId}`;
+  const result = await checkRateLimit(identifier, portalReadLimiter);
+  if (!result.success) {
+    const t = getServerTranslations(locale);
+    throw new RateLimitExceededError(t.errorsTranslations.rateLimitExceeded);
+  }
+}
 
 export namespace ParentMonitoringService {
   /**
@@ -104,6 +117,7 @@ export namespace ParentMonitoringService {
     outerTx?: DBTransaction
   ): Promise<ParentLinkedChildReturnType[]> {
     await requireActor(parentActorId, UserRole.Parent, locale, outerTx, false);
+    await enforcePortalRateLimit(parentActorId, locale);
     return StudentRepository.listLinkedChildrenByParentId(parentActorId, outerTx);
   }
 

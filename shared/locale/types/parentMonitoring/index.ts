@@ -206,4 +206,25 @@ export interface ParentMonitoringLabels {
   readonly statTotalChildren: string;
   /** Quick-stats card label — recent sessions count. */
   readonly statRecentSessions: string;
+
+  // ─── Print/Export feature ──────────────────────────────────────────────
+  /** Label for the print/export button. */
+  readonly printLabel: string;
+  /** Title for the print/export dialog. */
+  readonly printDialogTitle: string;
+  /** Label for the print option (browser print dialog). */
+  readonly printOption: string;
+  /** Label for the CSV export option. */
+  readonly exportCsvOption: string;
+  /** Success message after CSV export. */
+  readonly exportSuccess: string;
+
+  // ─── Calendar view feature ─────────────────────────────────────────────
+  /** Label for the calendar view toggle. */
+  readonly calendarViewLabel: string;
+  /** Label for the list view toggle. */
+  readonly listViewLabel: string;
+  /** Label for the current month. */
+  readonly calendarMonthLabel: string;
+
 }
