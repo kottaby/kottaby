@@ -30,10 +30,7 @@ import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { ValidationError } from "@/backend/lib/errors";
 import { SubscriptionExpiryService } from "@/backend/services/billing/subscription-expiry.service";
-import {
-  assertBookingBoundary,
-  bookSessionInTx,
-} from "@/backend/services/classes/session-lifecycle.booking";
+import { assertBookingBoundary, bookSessionInTx } from "@/backend/services/classes/session-lifecycle.booking";
 import { MAX_IDEMPOTENCY_KEY_LENGTH } from "@/backend/services/classes/session-lifecycle.guards";
 import type {
   DBTransaction,
