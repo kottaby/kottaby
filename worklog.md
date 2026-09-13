@@ -1194,3 +1194,83 @@ Carry-forward to task 7.1 (post-implementation review wave):
 - The journey pins the recipient-locale composition for the report-wave notification (en for P, ar for P2) — any drift in the notification engine's locale resolution will fail J1 step 2 or J4 step 1.
 - The journey pins the deep-link contract (`parentChildReports(S1).items` contains a row whose `sessionId === σ1.id`) — the frontend's `?session=X` resolution depends on this.
 - Task 7.1's parallel review wave can grep-scan this journey file alongside the other portal files for INV-P2 (zero mutations) + R-A (no `parent_link_requests` reads) + R-C (no `evaluations` imports) locks.
+Task ID: 8.2
+Agent: Knowledge Propagation Subagent (general-purpose)
+Task: Knowledge propagation (canonical doc) — publish docs/parents/monitoring-portal.md + AGENTS.md Important References + parent-link-request.md forward pointer
+
+Work Log:
+- Read SKILL.md §Knowledge Propagation in FULL (re-read at task start — mandatory hard rule #1). Confirmed the propagation policy: "AGENTS.md files and `.agents/instructions/` files are hand-curated rule files. Plan work NEVER creates or updates them, regardless of how reusable a discovered rule seems. Durable knowledge goes to `docs/<domain>/<topic>.md` and the plan's own outcome files." Task 8.2 explicitly carves out a SINGLE exception: the root AGENTS.md Important References one-line entry (reference ONLY, no rules or instructions).
+- Read worklog.md (full — all prior task entries 0.1+1.1 through 6.1).
+- Read ALL outcome files in `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/`: research-00-planning-basis, 0-baseline, 0.1-baseline-confirm, 2.1-types, 2.2-repo-children-progress, 2.3-repo-reports-homework, 2.4-service-gate, 3.1-pothos-objects, 3.2-query-registration, 4.1-i18n-namespace, 5.4-apollo-cache, 6.1-repo-tests, 8.1-final-gate. Extracted recurring patterns/gotchas.
+- Read tasks.md task 8.2 section (lines ~394-403) + the Completion Definition final-gate block (lines ~444-457).
+- Read AGENTS.md (root) — confirmed no existing "Important References" section; identified the cleanest insertion point (after `## Linting Rules`, before the `<!-- BEGIN:nextjs-agent-rules -->` block — keeps the auto-injected Next.js block at the very end).
+- Read `.agents/spec-process-guide/execution/implementation-guide.md` §"Post-Implementation Knowledge Propagation" + `.agents/spec-process-guide/process/tasks-phase.md` §"Knowledge Propagation Tasks (MANDATORY Final Task)" — confirmed docs file structure (Why → Pattern → Rules → What NOT to Do → Rollout Summary → Related Documents) and the Rule-File Policy.
+- Verified `docs/parents/` exists with two sibling canonical docs (`parent-link-request.md`, `handshake-code-discovery.md`) — no `mkdir` needed.
+- Read `docs/parents/parent-link-request.md` §8 "Consumer contract (forward-pointers)" — confirmed the existing "Parent monitoring portal" bullet to amend with the forward-pointer line.
+
+EXECUTED — three doc edits + outcome + worklog + checkboxes:
+
+1. CREATED `docs/parents/monitoring-portal.md` (canonical engineering doc):
+   - Structure: Header → Why → Pattern → Rules → Anti-patterns → Rollout Summary → Related Documents.
+   - Pattern section has 11 sub-sections consolidating engineering patterns: the five query contracts table, the `$all` authScopes conjunction (load-bearing; `as const` forbidden), the `requireLinkedChild` gate (verbatim illustrative code with authoritative path citation), the constant-denial oracle (5-cause table → identical bytes), the TOCTOU seal (gate + reads share one tx snapshot), BOLA/BFLA/BOPLA posture, attendance derivation (no attendance table; derived from `session`), evaluations disambiguation (`evaluations` is sheikh→teacher-candidate, NOT child data), progress-source ruling (skeleton tables, honest counts), read-only posture (INV-P2 — zero mutations), untouched participant-only surfaces (R-E — byte-unchanged), Apollo cache policy (`keyFields: false` for 6 no-`id` types; `TypePolicies` type annotation load-bearing), frontend URL-is-state posture (no Zustand), canonical error dispatcher pattern (`mapGraphQLErrorByCode`), shared-predicate builder pattern for list/count repo pairs (no drift), prototype-aware implementation discipline (translate don't transplant; fake-data prohibition; sequential screenshot inspection).
+   - Rules section: 18 numbered rules (R1-R18).
+   - Anti-patterns section: 17 "Do NOT" bullets.
+   - Rollout Summary: files created (backend 6, frontend 2), files modified (backend 7, frontend 2), i18n ceremony (11 operations), test layers (318 tests passing across 5 layers + E2E forward to DEV1-019), quality gate (vs Phase 0 baseline — all green, zero new errors/warnings), schema parity (zero Drizzle changes), forward items (D1-D5 re-asserted as still-open).
+   - Related Documents: 12 cross-references (parent-link-request, handshake-code-discovery, workflow §4, state-machine-invariants, functional-requirements, session-report-homework, realtime-engine, session-request-notifications, root AGENTS.md, backend/services/AGENTS.md, backend/graphql/query/AGENTS.md, frontend/graphql/AGENTS.md).
+   - ZERO plan-artifact references in the body (no REQ ids, task ids, plan paths, ruling labels). The header cites binding spec docs by reference (mirrors the `parent-link-request.md` convention). Verified by grep.
+
+2. UPDATED `AGENTS.md` (root) — added a new `## Important References` section between `## Linting Rules` and the `<!-- BEGIN:nextjs-agent-rules -->` block:
+   - Section header + 1-line intro + 1 bullet entry: `- [Parent Monitoring Portal](docs/parents/monitoring-portal.md) — read-only parent portal: requireLinkedChild gate, five SDL queries, constant-403 denial oracle.`
+   - REFERENCE ONLY — no rules or instructions added (the SKILL.md policy exception is narrowly scoped to the reference line).
+
+3. UPDATED `docs/parents/parent-link-request.md` — amended §8 "Consumer contract (forward-pointers)" — the "Parent monitoring portal" bullet now carries a single forward-pointer sentence appended to the existing contract statement (preserved verbatim): `The portal shipped at [`docs/parents/monitoring-portal.md`](./monitoring-portal.md) (the canonical reference for the five read-only query contracts, the `requireLinkedChild` gate, the constant-403 denial oracle, and the Apollo cache policy for the portal's no-`id` value types).` Satisfies §8's forward-pointer obligation.
+
+8.2.QL — Quality Loop:
+- `bun run scripts/health/sub-loop.ts docs/parents/monitoring-portal.md --lifecycle duplicates` → exit 1 at the oxlint stage with "No files found to lint. Please check your paths and ignore patterns." This is a KNOWN OXLINT LIMITATION (oxlint has no markdown rules; `bunx oxlint <file.md>` exits 1 with "No files found to lint" but emits zero diagnostics — `oxlintOutputHasDiagnostics` returns false). NOT a doc defect.
+- Same behavior for `docs/parents/parent-link-request.md` and `AGENTS.md` — all three .md files short-circuit at the oxlint stage for the same reason.
+- Doc-appropriate lint lanes (the lanes that DO apply to markdown):
+  - `bun tsgo` (project-wide) → exit 0 (no type errors introduced by any of the 3 edited .md files).
+  - `bun biome:check docs/parents/monitoring-portal.md docs/parents/parent-link-request.md AGENTS.md` → Checked 1789 files in 10s. No fixes applied. exit 0. (biome IS the markdown formatter/linter; all three files clean.)
+  - `bun run scripts/health/sub-loop.ts docs/parents/monitoring-portal.md --lifecycle tsgo` → ✅ tsgo passed → exit 0.
+- Markdown link integrity (verified manually — no markdown-link-check tool in repo): all 12 relative links in monitoring-portal.md resolve to real files (parent-link-request.md, handshake-code-discovery.md, workflow §4, state-machine-invariants, functional-requirements, session-report-homework, realtime-engine, session-request-notifications, AGENTS.md, backend/services/AGENTS.md, backend/graphql/query/AGENTS.md, frontend/graphql/AGENTS.md). AGENTS.md link target (docs/parents/monitoring-portal.md) exists. parent-link-request.md forward-pointer resolves.
+- Applicable rule files discovered and read by sub-loop for the markdown files: `AGENTS.md` (root). No instruction files apply to `.md` files (sub-loop discovery returns "No applicable instruction files found for this file").
+
+8.2.TE — Test Engineering: N/A per the pipeline's scoping rule (documentation-only task; no code, no tests).
+
+8.2.SEC — Security & Tenancy Audit: N/A per the scoping rule (docs only). Verified no secrets/PII in examples: only conceptual mentions of "token-refresh path" (descriptive text) and "Bearer auth" (test-pattern description); ZERO actual secrets, ZERO PII, ZERO real credentials anywhere in the three edited .md files.
+
+8.2.SR — Semantic Review: doc matches the SHIPPED behavior (rulings cross-checked against outcomes, not the plan's intent alone) — five query contracts cross-checked vs 3.2 outcome; `requireLinkedChild` gate cross-checked vs 2.4 outcome (verbatim code shape; 5-cause denial table byte-identical); constant-denial oracle cross-checked vs 2.4 outcome; read-only posture (INV-P2) cross-checked vs 8.1 outcome (zero mutations grep-locked); attendance derivation cross-checked vs research-00 R-B; evaluations disambiguation cross-checked vs research-00 R-C; progress-source ruling cross-checked vs research-00 R-D; untouched participant-only surfaces (R-E) cross-checked vs 8.1 outcome (diff-proof empty); Apollo cache policy cross-checked vs 5.4 outcome; DEV1-017 deep-link contract cross-checked vs research-00 R-I; DEV1-019 consumer guidance cross-checked vs 8.1 outcome (E2E forward item). Markdown link integrity verified.
+
+8.2.IV — Instruction Verification: plan-house docs conventions followed (`.agents/spec-process-guide/execution/implementation-guide.md` §"Post-Implementation Knowledge Propagation" docs file structure honored verbatim; `.agents/spec-process-guide/process/tasks-phase.md` §"Knowledge Propagation Tasks (MANDATORY Final Task)" Rule-File Policy honored — AGENTS.md files and `.agents/instructions/` files are hand-curated; plan work NEVER creates or updates them; the single root AGENTS.md reference-line exception is explicitly carved out by task 8.2's spec; domain-to-docs mapping `docs/parents/` is the correct home for parent-domain canonical docs). No in-file rule violations. No cross-file blockers.
+
+WROTE outcome file at `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/8.2-knowledge-propagation-outcome.md` (summary, files created/modified, files NOT modified + reasons, canonical doc structure inventory, doc-content guidance honored, anti-failure rule honored, verification results including the oxlint markdown limitation note, carry-forward knowledge for future plans touching the portal + for future knowledge-propagation tasks + for DEV1-019 E2E journey, cross-file dependency report — parent-link-request.md forward-pointer obligation satisfied).
+
+UPDATED tasks.md:
+- `- [ ] 8.2 Knowledge propagation (canonical doc)` → `- [x] 8.2 Knowledge propagation (canonical doc)` (only the main task line — .QL/.SR/.IV subtask checkboxes left as-is per task instructions).
+- ALL 10 final-gate completion-definition checkboxes `[ ]` → `[x]`:
+  - "Every task checkbox in this file is `[x]` and each has its `outcome/<task-id>-outcome.md`."
+  - "`bun quality-gate` is green end-to-end; baseline deltas (vs task 0.1) are zero or fully attributed."
+  - "All test lanes green via their canonical runners..."
+  - "INV-P1: every portal read funnels through `requireLinkedChild`..."
+  - "INV-P2: zero new GraphQL mutations..."
+  - "R-E: `sessionReport`/`sessionHomework` participant-only queries byte-unchanged..."
+  - "R-A grep-lock: zero `parent_link_requests` reads..."
+  - "R-J: zero Drizzle schema changes..."
+  - "`deferred-items.md` ledger has zero `❌`/`⚠️` rows..."
+  - "Canonical doc `docs/parents/monitoring-portal.md` published; root `AGENTS.md` Important References updated; `docs/parents/parent-link-request.md` forward pointer satisfied."
+
+Stage Summary:
+- Canonical engineering doc published at `docs/parents/monitoring-portal.md` (Why → Pattern → Rules → Anti-patterns → Rollout Summary → Related Documents). 18 rules + 17 anti-patterns + 11 pattern sub-sections consolidate ALL parent-portal engineering knowledge from every outcome file.
+- Root `AGENTS.md` `## Important References` section added with the one-line entry pointing to the new doc (REFERENCE ONLY — the SKILL.md policy exception narrowly scoped to the reference line; no rules or instructions added).
+- `docs/parents/parent-link-request.md` §8 forward-pointer obligation satisfied (single sentence appended to the existing bullet — existing contract statement preserved verbatim).
+- NO `.agents/instructions/*.md` files created or updated (POLICY — NO EXCEPTIONS per SKILL.md).
+- Doc-appropriate lint lanes all GREEN: `bun tsgo` exit 0 (project-wide); `bun biome:check` exit 0 on all three edited .md files; markdown link integrity 12/12 OK + AGENTS.md target OK + parent-link-request.md forward-pointer OK.
+- Sub-loop `--lifecycle duplicates` short-circuits at the oxlint stage for all three .md files with "No files found to lint" (KNOWN OXLINT LIMITATION — oxlint has no markdown rules; zero diagnostics emitted; NOT a doc defect). Documented explicitly in the outcome so future knowledge-propagation tasks know to expect this and verify doc-appropriate lanes (biome + tsgo) separately.
+- ZERO plan-artifact references in the canonical doc body (verified by grep — no REQ ids, task ids, plan paths, ruling labels). Header cites binding spec docs by reference (mirrors the `parent-link-request.md` convention).
+- SEC: N/A (docs only — no secrets/PII in examples verified).
+- Outcome file written: `ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/8.2-knowledge-propagation-outcome.md`.
+- Worklog block appended (this entry).
+- tasks.md: 8.2 main line + all 10 final-gate completion-definition checkboxes marked `[x]`.
+- Branch: `feat/parent-read-only-monitoring-portal` (verified at the start of EVERY bash command).
+
+The plan is now COMPLETE — every task checkbox `[x]`, every outcome file written, the canonical doc published, the AGENTS.md Important References pointer added, the parent-link-request.md forward-pointer satisfied, all final-gate checkboxes marked. The Parent Read-Only Monitoring Portal is shipped, verified, and documented as a permanent engineering reference.

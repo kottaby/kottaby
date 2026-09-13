@@ -367,7 +367,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 
 ## Phase 7 — Post-Implementation Review Wave (REQ-061)
 
-- [ ] 7.1 Parallel review wave over plan-touched files only
+- [x] 7.1 Parallel review wave over plan-touched files only
   - Dispatch review subagents in parallel, SCOPED to the files this plan created/modified: **types-review** (backend/types parents projections + barrel), **backend-review** (repos + `ParentMonitoringService` + helpers + Pothos/query modules), **frontend-review** (documents, routes, views, nav diff), **security-review** (gate constant-shape proofs, projection narrowness, authScopes matrix, nav/guard composition).
   - Programmatic grep-locks (all four MUST be asserted and recorded): (a) INV-P2 — zero new mutations: grep the new query module + generated schema for portal-named fields on root `Mutation` (expect none); (b) R-A — grep portal files for `parent_link_requests`/parent-link-request repo imports (expect none); (c) D2/R-C — grep portal files for `evaluations`/`Evaluation` imports (expect none); (d) R-E — `git diff` on `sessionReport`/`sessionHomework` authScopes/service gate (`resolveVisibleSessionForCaller`) proves byte-unchanged.
   - Aggregate findings; dispatch per-file fix subagents; re-run `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` per fixed file; iterate until ZERO findings; remaining nits enter `deferred-items.md` before closeout.
@@ -381,7 +381,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 
 ## Phase 8 — Final gate & knowledge propagation
 
-- [ ] 8.1 Final quality gate + ledger enforcement
+- [x] 8.1 Final quality gate + ledger enforcement
   - Run the full `bun quality-gate` (tsgo → oxlint → biome → lint → duplicates); all green. Compare against the baseline (task 0.1 counts): any new error MUST be attributable to this plan's files.
   - Schema-parity assertion (D7/R-J): `git diff` over `backend/db/schema/` is EMPTY for this plan's delta; `drizzle-kit` push/generate NOT run.
   - Ledger enforcement (BLOCKING): `awk '/^## Ledger Table/,/^## Status Values/' ai/plans/sprint_3/parent-read-only-monitoring-portal/deferred-items.md | grep -c "❌\|⚠️"` MUST equal 0 (scoped to the ledger table so the Status Values legend glyphs do not self-match — paymob precedent); `📅 Forward` items (D1 curriculum-depth, D2 DEV1-017 deep-link, D3 DEV1-019 E2E, D4 attendance table, D5 probe rate-limiting) are exempt per the ledger's forward status but MUST be re-asserted as still-open.
@@ -391,7 +391,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - Write outcome: `outcome/8.1-final-gate-outcome.md`
   - _Requirements: REQ-001, REQ-061, REQ-062_
 
-- [ ] 8.2 Knowledge propagation (canonical doc)
+- [x] 8.2 Knowledge propagation (canonical doc)
   - CREATE `docs/parents/monitoring-portal.md` (docs structure: Why → Pattern → Rules → Anti-patterns → Rollout Summary → Related Documents) consolidating ALL outcome files: the five query contracts + BOLA posture (identity from context only), the `requireLinkedChild` gate (R-A / INV-P1) and its constant-403 oracle, read-only posture (INV-P2), attendance derivation (R-B), evaluations disambiguation (R-C), progress-source ruling (R-D), the untouched participant-only surfaces (R-E), the `/parent/children/<studentId>?tab=reports&session=<id>` deep-link contract for DEV1-017 (R-I), and consumer guidance for DEV1-019.
   - UPDATE root `AGENTS.md` Important References with the one-line entry for the new canonical doc.
   - UPDATE `docs/parents/parent-link-request.md` (single forward-pointer line amending its consumer-contract note → monitoring portal shipped at the new doc) — satisfies its §8 forward pointer.
@@ -445,13 +445,13 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
 
 ALL of the following MUST hold before the plan may be marked finished:
 
-- [ ] Every task checkbox in this file is `[x]` and each has its `outcome/<task-id>-outcome.md`.
-- [ ] `bun quality-gate` is green end-to-end; baseline deltas (vs task 0.1) are zero or fully attributed.
-- [ ] All test lanes green via their canonical runners: repo/service/wire/workflow suites via `bun run test/scripts/run-test.ts`, UI components via `bun run test:ui:components`.
-- [ ] INV-P1: every portal read funnels through `requireLinkedChild` on `students.parentId`; wire matrix + journeys J2/J3 prove immediate severance and constant-shape 403 in en AND ar.
-- [ ] INV-P2: zero new GraphQL mutations on the portal surface (grep-locked in 7.1 + SDL-pinned in 3.3); zero writes of any kind from portal code; no mutation affordances in portal UI.
-- [ ] R-E: `sessionReport`/`sessionHomework` participant-only queries byte-unchanged (diff-proof recorded).
-- [ ] R-A grep-lock: zero `parent_link_requests` reads in portal code; R-C grep-lock: zero `evaluations` reads.
-- [ ] R-J: zero Drizzle schema changes; generated GraphQL codegen artifacts committed and current.
-- [ ] `deferred-items.md` ledger has zero `❌`/`⚠️` rows (scoped grep: `awk '/^## Ledger Table/,/^## Status Values/'` … `grep -c "❌\|⚠️"` = 0); `📅 Forward` items (D1-D5) still tracked and linked to their owning tickets.
-- [ ] Canonical doc `docs/parents/monitoring-portal.md` published; root `AGENTS.md` Important References updated; `docs/parents/parent-link-request.md` forward pointer satisfied.
+- [x] Every task checkbox in this file is `[x]` and each has its `outcome/<task-id>-outcome.md`.
+- [x] `bun quality-gate` is green end-to-end; baseline deltas (vs task 0.1) are zero or fully attributed.
+- [x] All test lanes green via their canonical runners: repo/service/wire/workflow suites via `bun run test/scripts/run-test.ts`, UI components via `bun run test:ui:components`.
+- [x] INV-P1: every portal read funnels through `requireLinkedChild` on `students.parentId`; wire matrix + journeys J2/J3 prove immediate severance and constant-shape 403 in en AND ar.
+- [x] INV-P2: zero new GraphQL mutations on the portal surface (grep-locked in 7.1 + SDL-pinned in 3.3); zero writes of any kind from portal code; no mutation affordances in portal UI.
+- [x] R-E: `sessionReport`/`sessionHomework` participant-only queries byte-unchanged (diff-proof recorded).
+- [x] R-A grep-lock: zero `parent_link_requests` reads in portal code; R-C grep-lock: zero `evaluations` reads.
+- [x] R-J: zero Drizzle schema changes; generated GraphQL codegen artifacts committed and current.
+- [x] `deferred-items.md` ledger has zero `❌`/`⚠️` rows (scoped grep: `awk '/^## Ledger Table/,/^## Status Values/'` … `grep -c "❌\|⚠️"` = 0); `📅 Forward` items (D1-D5) still tracked and linked to their owning tickets.
+- [x] Canonical doc `docs/parents/monitoring-portal.md` published; root `AGENTS.md` Important References updated; `docs/parents/parent-link-request.md` forward pointer satisfied.
