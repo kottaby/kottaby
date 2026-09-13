@@ -42,6 +42,8 @@ export const sessionsEn: SessionsLabels = {
   disputeOpenedNotice: "The dispute was opened. An administrator will review it.",
   cancelDisabledDisputed: "A disputed session awaits admin arbitration and can no longer be cancelled.",
   cancelReasonLine: "Cancellation reason",
+  disputeReasonLine: "Dispute reason",
+  arbitrationOutcomeLine: "Arbitration outcome",
   sessionStartedNotice: "Session started.",
   sessionCompletedNotice: "Session completed.",
   sessionConfirmedNotice: "Completion confirmed. The held fee was released to the teacher.",

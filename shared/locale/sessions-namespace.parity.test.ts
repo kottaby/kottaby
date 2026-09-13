@@ -98,6 +98,8 @@ const MANDATED_SESSIONS_KEYS = [
   "disputeOpenedNotice",
   "cancelDisabledDisputed",
   "cancelReasonLine",
+  "disputeReasonLine",
+  "arbitrationOutcomeLine",
   "sessionStartedNotice",
   "sessionCompletedNotice",
   "sessionCancelledNotice",

@@ -6,9 +6,11 @@ import { SessionRowCardShell } from "@/frontend/components/ui/sessionList";
 import type { MyStudentSessionsQuery_myStudentSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 import { SessionRowActions } from "@/frontend/views/student/sessions/SessionRowActions";
 import { SessionRowCancelReason } from "@/frontend/views/student/sessions/SessionRowCancelReason";
+import { SessionRowDisputeReason } from "@/frontend/views/student/sessions/SessionRowDisputeReason";
 import { SessionRowHeader } from "@/frontend/views/student/sessions/SessionRowHeader";
 import { SessionRowLifecycleCtas } from "@/frontend/views/student/sessions/SessionRowLifecycleCtas";
 import { SessionRowMeta } from "@/frontend/views/student/sessions/SessionRowMeta";
+import { SessionRowResolutionNote } from "@/frontend/views/student/sessions/SessionRowResolutionNote";
 import type { SessionRowAction } from "@/frontend/views/student/sessions/sessionRowAction";
 import {
   CANCELLABLE_STATUSES,
@@ -80,7 +82,9 @@ import { Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
  * Composition (this file): the card shell + alert + the footer band; the
  * header band lives in `SessionRowHeader.tsx`, the meta band + pending pill
  * in `SessionRowMeta.tsx`, the cancel-reason line in
- * `SessionRowCancelReason.tsx`, the caller CTAs in `SessionRowActions.tsx`
+ * `SessionRowCancelReason.tsx`, the participant dispute lines
+ * (reason + arbitration outcome) in `SessionRowDisputeReason.tsx` /
+ * `SessionRowResolutionNote.tsx`, the caller CTAs in `SessionRowActions.tsx`
  * and the dispute/cancel CTAs in `SessionRowLifecycleCtas.tsx`.
  *
  * MUI v9 discipline: `sx`-only styling, theme-palette colors through
@@ -161,6 +165,22 @@ export function SessionRow({
         }}
       >
         <SessionRowMeta session={session} locale={locale} />
+        {session.disputeReason !== null && session.disputedAt !== null ? (
+          <SessionRowDisputeReason
+            sessionId={session.id}
+            reason={session.disputeReason}
+            disputedAt={session.disputedAt}
+            locale={locale}
+          />
+        ) : null}
+        {session.resolutionNote !== null && session.resolvedAt !== null ? (
+          <SessionRowResolutionNote
+            sessionId={session.id}
+            note={session.resolutionNote}
+            resolvedAt={session.resolvedAt}
+            locale={locale}
+          />
+        ) : null}
         {session.cancelReason !== null ? (
           <SessionRowCancelReason sessionId={session.id} reason={session.cancelReason} />
         ) : null}

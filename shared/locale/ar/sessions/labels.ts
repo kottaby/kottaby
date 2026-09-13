@@ -41,6 +41,8 @@ export const sessionsAr: SessionsLabels = {
   disputeOpenedNotice: "تم فتح النزاع وسيقوم المسؤول بمراجعته.",
   cancelDisabledDisputed: "الجلسة قيد النزاع بانتظار تحكيم المسؤول ولم يعد بالإمكان إلغاؤها.",
   cancelReasonLine: "سبب الإلغاء",
+  disputeReasonLine: "سبب النزاع",
+  arbitrationOutcomeLine: "نتيجة التحكيم",
   sessionStartedNotice: "بدأت الجلسة.",
   sessionCompletedNotice: "اكتملت الجلسة.",
   sessionConfirmedNotice: "تم تأكيد الإنجاز وتم تحويل الرسوم المحجوزة إلى المعلم.",

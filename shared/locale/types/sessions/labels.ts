@@ -104,6 +104,10 @@ export interface SessionsLabels {
   readonly cancelDisabledDisputed: string;
   /** Meta label for a cancelled row's persisted cancellation reason. */
   readonly cancelReasonLine: string;
+  /** Participant row line label — the reason a participant filed for the dispute. */
+  readonly disputeReasonLine: string;
+  /** Participant row line label — the arbitration note the admin recorded. */
+  readonly arbitrationOutcomeLine: string;
   /** Success notice — the session was started. */
   readonly sessionStartedNotice: string;
   /** Success notice — the session was completed. */
