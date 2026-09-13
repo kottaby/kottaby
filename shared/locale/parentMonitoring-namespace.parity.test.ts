@@ -148,6 +148,12 @@ const MANDATED_KEYS = [
   // Print timestamp + CSV status
   "printTimestampLabel",
   "csvStatusColumn",
+  // Attendance summary stats
+  "statTotalSessions",
+  "statCompletedSessions",
+  "statCompletionRate",
+  "statUpcomingSessions",
+  "summaryHeading",
 ] as const;
 
 /**

@@ -11,6 +11,7 @@ import { parentChildSessionsQueryDocument } from "@/frontend/graphql/sharedDocum
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { AttendanceCalendar } from "@/frontend/views/parent/monitoring/AttendanceCalendar";
+import { AttendanceSummary } from "@/frontend/views/parent/monitoring/AttendanceSummary";
 import { AttendanceRow, AttendanceSkeleton } from "@/frontend/views/parent/monitoring/AttendanceTab.parts";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
@@ -68,16 +69,19 @@ export function AttendanceTab(props: Readonly<AttendanceTabProps>): ReactNode {
     body = <AttendanceCalendar sessions={rows} locale={locale} />;
   } else {
     body = (
-      <Box
-        component="output"
-        aria-label={t.attendanceSectionTitle}
-        data-testid="parent-attendance-list"
-        sx={{ display: "grid", gap: 2 }}
-      >
-        {rows.map(row => (
-          <AttendanceRow key={row.id} row={row} labels={t} locale={locale} />
-        ))}
-      </Box>
+      <>
+        <AttendanceSummary sessions={rows} labels={t} />
+        <Box
+          component="output"
+          aria-label={t.attendanceSectionTitle}
+          data-testid="parent-attendance-list"
+          sx={{ display: "grid", gap: 2 }}
+        >
+          {rows.map(row => (
+            <AttendanceRow key={row.id} row={row} labels={t} locale={locale} />
+          ))}
+        </Box>
+      </>
     );
   }
 

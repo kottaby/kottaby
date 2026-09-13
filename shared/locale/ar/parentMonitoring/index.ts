@@ -135,4 +135,9 @@ export const parentMonitoringAr: ParentMonitoringLabels = {
   calendarMonthLabel: "الشهر",
   printTimestampLabel: (timestamp: string): string => `طُبع في ${timestamp}`,
   csvStatusColumn: "حالة الحصة",
+  statTotalSessions: "إجمالي الحصص",
+  statCompletedSessions: "مكتملة",
+  statCompletionRate: "نسبة الإكمال",
+  statUpcomingSessions: "قادمة",
+  summaryHeading: "الملخص",
 };

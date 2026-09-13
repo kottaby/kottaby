@@ -122,4 +122,9 @@ export const parentMonitoringEn: ParentMonitoringLabels = {
   calendarMonthLabel: "Month",
   printTimestampLabel: (timestamp: string): string => `Printed on ${timestamp}`,
   csvStatusColumn: "Session Status",
+  statTotalSessions: "Total Sessions",
+  statCompletedSessions: "Completed",
+  statCompletionRate: "Completion Rate",
+  statUpcomingSessions: "Upcoming",
+  summaryHeading: "Summary",
 };

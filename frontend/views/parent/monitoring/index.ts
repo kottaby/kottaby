@@ -11,6 +11,7 @@
  */
 
 export * from "./AttendanceCalendar";
+export * from "./AttendanceSummary";
 export * from "./AttendanceTab";
 export * from "./EvaluationsTab";
 export * from "./HomeworkTab";

@@ -232,4 +232,16 @@ export interface ParentMonitoringLabels {
   readonly printTimestampLabel: (timestamp: string) => string;
   /** CSV column header for the session status column. */
   readonly csvStatusColumn: string;
+
+  // ─── Attendance summary stats card ───────────────────────────────────
+  /** Label for the total sessions count stat. */
+  readonly statTotalSessions: string;
+  /** Label for the completed sessions count stat. */
+  readonly statCompletedSessions: string;
+  /** Label for the completion rate stat (percentage). */
+  readonly statCompletionRate: string;
+  /** Label for the upcoming (scheduled) sessions count stat. */
+  readonly statUpcomingSessions: string;
+  /** Section heading for the summary stats card. */
+  readonly summaryHeading: string;
 }
