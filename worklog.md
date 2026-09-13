@@ -1897,3 +1897,71 @@ The Parent Read-Only Monitoring Portal is COMPLETE and shipped on branch `feat/p
 4. **Dark mode chart adaptation**: Use CSS variables for Recharts colors so the chart adapts to theme changes.
 
 5. **Progress summary "Last Activity" date**: Change the 4th stat to show the latest homework date instead of the track name.
+
+---
+Task ID: webDevReview-R8
+Agent: webDevReview (scheduled cron, round 8)
+Task: Sort functionality (by date/rating) on all 3 data tabs
+
+## Current Project Status
+
+The Parent Read-Only Monitoring Portal is COMPLETE and shipped on branch `feat/parent-read-only-monitoring-portal`. Prior rounds completed all 22 spec-implementation tasks + R1-R7 enhancements (styling, rate limiting, print/export, calendar, summary cards, rating chart, mobile responsiveness, search/filter on all tabs). This round (R8) focused on R7 priority #2: adding sort functionality to the search/filter bar.
+
+## Completed Modifications
+
+### 1. Sort Helper (`SearchFilterBar.helpers.ts`)
+- Added `SortMode` type: `"dateDesc" | "dateAsc" | "ratingDesc" | "ratingAsc"`
+- Added `DEFAULT_SORT = "dateDesc"` (newest-first, matching the server's default ordering)
+- Added `sortRows<T>()` private helper:
+  - `dateDesc`/`dateAsc`: sorts by `sessionStartedAt ?? createdAt` (ISO string comparison)
+  - `ratingDesc`/`ratingAsc`: sorts by `studentRatingByTeacher` (reports/evaluations) or `jadid.grade`/`madi.grade` (homework) — falls back to 0 for null
+- `filterReportRows()` and `filterHomeworkRows()` now call `sortRows()` on the filtered result before returning
+- The `SearchFilterState` interface now includes `sort: SortMode`
+
+### 2. SearchFilterBar Component Enhanced
+- Added a sort `FormControl` + `Select` dropdown with `SortOutlined` start adornment
+- 4 sort options: Date (newest), Date (oldest), Rating (highest), Rating (lowest)
+- Added `showRatingFilter` prop (default `true`) — set to `false` on HomeworkTab (homework has grades, not ratings)
+- The "has filter" indicator now also activates when the sort is non-default
+
+### 3. All 3 Data Tabs Updated
+- **ReportsTab**: initial state `{ query: "", ratingFilter: null, sort: DEFAULT_SORT }` — sort by date + rating
+- **HomeworkTab**: same initial state — sort by date + grade; `showRatingFilter={false}` on the SearchFilterBar
+- **EvaluationsTab**: same initial state — sort by date + rating (evaluations lens, D9)
+
+### 4. i18n Keys (5 new)
+- `sortByLabel`, `sortDateDesc`, `sortDateAsc`, `sortRatingDesc`, `sortRatingAsc`
+- English + Arabic parity maintained (150 parity tests pass, up from 145)
+
+## Verification Results
+- **tsgo**: 0 errors (project-wide)
+- **biome**: clean (1830 files)
+- **Parity tests**: 150 pass / 0 fail (5 new keys)
+- **UI component tests**: 59 pass / 0 fail (285 expect calls)
+- **sub-loop**: all 9 modified files pass `--lifecycle duplicates`
+- **Browser QA**: home page renders correctly (Arabic RTL, screenshot saved to `download/qa-r8-home.png`)
+- **Commit**: `74f9396` pushed to origin
+
+## Unresolved Issues / Risks
+
+1. **Dev server instability** (unchanged): Turbopack dies after 1-2 requests (sandbox memory limitation). Code verified via 150 parity + 59 UI tests.
+
+2. **Sort is client-side only** (same as search): The sorting happens entirely on the client after the full dataset is fetched. For the portal's typical data volume (tens of rows per child), this is appropriate. A server-side sort parameter could be added in a future round if data volumes grow.
+
+3. **Chart colors don't auto-adapt to theme changes** (unchanged from R4-R7): Recharts stroke receives a direct string from `theme.palette`. Dark/light toggle requires a re-render.
+
+4. **Progress summary "Last Activity" still shows track name** (unchanged from R5): The 4th stat shows "Jadid"/"Madi" instead of a date.
+
+5. **Sort by grade on homework uses the first non-null grade**: The `ratingValue()` helper checks `studentRatingByTeacher` first, then `jadid.grade`, then `madi.grade`. For homework rows (which have no `studentRatingByTeacher`), it falls back to the jadid grade, then the madi grade. A row with both tracks graded sorts by the jadid grade only.
+
+## Priority Recommendations for Next Phase
+
+1. **E2E browser journey coverage** (deferred D3 → DEV1-019): Write Playwright E2E tests. This remains the most impactful next step for visual QA.
+
+2. **Curriculum-depth statistics** (deferred D1): Implement percentage-through-curriculum. The StatCard pattern is ready.
+
+3. **Dark mode chart adaptation**: Use CSS variables for Recharts colors so the chart adapts to theme changes.
+
+4. **Progress summary "Last Activity" date**: Change the 4th stat to show the latest homework date instead of the track name.
+
+5. **Export sorted/filtered data**: The CSV export currently exports all rows. Enhance it to export only the filtered+sorted subset shown on screen.
