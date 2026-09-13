@@ -102,6 +102,8 @@ Every in-scope `app/api/**` route responds through the shared helpers:
 
 New exemptions must be registered here before shipping.
 
+**Discoverability note (cron routes):** the bare-404 gates on `app/api/cron/reconcile-paymob-payments/route.ts` and `app/api/cron/sweep-sessions/route.ts` (disabled cron mode; unconfigured provider/API key) are deliberately documented ON the routes under their `envelope` classification — the exemptions inventory above carries the provider-ack webhook row only, so a cron route's own docblock is the record of its fail-closed gates.
+
 ### 4. Client mapping table
 
 `mapGraphQLErrorByCode(code, context)` branches on normalized `extensions.code` ONLY. Branching on HTTP status for GraphQL errors is PROHIBITED. Consumers render handles: `useAppTranslation(Errors)[action.messageKey]` — server `message` text is never rendered for masked classes.
