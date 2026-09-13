@@ -75,7 +75,7 @@ function disputeRefundLedgerDescription(sessionId: number): string {
  * to the row's escrow generation. Typed as the plain `VALIDATION` code per
  * the arbitration error matrix, carrying the dedicated localized copy.
  */
-function rejectResolutionFamilyMismatch(denial: string, sessionId: number, t: ArbitrationErrorsTranslations): never {
+export function rejectResolutionFamilyMismatch(denial: string, sessionId: number, t: ArbitrationErrorsTranslations): never {
   logger.logDomainError(denial, {
     code: "VALIDATION",
     entity: "session",

@@ -97,6 +97,7 @@ import {
   classifyOpenDisputeProbe,
   creditLaneForArbitration,
   debitTeacherWalletForArbitration,
+  rejectResolutionFamilyMismatch,
   resolveArbitrationDebitAmount,
 } from "@/backend/services/classes/session-arbitration.service.helpers";
 import { SessionDisputeNotificationService } from "@/backend/services/classes/session-dispute-notification.service";
@@ -105,6 +106,7 @@ import {
   assertPositiveSafeSessionId,
   normalizeOptionalReasonText,
   normalizeRequiredReasonText,
+  SESSION_DISPUTED_STATUS,
 } from "@/backend/services/classes/session-lifecycle.guards";
 import { NotificationEngine } from "@/backend/services/notifications";
 import type { AdminDisputeCaseReturnType, DBTransaction, SessionReturnType } from "@/backend/types";
@@ -156,6 +158,42 @@ export namespace SessionArbitrationService {
    *     and the service opens its own transaction.
    * @returns The disputed session row.
    */
+  /**
+   * Pre-flight escrow-classification gate for the shared arbitration entry:
+   * a resolution submitted for a CURRENTLY DISPUTED row must belong to the
+   * row's own generation vocabulary (held rows answer only the held family,
+   * consumed rows only the consumed family). A cross-family submission is
+   * the localized classification-mismatch denial BEFORE any service runs —
+   * zero writes, and neither generation's service ever applies the other
+   * generation's semantics. Non-disputed (or unknown) rows pass through
+   * untouched: their own service owns the state-conflict classification.
+   *
+   * Advisory by construction — the dispatched service re-classifies the
+   * row inside its own transaction, so a row that flips between this read
+   * and the write still cannot execute the wrong generation's effects.
+   */
+  export async function assertResolutionFamilyMatchesEscrow(
+    sessionId: number,
+    resolution: DisputeResolution,
+    locale: string
+  ): Promise<void> {
+    const t = getServerTranslations(locale).errorsTranslations;
+    assertPositiveSafeSessionId(sessionId, t);
+    const probe = await SessionRepository.findArbitrationProbe(sessionId);
+    if (probe?.status !== SESSION_DISPUTED_STATUS) {
+      return;
+    }
+    const heldFamily = resolution === DisputeResolution.Cancel || resolution === DisputeResolution.Complete;
+    const rowIsConsumed = probe.feeHeld === false;
+    if (heldFamily === rowIsConsumed) {
+      rejectResolutionFamilyMismatch(
+        "Session arbitration denied: the submitted outcome does not apply to the row's escrow generation",
+        sessionId,
+        t
+      );
+    }
+  }
+
   export async function openPostConfirmationDispute(
     callerUserId: number,
     sessionId: number,

@@ -304,16 +304,20 @@ gqlSchemaBuilder.mutationField("resolveSessionDispute", t =>
       if (!ctx.user) {
         throw new UnauthorizedError("Authentication required.");
       }
+      // Escrow-classification gate BEFORE any dispatch: a resolution
+      // submitted for a currently disputed row must belong to the row's own
+      // generation vocabulary — a cross-family submission is the localized
+      // classification-mismatch denial with ZERO writes, never the other
+      // generation's generic state guard. Non-disputed rows pass through
+      // untouched (their dispatched service owns those denials). The
+      // dispatched service still re-classifies inside its own transaction,
+      // so the gate is advisory in the race sense and authoritative only
+      // for the vocabulary error.
+      await SessionArbitrationService.assertResolutionFamilyMatchesEscrow(Number(args.id), args.resolution, ctx.locale);
       // Family dispatch by the PARSED outcome value (the wire enum already
       // parsed it): the held-family outcomes resolve through the shipped
       // held-escrow service (byte-stable path), the consumed-family
-      // outcomes through the post-confirmation arbitration service. Each
-      // service re-classifies the row's escrow generation INSIDE its own
-      // transaction, so a mismatched family can never apply the other
-      // generation's semantics — a `Refund`-family value on a held row is
-      // the arbitration service's `disputeResolutionMismatch` denial, and a
-      // `Cancel`/`Complete` value routed by a hostile payload that skipped
-      // the enum boundary would be the shipped service's own guard. The
+      // outcomes through the post-confirmation arbitration service. The
       // arbitration service owns its transaction and publishes the
       // dispute-resolved wave itself after its own commit — the resolver
       // passes no outer tx and handles no receipts.

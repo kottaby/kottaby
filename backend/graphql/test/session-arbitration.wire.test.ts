@@ -732,3 +732,88 @@ describe("adminDisputeCase after arbitration — the audit trail surfaces the ov
     expect(entry.actorId).toBe(cast.admin.userId);
   });
 });
+
+// ─── Section 7 — adversarial probes: privilege, family-crossing, fuzz ────────
+
+describe("adversarial probes — privilege boundaries, family crossings, amount fuzz", () => {
+  test("admin identity on the student dispute entry → SESSION_NOT_FOUND (admins are never the row's student)", async () => {
+    const result = await admin.mutate({
+      mutation: OPEN_POST_CONFIRMATION_DISPUTE_DOC,
+      variables: { id: sessionWrongStateId, reason: "the arbiter cannot use the student entry" },
+    });
+    expectMutationError(result.error, "SESSION_NOT_FOUND");
+  });
+
+  test("Complete on a consumed-escrow dispute → the arbitration service's classification-mismatch denial (row untouched)", async () => {
+    const result = await admin.mutate({
+      mutation: RESOLVE_DISPUTE_DOC,
+      variables: { id: sessionAmountId, resolution: "Complete" },
+    });
+    expectMutationError(result.error, "VALIDATION");
+    const item = firstWireItem(result.error, "VALIDATION");
+    expect(item.message).toBe(expectedCopy("disputeResolutionMismatch"));
+  });
+
+  test("Cancel on a consumed-escrow dispute → the same mismatch denial (row untouched)", async () => {
+    const result = await admin.mutate({
+      mutation: RESOLVE_DISPUTE_DOC,
+      variables: { id: sessionAmountId, resolution: "Cancel" },
+    });
+    expectMutationError(result.error, "VALIDATION");
+    const item = firstWireItem(result.error, "VALIDATION");
+    expect(item.message).toBe(expectedCopy("disputeResolutionMismatch"));
+  });
+
+  test("PartialRefund on a held-escrow dispute → the classification-mismatch denial (the family gate precedes amount policy)", async () => {
+    const result = await admin.mutate({
+      mutation: RESOLVE_DISPUTE_DOC,
+      variables: { id: sessionHeldMismatchId, resolution: "PartialRefund" },
+    });
+    expectMutationError(result.error, "VALIDATION");
+    const item = firstWireItem(result.error, "VALIDATION");
+    expect(item.message).toBe(expectedCopy("disputeResolutionMismatch"));
+  });
+
+  test("Uphold on a held-escrow dispute → the classification-mismatch denial (row untouched)", async () => {
+    const result = await admin.mutate({
+      mutation: RESOLVE_DISPUTE_DOC,
+      variables: { id: sessionHeldMismatchId, resolution: "Uphold" },
+    });
+    expectMutationError(result.error, "VALIDATION");
+    const item = firstWireItem(result.error, "VALIDATION");
+    expect(item.message).toBe(expectedCopy("disputeResolutionMismatch"));
+  });
+
+  test("partialAmount fuzz matrix → every hostile amount is the pre-DB amount-policy denial", async () => {
+    const fuzzAmounts: readonly string[] = ["-5.00", SESSION_FEE_HIFZ, "15.999", "abc", "", "99999999999999.99"];
+    const results = await Promise.all(
+      fuzzAmounts.map(amount =>
+        admin.mutate({
+          mutation: RESOLVE_DISPUTE_DOC,
+          variables: { id: sessionAmountId, resolution: "PartialRefund", partialAmount: amount },
+        })
+      )
+    );
+    for (const result of results) {
+      expectMutationError(result.error, "VALIDATION");
+      const item = firstWireItem(result.error, "VALIDATION");
+      expect(item.message).toBe(expectedCopy("partialRefundAmountInvalid"));
+    }
+  });
+
+  test("the full probe wave left every disputed row untouched (no partial writes anywhere)", async () => {
+    const consumedCase = await admin.query({ query: ADMIN_DISPUTE_CASE_DOC, variables: { id: sessionAmountId } });
+    const consumedSession: unknown = payloadOf(consumedCase, "adminDisputeCase").session;
+    if (!isRecord(consumedSession)) {
+      throw new Error("adminDisputeCase must carry the session member");
+    }
+    expect(consumedSession.status).toBe("Disputed");
+
+    const heldCase = await admin.query({ query: ADMIN_DISPUTE_CASE_DOC, variables: { id: sessionHeldMismatchId } });
+    const heldSession: unknown = payloadOf(heldCase, "adminDisputeCase").session;
+    if (!isRecord(heldSession)) {
+      throw new Error("adminDisputeCase must carry the session member");
+    }
+    expect(heldSession.status).toBe("Disputed");
+  });
+});
