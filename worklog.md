@@ -354,3 +354,33 @@ Stage Summary:
 - ALL GREEN with zero code fixes needed — branch tip a439190 already satisfied every gate
 - Worklog entry committed via plumbing to feat/subscription-validity-window-expiry and pushed
 - Watchdog mechanics documented for future sessions: never checkout non-main HEAD; use tree-restore + plumbing commit pattern
+
+---
+Task ID: 8
+Agent: Orchestrator
+Task: PR lifecycle for feat/subscription-validity-window-expiry → main (PR #156): open/watch, resolve conflicts + status checks, autofix review threads, keep mergeable, do NOT merge
+
+Work Log:
+- Installed gh CLI v2.63.2 (sandbox lacked it); classic token via GH_TOKEN env (read:org scope absent, auth login skipped)
+- Found PR #156 already open (branch → main); state BEHIND, checks pending
+- Sandbox git-restore warfare persisted: local HEAD repeatedly flipped back to main (untracked files survive). Mitigation: atomic single-command checkout→work→push sequences + reset-proof .pr-stage staging dir + verified remote after every push
+- Merged origin/main (2 commits, incl. #152 Tajweed lane crediting) into the branch — zero conflicts; pushed merge commit 3a7993f
+- Watched CI: all 4 checks passed (quality 2m37s, tests-db, tests-graphql, tests-services); CodeRabbit full review of 40 files completed
+- autofix SKILL.md: loaded AGENTS.md, fetched 2 unresolved CodeRabbit threads via GraphQL:
+  1. Major "Move the plan-lane read behind the repository layer" (subscription-expiry.service.ts:186) — VALIDATED (service-layer direct DB access)
+  2. Minor "Scope expiry-sweep assertions to each test fixture" (subscription-expiry.service.test.ts:206) — VALIDATED (test:services runs 8 workers on one shared DB; journey suite commits due fixtures; runInRollback does not scope sweep reads)
+- Fixes applied (commit ec0ccba, pushed, remote-verified):
+  - New PlanRepository.findBalanceLanesByIds(ids, tx) — dual-path read convention (Drizzle inArray on tx / raw queryDb + ANY($1::int[]) otherwise, empty-ids short-circuit)
+  - Service plan-lane resolution now goes through the repo barrel; no direct table access
+  - scopeSweepToUsers seam helper (service tests) + journey-scope spy (journey test): real guarded flip still runs, claimed projections filtered to fixture users; empty-cohort case stubs seam to []
+  - All exact count assertions retained (now deterministic)
+- Validation: tsgo 0, oxlint 0, biome clean, expiry service suite 6 pass/2 pglite-skips, journey 7 pass/0 fail
+- Bootstrapped .env.test (pglite, ./db/pglite-test, dummy DATABASE_URL for db CLI validation) + applied migrations locally
+- Posted autofix summary comment on PR; watched new CI run: ALL 5 checks pass; mergeStateStatus CLEAN, mergeable MERGEABLE
+- Both CodeRabbit threads now RESOLVED; PR left UNMERGED per instruction
+- Note: a worklog commit briefly landed on local main due to a sandbox HEAD flip; local main reset to origin/main, entry re-applied here on the feature branch
+
+Stage Summary:
+- PR #156: MERGEABLE/CLEAN at head ec0ccba; zero conflicts; all checks green; 2/2 review threads resolved
+- Artifacts: commit 3a7993f (main sync), commit ec0ccba (autofix), PR comment 5653241477
+- Local test env restored: .env.test + migrated pglite at db/pglite-test (scripts/apply-cr-fixes.sh is re-runnable)
