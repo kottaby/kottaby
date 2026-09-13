@@ -133,9 +133,7 @@ export function RateTeacherDialog({
 
   // Dismissal gate — backdrop click and Escape are IGNORED while the
   // mutation is pending (the cancel Button is separately disabled).
-  const handleDialogClose = (): void => {
-    if (!loading) onClose();
-  };
+  const handleDialogClose = (): void => (loading ? undefined : onClose());
 
   const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -167,6 +165,7 @@ export function RateTeacherDialog({
             value={rating}
             getLabelText={t.ratingStarAriaLabel}
             emptyLabelText={t.ratingEmptyLabelText}
+            aria-invalid={ratingFieldError !== null ? true : undefined}
             aria-describedby={ratingFieldError !== null ? "rate-teacher-rating-error" : undefined}
             icon={<StarOutlined fontSize="large" />}
             emptyIcon={<StarBorderOutlined fontSize="large" />}
@@ -177,7 +176,7 @@ export function RateTeacherDialog({
             }}
           />
           {ratingFieldError !== null ? (
-            <FormHelperText error id="rate-teacher-rating-error">
+            <FormHelperText error id="rate-teacher-rating-error" aria-live="polite">
               {ratingFieldError}
             </FormHelperText>
           ) : null}
