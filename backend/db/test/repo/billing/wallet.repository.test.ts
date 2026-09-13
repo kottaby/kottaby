@@ -58,6 +58,7 @@ import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import type { DBTransaction, SessionSelectType, TeacherTransactionSelectType, WalletSelectType } from "@/backend/types";
+import { withImmutabilityTriggersSuspended } from "@/test/helpers/db-cleanup";
 
 /** Shared-PK ids for one booking pair (wallet.teacher_id / session participants). */
 interface WalletActors {
@@ -427,10 +428,14 @@ describe("WalletRepository.debitForArbitrationOnce — standalone executor path 
 
   afterAll(async () => {
     // Ledger rows first (wallet FK restrict), then sessions (participant
-    // FKs restrict), then the users cascade the role rows.
-    await Promise.all(
-      committedTeacherTransactionIds.map(id => db.delete(teacherTransaction).where(eq(teacherTransaction.id, id)))
-    );
+    // FKs restrict), then the users cascade the role rows. The ledger is
+    // append-only in production — the sweep runs under the sanctioned
+    // immutability-trigger suspension, mirroring the journey teardowns.
+    await withImmutabilityTriggersSuspended(["teacher_transaction"], async () => {
+      await Promise.all(
+        committedTeacherTransactionIds.map(id => db.delete(teacherTransaction).where(eq(teacherTransaction.id, id)))
+      );
+    });
     committedTeacherTransactionIds.length = 0;
     await Promise.all(committedWalletIds.map(id => db.delete(wallet).where(eq(wallet.id, id))));
     committedWalletIds.length = 0;

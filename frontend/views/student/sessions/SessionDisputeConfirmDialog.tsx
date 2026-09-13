@@ -53,14 +53,7 @@ export const MAX_DISPUTE_REASON_LENGTH = 500;
 
 // The mutation-binding vocabulary (types + generation arms + the student
 // surface's binding resolver) lives in the sibling non-component module
-// (fast refresh: this file exports components only); the TYPES stay
-// reachable from this module's public surface.
-export type {
-  SessionDisputeMutationData,
-  SessionDisputeMutationProps,
-  SessionDisputeMutationVariables,
-  SessionDisputePayloadRow,
-} from "@/frontend/views/student/sessions/sessionDisputeMutations";
+// (fast refresh: this file exports components only).
 
 interface SessionDisputeConfirmDialogProps extends SessionDisputeMutationProps {
   /** Id of the session being disputed. */

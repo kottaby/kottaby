@@ -127,7 +127,7 @@ export const DISPUTABLE_STATUSES: Record<string, true> = {
  * its fee is the exactly-once confirm-pending shape and stays
  * undisputable.
  */
-export const POST_CONFIRMATION_DISPUTABLE_STATUSES: Record<string, true> = {
+const POST_CONFIRMATION_DISPUTABLE_STATUSES: Record<string, true> = {
   [SessionStatus.Completed]: true,
 };
 

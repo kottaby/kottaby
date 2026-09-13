@@ -168,7 +168,7 @@ Backend-first with a **test-first journey** authored right after repo primitives
 
 ### Phase 6: Final Gate & Propagation
 
-- [ ] 6.1 Deferred-items enforcement + full quality gate
+- [x] 6.1 Deferred-items enforcement + full quality gate
   - `grep -E '^\| D[0-9]+' ai/plans/sprint_3/dispute-resolution-with-admin-arbitration/deferred-items.md | grep -c "❌\|⚠️"` must be 0 (the legend lines contain the emoji, so scope the grep to ledger rows)
   - Close deferred item D4: audit actual admin-cohort size vs `resolveAudienceIds` bounds; flip D4 to ✅ (fits) or shrink scope deterministically
   - Close deferred item D5's precondition: canonical-doc diff ready for 6.2
@@ -176,7 +176,7 @@ Backend-first with a **test-first journey** authored right after repo primitives
   - Outcome: `outcome/6.1-final-gate-outcome.md`
   - _Requirements: REQ-0, REQ-10_
 
-- [ ] 6.2 Knowledge propagation
+- [x] 6.2 Knowledge propagation
   - Create `docs/sessions/dispute-arbitration.md` (canonical reference: two-generation model, classification, quantized-student-credit ruling D-4, compensating withdrawal-row pattern D-5, notification waves, audit convention, boundary with sibling tickets)
   - Update ONLY `docs/…` canonical docs that changed behavior (e.g. `docs/sessions/session-lifecycle.md` post-confirmation hop + `docs/admin/admin-session-governance.md` boundary note) — AGENTS.md / instructions stay untouched
   - Outcome: `outcome/6.2-knowledge-propagation-outcome.md`

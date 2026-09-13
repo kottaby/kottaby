@@ -29,20 +29,20 @@ import { isPostConfirmationDisputable } from "@/frontend/views/student/sessions/
  */
 
 /** The shared dispute-family mutation payload row (the dispute `Session` selection). */
-export type SessionDisputePayloadRow = OpenSessionDisputeMutation_openSessionDispute;
+type SessionDisputePayloadRow = OpenSessionDisputeMutation_openSessionDispute;
 
 /**
  * The dispute mutations' ONE wire variables shape — `id` plus the REQUIRED
  * `reason`. Both dispute generations declare the identical variables set,
  * so the dialog's submit path is generation-neutral.
  */
-export type SessionDisputeMutationVariables = OpenSessionDisputeMutationVariables;
+type SessionDisputeMutationVariables = OpenSessionDisputeMutationVariables;
 
 /**
  * The two dispute-generation mutation results the dialog parameterizes
  * over — the held-escrow escalation and the post-confirmation escalation.
  */
-export type SessionDisputeMutationData = OpenSessionDisputeMutation | OpenPostConfirmationDisputeMutation;
+type SessionDisputeMutationData = OpenSessionDisputeMutation | OpenPostConfirmationDisputeMutation;
 
 /**
  * The mutation binding the dispute dialog rides on: the dispute-generation

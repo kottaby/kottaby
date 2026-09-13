@@ -88,6 +88,19 @@ A zero-row match is ambiguous (unknown id vs non-owner vs wrong state vs decerti
 
 **Decision binding:** A.8 — every row is `session_type = student_session` (evaluation types unreachable through this surface); A.10 — `intent` is `hifz | tajweed` only, `evaluation` is rejected pre-DB with `VALIDATION`; B.2 — `confirmation_deadline = now + 24h` at creation, never re-armed (sweeper = the dual-confirmation timeout sweep); B.3 — fee comes from platform constants, never input; B.4 — implemented per the hold-as-debit ruling (§4); B.18 — `disputed`'s producer is the confirmed pre-completion dispute surface (`openSessionDispute`, either participant — §2.1); C.5 — zero `recitation` rows written (1:1 session→recitation lives in the recitation record).
 
+### 2.4 Post-Confirmation Dispute Hop (consumed escrow — amendment)
+
+The pre-completion rulings above (§2.1–§2.3) stay **byte-stable for held escrow** (`fee_held = true`): the participant-opened dispute from `scheduled`/`started`, the `resolveSessionDispute` `Cancel`/`Complete` outcomes, and the notification-silent posture all hold unchanged. One hop is added for **consumed escrow** (`fee_held = false`) — the post-confirmation recourse of decision B.18, owned by the dispute-arbitration surface (`docs/sessions/dispute-arbitration.md`, the canonical reference for both generations). The §2.1 sentence scoping dispute attempts away from `completed` rows therefore applies to **held** rows only:
+
+- **`completed → disputed`** — student-only `openPostConfirmationDispute` on a dual-confirmed row: ONE guarded UPDATE fusing `id ∧ student_id = caller ∧ status = 'completed' ∧ confirmed_by_student_at IS NOT NULL ∧ fee_held = false`, setting `status = 'disputed'`, `dispute_reason`, `disputed_at`. Exactly-once (a concurrent duplicate submit is the state-conflict loser); non-participants — including the row's own teacher — stay oracle-collapsed behind `SESSION_NOT_FOUND`; zero audit rows (a participant action, mirroring the held generation); escrow and wallet untouched until arbitration.
+- **`disputed → completed` (arbitration completion leg)** — the admin's `Refund | PartialRefund | Uphold` resolution completes a disputed consumed row through the SAME single arbitration write path that serves the held generation's `Cancel | Complete`: ONE guarded UPDATE fusing `id ∧ status = 'disputed' ∧ fee_held = false`, setting `status = 'completed'`, `resolution_note`, `resolved_at`. The completion leg fires FIRST inside the arbitration transaction — a concurrent-arbitration loser classifies as the state conflict with zero financial writes. The financial side effects, notification waves, and audit convention of that leg are the arbitration doc's contract, not this one's.
+
+```mermaid
+stateDiagram-v2
+    completed --> disputed: openPostConfirmationDispute (student; consumed escrow)
+    disputed --> completed: arbitration Refund / PartialRefund / Uphold (consumed escrow)
+```
+
 ## 3. Four-Phase Creation Invariant (REQ-040)
 
 `createSession` composes everything inside **one** `withTransaction(outerTx)` (outerTx → SAVEPOINT; undefined → new top-level transaction). The phase order is FIXED and never reordered:
@@ -177,3 +190,4 @@ Each of these was found or proven during this slice's review waves; all are load
 - `docs/students/free-trial-provisioning.md` — the `balance_trial` lane + grant-once pattern the trial-first ladder builds on; `docs/teachers/applicant-lifecycle.md` — the INV-TV1 applicant context behind the unconditional teacher ban on `createSession`.
 - `docs/planning/TEAM_ALLOCATION.md` — Contract 1 phrasing superseded by §4 (kept for history only).
 - Plan of record: `ai/plans/sprint_1/session-creation-lifecycle-scheduled-sta/` (specs REQ-080/081/082, outcomes, deferred-items ledger D1–D10).
+- `docs/sessions/dispute-arbitration.md` — the canonical reference for dispute arbitration over both escrow generations: the §2.4 hop's owner (post-confirmation open, arbitration outcomes, financial reversal, waves, audit convention, case review).

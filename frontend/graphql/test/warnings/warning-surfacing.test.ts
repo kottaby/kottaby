@@ -345,6 +345,7 @@ const KNOWN_LIVE_MUTATION_FIELDS = [
   "logout",
   "markAllNotificationsRead",
   "markNotificationRead",
+  "openPostConfirmationDispute",
   "openSessionDispute",
   "purchaseSubscription",
   "refreshToken",

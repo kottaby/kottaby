@@ -16,7 +16,7 @@ import { DisputeResolution } from "@/frontend/graphql/generated/gql/graphql";
  */
 
 /** The wire value of the amount-carrying outcome (string-vs-string comparisons). */
-export const PARTIAL_REFUND_WIRE_VALUE = DisputeResolution.PartialRefund.toString();
+const PARTIAL_REFUND_WIRE_VALUE = DisputeResolution.PartialRefund.toString();
 
 /** Two-decimal money shape — digits only, at most two fraction digits. */
 const PARTIAL_AMOUNT_SHAPE = /^\d+(\.\d{1,2})?$/;

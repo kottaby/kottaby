@@ -2,10 +2,8 @@
 
 import type { ReactNode } from "react";
 import { CancelSessionConfirmDialog } from "@/frontend/views/student/sessions/CancelSessionConfirmDialog";
-import {
-  SessionDisputeConfirmDialog,
-  type SessionDisputeMutationProps,
-} from "@/frontend/views/student/sessions/SessionDisputeConfirmDialog";
+import { SessionDisputeConfirmDialog } from "@/frontend/views/student/sessions/SessionDisputeConfirmDialog";
+import type { SessionDisputeMutationProps } from "@/frontend/views/student/sessions/sessionDisputeMutations";
 
 interface StudentSessionsDialogsProps {
   /** Id of the session whose cancel dialog is open (`null` = not mounted). */

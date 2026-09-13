@@ -43,3 +43,17 @@ Work Log:
 
 Stage Summary:
 - 5.1 [x] with outcome; D6 logged ✅; next: 6.1/6.2 + review waves
+
+---
+Task ID: 6.1-6.2
+Agent: Spec Implementation Orchestrator
+Task: Phase 6 final gate + knowledge propagation (per SKILL.md §Deferred-Items Enforcement + §Knowledge Propagation)
+
+Work Log:
+- 6.1: D4 closed (resolveAudienceIds unbounded; cohort 3); ledger gate 0; tsgo 0, biome 0, lint exit 0, knip 0 (5 dead exports fixed); test slices: db 647/0 (after trigger re-install + allowlist pin + wallet teardown suspension), services 1185/0, graphql all green (1 env spawn-timeout passes 14/0 isolated), workflows 252/4 all proven pre-existing on main (D6), UI plan suites 72/0 (full slice OOMs in sandbox — documented)
+- quality-gate: OOMs in sandbox at BASIC_CHECKS (documented; per-file equivalents all green)
+- 6.2: docs/sessions/dispute-arbitration.md created (12 sections); session-lifecycle.md §2.4 appended (D5 closed ✅); admin-session-governance boundary note extended; zero plan-artifact refs
+
+Stage Summary:
+- ALL 16 plan tasks [x]; 15 outcome files; ledger 0 blocked
+- Next: mandatory 10 review iterations
