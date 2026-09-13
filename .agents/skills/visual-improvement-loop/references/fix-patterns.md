@@ -26,6 +26,7 @@ matches the finding, say so in the wave report: that gap is a playbook candidate
 | Asymmetric dialog gutter | Per-side ad-hoc padding / unpinned DialogContent defaults | Pin a symmetric logical gutter: DialogContent `paddingInline: theme.spacing(3)` | Pixel-verify first — VLM "asymmetry" calls can be misperception; logical props stay RTL-safe |
 | Low-contrast select dropdown icon | MUI `.MuiSelect-icon` inherits `action.active` (54% black in light mode) | Scoped `sx={{ "& .MuiSelect-icon": { color: "var(--mui-palette-text-primary)" } }}` on the one select | Mode-aware token clears AA in both schemes; never recolor globally |
 | Weak dialog isolation (page behind barely dimmed) | MUI default backdrop (50% scrim, no blur) reads flat over busy pages | Dialog-only `slotProps={{ backdrop: { sx: { backgroundColor: color-mix(...palette-scrim 60%, transparent), backdropFilter: "blur(2px)" } } }}` | Scoped to that dialog's slotProps — never global theme edits |
+| VLM reports sub-8px misalignments ("label 2px high", "icon off-center", "gap is 4px not 8px") | VLM eyeball noise, not real defects — such claims contradict each other across passes | Pixel-verify with DOM `getBoundingClientRect` (element-vs-container center deltas) BEFORE any fix; if delta ≤ 1-2px or the spacing equals a design token, adjudicate as false positive and record it | Contradictory readings of the same element across passes/inspectors are the noise signature; never ship a fix for an unmeasured sub-8px claim |
 
 ## Convergence rule
 

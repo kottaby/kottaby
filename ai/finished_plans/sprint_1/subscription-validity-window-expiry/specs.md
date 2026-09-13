@@ -1,11 +1,11 @@
 # Requirements & Specification: Subscription Validity Window & Expiry
 
-**Plan directory:** `ai/plans/sprint_1/subscription-validity-window-expiry/`
-**Specs path:** `ai/plans/sprint_1/subscription-validity-window-expiry/specs.md`
-**Plan path:** `ai/plans/sprint_1/subscription-validity-window-expiry/plan.md`
-**Tasks path:** `ai/plans/sprint_1/subscription-validity-window-expiry/tasks.md`
-**Deferred-items ledger:** `ai/plans/sprint_1/subscription-validity-window-expiry/deferred-items.md`
-**Outcome directory:** `ai/plans/sprint_1/subscription-validity-window-expiry/outcome/`
+**Plan directory:** this directory (under `ai/finished_plans/sprint_1/`; moved from `ai/plans/` on completion)
+**Specs path:** this file
+**Plan path:** `plan.md` (this directory)
+**Tasks path:** `tasks.md` (this directory)
+**Deferred-items ledger:** removed on completion (all items D1–D3 ✅ Done; evidence in PR #156)
+**Outcome directory:** removed on completion (evidence in PR #156)
 
 ## Document Information
 

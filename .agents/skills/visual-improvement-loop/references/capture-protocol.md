@@ -8,6 +8,15 @@ Used by the visual-improvement-loop skill. All screenshots must land in `scratch
 - App pages (dev server): authenticate via `bun run scripts/browser-login.ts --inject` — never type credentials into a login form; the AI layer redacts emails and the submission fails Email validation. If `--inject` errors on daemon startup, fall back to `agent-browser cookies set --curl .browser-auth/playwright.cookies.json --domain localhost`.
 - Storybook (`localhost:6006`): NO auth needed. Capture from the raw iframe URL, not the full manager UI:
   `http://localhost:6006/iframe.html?id=<story-id>&viewMode=story&globals=locale:en|ar`
+- **Sandbox/process-reaper environments:** background dev servers die between tool-run calls, and a
+  server started BEFORE file edits keeps serving the stale module graph (HMR churn → phantom console
+  errors and stale page titles). Bundle server start + auth + all captures of one batch into a single
+  foreground Bash call, and kill + fresh-start the server after every edit wave before recapturing.
+  First launch may die silently — retry once.
+- **Locale pinning:** apps with a default non-EN locale (cookie- or preference-driven) must have the
+  locale explicitly pinned per batch (this app: `POST /api/set-locale` from the page context), and the
+  precheck's `--expect-title` must match the pinned locale's title. Default-locale drift silently
+  turns "EN" batches into AR captures.
 
 ## Viewports
 

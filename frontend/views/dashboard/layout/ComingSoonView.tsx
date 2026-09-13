@@ -1,7 +1,7 @@
 "use client";
 
 import { HourglassEmptyOutlined as HourglassIcon } from "@mui/icons-material";
-import { Box, Card, CardContent, Stack, Typography } from "@mui/material";
+import { Box, Card, CardContent, Chip, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { Dashboard, useAppTranslation } from "@/shared/locale";
 import type { DashboardLabels } from "@/shared/locale/types/dashboard";
@@ -97,6 +97,8 @@ export function ComingSoonView({ feature }: Readonly<ComingSoonViewProps>): Reac
           <Typography variant="body1" sx={theme => ({ color: theme.palette.text.secondary, lineHeight: 1.6 })}>
             {t.comingSoonBody(featureLabel)}
           </Typography>
+          {/* Feature tag as an outlined chip: a deliberate badge, not a
+              bare text row that reads as an unstyled link/action. */}
           <Stack
             direction="row"
             spacing={1}
@@ -106,16 +108,18 @@ export function ComingSoonView({ feature }: Readonly<ComingSoonViewProps>): Reac
               mt: 3,
             }}
           >
-            <Typography
-              variant="overline"
+            <Chip
+              label={featureLabel}
+              size="small"
               sx={theme => ({
-                color: theme.palette.text.secondary,
+                borderColor: theme.palette.outline,
+                bgcolor: theme.palette.surfaceContainerHighest,
+                color: theme.palette.onSurfaceVariant,
+                fontWeight: 700,
                 letterSpacing: "0.12em",
-                fontWeight: 600,
               })}
-            >
-              {featureLabel}
-            </Typography>
+              variant="outlined"
+            />
           </Stack>
         </CardContent>
       </Card>

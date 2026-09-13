@@ -1,10 +1,10 @@
 # Technical Architecture & Implementation Design: Subscription Validity Window & Expiry
 
-**Plan directory:** `ai/plans/sprint_1/subscription-validity-window-expiry/`
-**Specs:** `ai/plans/sprint_1/subscription-validity-window-expiry/specs.md`
-**Tasks:** `ai/plans/sprint_1/subscription-validity-window-expiry/tasks.md`
-**Deferred-items ledger:** `ai/plans/sprint_1/subscription-validity-window-expiry/deferred-items.md`
-**Outcomes:** `ai/plans/sprint_1/subscription-validity-window-expiry/outcome/`
+**Plan directory:** this directory (under `ai/finished_plans/sprint_1/`; moved from `ai/plans/` on completion)
+**Specs:** `specs.md` (this directory)
+**Tasks:** `tasks.md` (this directory)
+**Deferred-items ledger:** removed on completion (all items D1–D3 ✅ Done; evidence in PR #156)
+**Outcomes:** removed on completion (evidence in PR #156)
 
 ## Document Information
 
