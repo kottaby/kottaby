@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { withPageAuth } from "@/frontend/lib/auth/withPageAuth";
 import { ParentChildDetailContainer } from "@/frontend/views/parent/monitoring";
+import { getTranslations } from "@/shared/locale/server";
+import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
 
 /**
  * `/parent/children/[studentId]` — the per-child parent read-only
@@ -43,6 +46,15 @@ function firstValueOf(params: Record<string, string | string[] | undefined>, key
 interface ParentChildDetailPageProps {
   readonly params: Promise<{ readonly studentId: string }>;
   readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocaleFromCookie();
+  const t = getTranslations(locale).parentMonitoringTranslations;
+  return {
+    title: t.portalPageTitle,
+    description: t.detailPageSubtitle,
+  };
 }
 
 export default async function ParentChildDetailPage({

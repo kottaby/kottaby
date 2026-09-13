@@ -108,3 +108,17 @@ documented inspector-calibration ceiling, and one surface scored a literal 10/10
   db CLI's env parser requires one even for pglite); fixture data dirs are copyable between trees
   while no process holds them. Tests (db/service/journey) run green on pglite; `TEST_CI=1` required
   for UI suites outside the materialized CI env.
+
+
+## Appendix — parallel prod-rig cross-check (same day, independent run)
+
+A second, independent loop ran against a **production compile-only build + `next start`** rig (this run's dev server never hydrated in its sandbox) with a Playwright harness and its own seed fixture (`scripts-e2e/seed-monitoring-scenario.ts`: certified teacher, parent with 2 linked + 1 unlinked student, 11 backdated sessions with ratings/homework). Independent findings that SURVIVE this outcome's adjudication:
+
+- **Per-page title**: the `[studentId]` route had no `generateMetadata` — the PRODUCTION document title was the generic app title on every detail deep link (the dev rig masked it via a client-side title update). Fixed in the follow-up commit by mirroring the list page's `generateMetadata` pattern.
+- **SameSite=Strict injected cookies are withheld from Chromium's first top-level navigation** (about:blank initiator) — curl succeeds while every browser navigation bounces, which mimics a server auth bug. Capture rigs must inject `SameSite=Lax` or warm the origin first. (This run's dev rig worked because the browser session logged in through the app's own form flow.)
+- **ChildSwitcher affordance polish**: `fullWidth` FormControl (the shrink-to-fit trigger starved the floating label) and a single `renderValue` chip replacing the start-adornment avatar (which duplicated the menu-item avatar). → follow-up commit.
+- **RatingTrendChart ticks**: 12px with `verticalAnchor: "middle"` on the Y axis (was 10px, baseline-floaty). → follow-up commit.
+- Inspector misperceptions independently reproduced: a phantom "Select chic" label truncation (DOM: `scrollWidth == clientWidth`) and a WCAG contrast failure claim on the denial card (computed 11.16:1, AA pass) — reinforcing the DOM ground-truth arbitration lesson above.
+- PGlite WASM aborts when more than one Next build/dev worker opens the same data dir; compile-only build mode avoids the static-generation collision.
+
+Findings already adjudicated by THIS outcome (denial IA, per-tab structure, digit scripts) were not re-litigated; the follow-up commit carries only the additive items above.

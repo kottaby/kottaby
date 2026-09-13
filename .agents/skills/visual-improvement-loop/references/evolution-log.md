@@ -112,3 +112,8 @@ AGENTS.md and `.agents/instructions/` files are hand-curated; runs NEVER update 
   dev server + db/service/journey/UI suites green (the db CLI still demands a format-valid
   DATABASE_URL placeholder). Fixture data dirs copy freely between worktrees while unheld. → plan
   outcome only (repo-specific; not promoted to skill refs).
+
+### 2026-09-13 — parent-read-only-monitoring-portal prod-rig cross-check (second independent run)
+- Chromium withholds `SameSite=Strict` injected cookies from the FIRST top-level navigation (about:blank initiator); curl succeeds and the failure mimics a server auth bug. Inject `SameSite=Lax` in capture rigs, or warm the origin with one same-origin navigation before the guarded URL. → landed: `references/capture-protocol.md` (Production-build rig fallback).
+- When a sandbox's dev server never hydrates (`__next_f` empty, React fiber absent, zero app-initiated fetches), `next build --experimental-build-mode compile` + `next start` is the fallback rig: hydration-correct, memory-stable, and immune to PGlite single-data-dir worker aborts. → landed: `references/capture-protocol.md`.
+- Multi-shot harnesses must key login per credential pair (per-shot email/password keys); a per-invocation login captured the populated parent's state for the empty-state shot. → landed: `references/capture-protocol.md`.

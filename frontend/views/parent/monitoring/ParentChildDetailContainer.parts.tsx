@@ -81,6 +81,7 @@ export function ChildSwitcher({
   return (
     <FormControl
       variant="outlined"
+      fullWidth
       sx={{ maxWidth: 320, "& .MuiOutlinedInput-root": { borderRadius: 2, py: 0.5, minHeight: 56 } }}
     >
       <InputLabel id="parent-child-switcher-label">{label}</InputLabel>
@@ -92,22 +93,36 @@ export function ChildSwitcher({
         onChange={event => {
           onChange(event.target.value);
         }}
-        startAdornment={
-          <Avatar
-            sx={theme => ({
-              width: 32,
-              height: 32,
-              fontSize: "0.85rem",
-              fontWeight: 700,
-              bgcolor: theme.palette.primary.main,
-              color: theme.palette.primary.contrastText,
-              ml: 1,
-              mr: 1.5,
-            })}
-          >
-            {currentChild ? childInitial(currentChild.fullName) : "?"}
-          </Avatar>
-        }
+        renderValue={() => (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+            <Avatar
+              sx={theme => ({
+                width: 32,
+                height: 32,
+                fontSize: "0.85rem",
+                fontWeight: 700,
+                bgcolor: theme.palette.primary.main,
+                color: theme.palette.onPrimary,
+                flexShrink: 0,
+              })}
+            >
+              {currentChild ? childInitial(currentChild.fullName) : "?"}
+            </Avatar>
+            <Typography
+              component="span"
+              dir="auto"
+              sx={theme => ({
+                fontWeight: 600,
+                color: theme.palette.text.primary,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              })}
+            >
+              {currentChild?.fullName ?? "?"}
+            </Typography>
+          </Box>
+        )}
       >
         {linkedChildren.map(child => (
           <MenuItem key={child.id} value={child.id} sx={{ py: 1 }}>

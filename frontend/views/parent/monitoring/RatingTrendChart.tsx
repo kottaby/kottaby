@@ -66,8 +66,8 @@ export function RatingTrendChart({
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={[...data]} margin={{ top: 5, right: 10, bottom: 16, left: -20 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-            <XAxis dataKey="session" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-            <YAxis domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} tick={{ fontSize: 10 }} />
+            <XAxis dataKey="session" tick={{ fontSize: 12 }} interval="preserveStartEnd" />
+            <YAxis domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} tick={{ fontSize: 12, verticalAnchor: "middle" }} />
             <Tooltip
               contentStyle={{
                 borderRadius: 8,
