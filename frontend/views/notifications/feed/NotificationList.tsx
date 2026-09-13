@@ -4,6 +4,7 @@ import { NotificationsOutlined } from "@mui/icons-material";
 import { Box, Skeleton, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { MyNotificationsQuery_myNotifications_items } from "@/frontend/graphql/generated/gql/graphql";
+import { resolveNotificationRoute } from "@/frontend/lib/notification-route-resolution";
 import { NotificationRow } from "@/frontend/views/notifications/feed";
 import type { NotificationsLabels } from "@/shared/locale/types/notifications";
 
@@ -14,6 +15,8 @@ interface NotificationListProps {
   readonly labels: NotificationsLabels;
   /** Active app locale (drives the locale-aware timestamp stamps). */
   readonly locale: string;
+  /** The viewer's wire role — scopes the rows' session deep-link matrix. */
+  readonly userRole: string | null;
   /** Mark-one handler — receives the notification id (STRING wire form). */
   readonly onMarkRead: (id: string) => void;
   /** Ids whose mark-read mutation is in flight (row-level pending state). */
@@ -39,6 +42,7 @@ export function NotificationList({
   items,
   labels,
   locale,
+  userRole,
   onMarkRead,
   markReadPendingIds = NO_PENDING_IDS,
   busy = false,
@@ -65,6 +69,7 @@ export function NotificationList({
           notification={notification}
           labels={labels}
           locale={locale}
+          deepLinkHref={resolveNotificationRoute(notification.relatedEntityType, notification.type, userRole)}
           onMarkRead={onMarkRead}
           markReadPending={markReadPendingIds.includes(notification.id)}
         />

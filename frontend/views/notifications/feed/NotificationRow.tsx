@@ -2,7 +2,9 @@
 
 import { NotificationsOutlined } from "@mui/icons-material";
 import { Box, Chip, Stack, Typography } from "@mui/material";
+import Link from "next/link";
 import type { ReactNode } from "react";
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { MyNotificationsQuery_myNotifications_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { NotificationRowMarkReadAction, NotificationRowTypeAvatar } from "@/frontend/views/notifications/ui";
@@ -42,6 +44,12 @@ interface NotificationRowProps {
   readonly labels: NotificationsLabels;
   /** Active app locale (drives the locale-aware timestamp stamp). */
   readonly locale: string;
+  /**
+   * The row's deep-link target (`resolveNotificationRoute` through the
+   * viewer's role), or `null` when the row carries no routing contract —
+   * `null` renders the content un-linked (plain stack, no anchor).
+   */
+  readonly deepLinkHref: string | null;
   /** Mark-one handler — receives the notification id (STRING wire form). */
   readonly onMarkRead: (id: string) => void;
   /** Whether THIS row's mark-read mutation is in flight. */
@@ -70,6 +78,7 @@ export function NotificationRow({
   notification,
   labels,
   locale,
+  deepLinkHref,
   onMarkRead,
   markReadPending = false,
 }: Readonly<NotificationRowProps>): ReactNode {
@@ -84,6 +93,67 @@ export function NotificationRow({
   const handleMarkRead = (): void => {
     onMarkRead(notification.id);
   };
+
+  // Row activation mirrors the drawer's contract: navigating from an unread
+  // row marks it read (fire-and-forget — the cache restyles the row even as
+  // the route change takes over). Native navigation — no router call.
+  const handleActivate = (): void => {
+    if (unread) {
+      onMarkRead(notification.id);
+    }
+  };
+
+  const content = (
+    <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0 }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+        {unread ? (
+          <Box
+            sx={theme => ({
+              flexShrink: 0,
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              bgcolor: theme.palette.primary.main,
+            })}
+          >
+            <Box component="span" sx={VISUALLY_HIDDEN_TEXT_SX}>
+              {labels.filterUnread}
+            </Box>
+          </Box>
+        ) : null}
+        <Typography
+          variant="subtitle1"
+          component="h2"
+          noWrap
+          dir="auto"
+          sx={theme => ({
+            fontWeight: unread ? 700 : 500,
+            color: theme.palette.text.primary,
+            minWidth: 0,
+          })}
+        >
+          {notification.title}
+        </Typography>
+      </Stack>
+      {notification.body !== null ? (
+        <Typography variant="body2" dir="auto" sx={theme => ({ color: theme.palette.text.secondary, lineHeight: 1.5 })}>
+          {notification.body}
+        </Typography>
+      ) : null}
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", marginTop: 0.5 }}>
+        <Chip
+          icon={<TypeIcon fontSize="small" />}
+          label={typeLabelAccessor(labels)}
+          size="small"
+          variant="outlined"
+          sx={theme => ({ minHeight: 28, color: theme.palette.text.secondary })}
+        />
+        <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary })}>
+          <time dateTime={notification.createdAt}>{formatApplicantDate(notification.createdAt, locale)}</time>
+        </Typography>
+      </Stack>
+    </Stack>
+  );
 
   return (
     <Box
@@ -102,59 +172,28 @@ export function NotificationRow({
       })}
     >
       <NotificationRowTypeAvatar icon={TypeIcon} />
-      <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0 }}>
-        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-          {unread ? (
-            <Box
-              sx={theme => ({
-                flexShrink: 0,
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                bgcolor: theme.palette.primary.main,
-              })}
-            >
-              <Box component="span" sx={VISUALLY_HIDDEN_TEXT_SX}>
-                {labels.filterUnread}
-              </Box>
-            </Box>
-          ) : null}
-          <Typography
-            variant="subtitle1"
-            component="h2"
-            noWrap
-            dir="auto"
-            sx={theme => ({
-              fontWeight: unread ? 700 : 500,
-              color: theme.palette.text.primary,
-              minWidth: 0,
-            })}
-          >
-            {notification.title}
-          </Typography>
-        </Stack>
-        {notification.body !== null ? (
-          <Typography
-            variant="body2"
-            dir="auto"
-            sx={theme => ({ color: theme.palette.text.secondary, lineHeight: 1.5 })}
-          >
-            {notification.body}
-          </Typography>
-        ) : null}
-        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", marginTop: 0.5 }}>
-          <Chip
-            icon={<TypeIcon fontSize="small" />}
-            label={typeLabelAccessor(labels)}
-            size="small"
-            variant="outlined"
-            sx={theme => ({ minHeight: 28, color: theme.palette.text.secondary })}
-          />
-          <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary })}>
-            <time dateTime={notification.createdAt}>{formatApplicantDate(notification.createdAt, locale)}</time>
-          </Typography>
-        </Stack>
-      </Stack>
+      {deepLinkHref !== null ? (
+        <Box
+          component={Link}
+          href={deepLinkHref}
+          onClick={handleActivate}
+          sx={theme => ({
+            display: "block",
+            flex: 1,
+            minWidth: 0,
+            textDecoration: "none",
+            color: "inherit",
+            borderRadius: 1.5,
+            ...focusVisibleRingSx,
+            transition: theme.transitions.create("background-color", { duration: theme.transitions.duration.short }),
+            "&:hover": { bgcolor: theme.palette.action.hover },
+          })}
+        >
+          {content}
+        </Box>
+      ) : (
+        content
+      )}
       {unread ? (
         <NotificationRowMarkReadAction
           markReadLabel={markReadLabel}

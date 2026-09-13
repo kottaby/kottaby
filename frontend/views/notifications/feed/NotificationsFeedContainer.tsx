@@ -2,6 +2,7 @@
 
 import { Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { useAuth } from "@/frontend/hooks/auth";
 import { NotificationsFeedBody } from "@/frontend/views/notifications/feed";
 import { useNotificationsFeedState } from "@/frontend/views/notifications/hooks";
 import {
@@ -29,6 +30,11 @@ import { Common, Notifications, useAppLocale, useAppTranslation } from "@/shared
  * Polling posture: only the unread count polls (120s); the list converges
  * through pagination, sweeps, and the realtime merge.
  *
+ * Deep-links: the viewer's role (from the shell AuthProvider) threads down
+ * to the rows so each session-family row anchors to the role's own surface
+ * (`resolveNotificationRoute` matrix); unknown shapes fall through to the
+ * feed — the row renders un-linked then.
+ *
  * MUI v9 discipline: `sx`-only styling, `theme.palette.*` via theme
  * callbacks, `*Outlined` icons, logical RTL properties, content as TEXT
  * nodes through `Typography` only (REQ-028).
@@ -38,6 +44,10 @@ export function NotificationsFeedContainer(): ReactNode {
   const commonT = useAppTranslation(Common);
   const locale = useAppLocale();
   const feed = useNotificationsFeedState();
+  // The viewer's role scopes the row deep-links (session rows route per
+  // role); the shell's AuthProvider always exists on this authenticated
+  // surface.
+  const { user } = useAuth();
 
   return (
     <Stack spacing={{ xs: 2, sm: 3 }} sx={{ width: "100%" }}>
@@ -82,6 +92,7 @@ export function NotificationsFeedContainer(): ReactNode {
         labels={t}
         commonLabels={commonT}
         locale={locale}
+        userRole={user?.role ?? null}
         items={feed.items}
         initialLoading={feed.initialLoading}
         loading={feed.loading}
