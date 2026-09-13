@@ -9,7 +9,7 @@ import {
   RefreshOutlined,
   TrendingUpOutlined,
 } from "@mui/icons-material";
-import { Box, IconButton, Stack, Tab, Tabs, Typography } from "@mui/material";
+import { Box, IconButton, Stack, Tab, Tabs } from "@mui/material";
 import { useRouter } from "next/navigation";
 import type { ReactElement, ReactNode } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
@@ -26,7 +26,7 @@ import {
   TAB_LABEL_KEYS,
   type TabKey,
 } from "@/frontend/views/parent/monitoring/ParentChildDetailContainer.helpers";
-import { ChildSwitcher } from "@/frontend/views/parent/monitoring/ParentChildDetailContainer.parts";
+import { ChildSwitcher, DetailHeader } from "@/frontend/views/parent/monitoring/ParentChildDetailContainer.parts";
 import { ProgressTab } from "@/frontend/views/parent/monitoring/ProgressTab";
 import { ReportsTab } from "@/frontend/views/parent/monitoring/ReportsTab";
 import { ParentMonitoring, useAppTranslation } from "@/shared/locale";
@@ -68,7 +68,14 @@ export function ParentChildDetailContainer(props: Readonly<ParentChildDetailCont
   const sessionNumber = props.session === null ? null : Number(props.session);
   const sessionArg = sessionNumber !== null && Number.isNaN(sessionNumber) ? null : sessionNumber;
   if (denied) {
-    return <PermissionDeniedFallback />;
+    return (
+      <PermissionDeniedFallback
+        actionLabel={t.backToChildrenAction}
+        onAction={() => {
+          router.push("/parent/children");
+        }}
+      />
+    );
   }
   const handleTabChange = (_: unknown, value: TabKey) => {
     router.replace(buildDetailUrl(props.studentId, value, props.session));
@@ -80,44 +87,31 @@ export function ParentChildDetailContainer(props: Readonly<ParentChildDetailCont
   const headerTitle = currentChild === undefined ? t.portalPageTitle : t.detailPageTitle(currentChild.fullName);
   return (
     <Stack spacing={3} sx={{ width: "100%" }}>
-      <Box
-        className="portal-header"
-        sx={theme => ({
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 2,
-          borderBottom: 2,
-          borderColor: theme.palette.primary.main,
-          paddingBottom: 2,
-        })}
-      >
-        <Box component="header" sx={{ flex: 1 }}>
-          <Typography variant="h5" component="h1" dir="auto" sx={{ fontWeight: 700 }}>
-            {headerTitle}
-          </Typography>
-          <Typography variant="body1" sx={theme => ({ color: theme.palette.text.secondary })}>
-            {t.detailPageSubtitle}
-          </Typography>
-        </Box>
-        <IconButton
-          className="portal-refresh-button"
-          aria-label={t.refreshLabel}
-          onClick={() => {
-            void refetch();
-          }}
-          disabled={loading}
-          size="small"
-        >
-          <RefreshOutlined />
-        </IconButton>
-      </Box>
-      <ChildSwitcher
-        linkedChildren={children}
-        currentId={String(props.studentId)}
-        label={t.childSwitcherLabel}
-        loading={loading}
-        onChange={handleSwitcherChange}
+      <DetailHeader
+        title={headerTitle}
+        subtitle={t.detailPageSubtitle}
+        switcher={
+          <ChildSwitcher
+            linkedChildren={children}
+            currentId={String(props.studentId)}
+            label={t.childSwitcherLabel}
+            loading={loading}
+            onChange={handleSwitcherChange}
+          />
+        }
+        refreshButton={
+          <IconButton
+            className="portal-refresh-button"
+            aria-label={t.refreshLabel}
+            onClick={() => {
+              void refetch();
+            }}
+            disabled={loading}
+            size="small"
+          >
+            <RefreshOutlined />
+          </IconButton>
+        }
       />
       <Tabs
         className="portal-tabs"

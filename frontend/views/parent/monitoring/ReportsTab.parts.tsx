@@ -23,8 +23,8 @@ export function ReportsSkeleton(): ReactNode {
             padding: 2,
             borderRadius: 2,
             borderColor: theme.palette.border.main,
-            borderLeft: 4,
-            borderLeftColor: theme.palette.divider,
+            borderInlineStart: 4,
+            borderInlineStartColor: theme.palette.divider,
           })}
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -75,8 +75,8 @@ export function ReportRow({
         borderRadius: 2,
         borderColor: isDeepLinkTarget ? theme.palette.primary.main : theme.palette.border.main,
         borderWidth: isDeepLinkTarget ? 2 : 1,
-        borderLeft: 4,
-        borderLeftColor: isDeepLinkTarget ? theme.palette.primary.main : theme.palette.divider,
+        borderInlineStart: 4,
+        borderInlineStartColor: isDeepLinkTarget ? theme.palette.primary.main : theme.palette.divider,
         transition: theme.transitions.create(["box-shadow", "border-color"], {
           duration: theme.transitions.duration.shorter,
         }),
@@ -88,20 +88,21 @@ export function ReportRow({
         <Typography variant="body2" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
           {formatApplicantDate(dateIso, locale)}
         </Typography>
-      </Box>
-      <Chip
-        size="small"
-        icon={<StarOutlined />}
-        label={`${labels.ratingColumnLabel}: ${ratingLabel}`}
-        sx={theme => ({
-          alignSelf: "flex-start",
-          bgcolor: rating !== null ? theme.palette.primary.main : theme.palette.action.hover,
-          color: rating !== null ? theme.palette.primary.contrastText : theme.palette.text.secondary,
-          "& .MuiChip-icon": {
+        <Chip
+          size="small"
+          icon={<StarOutlined />}
+          label={`${labels.ratingColumnLabel}: ${ratingLabel}`}
+          sx={theme => ({
+            marginInlineStart: "auto",
+            flexShrink: 0,
+            bgcolor: rating !== null ? theme.palette.primary.main : theme.palette.action.hover,
             color: rating !== null ? theme.palette.primary.contrastText : theme.palette.text.secondary,
-          },
-        })}
-      />
+            "& .MuiChip-icon": {
+              color: rating !== null ? theme.palette.primary.contrastText : theme.palette.text.secondary,
+            },
+          })}
+        />
+      </Box>
       {notes === "" ? null : (
         <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
           <DescriptionOutlined

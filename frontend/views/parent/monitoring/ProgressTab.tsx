@@ -115,6 +115,7 @@ export function ProgressTab(props: Readonly<ProgressTabProps>): ReactNode {
             position={progress.latestJadidPosition}
             trackLabel={t.progressLatestJadidLabel}
             noneLabel={t.progressPositionNone}
+            ayahRangeLabel={t.ayahRangeLabel}
             icon={<AutoStoriesOutlined fontSize="small" />}
             accentColor="primary.main"
           />
@@ -122,6 +123,7 @@ export function ProgressTab(props: Readonly<ProgressTabProps>): ReactNode {
             position={progress.latestMadiPosition}
             trackLabel={t.progressLatestMadiLabel}
             noneLabel={t.progressPositionNone}
+            ayahRangeLabel={t.ayahRangeLabel}
             icon={<ReplayOutlined fontSize="small" />}
             accentColor="secondary.main"
           />

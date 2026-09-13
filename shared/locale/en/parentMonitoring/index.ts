@@ -109,6 +109,8 @@ export const parentMonitoringEn: ParentMonitoringLabels = {
   loadingLabel: "Loading…",
   loadErrorBody: "We couldn't load this information right now. Please try again.",
   refreshLabel: "Refresh",
+  ayahRangeLabel: "Ayahs",
+  backToChildrenAction: "Back to My Children",
   lastUpdatedLabel: (timestamp: string): string => `Last updated: ${timestamp}`,
   statTotalChildren: "Total Children",
   statRecentSessions: "Recent Sessions",

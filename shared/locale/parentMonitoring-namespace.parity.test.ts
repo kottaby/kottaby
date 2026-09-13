@@ -132,6 +132,8 @@ const MANDATED_KEYS = [
   "loadingLabel",
   "loadErrorBody",
   "refreshLabel",
+  "ayahRangeLabel",
+  "backToChildrenAction",
   "lastUpdatedLabel",
   "statTotalChildren",
   "statRecentSessions",
@@ -282,7 +284,7 @@ describe("compile-time parity mirror — ar/en key sets agree", () => {
     expect(Object.hasOwn(parentMonitoringEn, key)).toBe(true);
   });
 
-  test("the mandated inventory is exhaustive (no silent key minting beyond the 74 slots)", () => {
+  test("the mandated inventory is exhaustive (no silent key minting beyond the 76 slots)", () => {
     const mandated = new Set<string>(MANDATED_KEYS);
     for (const key of Object.keys(parentMonitoringAr)) {
       expect(mandated.has(key)).toBe(true);

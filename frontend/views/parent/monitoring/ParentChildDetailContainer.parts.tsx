@@ -1,12 +1,58 @@
 "use client";
 
-import { ListItemIcon, ListItemText, MenuItem, Select, Skeleton, Stack, Typography } from "@mui/material";
+import { Box, ListItemIcon, ListItemText, MenuItem, Select, Skeleton, Stack, Typography } from "@mui/material";
 import Avatar from "@mui/material/Avatar";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import type { ReactNode } from "react";
 import type { MyLinkedChildrenQuery_myLinkedChildren } from "@/frontend/graphql/generated/gql/graphql";
 import { childInitial } from "@/frontend/views/parent/monitoring/parentMonitoringDisplay";
+
+/**
+ * DetailHeader — the child-detail page band: page title + subtitle on the
+ * start side, the child switcher and the refresh button composed on the end
+ * side (stacked under the title on xs viewports). Extracted from the
+ * container to keep both files under the line-count lint budget.
+ */
+export function DetailHeader({
+  title,
+  subtitle,
+  switcher,
+  refreshButton,
+}: Readonly<{
+  readonly title: ReactNode;
+  readonly subtitle: ReactNode;
+  readonly switcher: ReactNode;
+  readonly refreshButton: ReactNode;
+}>): ReactNode {
+  return (
+    <Box
+      className="portal-header"
+      sx={theme => ({
+        display: "flex",
+        flexDirection: { xs: "column", sm: "row" },
+        alignItems: { xs: "stretch", sm: "center" },
+        gap: { xs: 1.5, sm: 2 },
+        borderBottom: 2,
+        borderColor: theme.palette.primary.main,
+        paddingBottom: 2,
+      })}
+    >
+      <Box component="header" sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
+          {title}
+        </Typography>
+        <Typography variant="body1" sx={theme => ({ color: theme.palette.text.secondary })}>
+          {subtitle}
+        </Typography>
+      </Box>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        {switcher}
+        {refreshButton}
+      </Box>
+    </Box>
+  );
+}
 
 export function ChildSwitcher({
   linkedChildren,

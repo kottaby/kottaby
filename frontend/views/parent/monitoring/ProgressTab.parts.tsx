@@ -21,8 +21,8 @@ export function ProgressSkeleton(): ReactNode {
             padding: 2,
             borderRadius: 2,
             borderColor: theme.palette.border.main,
-            borderLeft: 4,
-            borderLeftColor: theme.palette.divider,
+            borderInlineStart: 4,
+            borderInlineStartColor: theme.palette.divider,
           })}
         >
           <Skeleton variant="text" sx={{ fontSize: "1rem", maxWidth: 160 }} />
@@ -37,12 +37,14 @@ export function ProgressPositionBlock({
   position,
   trackLabel,
   noneLabel,
+  ayahRangeLabel,
   icon,
   accentColor,
 }: Readonly<{
   position: ParentChildProgressQuery_parentChildProgress_latestJadidPosition | null;
   trackLabel: string;
   noneLabel: string;
+  ayahRangeLabel: string;
   icon: ReactNode;
   accentColor: string;
 }>): ReactNode {
@@ -56,8 +58,8 @@ export function ProgressPositionBlock({
         padding: { xs: 2, sm: 2.5 },
         borderRadius: 2,
         borderColor: theme.palette.border.main,
-        borderLeft: 4,
-        borderLeftColor: accentColor,
+        borderInlineStart: 4,
+        borderInlineStartColor: accentColor,
         transition: theme.transitions.create(["box-shadow", "border-color"], {
           duration: theme.transitions.duration.shorter,
         }),
@@ -75,7 +77,7 @@ export function ProgressPositionBlock({
           {noneLabel}
         </Typography>
       ) : (
-        <ProgressPositionRun position={position} />
+        <ProgressPositionRun position={position} ayahRangeLabel={ayahRangeLabel} />
       )}
     </Card>
   );
@@ -83,7 +85,11 @@ export function ProgressPositionBlock({
 
 function ProgressPositionRun({
   position,
-}: Readonly<{ position: ParentChildProgressQuery_parentChildProgress_latestJadidPosition }>): ReactNode {
+  ayahRangeLabel,
+}: Readonly<{
+  position: ParentChildProgressQuery_parentChildProgress_latestJadidPosition;
+  ayahRangeLabel: string;
+}>): ReactNode {
   const surahJuz = formatSurahJuzRef(position.surahJuz);
   const fromAyah = position.fromAyah ?? "—";
   const toAyah = position.toAyah ?? "—";
@@ -93,7 +99,7 @@ function ProgressPositionRun({
         {surahJuz}
       </Typography>
       <Typography variant="body2" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
-        Ayah {fromAyah} – {toAyah}
+        {ayahRangeLabel} {fromAyah} – {toAyah}
       </Typography>
     </Box>
   );

@@ -122,6 +122,8 @@ export const parentMonitoringAr: ParentMonitoringLabels = {
   loadingLabel: "جارٍ التحميل…",
   loadErrorBody: "تعذّر تحميل هذه المعلومات الآن. يرجى المحاولة مرة أخرى.",
   refreshLabel: "تحديث",
+  ayahRangeLabel: "الآيات",
+  backToChildrenAction: "العودة إلى أبنائي",
   lastUpdatedLabel: (timestamp: string): string => `آخر تحديث: ${timestamp}`,
   statTotalChildren: "إجمالي الأبناء",
   statRecentSessions: "الحصص الأخيرة",

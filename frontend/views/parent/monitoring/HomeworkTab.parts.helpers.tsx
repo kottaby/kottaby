@@ -1,9 +1,23 @@
 "use client";
 
-import { Box, Stack, Typography } from "@mui/material";
+import { Box, Chip, Stack, Typography } from "@mui/material";
+import type { Theme } from "@mui/material/styles";
 import type { ReactNode } from "react";
 import type { ParentChildHomeworkQuery_parentChildHomework_items_jadid } from "@/frontend/graphql/generated/gql/graphql";
 import { formatSurahJuzRef } from "@/frontend/views/parent/monitoring/parentMonitoringDisplay";
+
+function resolveGradeChipColors(grade: number | null, theme: Theme): { bgcolor: string; fg: string } {
+  if (grade === null) {
+    return { bgcolor: theme.palette.action.hover, fg: theme.palette.text.secondary };
+  }
+  if (grade >= 85) {
+    return { bgcolor: theme.palette.success.main, fg: theme.palette.success.contrastText };
+  }
+  if (grade >= 70) {
+    return { bgcolor: theme.palette.warning.main, fg: theme.palette.warning.contrastText };
+  }
+  return { bgcolor: theme.palette.error.main, fg: theme.palette.error.contrastText };
+}
 
 export function HomeworkTrackBlock({
   track,
@@ -28,7 +42,7 @@ export function HomeworkTrackBlock({
           padding: 1.5,
           borderRadius: 1.5,
           bgcolor: theme.palette.action.hover,
-          borderLeft: 3,
+          borderInlineStart: 3,
           borderColor: theme.palette.divider,
         })}
       >
@@ -47,7 +61,7 @@ export function HomeworkTrackBlock({
   const surahJuz = formatSurahJuzRef(track.surahJuz);
   const fromAyah = track.fromAyah ?? "—";
   const toAyah = track.toAyah ?? "—";
-  const grade = track.grade === null ? "—" : String(track.grade);
+  const gradeLabel = track.grade === null ? "—" : String(track.grade);
   return (
     <Stack
       spacing={1}
@@ -55,7 +69,7 @@ export function HomeworkTrackBlock({
         padding: 1.5,
         borderRadius: 1.5,
         bgcolor: theme.palette.action.hover,
-        borderLeft: 3,
+        borderInlineStart: 3,
         borderColor: accentColor,
       })}
     >
@@ -68,9 +82,24 @@ export function HomeworkTrackBlock({
       <Typography variant="body2" dir="auto">
         {surahJuz} · {fromAyah}–{toAyah}
       </Typography>
-      <Typography variant="body2" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
-        {columnGradeLabel}: {grade}
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>
+          {columnGradeLabel}
+        </Typography>
+        <Chip
+          size="small"
+          label={gradeLabel}
+          sx={theme => {
+            const chipColors = resolveGradeChipColors(track.grade, theme);
+            return {
+              fontWeight: 700,
+              border: "1px solid transparent",
+              bgcolor: chipColors.bgcolor,
+              color: chipColors.fg,
+            };
+          }}
+        />
+      </Box>
     </Stack>
   );
 }

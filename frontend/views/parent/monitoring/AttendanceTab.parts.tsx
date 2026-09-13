@@ -46,8 +46,8 @@ export function AttendanceSkeleton(): ReactNode {
             padding: { xs: 2, sm: 2.5 },
             borderRadius: 2,
             borderColor: theme.palette.border.main,
-            borderLeft: 4,
-            borderLeftColor: theme.palette.divider,
+            borderInlineStart: 4,
+            borderInlineStartColor: theme.palette.divider,
           })}
         >
           <Skeleton variant="circular" sx={{ width: 32, height: 32 }} />
@@ -74,6 +74,15 @@ export function AttendanceRow({
   const colors = attendanceStatusColor(row.status);
   const statusKey = row.status.toLowerCase();
   const icon = STATUS_ICONS[statusKey] ?? <ScheduleOutlined fontSize="small" />;
+  const timeFormatter = new Intl.DateTimeFormat(locale === "ar" ? "ar-EG" : locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  let timeRange: string | null = null;
+  if (row.startedAt !== null) {
+    const start = timeFormatter.format(new Date(row.startedAt));
+    timeRange = row.endedAt !== null ? `${start} – ${timeFormatter.format(new Date(row.endedAt))}` : start;
+  }
   return (
     <Card
       variant="outlined"
@@ -86,8 +95,8 @@ export function AttendanceRow({
         padding: { xs: 2, sm: 2.5 },
         borderRadius: 2,
         borderColor: theme.palette.border.main,
-        borderLeft: 4,
-        borderLeftColor: colors.border,
+        borderInlineStart: 4,
+        borderInlineStartColor: colors.border,
         transition: theme.transitions.create(["box-shadow", "border-color"], {
           duration: theme.transitions.duration.shorter,
         }),
@@ -113,18 +122,23 @@ export function AttendanceRow({
         <Typography variant="body2" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
           {formatApplicantDate(dateIso, locale)}
         </Typography>
-        <Chip
-          size="small"
-          label={attendanceStatusLabel(row.status, labels)}
-          icon={icon}
-          sx={theme => ({
-            alignSelf: "flex-start",
-            bgcolor: theme.palette.action.selected,
-            color: colors.icon,
-            "& .MuiChip-icon": { color: colors.icon },
-          })}
-        />
+        {timeRange === null ? null : (
+          <Typography variant="caption" dir="ltr" sx={theme => ({ color: theme.palette.text.secondary })}>
+            {timeRange}
+          </Typography>
+        )}
       </Stack>
+      <Chip
+        size="small"
+        label={attendanceStatusLabel(row.status, labels)}
+        icon={icon}
+        sx={theme => ({
+          flexShrink: 0,
+          bgcolor: theme.palette.action.selected,
+          color: colors.icon,
+          "& .MuiChip-icon": { color: colors.icon },
+        })}
+      />
     </Card>
   );
 }

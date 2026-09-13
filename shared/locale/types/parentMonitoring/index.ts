@@ -200,6 +200,10 @@ export interface ParentMonitoringLabels {
   // ─── Extended portal actions (refresh + last-updated) ──────────────────
   /** Accessible label for the portal refresh button (re-fetches the active query). */
   readonly refreshLabel: string;
+  /** Localized "Ayah(s)" prefix for a surah/ayah run (ProgressTab position block). */
+  readonly ayahRangeLabel: string;
+  /** Denied-state recovery action: navigate back to the children list. */
+  readonly backToChildrenAction: string;
   /** Label for the last-updated timestamp (interpolates a formatted time). */
   readonly lastUpdatedLabel: (timestamp: string) => string;
   /** Quick-stats card label — total linked children. */
