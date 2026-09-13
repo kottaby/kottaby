@@ -10,6 +10,7 @@ import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDen
 import { parentChildProgressQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
+import { ProgressSummary } from "@/frontend/views/parent/monitoring/ProgressSummary";
 import { ProgressPositionBlock, ProgressSkeleton } from "@/frontend/views/parent/monitoring/ProgressTab.parts";
 import { Common, Errors, ParentMonitoring, useAppTranslation } from "@/shared/locale";
 
@@ -96,32 +97,35 @@ export function ProgressTab(props: Readonly<ProgressTabProps>): ReactNode {
     );
   } else {
     body = (
-      <Box
-        component="output"
-        aria-label={t.progressSectionTitle}
-        data-testid="parent-progress-list"
-        sx={{ display: "grid", gap: 2 }}
-      >
-        {progress.progressRowCount === 0 ? (
-          <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>
-            {t.progressNoRecorded}
-          </Typography>
-        ) : null}
-        <ProgressPositionBlock
-          position={progress.latestJadidPosition}
-          trackLabel={t.progressLatestJadidLabel}
-          noneLabel={t.progressPositionNone}
-          icon={<AutoStoriesOutlined fontSize="small" />}
-          accentColor="primary.main"
-        />
-        <ProgressPositionBlock
-          position={progress.latestMadiPosition}
-          trackLabel={t.progressLatestMadiLabel}
-          noneLabel={t.progressPositionNone}
-          icon={<ReplayOutlined fontSize="small" />}
-          accentColor="secondary.main"
-        />
-      </Box>
+      <>
+        <ProgressSummary progress={progress} labels={t} />
+        <Box
+          component="output"
+          aria-label={t.progressSectionTitle}
+          data-testid="parent-progress-list"
+          sx={{ display: "grid", gap: 2 }}
+        >
+          {progress.progressRowCount === 0 ? (
+            <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>
+              {t.progressNoRecorded}
+            </Typography>
+          ) : null}
+          <ProgressPositionBlock
+            position={progress.latestJadidPosition}
+            trackLabel={t.progressLatestJadidLabel}
+            noneLabel={t.progressPositionNone}
+            icon={<AutoStoriesOutlined fontSize="small" />}
+            accentColor="primary.main"
+          />
+          <ProgressPositionBlock
+            position={progress.latestMadiPosition}
+            trackLabel={t.progressLatestMadiLabel}
+            noneLabel={t.progressPositionNone}
+            icon={<ReplayOutlined fontSize="small" />}
+            accentColor="secondary.main"
+          />
+        </Box>
+      </>
     );
   }
 

@@ -165,6 +165,18 @@ const MANDATED_KEYS = [
   "ratingTrendAxisLabel",
   "ratingTrendSessionLabel",
   "ratingTrendEmpty",
+  // Progress summary
+  "progressSummaryHeading",
+  "statProgressRows",
+  "statCoverageAreas",
+  "statActiveTrack",
+  "statLastActivity",
+  // Evaluations summary
+  "evaluationsSummaryHeading",
+  "statTotalEvaluations",
+  "statAverageScore",
+  "statHighestScore",
+  "statRatedSessions",
 ] as const;
 
 /**

@@ -266,4 +266,28 @@ export interface ParentMonitoringLabels {
   readonly ratingTrendSessionLabel: string;
   /** Label shown when no rating data is available for the chart. */
   readonly ratingTrendEmpty: string;
+
+  // ─── Progress tab summary card ────────────────────────────────────────
+  /** Section heading for the progress summary card. */
+  readonly progressSummaryHeading: string;
+  /** Label for the progress row count stat. */
+  readonly statProgressRows: string;
+  /** Label for the curriculum coverage stat (surahs/juz covered). */
+  readonly statCoverageAreas: string;
+  /** Label for the active track stat (Jadid or Madi). */
+  readonly statActiveTrack: string;
+  /** Label for the last activity date stat. */
+  readonly statLastActivity: string;
+
+  // ─── Evaluations tab summary card ─────────────────────────────────────
+  /** Section heading for the evaluations summary card. */
+  readonly evaluationsSummaryHeading: string;
+  /** Label for the total evaluations count stat. */
+  readonly statTotalEvaluations: string;
+  /** Label for the average score stat. */
+  readonly statAverageScore: string;
+  /** Label for the highest score stat. */
+  readonly statHighestScore: string;
+  /** Label for the rated sessions count stat. */
+  readonly statRatedSessions: string;
 }

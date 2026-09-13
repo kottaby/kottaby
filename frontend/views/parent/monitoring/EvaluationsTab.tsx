@@ -10,6 +10,7 @@ import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDen
 import { parentChildReportsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
+import { EvaluationsSummary } from "@/frontend/views/parent/monitoring/EvaluationsSummary";
 import { EvaluationRow, EvaluationsSkeleton } from "@/frontend/views/parent/monitoring/EvaluationsTab.parts";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
@@ -91,16 +92,19 @@ export function EvaluationsTab(props: Readonly<EvaluationsTabProps>): ReactNode 
     );
   } else {
     body = (
-      <Box
-        component="output"
-        aria-label={t.evaluationsSectionTitle}
-        data-testid="parent-evaluations-list"
-        sx={{ display: "grid", gap: 2 }}
-      >
-        {rows.map(row => (
-          <EvaluationRow key={row.id} row={row} labels={t} locale={locale} />
-        ))}
-      </Box>
+      <>
+        <EvaluationsSummary items={rows} labels={t} />
+        <Box
+          component="output"
+          aria-label={t.evaluationsSectionTitle}
+          data-testid="parent-evaluations-list"
+          sx={{ display: "grid", gap: 2 }}
+        >
+          {rows.map(row => (
+            <EvaluationRow key={row.id} row={row} labels={t} locale={locale} />
+          ))}
+        </Box>
+      </>
     );
   }
 
