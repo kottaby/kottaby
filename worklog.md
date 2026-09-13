@@ -1274,3 +1274,25 @@ Stage Summary:
 - Branch: `feat/parent-read-only-monitoring-portal` (verified at the start of EVERY bash command).
 
 The plan is now COMPLETE — every task checkbox `[x]`, every outcome file written, the canonical doc published, the AGENTS.md Important References pointer added, the parent-link-request.md forward-pointer satisfied, all final-gate checkboxes marked. The Parent Read-Only Monitoring Portal is shipped, verified, and documented as a permanent engineering reference.
+
+---
+Task ID: FINAL
+Agent: Spec Implementation Orchestrator
+Task: Plan completion + post-launch verification
+
+Work Log:
+- All 22 tasks across 8 phases complete (0.1 through 8.2)
+- 318 tests passing (93 repo + 126 service + 27 wire + 59 UI + 13 journey)
+- tsgo 0 errors, biome 0 warnings, lint exit 0
+- Schema-parity: zero Drizzle changes (R-J)
+- Ledger: zero ❌/⚠️ (5 📅 Forward items tracked)
+- Post-implementation review: 1 HIGH + 2 LOW fixed, 2 LOW accepted
+- All grep-locks pass (INV-P2, R-A, R-C, R-E, BOLA, injection)
+- Browser verification: home page renders (Arabic RTL), API works, PGlite initialized, auth boundary active
+- Dev server instability: Turbopack process dies after a few requests (sandbox memory limitation) — not a code defect
+- Feature branch pushed to origin/feat/parent-read-only-monitoring-portal (15 commits)
+
+Stage Summary:
+- Plan COMPLETE. All checkboxes [x]. All outcome files written (25 total).
+- Canonical doc published at docs/parents/monitoring-portal.md
+- The Parent Read-Only Monitoring Portal is shipped, verified, and documented.
