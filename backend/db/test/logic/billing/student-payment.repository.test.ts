@@ -427,11 +427,18 @@ describe("StudentPaymentRepository", () => {
       const seededReference = "paymob-txn-seeded";
       const { subscriptionId, payment } = await createPurchasePair(tx, {
         paymentGateway: PaymentGateway.Paymob,
-        providerTransactionId: seededReference,
       });
-      expect(payment.providerTransactionId).toBe(seededReference);
+      expect(payment.providerTransactionId).toBeNull();
 
-      // Bracket 1 — overwrite smuggled inside the permitted transition.
+      // The reference is recorded exactly once, from NULL, inside the
+      // guarded decision — the only path the pending-insert CHECK admits
+      // (`student_payments_pending_provider_transaction_check`).
+      const decided = await StudentPaymentRepository.markPaidOnce(subscriptionId, tx, seededReference);
+      expect(decided?.status).toBe(PaymentStatus.Paid);
+      expect(decided?.providerTransactionId).toBe(seededReference);
+
+      // Bracket 1 — overwrite: the decided row sits outside the guarded
+      // transition, so every further write to the reference is frozen.
       await tx.execute(sql`savepoint pay_ref_overwrite_probe`);
       const overwriteError = await expectRepoError(() =>
         tx
@@ -443,7 +450,7 @@ describe("StudentPaymentRepository", () => {
       expect(causeChainContainsMessage(overwriteError, UPDATE_GUARD_IMMUTABLE)).toBe(true);
       expect(causeChainContainsMessage(overwriteError, UPDATE_GUARD_EXCEPTION)).toBe(true);
 
-      // Bracket 2 — erasure smuggled inside the permitted transition.
+      // Bracket 2 — erasure: the same freeze, the recorded link never drops.
       await tx.execute(sql`savepoint pay_ref_erase_probe`);
       const eraseError = await expectRepoError(() =>
         tx
@@ -454,15 +461,11 @@ describe("StudentPaymentRepository", () => {
       await tx.execute(sql`rollback to savepoint pay_ref_erase_probe`);
       expect(causeChainContainsMessage(eraseError, UPDATE_GUARD_IMMUTABLE)).toBe(true);
 
-      // The untouched reference still rides along with the guarded status
-      // decision — the transition itself is not broken by the set-once rule.
-      const paid = await tx
-        .update(studentPayments)
-        .set({ status: PaymentStatus.Paid })
-        .where(eq(studentPayments.subscriptionId, subscriptionId))
-        .returning();
-      expect(paid[0]?.status).toBe(PaymentStatus.Paid);
-      expect(paid[0]?.providerTransactionId).toBe(seededReference);
+      // The recorded reference still rides with the decided row — the
+      // audit link to the provider's ledger is as frozen as the money.
+      const after = await StudentPaymentRepository.findBySubscriptionId(subscriptionId, tx);
+      expect(after?.status).toBe(PaymentStatus.Paid);
+      expect(after?.providerTransactionId).toBe(seededReference);
     });
   });
 
