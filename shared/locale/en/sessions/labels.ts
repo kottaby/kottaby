@@ -107,4 +107,8 @@ export const sessionsEn: SessionsLabels = {
   caseReviewEmptyHomework: "No homework was recorded for this session.",
   caseReviewEmptyRecitation: "No recitation record exists for this session.",
   caseReviewEmptyAudit: "No audit entries have been recorded for this session.",
+  adminDisputeAnalyticsTitle: "Arbitration at a glance",
+  adminDisputeAnalyticsOpen: "Awaiting arbitration",
+  adminDisputeAnalyticsResolved: "Resolved total",
+  adminDisputeAnalyticsOutcomes: "Outcomes",
 };

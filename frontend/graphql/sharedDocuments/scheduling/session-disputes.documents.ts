@@ -1,5 +1,7 @@
 import { gql, type TypedDocumentNode } from "@apollo/client";
 import type {
+  AdminDisputeAnalyticsQuery,
+  AdminDisputeAnalyticsQueryVariables,
   AdminDisputeCaseQuery,
   AdminDisputeCaseQueryVariables,
   AdminDisputedSessionsQuery,
@@ -295,6 +297,33 @@ export const adminDisputeCaseQueryDocument: TypedDocumentNode<AdminDisputeCaseQu
       }
       studentName
       teacherName
+    }
+  }
+`;
+
+/**
+ * `adminDisputeAnalytics` — the ADMIN aggregate dispute snapshot: the open
+ * dispute count (the arbitration queue's own membership predicate), the
+ * resolved total, and the per-outcome breakdown across BOTH escrow
+ * generations. Zero arguments by design — the snapshot is the unfiltered
+ * all-time aggregate; every value is an honest count (zero is the
+ * legitimate empty state). Admin-only scope lives server-side
+ * (`$all{authenticated, role:[Admin]}` + the service-level governance
+ * re-assertion).
+ */
+export const adminDisputeAnalyticsQueryDocument: TypedDocumentNode<
+  AdminDisputeAnalyticsQuery,
+  AdminDisputeAnalyticsQueryVariables
+> = gql`
+  query AdminDisputeAnalytics {
+    adminDisputeAnalytics {
+      openDisputes
+      resolvedDisputes
+      cancelCount
+      completeCount
+      refundCount
+      partialRefundCount
+      upholdCount
     }
   }
 `;

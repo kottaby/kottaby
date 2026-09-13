@@ -151,6 +151,10 @@ const MANDATED_SESSIONS_KEYS = [
   "caseReviewEmptyHomework",
   "caseReviewEmptyRecitation",
   "caseReviewEmptyAudit",
+  "adminDisputeAnalyticsTitle",
+  "adminDisputeAnalyticsOpen",
+  "adminDisputeAnalyticsResolved",
+  "adminDisputeAnalyticsOutcomes",
 ] as const;
 
 /**

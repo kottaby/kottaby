@@ -117,6 +117,7 @@ import {
 import { SessionLifecycleQueries } from "@/backend/services/classes/session-lifecycle.queries";
 import { NotificationEngine } from "@/backend/services/notifications";
 import type {
+  AdminDisputeAnalyticsReturnType,
   AdminDisputeCaseReturnType,
   AdminDisputedSessionPageReturnType,
   DBTransaction,
@@ -544,5 +545,34 @@ export namespace SessionArbitrationService {
       page: page.page,
       pageSize: page.pageSize,
     };
+  }
+
+  /**
+   * The admin dispute-analytics snapshot: the aggregate dispute counts
+   * (open, resolved, and the per-outcome breakdown) read in ONE table
+   * pass over the `session` entity. The admin gate is re-asserted first
+   * (defense in depth over the scope gate), then the read runs — strictly
+   * side-effect free, honest zeros on an empty table, no fabricated
+   * placeholders. The snapshot is deliberately UNFILTERED (all time, both
+   * escrow generations): the queue's own count already answers "what is
+   * open right now", this read adds the trend vocabulary around it.
+   *
+   * @param adminId  The acting admin's id (never client input).
+   * @param locale  Active request locale (for the localized error messages).
+   * @param tx  Optional transaction — propagated to the read so a
+   *     caller-owned atomic flow stays atomic.
+   * @returns The analytics snapshot (see `AdminDisputeAnalyticsReturnType`).
+   */
+  export async function getDisputeAnalytics(
+    adminId: number,
+    locale: string,
+    tx?: DBTransaction
+  ): Promise<AdminDisputeAnalyticsReturnType> {
+    const t = getServerTranslations(locale).errorsTranslations;
+
+    // The service-side governance-clean admin gate — the FIRST statement.
+    await assertAdminGovernanceClean(adminId, t, tx);
+
+    return SessionRepository.getDisputeAnalyticsCounts(tx);
   }
 }

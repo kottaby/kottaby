@@ -104,3 +104,22 @@ export interface AdminDisputedSessionPageReturnType {
   readonly page: number;
   readonly pageSize: number;
 }
+
+/**
+ * Admin dispute analytics snapshot: the aggregate dispute counts read in
+ * ONE table pass — the currently OPEN disputes (the arbitration queue's
+ * own membership predicate), the total RESOLVED disputes (any resolution
+ * family), and the per-outcome breakdown keyed to each `DisputeResolution`
+ * member (the persisted `resolution_outcome` vocabulary, both escrow
+ * generations included). Every value is an honest count of real rows —
+ * zero is a legitimate answer, never a fabricated placeholder.
+ */
+export interface AdminDisputeAnalyticsReturnType {
+  readonly openDisputes: number;
+  readonly resolvedDisputes: number;
+  readonly cancelCount: number;
+  readonly completeCount: number;
+  readonly refundCount: number;
+  readonly partialRefundCount: number;
+  readonly upholdCount: number;
+}

@@ -1157,3 +1157,74 @@ describe("SessionArbitrationService — the admin dispute queue rows", () => {
     }
   );
 });
+
+describe("SessionArbitrationService — the dispute analytics snapshot", () => {
+  testOnRealPostgres(
+    "getDisputeAnalytics aggregates the honest counts relative to the pre-read baseline (open, resolved, per-outcome)",
+    async () => {
+      await runInRollback(async tx => {
+        const admin = await createTestUser(tx, { role: "admin" });
+        const actors = await createArbitrationActors(tx);
+
+        // The analytics read is a live scope over the shared table — other
+        // committed rows may coexist; every assertion is RELATIVE to the
+        // baseline taken before this test seeds its own rows.
+        const baseline = await SessionArbitrationService.getDisputeAnalytics(admin.id, "en", tx);
+
+        // Two consumed rows: one stays disputed (open), one is arbitrated
+        // PartialRefund through the REAL flow (funded wallet for the debit).
+        const openRow = await insertArbitrationSessionRow(tx, actors);
+        const resolvedRow = await insertArbitrationSessionRow(tx, actors);
+        await disputeConsumedRow(tx, actors, openRow.id);
+        await disputeConsumedRow(tx, actors, resolvedRow.id);
+        await fundTeacherWallet(tx, actors.teacherUserId, "50.00");
+        await SessionArbitrationService.arbitrateDispute(
+          admin.id,
+          resolvedRow.id,
+          DisputeResolution.PartialRefund,
+          null,
+          "5.00",
+          "en",
+          tx
+        );
+
+        const after = await SessionArbitrationService.getDisputeAnalytics(admin.id, "en", tx);
+
+        expect(after.openDisputes).toBe(baseline.openDisputes + 1);
+        expect(after.resolvedDisputes).toBe(baseline.resolvedDisputes + 1);
+        expect(after.partialRefundCount).toBe(baseline.partialRefundCount + 1);
+        // The other outcome buckets are untouched by this scenario.
+        expect(after.cancelCount).toBe(baseline.cancelCount);
+        expect(after.completeCount).toBe(baseline.completeCount);
+        expect(after.refundCount).toBe(baseline.refundCount);
+        expect(after.upholdCount).toBe(baseline.upholdCount);
+      });
+    }
+  );
+
+  testOnRealPostgres(
+    "getDisputeAnalytics denies a student caller through the governance re-assertion (read-only, but still admin-gated)",
+    async () => {
+      await runInRollback(async tx => {
+        const student = await createTestUser(tx, { role: "student" });
+
+        const error = await expectRepoError(() => SessionArbitrationService.getDisputeAnalytics(student.id, "en", tx));
+        expectDomainDenial(error, "FORBIDDEN", t().forbidden);
+      });
+    }
+  );
+
+  testOnRealPostgres(
+    "getDisputeAnalytics denies a governance-blocked admin the same way (fail-closed identity)",
+    async () => {
+      await runInRollback(async tx => {
+        const blockedAdmin = await createTestUser(tx, { role: "admin", isBlocked: true });
+
+        const error = await expectRepoError(() =>
+          SessionArbitrationService.getDisputeAnalytics(blockedAdmin.id, "en", tx)
+        );
+        expectDomainDenial(error, "FORBIDDEN", t().forbidden);
+      });
+    }
+  );
+});

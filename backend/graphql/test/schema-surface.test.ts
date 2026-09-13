@@ -219,9 +219,14 @@ const DISPUTE_MUTATION_FIELDS = ["openSessionDispute", "resolveSessionDispute"] 
 /** post-confirmation dispute entry — the student-only consumed-escrow mutation. */
 const ARBITRATION_MUTATION_FIELDS = ["openPostConfirmationDispute"] as const;
 /** admin case-review read — the dispute evidence bundle query. */
-const ARBITRATION_QUERY_FIELDS = ["adminDisputeCase"] as const;
+const ARBITRATION_QUERY_FIELDS = ["adminDisputeCase", "adminDisputeAnalytics"] as const;
 /** the case-review envelope object (reuses the canonical entity objects). */
-const ARBITRATION_TYPE_NAMES = ["AdminDisputeCase", "AdminDisputedSessionRow", "AdminDisputedSessionPage"] as const;
+const ARBITRATION_TYPE_NAMES = [
+  "AdminDisputeCase",
+  "AdminDisputedSessionRow",
+  "AdminDisputedSessionPage",
+  "AdminDisputeAnalytics",
+] as const;
 /** dual-confirmation mutation (R-201/R-202). */
 const DUAL_CONFIRMATION_MUTATION_FIELDS = ["confirmSessionCompletion"] as const;
 /** wallet read — the teacher-only wallet + ledger surface (R-301). */
@@ -1016,6 +1021,41 @@ describe("Post-confirmation dispute arbitration surface — SDL pins", () => {
     expect(fields.studentName?.type.toString()).toBe("String");
     expect(fields.teacherName?.type.toString()).toBe("String");
   });
+
+  test("`adminDisputeAnalytics` is the admin-gated argument-free aggregate read", () => {
+    const field = queryField("adminDisputeAnalytics");
+    expect(getNamedType(field.type).name).toBe("AdminDisputeAnalytics");
+    expect(field.type.toString()).toBe("AdminDisputeAnalytics!");
+    // Zero arguments by design: the snapshot is the unfiltered all-time
+    // aggregate — the wire surface carries nothing to misuse.
+    expect(field.args).toHaveLength(0);
+    expect(authScopesSnapshot(field)).toEqual({
+      $all: { authenticated: true, role: [UserRole.Admin] },
+    });
+  });
+
+  test("`AdminDisputeAnalytics` discloses EXACTLY the seven honest counts", () => {
+    const analyticsType = graphQLSchema.getType("AdminDisputeAnalytics");
+
+    if (!(analyticsType instanceof GraphQLObjectType)) {
+      throw new Error("AdminDisputeAnalytics must be registered as a GraphQL object type");
+    }
+    const fields = analyticsType.getFields();
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "cancelCount",
+      "completeCount",
+      "openDisputes",
+      "partialRefundCount",
+      "refundCount",
+      "resolvedDisputes",
+      "upholdCount",
+    ]);
+    // Every member is a NON-NULLABLE Int — zero is the honest empty state,
+    // never a null.
+    for (const field of Object.values(fields)) {
+      expect(field.type.toString()).toBe("Int!");
+    }
+  });
 });
 
 describe("Notification surface — enum + canonical objects", () => {
@@ -1631,6 +1671,11 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     expect(committedSdl).toContain("openPostConfirmationDispute(id: ID!, reason: String!): Session!");
     expect(committedSdl).toContain("adminDisputeCase(id: ID!): AdminDisputeCase!");
     expect(committedSdl).toContain("type AdminDisputeCase {");
+    // …and the dispute-analytics snapshot (the argument-free admin
+    // aggregate + its seven-count object) is really inside the committed
+    // artifact.
+    expect(committedSdl).toContain("adminDisputeAnalytics: AdminDisputeAnalytics!");
+    expect(committedSdl).toContain("type AdminDisputeAnalytics {");
     // …and the dual-confirmation mutation is really inside the
     // committed artifact.
     expect(committedSdl).toContain("confirmSessionCompletion(id: ID!): Session!");

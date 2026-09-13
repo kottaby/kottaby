@@ -226,4 +226,12 @@ export interface SessionsLabels {
   readonly caseReviewEmptyRecitation: string;
   /** Case-review empty state — the session-scoped audit trail is empty. */
   readonly caseReviewEmptyAudit: string;
+  /** Analytics card title — the aggregate dispute snapshot on the admin queue. */
+  readonly adminDisputeAnalyticsTitle: string;
+  /** Analytics stat label — the currently open (queued) dispute count. */
+  readonly adminDisputeAnalyticsOpen: string;
+  /** Analytics stat label — the all-time resolved dispute count. */
+  readonly adminDisputeAnalyticsResolved: string;
+  /** Analytics section label — the per-outcome breakdown chips row. */
+  readonly adminDisputeAnalyticsOutcomes: string;
 }

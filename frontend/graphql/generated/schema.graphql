@@ -84,6 +84,16 @@ input AdminCreateUserInput {
   role: RegisterPublicRole!
 }
 
+type AdminDisputeAnalytics {
+  cancelCount: Int!
+  completeCount: Int!
+  openDisputes: Int!
+  partialRefundCount: Int!
+  refundCount: Int!
+  resolvedDisputes: Int!
+  upholdCount: Int!
+}
+
 type AdminDisputeCase {
   auditTrail: [AdminAuditLogEntry!]!
   homework: SessionHomeWork
@@ -891,6 +901,11 @@ type PurchaseSubscriptionPayload {
 type Query {
   _health: HealthCheck!
   adminAuditLogs(filters: AdminAuditLogFiltersInput, page: Int, pageSize: Int): AdminAuditLogPage!
+
+  """
+  Read the aggregate dispute analytics snapshot (admin-only): the open dispute count (the arbitration queue's own membership), the resolved total, and the per-outcome breakdown across both escrow generations. Honest counts — zero is the legitimate empty state. Strictly side-effect free.
+  """
+  adminDisputeAnalytics: AdminDisputeAnalytics!
 
   """
   Read the full dispute case for one session (admin-only): the session row, its report, homework, and recitation records (honest nulls when absent), and the session-scoped audit trail. Unknown or malformed ids are localized not-found denials.

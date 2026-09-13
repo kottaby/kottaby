@@ -430,6 +430,7 @@ export namespace SessionRepository {
    *          unknown.
    */
   export const findArbitrationProbe = arbitrationImpl.findArbitrationProbe;
+  export const getDisputeAnalyticsCounts = arbitrationImpl.getDisputeAnalyticsCounts;
 
   /**
    * Report-gate row lock: takes the `FOR UPDATE` lock on the session row

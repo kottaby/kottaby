@@ -102,5 +102,9 @@ export const sessionsAr: SessionsLabels = {
   caseReviewEmptyReport: "لم يتم إرسال تقرير لهذه الجلسة.",
   caseReviewEmptyHomework: "لم يُسجل أي واجب لهذه الجلسة.",
   caseReviewEmptyRecitation: "لا يوجد سجل تلاوة لهذه الجلسة.",
-  caseReviewEmptyAudit: "لم تُسجل أي إدخالات تدقيق لهذه الجلسة.",
+  caseReviewEmptyAudit: "لم يتم تسجيل أي إدخالات تدقيق لهذه الجلسة.",
+  adminDisputeAnalyticsTitle: "نظرة عامة على التحكيم",
+  adminDisputeAnalyticsOpen: "بانتظار التحكيم",
+  adminDisputeAnalyticsResolved: "إجمالي المحسوم",
+  adminDisputeAnalyticsOutcomes: "النتائج",
 };

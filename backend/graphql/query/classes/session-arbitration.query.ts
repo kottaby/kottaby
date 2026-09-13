@@ -39,7 +39,10 @@
  *    `query/classes/index.ts` → `query/index.ts` → `gqlSchema.ts`.
  */
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import { AdminDisputeCasePothosObject } from "@/backend/graphql/pothos/classes/session-arbitration.pothos";
+import {
+  AdminDisputeAnalyticsPothosObject,
+  AdminDisputeCasePothosObject,
+} from "@/backend/graphql/pothos/classes/session-arbitration.pothos";
 import { adminOnlyAuthScopes, requireAdminUser } from "@/backend/graphql/shared";
 import { SessionArbitrationService } from "@/backend/services";
 
@@ -65,6 +68,26 @@ gqlSchemaBuilder.queryField("adminDisputeCase", t =>
       // the admin belt re-assertion, the concurrent artifact reads, and
       // the honest nulls.
       return SessionArbitrationService.getAdminDisputeCase(user.id, Number(args.id), ctx.locale);
+    },
+  })
+);
+
+// Side-effect: register the `adminDisputeAnalytics` query field — the
+// aggregate dispute snapshot behind the admin queue's analytics card.
+gqlSchemaBuilder.queryField("adminDisputeAnalytics", t =>
+  t.field({
+    type: AdminDisputeAnalyticsPothosObject,
+    description:
+      "Read the aggregate dispute analytics snapshot (admin-only): the open dispute count (the arbitration queue's own membership), the resolved total, and the per-outcome breakdown across both escrow generations. Honest counts — zero is the legitimate empty state. Strictly side-effect free.",
+    authScopes: adminOnlyAuthScopes,
+    resolve: async (_root, _args, ctx) => {
+      // The `$all` scope conjunction guarantees an admin context at
+      // resolution time; `requireAdminUser` is the TS-narrowing belt (see
+      // the case read above for the full prelude rationale).
+      const user = await requireAdminUser(ctx);
+      // Zero arguments by design: the snapshot is the unfiltered all-time
+      // aggregate, so the wire surface carries nothing to misuse.
+      return SessionArbitrationService.getDisputeAnalytics(user.id, ctx.locale);
     },
   })
 );

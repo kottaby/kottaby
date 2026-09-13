@@ -43,6 +43,8 @@ import { describe, expect, test } from "bun:test";
 import type { TypedDocumentNode } from "@apollo/client";
 import type { DocumentNode, FieldNode, OperationDefinitionNode, TypeNode } from "graphql";
 import type {
+  AdminDisputeAnalyticsQuery,
+  AdminDisputeAnalyticsQueryVariables,
   AdminDisputeCaseQuery,
   AdminDisputeCaseQueryVariables,
   AdminDisputedSessionsQuery,
@@ -55,6 +57,7 @@ import type {
   ResolveSessionDisputeMutationVariables,
 } from "@/frontend/graphql/generated/gql/graphql";
 import {
+  adminDisputeAnalyticsQueryDocument as adminDisputeAnalyticsViaRootBarrel,
   adminDisputeCaseQueryDocument as adminDisputeCaseViaRootBarrel,
   adminDisputedSessionsQueryDocument as adminDisputedSessionsViaRootBarrel,
   openPostConfirmationDisputeMutationDocument as openPostConfirmationDisputeViaRootBarrel,
@@ -62,6 +65,7 @@ import {
   resolveSessionDisputeMutationDocument as resolveSessionDisputeViaRootBarrel,
 } from "@/frontend/graphql/sharedDocuments";
 import {
+  adminDisputeAnalyticsQueryDocument as adminDisputeAnalyticsViaSchedulingBarrel,
   adminDisputeCaseQueryDocument as adminDisputeCaseViaSchedulingBarrel,
   adminDisputedSessionsQueryDocument as adminDisputedSessionsViaSchedulingBarrel,
   openPostConfirmationDisputeMutationDocument as openPostConfirmationDisputeViaSchedulingBarrel,
@@ -69,6 +73,7 @@ import {
   resolveSessionDisputeMutationDocument as resolveSessionDisputeViaSchedulingBarrel,
 } from "@/frontend/graphql/sharedDocuments/scheduling";
 import {
+  adminDisputeAnalyticsQueryDocument as adminDisputeAnalyticsViaHub,
   adminDisputeCaseQueryDocument as adminDisputeCaseViaHub,
   adminDisputedSessionsQueryDocument as adminDisputedSessionsViaHub,
   openPostConfirmationDisputeMutationDocument as openPostConfirmationDisputeViaHub,
@@ -76,6 +81,7 @@ import {
   resolveSessionDisputeMutationDocument as resolveSessionDisputeViaHub,
 } from "@/frontend/graphql/sharedDocuments/scheduling/session.documents";
 import {
+  adminDisputeAnalyticsQueryDocument,
   adminDisputeCaseQueryDocument,
   adminDisputedSessionsQueryDocument,
   openPostConfirmationDisputeMutationDocument,
@@ -313,6 +319,17 @@ const SESSION_DISPUTE_DOCUMENT_TABLE: readonly SessionDisputeDocumentRow[] = [
     sessionPayloadPath: "adminDisputedSessions.items.session",
   },
   {
+    // The analytics snapshot selects NO Session payload — the family-row
+    // pin below skips rows without a `sessionPayloadPath` (its own
+    // envelope pin lives in the dedicated describe block).
+    document: adminDisputeAnalyticsQueryDocument,
+    operationName: "AdminDisputeAnalytics",
+    channel: "query",
+    variables: [],
+    variableTypes: [],
+    rootField: "adminDisputeAnalytics",
+  },
+  {
     document: adminDisputeCaseQueryDocument,
     operationName: "AdminDisputeCase",
     channel: "query",
@@ -365,8 +382,10 @@ describe("session-disputes documents — one family Session field shape (id FIRS
   test("every Session payload selects the EXACT family row with id FIRST (no over-fetch)", () => {
     for (const row of SESSION_DISPUTE_DOCUMENT_TABLE) {
       const operation = operationOrThrow(row.document);
+      // Rows that select no Session payload (the analytics snapshot) are
+      // pinned by their own envelope describe block below.
       if (row.sessionPayloadPath === undefined) {
-        throw new Error(`expected a session payload path on ${row.operationName}`);
+        continue;
       }
       const session = selectionPath(operation, row.sessionPayloadPath);
       expect(fieldNames(session)).toEqual([...DISPUTE_SESSION_ROW]);
@@ -441,6 +460,52 @@ describe("session-disputes documents — closed adminDisputeCase envelope", () =
   });
 });
 
+describe("session-disputes documents — closed adminDisputeAnalytics envelope", () => {
+  test("the analytics envelope selects exactly the seven honest counts (no derived values)", () => {
+    const operation = operationOrThrow(adminDisputeAnalyticsQueryDocument);
+    const envelope = selectionPath(operation, "adminDisputeAnalytics");
+    expect(fieldNames(envelope)).toEqual([
+      "openDisputes",
+      "resolvedDisputes",
+      "cancelCount",
+      "completeCount",
+      "refundCount",
+      "partialRefundCount",
+      "upholdCount",
+    ]);
+  });
+
+  test("the snapshot is argument-free (zero variables, zero literal arguments)", () => {
+    const operation = operationOrThrow(adminDisputeAnalyticsQueryDocument);
+    expect(variableNames(operation)).toEqual([]);
+    const root = selectionPath(operation, "adminDisputeAnalytics");
+    expect(root.arguments ?? []).toHaveLength(0);
+  });
+
+  test("documents remain TypedDocumentNode-typed against generated operation types", () => {
+    const typedAnalytics: TypedDocumentNode<AdminDisputeAnalyticsQuery, AdminDisputeAnalyticsQueryVariables> =
+      adminDisputeAnalyticsQueryDocument;
+    expect(typedAnalytics.loc).toBeDefined();
+  });
+
+  test("the counts are non-nullable numbers (zero is the honest empty state, never a null)", () => {
+    // Compile-time proof by assignment — the `0` literal is assignable to
+    // every generated member type ONLY because they are non-nullable
+    // numbers; a nullable member would also accept `null` here, so the
+    // null-rejection half is enforced at the type-check gate.
+    const snapshot: AdminDisputeAnalyticsQuery["adminDisputeAnalytics"] = {
+      openDisputes: 0,
+      resolvedDisputes: 0,
+      cancelCount: 0,
+      completeCount: 0,
+      refundCount: 0,
+      partialRefundCount: 0,
+      upholdCount: 0,
+    };
+    expect(snapshot.openDisputes).toBe(0);
+  });
+});
+
 describe("session-disputes documents — codegen binding + barrel parity", () => {
   test("documents remain TypedDocumentNode-typed against generated operation types", () => {
     // Compile-time proof by assignment — tsgo fails if any exported constant
@@ -488,15 +553,18 @@ describe("session-disputes documents — codegen binding + barrel parity", () =>
     expect(resolveSessionDisputeViaRootBarrel).toBe(resolveSessionDisputeMutationDocument);
     expect(adminDisputedSessionsViaRootBarrel).toBe(adminDisputedSessionsQueryDocument);
     expect(adminDisputeCaseViaRootBarrel).toBe(adminDisputeCaseQueryDocument);
+    expect(adminDisputeAnalyticsViaRootBarrel).toBe(adminDisputeAnalyticsQueryDocument);
     expect(openSessionDisputeViaSchedulingBarrel).toBe(openSessionDisputeMutationDocument);
     expect(openPostConfirmationDisputeViaSchedulingBarrel).toBe(openPostConfirmationDisputeMutationDocument);
     expect(resolveSessionDisputeViaSchedulingBarrel).toBe(resolveSessionDisputeMutationDocument);
     expect(adminDisputedSessionsViaSchedulingBarrel).toBe(adminDisputedSessionsQueryDocument);
     expect(adminDisputeCaseViaSchedulingBarrel).toBe(adminDisputeCaseQueryDocument);
+    expect(adminDisputeAnalyticsViaSchedulingBarrel).toBe(adminDisputeAnalyticsQueryDocument);
     expect(openSessionDisputeViaHub).toBe(openSessionDisputeMutationDocument);
     expect(openPostConfirmationDisputeViaHub).toBe(openPostConfirmationDisputeMutationDocument);
     expect(resolveSessionDisputeViaHub).toBe(resolveSessionDisputeMutationDocument);
     expect(adminDisputedSessionsViaHub).toBe(adminDisputedSessionsQueryDocument);
     expect(adminDisputeCaseViaHub).toBe(adminDisputeCaseQueryDocument);
+    expect(adminDisputeAnalyticsViaHub).toBe(adminDisputeAnalyticsQueryDocument);
   });
 });

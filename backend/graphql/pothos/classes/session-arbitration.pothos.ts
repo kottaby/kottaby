@@ -32,6 +32,7 @@ import { SessionRecitationPothosObject } from "@/backend/graphql/pothos/classes/
 import { SessionReportPothosObject } from "@/backend/graphql/pothos/classes/report.pothos";
 import { SessionPothosObject } from "@/backend/graphql/pothos/classes/session.pothos";
 import type {
+  AdminDisputeAnalyticsReturnType,
   AdminDisputeCaseReturnType,
   AdminDisputedSessionPageReturnType,
   AdminDisputedSessionRowReturnType,
@@ -140,5 +141,25 @@ export const AdminDisputedSessionPagePothosObject = gqlSchemaBuilder
       totalCount: t.exposeInt("totalCount"),
       page: t.exposeInt("page"),
       pageSize: t.exposeInt("pageSize"),
+    }),
+  });
+
+/**
+ * The admin dispute-analytics snapshot object: the aggregate dispute
+ * counts (open, resolved, per-outcome) as flat non-nullable Int fields —
+ * one canonical object for the analytics read, zero derived values (the
+ * view computes rates from the honest counts it already holds).
+ */
+export const AdminDisputeAnalyticsPothosObject = gqlSchemaBuilder
+  .objectRef<AdminDisputeAnalyticsReturnType>("AdminDisputeAnalytics")
+  .implement({
+    fields: t => ({
+      openDisputes: t.exposeInt("openDisputes"),
+      resolvedDisputes: t.exposeInt("resolvedDisputes"),
+      cancelCount: t.exposeInt("cancelCount"),
+      completeCount: t.exposeInt("completeCount"),
+      refundCount: t.exposeInt("refundCount"),
+      partialRefundCount: t.exposeInt("partialRefundCount"),
+      upholdCount: t.exposeInt("upholdCount"),
     }),
   });

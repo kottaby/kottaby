@@ -3,7 +3,11 @@
 import { useQuery } from "@apollo/client/react";
 import { Stack } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
-import { adminDisputedSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
+import {
+  adminDisputeAnalyticsQueryDocument,
+  adminDisputedSessionsQueryDocument,
+} from "@/frontend/graphql/sharedDocuments";
+import { AdminDisputeAnalyticsCard } from "@/frontend/views/admin/disputes/AdminDisputeAnalyticsCard";
 import { AdminDisputeCaseDialog } from "@/frontend/views/admin/disputes/AdminDisputeCaseDialog";
 import { AdminDisputesBody } from "@/frontend/views/admin/disputes/AdminDisputesBody";
 import { AdminDisputesChrome } from "@/frontend/views/admin/disputes/AdminDisputesChrome";
@@ -85,6 +89,16 @@ export function AdminDisputesContainer(): ReactNode {
     },
   });
 
+  // The analytics snapshot rides its OWN query (zero arguments — the
+  // unfiltered all-time aggregate): it never re-keys with the queue's
+  // pagination, and its failure degrades to "no card" below without
+  // touching the queue's own error branch.
+  const {
+    data: analyticsData,
+    loading: analyticsLoading,
+    error: analyticsError,
+  } = useQuery(adminDisputeAnalyticsQueryDocument);
+
   const totalCount = data?.adminDisputedSessions.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / ADMIN_DISPUTES_PAGE_SIZE));
 
@@ -132,6 +146,12 @@ export function AdminDisputesContainer(): ReactNode {
   return (
     <Stack data-testid="admin-disputes-view" sx={{ gap: 3 }}>
       <AdminDisputesChrome title={t.adminDisputesPageTitle} countLine={t.adminDisputesCountLine(totalCount)} />
+      <AdminDisputeAnalyticsCard
+        analytics={analyticsData?.adminDisputeAnalytics ?? null}
+        loading={analyticsLoading}
+        hasError={analyticsError !== undefined}
+        t={t}
+      />
       <AdminDisputesBody
         loading={loading}
         error={error}

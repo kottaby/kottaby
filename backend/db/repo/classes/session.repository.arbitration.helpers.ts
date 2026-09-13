@@ -26,12 +26,17 @@
  *    caller decides what `null` means.
  */
 
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { session } from "@/backend/db/schema/classes/session";
-import type { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
+import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
-import type { DBTransaction, SessionArbitrationProbeType, SessionSelectType } from "@/backend/types";
+import type {
+  AdminDisputeAnalyticsReturnType,
+  DBTransaction,
+  SessionArbitrationProbeType,
+  SessionSelectType,
+} from "@/backend/types";
 
 /**
  * Opens a post-confirmation dispute exactly once (the student-only entry
@@ -169,4 +174,49 @@ export async function findArbitrationProbe(
     [id]
   );
   return result.rows[0] ?? null;
+}
+
+/**
+ * The admin dispute-analytics counts, aggregated in ONE table pass: the
+ * open disputes (the same pinned `disputed` membership the arbitration
+ * queue serves), the resolved total (any stamped `resolved_at` — both
+ * escrow generations), and one filtered count per `DisputeResolution`
+ * member over the persisted `resolution_outcome` column. The lifecycle
+ * and outcome vocabularies ride the canonical enum members as bound
+ * parameters — never string literals. A read-only aggregate: no lock is
+ * taken beyond the scan's MVCC snapshot, and an empty table answers the
+ * all-zero row (zero is the honest empty analytics state).
+ */
+export async function getDisputeAnalyticsCounts(tx?: DBTransaction): Promise<AdminDisputeAnalyticsReturnType> {
+  const executor = tx ?? db;
+  const rows = await executor
+    .select({
+      openDisputes: sql<number>`count(*) filter (where ${session.status} = ${SessionStatus.Disputed})`.mapWith(Number),
+      resolvedDisputes: sql<number>`count(*) filter (where ${session.resolvedAt} is not null)`.mapWith(Number),
+      cancelCount:
+        sql<number>`count(*) filter (where ${session.resolutionOutcome} = ${DisputeResolution.Cancel})`.mapWith(Number),
+      completeCount:
+        sql<number>`count(*) filter (where ${session.resolutionOutcome} = ${DisputeResolution.Complete})`.mapWith(
+          Number
+        ),
+      refundCount:
+        sql<number>`count(*) filter (where ${session.resolutionOutcome} = ${DisputeResolution.Refund})`.mapWith(Number),
+      partialRefundCount:
+        sql<number>`count(*) filter (where ${session.resolutionOutcome} = ${DisputeResolution.PartialRefund})`.mapWith(
+          Number
+        ),
+      upholdCount:
+        sql<number>`count(*) filter (where ${session.resolutionOutcome} = ${DisputeResolution.Uphold})`.mapWith(Number),
+    })
+    .from(session);
+  const row = rows[0];
+  return {
+    openDisputes: row?.openDisputes ?? 0,
+    resolvedDisputes: row?.resolvedDisputes ?? 0,
+    cancelCount: row?.cancelCount ?? 0,
+    completeCount: row?.completeCount ?? 0,
+    refundCount: row?.refundCount ?? 0,
+    partialRefundCount: row?.partialRefundCount ?? 0,
+    upholdCount: row?.upholdCount ?? 0,
+  };
 }

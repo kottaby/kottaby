@@ -236,6 +236,20 @@ const ADMIN_DISPUTE_CASE_DOC = gql`
   }
 `;
 
+const ADMIN_DISPUTE_ANALYTICS_DOC = gql`
+  query AdminDisputeAnalytics {
+    adminDisputeAnalytics {
+      openDisputes
+      resolvedDisputes
+      cancelCount
+      completeCount
+      refundCount
+      partialRefundCount
+      upholdCount
+    }
+  }
+`;
+
 // ─── Narrowing helpers (runtime-guarded — zero casts) ────────────────────────
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -479,6 +493,9 @@ describe("anonymous callers — UNAUTHORIZED byte-identical to the arbitration r
       variables: { id: sessionOracleId },
     });
     expectDenialIdenticalToReference(caseRead.error, "UNAUTHORIZED", reference, "adminDisputeCase");
+
+    const analyticsRead = await testClient.query({ query: ADMIN_DISPUTE_ANALYTICS_DOC });
+    expectDenialIdenticalToReference(analyticsRead.error, "UNAUTHORIZED", reference, "adminDisputeAnalytics");
   });
 });
 
@@ -822,5 +839,54 @@ describe("adversarial probes — privilege boundaries, family crossings, amount 
       throw new Error("adminDisputeCase must carry the session member");
     }
     expect(heldSession.status).toBe("Disputed");
+  });
+});
+
+// ─── Section 8 — the dispute-analytics snapshot (the aggregate admin read) ───
+
+describe("adminDisputeAnalytics — the aggregate snapshot over the live boundary", () => {
+  test("admin caller: the seven honest counts come back as non-negative numbers with an internally-consistent story", async () => {
+    const result = await admin.query({ query: ADMIN_DISPUTE_ANALYTICS_DOC });
+    const payload = payloadOf(result, "adminDisputeAnalytics");
+
+    const countFields = [
+      "openDisputes",
+      "resolvedDisputes",
+      "cancelCount",
+      "completeCount",
+      "refundCount",
+      "partialRefundCount",
+      "upholdCount",
+    ] as const;
+    const counts: Record<string, number> = {};
+    for (const field of countFields) {
+      const value: unknown = payload[field];
+      if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+        throw new Error(`adminDisputeAnalytics.${field} must be a non-negative integer (got ${String(value)})`);
+      }
+      counts[field] = value;
+    }
+
+    // Internal consistency: the outcome buckets partition a subset of the
+    // resolved rows (every arbitrated row stamps exactly one outcome; the
+    // resolved total can exceed the bucket sum only through legacy rows
+    // resolved before the outcome column existed).
+    const bucketSum =
+      counts.cancelCount + counts.completeCount + counts.refundCount + counts.partialRefundCount + counts.upholdCount;
+    expect(bucketSum).toBeLessThanOrEqual(counts.resolvedDisputes);
+  });
+
+  test("the snapshot rides the queue's live scope: after this suite's legs the open count admits this suite's decided rows", async () => {
+    // The suite decided its held-cancel and consumed-refund/uphold legs
+    // above, so the snapshot's resolved total must admit at least the
+    // buckets this suite bumped — a relative read over the shared table,
+    // never a fabricated constant.
+    const result = await admin.query({ query: ADMIN_DISPUTE_ANALYTICS_DOC });
+    const payload = payloadOf(result, "adminDisputeAnalytics");
+    const resolved: unknown = payload.resolvedDisputes;
+    if (typeof resolved !== "number") {
+      throw new Error("resolvedDisputes must be a number");
+    }
+    expect(resolved).toBeGreaterThanOrEqual(1);
   });
 });
