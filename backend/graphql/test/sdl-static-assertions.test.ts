@@ -929,7 +929,7 @@ describe("Session-recitation surface — artifact-side pins", () => {
   });
 });
 
-describe("Student-evaluation surface (extend) — artifact-side pins (REQ-008)", () => {
+describe("Student→teacher rating surface (extend) — write-once mutation, caller-scoped read query, and Evaluation payload pins", () => {
   test("`submitTeacherEvaluation(input: SubmitTeacherEvaluationInput!, sessionId: ID!): Evaluation!`", () => {
     // The live sorted SDL emits args alphabetically — `input` precedes
     // `sessionId` (both NonNull). The write-once rating NEVER returns null:
