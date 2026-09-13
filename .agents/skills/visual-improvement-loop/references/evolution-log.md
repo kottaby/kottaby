@@ -89,3 +89,26 @@ AGENTS.md and `.agents/instructions/` files are hand-curated; runs NEVER update 
 - Repo db CLIs parse their own `--env-file` (must come AFTER the script path; `bun --env-file` itself
   is consumed by bun). Fresh sandboxes need `cp .env.test.ci .env.test`. → plan outcome only
   (repo-specific; not promoted to skill refs).
+
+### 2026-09-13 — parent-read-only-monitoring-portal pass 2 (pglite dev rig)
+- Subagent single-image inspectors are flaky in sandboxed environments: 3/6 calls returned "images
+  are not available in sub-agent context" on files other agents read fine. Fallback per the skill:
+  VLM-CLI inspector mode (`z-ai vision -p <rubric> -i image`, ONE image per call); prototype
+  comparisons work there with two `-i` args (prototype first). → landed: `references/capture-protocol.md`
+  (Reading shots section, updated in this change).
+- Inspector prompts must DECOUPLE "prototype structure delta" from the six scored axes. A rubric
+  that left them coupled produced 6.5-8.5 verdicts dominated by out-of-scope redesign requests
+  ("restore the audio player", "replace cards with a table") on a spec-driven implementation; the
+  decoupled rubric scored the SAME pixels 9.2-10 with zero findings. → landed:
+  `references/prototype-compare.md` + `references/rubric.md` (updated in this change).
+- VLM digit-script claims ("mixed Arabic-Indic vs Latin numerals") are disprovable in one DOM eval:
+  enumerate the digit codepoints over `main.textContent` and `new Set` them. Both claimed
+  mixed-format findings were all-Latin hallucinations. → landed: `references/objective-prechecks.md`
+  manual-eval fallback (updated in this change).
+- "Toast overlaps the title" claims survive repeat passes as zombie findings; a single geometry
+  probe (`.MuiSnackbar-root` rects vs header rect) killed it (no snackbar nodes existed at all).
+  → landed: `references/fix-patterns.md` adjudication row (updated in this change).
+- Sandbox rigs without a Postgres install: `DB_PROVIDER=pglite` + `PGLITE_DATA_DIR` run the FULL
+  dev server + db/service/journey/UI suites green (the db CLI still demands a format-valid
+  DATABASE_URL placeholder). Fixture data dirs copy freely between worktrees while unheld. → plan
+  outcome only (repo-specific; not promoted to skill refs).

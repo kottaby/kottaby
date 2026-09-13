@@ -42,7 +42,7 @@ Screenshots must not be trusted just because `screenshot` exited 0. Verify:
 
 The orchestrator NEVER calls ReadMediaFile on screenshots in its own loop. Images go to isolated inspector subagents; the main context receives text-only verdicts.
 
-**VLM-CLI inspector mode**: when subagent image delivery is unavailable (agent contexts that never receive image payloads), inspectors run via the `z-ai vision` CLI in Bash — one image per call, rubric inlined in the prompt; the orchestrator aggregates text verdicts.
+**VLM-CLI inspector mode**: when subagent image delivery is unavailable, inspectors run via the `z-ai vision` CLI in Bash — one image per call, rubric inlined in the prompt; the orchestrator aggregates text verdicts. Note (2026-09-13): subagent image delivery is FLAKY, not binary — the same files that one agent read fine returned "images are not available in sub-agent context" to 3 of 6 sibling agents. Treat any image-unavailable inspector result as a harness error (re-dispatch via VLM-CLI), never as a page verdict. Prototype comparisons work in VLM-CLI with two `-i` args (prototype first, implementation second).
 
 ## Useful DOM-first verifications (don't need pixels)
 
