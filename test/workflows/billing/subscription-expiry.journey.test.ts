@@ -76,6 +76,7 @@ import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
 import { graphql } from "graphql";
 import { db } from "@/backend/db";
+import { SubscriptionRepository } from "@/backend/db/repo";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
 import { studentSubscriptions } from "@/backend/db/schema/billing/student-subscriptions";
@@ -163,6 +164,31 @@ const tracked = new TrackedFixtures();
  * namespace-bound seam). Restored in `afterAll`.
  */
 const publishSpy = spyOn(NotificationEngine, "publishReceipts").mockImplementation(async () => {});
+
+/**
+ * The expiry-sweep claim scope — the journey's own cast (studentA/studentB),
+ * populated in `beforeAll` once the actor rows exist. The sweep's repository
+ * seam scopes its claimed projections to these users, so the exact
+ * sweep-count assertions (`{ expired: 1, lanesZeroed: 1 }` and the honest
+ * zero replay) stay isolated from unrelated committed due rows any other
+ * own-commit suite may hold in the shared test database.
+ */
+const journeySweepUserIds: number[] = [];
+
+/**
+ * The sweep-scope spy — installed over the same namespace-bound repository
+ * seam the sweep claims through (the `publishSpy` pattern). The REAL guarded
+ * flip still runs — locks, the production transaction path, and the
+ * claim-and-settle semantics stay fully exercised — only the returned
+ * projections are filtered to `journeySweepUserIds`. Restored in `afterAll`.
+ */
+const originalExpireDueActive = SubscriptionRepository.expireDueActive;
+const sweepScopeSpy = spyOn(SubscriptionRepository, "expireDueActive").mockImplementation(
+  async (now: Date, tx?: DBTransaction) => {
+    const claimed = await originalExpireDueActive(now, tx);
+    return claimed.filter(row => journeySweepUserIds.includes(row.userId));
+  }
+);
 
 /** Ledger rows created by the services during the journey (teardown worklist). */
 const ledgerPaymentIds: number[] = [];
@@ -429,10 +455,14 @@ beforeAll(async () => {
     });
     tracked.register(plans, planRow.id);
   });
+
+  // The sweep scope: the journey's own cast (see `sweepScopeSpy`).
+  journeySweepUserIds.push(studentA.userId, studentB.userId);
 });
 
 afterAll(async () => {
   publishSpy.mockRestore();
+  sweepScopeSpy.mockRestore();
   // Immutable-ledger teardown leg FIRST: the append-only trigger blocks a
   // plain DELETE, so the sanctioned suspension wraps exactly this leg.
   if (ledgerPaymentIds.length > 0) {

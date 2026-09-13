@@ -47,9 +47,7 @@
  * transaction stays usable, which is what the atomicity probe asserts.
  */
 
-import { inArray } from "drizzle-orm";
-import { StudentRepository, SubscriptionRepository } from "@/backend/db/repo";
-import { plans } from "@/backend/db/schema/billing/plans";
+import { PlanRepository, StudentRepository, SubscriptionRepository } from "@/backend/db/repo";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { logger } from "@/backend/lib/logger";
@@ -174,13 +172,10 @@ export namespace SubscriptionExpiryService {
         return { expired: 0, lanesZeroed: 0 };
       }
 
-      // ONE batched plan read for the whole cohort — a dynamic `inArray`
-      // query on the sweep's transaction (never per-row reads, never a
-      // prepared statement: the pg protocol cannot expand arrays).
-      const planRows = await tx
-        .select({ id: plans.id, balanceLane: plans.balanceLane })
-        .from(plans)
-        .where(inArray(plans.id, [...new Set(due.map(row => row.planId))]));
+      // ONE batched plan read for the whole cohort — the repository-layer
+      // `inArray` read on the sweep's transaction (never per-row reads,
+      // never a prepared statement: the pg protocol cannot expand arrays).
+      const planRows = await PlanRepository.findBalanceLanesByIds([...new Set(due.map(row => row.planId))], tx);
       const storedLaneByPlanId = new Map<number, PlanSelectType["balanceLane"]>(
         planRows.map(row => [row.id, row.balanceLane])
       );

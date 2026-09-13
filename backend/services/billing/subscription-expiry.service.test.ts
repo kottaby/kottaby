@@ -57,7 +57,7 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/backend/db";
-import { StudentRepository } from "@/backend/db/repo";
+import { StudentRepository, SubscriptionRepository } from "@/backend/db/repo";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { students } from "@/backend/db/schema/students/students";
@@ -195,10 +195,35 @@ function spyZeroLaneCallThrough(): ReturnType<typeof spyOn> {
   return spy;
 }
 
+/**
+ * Scopes the sweep's repository claim seam to the test's fixture users —
+ * the REAL guarded flip still runs (the query, its row locks, and the
+ * rollback semantics stay fully exercised), but the claimed projections
+ * are filtered to the fixture owners before the service settles them, so
+ * the exact sweep-count assertions are isolated from unrelated committed
+ * due rows (own-commit suites on the same shared test database may hold
+ * due rows this file never created). An empty scope short-circuits to an
+ * empty claim set without touching the database — the hermetic
+ * empty-cohort stub. Restored per test via the tracked-spy `afterEach`.
+ */
+function scopeSweepToUsers(userIds: readonly number[]): ReturnType<typeof spyOn> {
+  const original = SubscriptionRepository.expireDueActive;
+  const spy = trackSpy(spyOn(SubscriptionRepository, "expireDueActive"));
+  spy.mockImplementation(async (now: Date, tx?: DBTransaction) => {
+    if (userIds.length === 0) {
+      return [];
+    }
+    const claimed = await original(now, tx);
+    return claimed.filter(row => userIds.includes(row.userId));
+  });
+  return spy;
+}
+
 describe("SubscriptionExpiryService — sweep branches (Tier 1)", () => {
   test("empty cohort: honest zero counts, no error noise", async () => {
     await runInRollback(async tx => {
       const errorSpy = trackSpy(spyOn(logger, "error"));
+      scopeSweepToUsers([]);
 
       const sweep = await SubscriptionExpiryService.expireDue(tx);
 
@@ -213,6 +238,7 @@ describe("SubscriptionExpiryService — sweep branches (Tier 1)", () => {
       const { user, student, plan } = await createLaneSubscriber(tx, null, { balanceHifz: 2, balanceTrial: 4 });
       const past = await createPastWindowActive(tx, user.id, plan.id, now, 30);
       const warnSpy = trackSpy(spyOn(logger, "warn"));
+      scopeSweepToUsers([user.id]);
 
       const sweep = await SubscriptionExpiryService.expireDue(tx);
 
@@ -240,6 +266,7 @@ describe("SubscriptionExpiryService — sweep branches (Tier 1)", () => {
       const first = await createPastWindowActive(tx, user.id, plan.id, now, 30);
       const second = await createPastWindowActive(tx, user.id, secondPlan.id, now, 10);
       const zeroSpy = spyZeroLaneCallThrough();
+      scopeSweepToUsers([user.id]);
 
       const sweep = await SubscriptionExpiryService.expireDue(tx);
 
@@ -286,6 +313,7 @@ describe("SubscriptionExpiryService — sweep branches (Tier 1)", () => {
       const subscriberC = await createLaneSubscriber(tx, SubscriptionCreditLane.Tajweed, { balanceTajweed: 5 });
       const expiredC = await createPastWindowActive(tx, subscriberC.user.id, subscriberC.plan.id, now, 20);
 
+      scopeSweepToUsers([subscriberA.user.id, subscriberB.user.id, subscriberC.user.id]);
       const sweep = await SubscriptionExpiryService.expireDue(tx);
 
       expect(sweep).toEqual({ expired: 3, lanesZeroed: 2 });
@@ -329,6 +357,7 @@ describe("SubscriptionExpiryService — window boundary (Tier 2)", () => {
         endDate: new Date(now.getTime() + 60 * 60 * 1000),
       });
 
+      scopeSweepToUsers([user.id]);
       const sweep = await SubscriptionExpiryService.expireDue(tx);
 
       expect(sweep).toEqual({ expired: 1, lanesZeroed: 1 });
@@ -358,6 +387,7 @@ describe("SubscriptionExpiryService — atomicity (Tier 3: rollback probe)", () 
         }
         return original(studentId, lane, innerTx);
       });
+      scopeSweepToUsers([subscriberA.user.id, subscriberB.user.id]);
 
       const caught = await expectSweepFailure(() => SubscriptionExpiryService.expireDue(tx));
 
@@ -403,6 +433,7 @@ describe("SubscriptionExpiryService — true concurrency (Tier 3: independent tr
       });
 
       try {
+        scopeSweepToUsers([fixture.userA, fixture.userB]);
         const attempts = await Promise.allSettled([
           SubscriptionExpiryService.expireDue(),
           SubscriptionExpiryService.expireDue(),
@@ -461,6 +492,7 @@ describe("SubscriptionExpiryService — true concurrency (Tier 3: independent tr
       });
 
       try {
+        scopeSweepToUsers([fixture.user]);
         const [sweepOutcome, debitOutcome] = await Promise.allSettled([
           SubscriptionExpiryService.expireDue(),
           StudentRepository.decrementLaneIfAvailable(fixture.student, HeldBalanceLane.Hifz),
