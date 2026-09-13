@@ -675,10 +675,21 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
     expect(pending.startDate).toBeNull();
     expect(pending.endDate).toBeNull();
 
-    // Zero credit, zero notification, zero publish for the failed leg.
+    // Zero credit; the failure leg persists + publishes ONE failure
+    // notification (the failed copy pair) to Student A.
     expect(await readBalances(studentA.userId)).toEqual(balancesBefore);
-    expect(await inboxCount(studentA.userId)).toBe(1);
-    expect(publishSpy.mock.calls).toHaveLength(1);
+    expect(await inboxCount(studentA.userId)).toBe(2);
+    expect(publishSpy.mock.calls).toHaveLength(2);
+    const failureNotifs = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.relatedEntityId, result.subscription.id));
+    expect(failureNotifs).toHaveLength(1);
+    if (failureNotifs[0]) {
+      tracked.register(notifications, failureNotifs[0].id);
+      expect(failureNotifs[0].type).toBe(NotificationType.PaymentConfirmation);
+      expect(failureNotifs[0].userId).toBe(studentA.userId);
+    }
 
     // The committed pending set grew by exactly the new pair.
     const countsAfter = await pendingSetCounts(studentA.userId);
@@ -758,8 +769,8 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
     // Zero mutation anywhere: pending set, balances, inbox, publishes.
     expect(await pendingSetCounts(studentA.userId)).toEqual(ownerCounts);
     expect(await readBalances(studentA.userId)).toEqual(balancesBefore);
-    expect(await inboxCount(studentA.userId)).toBe(1);
-    expect(publishSpy.mock.calls).toHaveLength(1);
+    expect(await inboxCount(studentA.userId)).toBe(2);
+    expect(publishSpy.mock.calls).toHaveLength(2);
   });
 
   test("step 11 — Student A: purchase on the seeded Reviews-lane plan + confirmed event → balance_reviews credited exactly", async () => {
@@ -824,10 +835,11 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       claims: countsBefore.claims + 1,
     });
 
-    // ONE more persisted notification (student A's inbox now holds two) and
-    // ONE more post-commit publish — the confirmation fan-out targets the
-    // purchaser only, exactly like step 3's.
-    expect(await inboxCount(studentA.userId)).toBe(2);
+    // ONE more persisted notification (student A's inbox now holds three:
+    // the step-3 confirmation, the step-6 failure copy, this confirmation)
+    // and ONE more post-commit publish — the confirmation fan-out targets
+    // the purchaser only, exactly like step 3's.
+    expect(await inboxCount(studentA.userId)).toBe(3);
     const reviewsNotifs = await db
       .select()
       .from(notifications)
@@ -838,6 +850,6 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       expect(reviewsNotifs[0].type).toBe(NotificationType.PaymentConfirmation);
       expect(reviewsNotifs[0].userId).toBe(studentA.userId);
     }
-    expect(publishSpy.mock.calls).toHaveLength(2);
+    expect(publishSpy.mock.calls).toHaveLength(3);
   });
 });
