@@ -15,7 +15,7 @@
  * every session surface emits the same two denial shapes.
  *
  * Financial legs:
- *  - the teacher reversal is the compensating ledger row: one `withdrawal`
+ *  - the teacher reversal is the compensating ledger row: one `arbitration_reversal`
  *    ledger row keyed to the session, plus the guarded balance decrement,
  *    on the caller's transaction — a `null` from the guarded debit means
  *    insufficient funds, which fails the whole arbitration (zero financial
@@ -250,7 +250,7 @@ export async function creditLaneForArbitration(
  * The teacher reversal leg on the caller's transaction: the wallet row is
  * ensured (the credit slice's idempotent writer — a teacher credited by
  * the dual confirmation already has one), then ONE compensating
- * `withdrawal` ledger row keyed to the session plus the guarded balance
+ * `arbitration_reversal` ledger row keyed to the session plus the guarded balance
  * decrement. A `null` from the guarded debit means insufficient funds:
  * the typed conflict fails the whole arbitration transaction, so the
  * compensating row, the debit, the session flip, and the lane credit all

@@ -195,7 +195,7 @@ export namespace WalletRepository {
   /**
    * The arbitration reversal debit slice (the consumed-dispute outcomes'
    * teacher leg), on the caller's transaction: inserts ONE `completed`
-   * `withdrawal` ledger row — the compensating record, keyed to the
+   * `arbitration_reversal` ledger row — the compensating record, keyed to the
    * disputed session through the ledger's session FK so the reversal stays
    * traceable end to end — and debits the wallet `balance` by exactly
    * `amount` via the shared guarded UPDATE (the funds guard lives in the
@@ -228,7 +228,7 @@ export namespace WalletRepository {
         sessionId: insert.sessionId,
         description: insert.description,
         amount: insert.amount,
-        type: TransactionType.Withdrawal,
+        type: TransactionType.ArbitrationReversal,
         status: TransactionStatus.Completed,
       })
       .returning();

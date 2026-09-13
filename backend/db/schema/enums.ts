@@ -28,7 +28,13 @@ export const sessionIntent = pgEnum("session_intent", ["hifz", "tajweed", "evalu
 
 export const paymentStatus = pgEnum("payment_status", ["pending", "paid", "failed", "refunded"]);
 
-export const transactionType = pgEnum("transaction_type", ["earning", "withdrawal", "bonus"]);
+/**
+ * Ledger entry vocabulary. `arbitration_reversal` is the compensating
+ * teacher-side clawback written when an admin arbitrates a dispute with a
+ * refund outcome — it is NOT a withdrawal (no payout request, different
+ * provenance: the arbitration service is the only writer).
+ */
+export const transactionType = pgEnum("transaction_type", ["earning", "withdrawal", "bonus", "arbitration_reversal"]);
 
 export const transactionStatus = pgEnum("transaction_status", ["pending", "completed", "failed"]);
 

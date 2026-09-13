@@ -1,7 +1,7 @@
 /**
  * WalletRepository tests — the `debitForArbitrationOnce` reversal slice
  * (the consumed-dispute outcomes' teacher leg) against the live PostgreSQL
- * instance: the completed `withdrawal` compensating ledger row and the
+ * instance: the completed `arbitration_reversal` compensating ledger row and the
  * guarded `balance` debit, on one caller transaction.
  *
  * Per `backend/db/test/AGENTS.md`:
@@ -21,7 +21,7 @@
  *
  * Coverage map:
  *  - Tier 1 (branch/stmt): the hit branch inserts the compensating row
- *    (`withdrawal` + `completed`, keyed to the disputed session) and
+ *    (`arbitration_reversal` + `completed`, keyed to the disputed session) and
  *    debits `balance` by exactly the amount; the miss branch (insufficient
  *    funds) returns `null` and leaves the balance untouched; the caller's
  *    denial throw rolls the compensating row back with the transaction —
@@ -155,7 +155,7 @@ describe("WalletRepository.debitForArbitrationOnce — transactional paths (runI
       expect(ledger?.sessionId).toBe(sessionRow.id);
       expect(ledger?.amount).toBe("15.99");
       expect(ledger?.description).toBe(description);
-      expect(ledger?.type).toBe(TransactionType.Withdrawal);
+      expect(ledger?.type).toBe(TransactionType.ArbitrationReversal);
       expect(ledger?.status).toBe(TransactionStatus.Completed);
       expect(ledger?.createdAt).not.toBeNull();
 
@@ -380,7 +380,13 @@ describe("WalletRepository.debitForArbitrationOnce — transactional paths (runI
       expect(rows.map(row => row.description).toSorted((a, b) => (a ?? "").localeCompare(b ?? ""))).toEqual(
         ["arbitration", "withdrawal"].toSorted((a, b) => a.localeCompare(b))
       );
-      expect(rows.map(row => row.type)).toEqual([TransactionType.Withdrawal, TransactionType.Withdrawal]);
+      // Both slices always INSERT a ledger row (each insert precedes its
+      // own guarded debit; the loser's row would be rolled back by the real
+      // service's throw, but this raw race keeps it) — so the ledger pins
+      // ONE row per type, order-agnostic across the race's outcome.
+      expect(rows.map(row => row.type).toSorted()).toEqual(
+        [TransactionType.ArbitrationReversal, TransactionType.Withdrawal].toSorted()
+      );
     });
   });
 
@@ -471,7 +477,7 @@ describe("WalletRepository.debitForArbitrationOnce — standalone executor path 
 
     expect(ledger).not.toBeNull();
     committedTeacherTransactionIds.push(ledger?.id ?? 0);
-    expect(ledger?.type).toBe(TransactionType.Withdrawal);
+    expect(ledger?.type).toBe(TransactionType.ArbitrationReversal);
     expect(ledger?.status).toBe(TransactionStatus.Completed);
     expect(ledger?.sessionId).toBe(fixture.sessionRow.id);
     expect(ledger?.amount).toBe("25.00");

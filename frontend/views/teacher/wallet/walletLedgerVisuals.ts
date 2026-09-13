@@ -8,6 +8,7 @@
 import AddCircleOutlineOutlinedIcon from "@mui/icons-material/AddCircleOutlineOutlined";
 import ArrowOutwardOutlinedIcon from "@mui/icons-material/ArrowOutwardOutlined";
 import CardGiftcardOutlinedIcon from "@mui/icons-material/CardGiftcardOutlined";
+import GavelOutlinedIcon from "@mui/icons-material/GavelOutlined";
 import type { Palette } from "@mui/material/styles";
 import {
   type MyWalletQuery_myWallet_transactions,
@@ -28,6 +29,11 @@ export function ledgerRowVisual(type: MyWalletQuery_myWallet_transactions["type"
       return { Icon: ArrowOutwardOutlinedIcon, color: "error" };
     case WireTransactionType.Bonus:
       return { Icon: CardGiftcardOutlinedIcon, color: "info" };
+    case WireTransactionType.ArbitrationReversal:
+      // The arbitration clawback carries the gavel: a decided dispute, not
+      // a self-initiated payout — the icon disambiguates it from
+      // `Withdrawal` at a glance in the ledger list.
+      return { Icon: GavelOutlinedIcon, color: "error" };
   }
   const exhaustive: never = type;
   throw new Error(`Unexpected transaction type: ${String(exhaustive)}`);
@@ -51,7 +57,8 @@ export function ledgerStatusColor(
 
 /** Signed ledger amount — a string PREFIX for display only (never math). */
 export function signedAmount(row: MyWalletQuery_myWallet_transactions): string {
-  return row.type === WireTransactionType.Withdrawal ? `-${row.amount}` : `+${row.amount}`;
+  const isDebit = row.type === WireTransactionType.Withdrawal || row.type === WireTransactionType.ArbitrationReversal;
+  return isDebit ? `-${row.amount}` : `+${row.amount}`;
 }
 
 /**
@@ -66,6 +73,8 @@ export function amountTone(type: MyWalletQuery_myWallet_transactions["type"], pa
       return palette.error.main;
     case WireTransactionType.Bonus:
       return palette.info.main;
+    case WireTransactionType.ArbitrationReversal:
+      return palette.error.main;
   }
   const exhaustive: never = type;
   throw new Error(`Unexpected transaction type: ${String(exhaustive)}`);
@@ -86,6 +95,8 @@ export function avatarTone(
       return { bgcolor: palette.errorContainer, color: palette.onErrorContainer };
     case WireTransactionType.Bonus:
       return { bgcolor: palette.surfaceContainerHighest, color: palette.onSurfaceVariant };
+    case WireTransactionType.ArbitrationReversal:
+      return { bgcolor: palette.errorContainer, color: palette.onErrorContainer };
   }
   const exhaustive: never = type;
   throw new Error(`Unexpected transaction type: ${String(exhaustive)}`);
@@ -100,6 +111,8 @@ export function ledgerTypeLabel(type: MyWalletQuery_myWallet_transactions["type"
       return t.typeWithdrawal;
     case WireTransactionType.Bonus:
       return t.typeBonus;
+    case WireTransactionType.ArbitrationReversal:
+      return t.typeArbitrationReversal;
   }
   const exhaustive: never = type;
   throw new Error(`Unexpected transaction type: ${String(exhaustive)}`);

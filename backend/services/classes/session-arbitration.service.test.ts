@@ -20,7 +20,7 @@
  *    double-submit conflict; the arbitration flow's probe chain (unknown
  *    id, non-disputed row, held-family row) with both classification
  *    directions; the three outcomes' exact financial legs (compensating
- *    `withdrawal` ledger row + guarded debit, the single quantized lane
+ *    `arbitration_reversal` ledger row + guarded debit, the single quantized lane
  *    credit, the uphold's zero-write branch, the never-held null-lane
  *    branch); the amount policy's every denial arm; the audit contract's
  *    per-outcome details shape; the case bundle's composition and its
@@ -463,7 +463,7 @@ describe("SessionArbitrationService — post-confirmation dispute open (runInRol
 // ─── Tier 1/2: the three arbitration outcomes ────────────────────────────
 
 describe("SessionArbitrationService — arbitration outcomes (runInRollback)", () => {
-  test("Refund: compensating withdrawal ledger row + guarded full-fee debit + exactly one lane credit + exactly one audit row", async () => {
+  test("Refund: compensating arbitration-reversal ledger row + guarded full-fee debit + exactly one lane credit + exactly one audit row", async () => {
     await runInRollback(async tx => {
       const actors = await createArbitrationActors(tx);
       const admin = await createTestUser(tx, { role: "admin" });
@@ -487,7 +487,7 @@ describe("SessionArbitrationService — arbitration outcomes (runInRollback)", (
       expect(resolved.resolvedAt).not.toBeNull();
       expect(resolved.resolutionNote).toBeNull();
 
-      // The teacher leg: the compensating withdrawal row keyed to the
+      // The teacher leg: the compensating arbitration-reversal row keyed to the
       // session, the balance debited to exactly zero, `total_earning`
       // untouched by the reversal.
       const walletRow = await readTeacherWallet(tx, actors.teacherUserId);
@@ -495,7 +495,7 @@ describe("SessionArbitrationService — arbitration outcomes (runInRollback)", (
       expect(walletRow?.totalEarning).toBe("10.00");
       const ledger = await readLedger(tx, funded.id);
       expect(ledger).toHaveLength(1);
-      expect(ledger[0]?.type).toBe(TransactionType.Withdrawal);
+      expect(ledger[0]?.type).toBe(TransactionType.ArbitrationReversal);
       expect(ledger[0]?.status).toBe(TransactionStatus.Completed);
       expect(ledger[0]?.sessionId).toBe(row.id);
       expect(ledger[0]?.amount).toBe("10.00");

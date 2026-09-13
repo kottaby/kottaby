@@ -332,6 +332,7 @@ export enum TransactionStatus {
 }
 
 export enum TransactionType {
+  ArbitrationReversal = 'ArbitrationReversal',
   Bonus = 'Bonus',
   Earning = 'Earning',
   Withdrawal = 'Withdrawal'

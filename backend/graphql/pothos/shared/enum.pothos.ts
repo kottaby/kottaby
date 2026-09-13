@@ -167,7 +167,7 @@ export const SessionIntentPothosEnum = gqlSchemaBuilder.enumType(SessionIntent, 
 });
 
 /**
- * GraphQL `TransactionType` enum (earning|withdrawal|bonus) — the
+ * GraphQL `TransactionType` enum (earning|withdrawal|bonus|arbitration_reversal) — the
  * `teacher_transaction` ledger vocabulary.
  *
  * Registered ONCE from the canonical TS enum
