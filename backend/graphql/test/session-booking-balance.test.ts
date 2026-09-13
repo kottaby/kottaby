@@ -283,7 +283,7 @@ describe("createSession — denied-payload security probe", () => {
     for (const rawError of combined.errors) {
       expect(Object.keys(rawError).every(key => ALLOWED_ERROR_KEYS.has(key))).toBe(true);
       if (rawError.extensions !== undefined) {
-        expect([...Object.keys(rawError.extensions)].sort()).toEqual(["code", "requestId"]);
+        expect(Object.keys(rawError.extensions).toSorted((a, b) => a.localeCompare(b))).toEqual(["code", "requestId"]);
       }
     }
     const wireBody: unknown = JSON.parse(JSON.stringify(combined)) ?? combined;
