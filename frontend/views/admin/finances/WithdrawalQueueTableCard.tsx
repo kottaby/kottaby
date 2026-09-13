@@ -56,12 +56,16 @@ export function WithdrawalTableCard({
       <Table sx={{ tableLayout: "fixed" }} aria-label={t.withdrawalsTab}>
         <TableHead>
           <TableRow sx={theme => ({ bgcolor: theme.palette.surfaceContainerHigh })}>
-            <DirectoryHeaderCell width="24%">{t.teacherHeader}</DirectoryHeaderCell>
-            <DirectoryHeaderCell width="16%">{t.amountHeader}</DirectoryHeaderCell>
-            <DirectoryHeaderCell width="16%">{t.walletBalanceHeader}</DirectoryHeaderCell>
-            <DirectoryHeaderCell width="16%">{t.requestedAtHeader}</DirectoryHeaderCell>
+            <DirectoryHeaderCell width="22%">{t.teacherHeader}</DirectoryHeaderCell>
+            <DirectoryHeaderCell width="15%" align="end">
+              {t.amountHeader}
+            </DirectoryHeaderCell>
+            <DirectoryHeaderCell width="15%" align="end">
+              {t.walletBalanceHeader}
+            </DirectoryHeaderCell>
+            <DirectoryHeaderCell width="15%">{t.requestedAtHeader}</DirectoryHeaderCell>
             <DirectoryHeaderCell width="13%">{t.statusHeader}</DirectoryHeaderCell>
-            <DirectoryHeaderCell width="15%">{t.approveAction}</DirectoryHeaderCell>
+            <DirectoryHeaderCell width="20%">{t.actionsHeader}</DirectoryHeaderCell>
           </TableRow>
         </TableHead>
         <TableBody aria-label={loading && items.length === 0 ? t.loadingLabel : undefined}>

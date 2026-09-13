@@ -34,7 +34,7 @@ export interface AppliedWalletFilters {
 }
 
 /** The unfiltered wallet-transaction state. */
-export const NO_WALLET_FILTERS: AppliedWalletFilters = {
+const NO_WALLET_FILTERS: AppliedWalletFilters = {
   type: null,
   status: null,
   from: null,
@@ -99,8 +99,7 @@ export function useAdminTeacherWallet(
   // total. The null-pair `balance`/`totalEarning` means no wallet row yet —
   // forwarded VERBATIM (never fake zeros).
   const pageData =
-    data ??
-    (previousData && previousData.adminTeacherWallet.teacherId === variables.teacherId ? previousData : undefined);
+    data ?? (previousData?.adminTeacherWallet.teacherId === String(variables.teacherId) ? previousData : undefined);
   const wallet = pageData?.adminTeacherWallet ?? null;
   const hasError = Boolean(error);
 

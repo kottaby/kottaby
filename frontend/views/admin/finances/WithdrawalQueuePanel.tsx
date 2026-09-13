@@ -24,7 +24,7 @@
  * discipline, theme-palette colors, `*Outlined` icons.
  */
 
-import { Stack, Typography } from "@mui/material";
+import { Stack } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import { NoticeSnackbar } from "@/frontend/components/ui/NoticeSnackbar";
 import type { AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items } from "@/frontend/graphql/generated/gql/graphql";
@@ -134,12 +134,6 @@ export function WithdrawalQueuePanel(): ReactNode {
 
   return (
     <Stack spacing={3} data-testid="admin-finances-withdrawals-panel">
-      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
-          {t.pendingWithdrawalsCount(queue.totalCount)}
-        </Typography>
-      </Stack>
-
       <WithdrawalQueueStatusBody
         queue={queue}
         locale={locale}

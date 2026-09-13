@@ -50,7 +50,7 @@ export function PaymentsTableCard({
 }>): ReactNode {
   const headers: readonly DirectoryTableHeader[] = [
     { id: "student", width: "30%", label: labels.studentHeader },
-    { id: "amount", width: "15%", label: labels.amountHeader },
+    { id: "amount", width: "15%", label: labels.amountHeader, align: "end" },
     { id: "currency", width: "11%", label: labels.currencyHeader },
     { id: "gateway", width: "16%", label: labels.gatewayHeader },
     { id: "status", width: "13%", label: labels.statusHeader },
@@ -63,7 +63,7 @@ export function PaymentsTableCard({
           <TableHead>
             <TableRow sx={theme => ({ bgcolor: theme.palette.surfaceContainerHigh })}>
               {headers.map(header => (
-                <DirectoryHeaderCell key={header.id} width={header.width}>
+                <DirectoryHeaderCell key={header.id} width={header.width} align={header.align}>
                   {header.label}
                 </DirectoryHeaderCell>
               ))}

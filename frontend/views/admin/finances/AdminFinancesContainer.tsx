@@ -124,6 +124,11 @@ export function AdminFinancesContainer(): ReactNode {
           onChange={(_, value: FinancesTab) => {
             setActiveTab(value);
           }}
+          // Scrollable (not fullWidth): the three labels overflow 390px
+          // viewports; scrollable keeps desktop identical and lets narrow
+          // screens pan the strip instead of bleeding past the viewport.
+          variant="scrollable"
+          scrollButtons={false}
           aria-label={t.title}
           sx={theme => ({ paddingInline: 2, borderBottom: `1px solid ${theme.palette.border.light}` })}
         >

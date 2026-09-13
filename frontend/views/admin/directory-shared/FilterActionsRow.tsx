@@ -44,7 +44,7 @@ export function FilterActionsRow({
     <Stack
       sx={{
         flexDirection: { xs: "column", sm: "row" },
-        gap: 1.5,
+        gap: 2,
         gridColumn: "1 / -1",
         justifyContent: "flex-end",
         alignItems: { xs: "stretch", sm: "center" },

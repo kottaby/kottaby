@@ -9,6 +9,8 @@ export const adminFinanceAr: AdminFinanceLabels = {
   withdrawalsTab: "السحوبات",
   walletInspectorTab: "فاحص المحافظ",
   studentSearchLabel: "بحث عن طالب",
+  studentSearchPlaceholder: "ابحث باسم الطالب",
+  filtersTitle: "التصفية",
   statusFilterLabel: "الحالة",
   gatewayFilterLabel: "بوابة الدفع",
   dateFromLabel: "من",
@@ -41,6 +43,7 @@ export const adminFinanceAr: AdminFinanceLabels = {
   },
   approveAction: "اعتماد",
   rejectAction: "رفض",
+  actionsHeader: "الإجراءات",
   statusPending: "معلق",
   statusCompleted: "مكتمل",
   statusFailed: "فاشل",
@@ -86,4 +89,5 @@ export const adminFinanceAr: AdminFinanceLabels = {
   paymentsEmpty: "لا توجد مدفوعات تطابق عوامل التصفية الحالية.",
   withdrawalsEmpty: "لا توجد طلبات سحب معلقة.",
   inspectorEmpty: "لا توجد حركات محفظة للعرض.",
+  walletEmptyHint: "اختر معلماً من الأعلى لعرض رصيده وأحدث حركاته.",
 };

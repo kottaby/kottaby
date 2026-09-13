@@ -2,21 +2,29 @@
  * walletLedgerDisplay — the ledger entry type/status → tonal-lane +
  * localized-label mappings of the admin wallet inspector's transaction
  * ledger (`/admin/finances`, wallet tab): mapped lookups over the
- * canonical `TransactionType` / `TransactionStatus` wire values; unknown
- * wire values render VERBATIM (honest fallback — the ledger is a display
- * projection, never a lifecycle authority).
+ * canonical capitalized `TransactionType` / `TransactionStatus` wire
+ * values; unknown wire values render VERBATIM (honest fallback — the
+ * ledger is a display projection, never a lifecycle authority).
  */
 
 import type { DirectoryTone } from "@/frontend/views/admin/users/utils";
 import type { AdminFinanceLabels } from "@/shared/locale/types/adminFinance";
 
-/** Ledger entry type → tonal lane (withdrawal = warning, bonus = success, earning = primary). */
+/**
+ * Ledger entry type → tonal lane over the canonical capitalized
+ * `TransactionType` wire values (Withdrawal = secondary copper, Bonus =
+ * neutral surface pair, Earning = primary blue) — lanes chosen to stay
+ * DISTINCT from the status lanes (success/warning/error) and from each
+ * other; unknown wire values fall to primary.
+ */
 export function ledgerTypeTone(type: string): DirectoryTone {
   switch (type) {
-    case "withdrawal":
-      return "warning";
-    case "bonus":
-      return "success";
+    case "Withdrawal":
+      return "secondary";
+    case "Bonus":
+      return "neutral";
+    case "Earning":
+      return "primary";
     default:
       return "primary";
   }
@@ -24,28 +32,35 @@ export function ledgerTypeTone(type: string): DirectoryTone {
 
 /**
  * Localized ledger entry-type label — mapped lookup over the canonical
- * `TransactionType` wire values; any unknown wire value renders VERBATIM.
+ * capitalized `TransactionType` wire values; any unknown wire value
+ * renders VERBATIM.
  */
 export function ledgerTypeLabel(type: string, labels: AdminFinanceLabels): string {
   switch (type) {
-    case "earning":
+    case "Earning":
       return labels.typeEarning;
-    case "bonus":
+    case "Bonus":
       return labels.typeBonus;
-    case "withdrawal":
+    case "Withdrawal":
       return labels.typeWithdrawal;
     default:
       return type;
   }
 }
 
-/** Ledger entry status → tonal lane (pending = warning, completed = success, failed = error). */
+/**
+ * Ledger entry status → tonal lane over the canonical capitalized
+ * `TransactionStatus` wire values (Pending = warning, Completed = success,
+ * Failed = error); unknown wire values fall to error.
+ */
 export function ledgerStatusTone(status: string): DirectoryTone {
   switch (status) {
-    case "pending":
+    case "Pending":
       return "warning";
-    case "completed":
+    case "Completed":
       return "success";
+    case "Failed":
+      return "error";
     default:
       return "error";
   }
@@ -53,15 +68,16 @@ export function ledgerStatusTone(status: string): DirectoryTone {
 
 /**
  * Localized ledger entry-status label — mapped lookup over the canonical
- * `TransactionStatus` wire values; any unknown wire value renders VERBATIM.
+ * capitalized `TransactionStatus` wire values; any unknown wire value
+ * renders VERBATIM.
  */
 export function ledgerStatusLabel(status: string, labels: AdminFinanceLabels): string {
   switch (status) {
-    case "pending":
+    case "Pending":
       return labels.statusPending;
-    case "completed":
+    case "Completed":
       return labels.statusCompleted;
-    case "failed":
+    case "Failed":
       return labels.statusFailed;
     default:
       return status;

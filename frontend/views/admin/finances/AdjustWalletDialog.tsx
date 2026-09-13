@@ -115,7 +115,13 @@ export function AdjustWalletDialog({
         />
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-        <Button onClick={onClose} disabled={loading} sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}>
+        <Button
+          onClick={onClose}
+          disabled={loading}
+          variant="outlined"
+          color="inherit"
+          sx={{ minHeight: { xs: 44, sm: 40 }, px: 3, whiteSpace: "nowrap" }}
+        >
           {tc.cancel}
         </Button>
         <Button
@@ -123,7 +129,7 @@ export function AdjustWalletDialog({
           variant="contained"
           disabled={loading || drafts.amount.trim() === "" || drafts.reason.trim() === ""}
           data-testid={submitTestId}
-          sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
+          sx={{ minHeight: { xs: 44, sm: 40 }, px: 3, whiteSpace: "nowrap" }}
         >
           {t.adjustSubmit}
         </Button>

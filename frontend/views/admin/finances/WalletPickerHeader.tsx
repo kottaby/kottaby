@@ -38,7 +38,7 @@ export function WalletPickerHeader({
   return (
     <Stack
       direction={{ xs: "column", sm: "row" }}
-      sx={{ gap: 2, alignItems: { sm: "flex-end" }, justifyContent: "space-between" }}
+      sx={{ gap: 2, alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between" }}
     >
       <Autocomplete
         fullWidth
@@ -54,19 +54,30 @@ export function WalletPickerHeader({
             label={t.teacherPickerLabel}
             placeholder={t.teacherPickerPlaceholder}
             data-testid="admin-finances-teacher-picker"
+            // Merge (not replace) params.slotProps — the autocomplete's
+            // endAdornment (popup chevron + clear affordance) lives there;
+            // a bare slotProps prop would silently drop it.
             slotProps={{
+              ...params.slotProps,
               htmlInput: { ...params.slotProps?.htmlInput, "aria-label": t.teacherPickerLabel },
             }}
           />
         )}
-        sx={{ maxWidth: { sm: 480 } }}
+        sx={{
+          maxWidth: { sm: 480 },
+          // Popup indicator inherits action.active (dim on dark surfaces) —
+          // lift it so the field reads as a picker, not a text input.
+          "& .MuiAutocomplete-popupIndicator": {
+            color: theme => theme.palette.text.primary,
+          },
+        }}
       />
       <Button
-        variant="outlined"
+        variant="contained"
         disabled={adjustDisabled}
         onClick={onAdjustOpen}
         data-testid="admin-finances-adjust-open"
-        sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
+        sx={{ minHeight: { xs: 44, sm: 40 }, px: 3, whiteSpace: "nowrap" }}
       >
         {t.adjustDialogTitle}
       </Button>

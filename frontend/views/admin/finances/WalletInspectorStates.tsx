@@ -33,7 +33,11 @@ export function WalletDeniedNotice(): ReactNode {
   );
 }
 
-/** The unpicked-teacher empty state — the picker seeds from the deep link. */
+/**
+ * The unpicked-teacher empty state — the picker seeds from the deep link.
+ * The panel reserves the ledger's vertical footprint, so the card fills it
+ * with a min-height and centers the icon + copy (no dead band below).
+ */
 export function WalletEmptyState(): ReactNode {
   const t = useAppTranslation(AdminFinance);
 
@@ -45,10 +49,13 @@ export function WalletEmptyState(): ReactNode {
         boxShadow: theme.palette.shadow.card,
       })}
     >
-      <Stack spacing={1} sx={{ alignItems: "center", py: 6 }}>
+      <Stack spacing={1.5} sx={{ alignItems: "center", justifyContent: "center", py: 6, px: 3, minHeight: 320 }}>
         <WalletIcon sx={theme => ({ fontSize: 48, color: theme.palette.text.secondary })} />
         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
           {t.teacherPickerPlaceholder}
+        </Typography>
+        <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
+          {t.walletEmptyHint}
         </Typography>
       </Stack>
     </Card>

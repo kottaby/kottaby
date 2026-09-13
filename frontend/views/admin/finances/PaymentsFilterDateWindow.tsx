@@ -36,7 +36,7 @@ export function PaymentsFilterDateWindow({
 }: Readonly<PaymentsFilterDateWindowProps>): ReactNode {
   const t = useAppTranslation(AdminFinance);
   return (
-    <Stack sx={{ flexDirection: { xs: "column", sm: "row" }, gap: 1.5 }}>
+    <Stack sx={{ flexDirection: { xs: "column", sm: "row" }, gap: 2 }}>
       <TextField
         fullWidth
         type="date"
@@ -44,6 +44,7 @@ export function PaymentsFilterDateWindow({
         value={from}
         onChange={event => onFromChange(event.target.value)}
         data-testid="admin-finances-filter-from"
+        sx={{ "& input": { fontFamily: "inherit" } }}
         slotProps={{
           htmlInput: { autoComplete: "off" },
           // Native date inputs always paint their segments — an un-shrunk
@@ -58,6 +59,7 @@ export function PaymentsFilterDateWindow({
         value={to}
         onChange={event => onToChange(event.target.value)}
         data-testid="admin-finances-filter-to"
+        sx={{ "& input": { fontFamily: "inherit" } }}
         slotProps={{
           htmlInput: { autoComplete: "off" },
           inputLabel: { shrink: true },

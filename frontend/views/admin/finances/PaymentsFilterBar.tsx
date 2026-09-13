@@ -18,7 +18,8 @@
  * discipline, theme-palette colors, ≥44px touch targets.
  */
 
-import { TextField } from "@mui/material";
+import { SearchOutlined } from "@mui/icons-material";
+import { InputAdornment, TextField } from "@mui/material";
 import { type ReactNode, useId, useState } from "react";
 import type { PaymentGateway, PaymentStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { parseUtcDayStart } from "@/frontend/views/admin/audit/audit-trail-filters";
@@ -112,7 +113,7 @@ export function PaymentsFilterBar({ onApply, onReset }: Readonly<PaymentsFilterB
   return (
     <FilterSectionShell
       testId="admin-finances-payments-filters"
-      title={t.studentSearchLabel}
+      title={t.filtersTitle}
       gridTemplateColumns={{ xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }}
       onSubmit={handleSubmit}
     >
@@ -123,7 +124,19 @@ export function PaymentsFilterBar({ onApply, onReset }: Readonly<PaymentsFilterB
         value={drafts.studentName}
         onChange={event => updateDraft({ studentName: event.target.value })}
         data-testid="admin-finances-filter-student"
-        slotProps={{ htmlInput: { autoComplete: "off" } }}
+        slotProps={{
+          htmlInput: { autoComplete: "off", placeholder: t.studentSearchPlaceholder },
+          inputLabel: { shrink: true },
+          // Leading search icon — sibling fields carry trailing
+          // caret/calendar affordances; the search input matches.
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchOutlined fontSize="small" sx={theme => ({ color: theme.palette.text.secondary })} />
+              </InputAdornment>
+            ),
+          },
+        }}
       />
 
       <PaymentsStatusSelect

@@ -40,10 +40,7 @@ export function PaymentsEmptyState({ emptyCopy }: Readonly<{ emptyCopy: string }
 }
 
 /** One payment status chip — tone-mapped with the localized label. */
-export function PaymentStatusChip({
-  status,
-  labels,
-}: Readonly<{ status: string; labels: AdminFinanceLabels }>): ReactNode {
+function PaymentStatusChip({ status, labels }: Readonly<{ status: string; labels: AdminFinanceLabels }>): ReactNode {
   return <TonalChip tone={paymentStatusTone(status)} label={paymentStatusLabel(status, labels)} />;
 }
 
@@ -77,7 +74,11 @@ export function PaymentRow({
         </Stack>
       </TableCell>
       <TableCell
-        sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}`, fontVariantNumeric: "tabular-nums" })}
+        sx={theme => ({
+          borderBottom: `1px solid ${theme.palette.border.light}`,
+          fontVariantNumeric: "tabular-nums",
+          textAlign: "end",
+        })}
       >
         <Typography variant="body2">{formatMoneyAmount(payment.amount)}</Typography>
       </TableCell>
@@ -136,7 +137,7 @@ export function PaymentMobileCard({
             {labels.amountHeader}
           </Typography>
           <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-            {formatMoneyAmount(payment.amount)} {payment.currency}
+            {`${formatMoneyAmount(payment.amount)} ${payment.currency}`}
           </Typography>
         </Stack>
         <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>

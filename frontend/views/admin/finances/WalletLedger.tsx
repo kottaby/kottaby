@@ -22,6 +22,28 @@ import { WalletSummaryCards } from "@/frontend/views/admin/finances/WalletSummar
 import { WalletTransactionsTable } from "@/frontend/views/admin/finances/WalletTransactionsTable";
 import { useAppLocale, useAppTranslation } from "@/shared/locale";
 import { AdminFinance } from "@/shared/locale/namespaces/adminFinance";
+import type { AdminFinanceLabels } from "@/shared/locale/types/adminFinance";
+
+/**
+ * Resolves one summary-card display value: the loading copy while the wallet
+ * read is unresolved, the empty copy for the resolved no-wallet state or a
+ * wallet whose read is null (the honest posture — never a fabricated value),
+ * and the money format otherwise.
+ */
+function resolveWalletDisplay(
+  amount: string | null | undefined,
+  unresolved: boolean,
+  missing: boolean,
+  t: AdminFinanceLabels
+): string {
+  if (unresolved) {
+    return t.loadingLabel;
+  }
+  if (missing || amount == null) {
+    return t.inspectorEmpty;
+  }
+  return formatMoneyAmount(amount);
+}
 
 /** The ledger section: summary cards + the picked teacher's transactions. */
 export function WalletLedger({
@@ -52,17 +74,8 @@ export function WalletLedger({
   // reserved for the RESOLVED no-wallet state (the honest posture: a
   // loading query never claims "no wallet transactions").
   const unresolved = wallet === null && loading;
-  const loadingDisplay = t.loadingLabel;
-  const balanceDisplay = unresolved
-    ? loadingDisplay
-    : noWallet || wallet?.balance == null || wallet === null
-      ? t.inspectorEmpty
-      : formatMoneyAmount(wallet.balance);
-  const totalEarningsDisplay = unresolved
-    ? loadingDisplay
-    : noWallet || wallet?.totalEarning == null || wallet === null
-      ? t.inspectorEmpty
-      : formatMoneyAmount(wallet.totalEarning);
+  const balanceDisplay = resolveWalletDisplay(wallet?.balance, unresolved, noWallet, t);
+  const totalEarningsDisplay = resolveWalletDisplay(wallet?.totalEarning, unresolved, noWallet, t);
 
   return (
     <>

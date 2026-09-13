@@ -44,7 +44,7 @@ export interface AppliedPaymentFilters {
 }
 
 /** The unfiltered payments state — every member explicitly `null`. */
-export const NO_PAYMENT_FILTERS: AppliedPaymentFilters = {
+const NO_PAYMENT_FILTERS: AppliedPaymentFilters = {
   studentName: null,
   status: null,
   paymentGateway: null,

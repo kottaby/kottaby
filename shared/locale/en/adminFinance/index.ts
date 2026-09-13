@@ -10,6 +10,8 @@ export const adminFinanceEn: AdminFinanceLabels = {
   withdrawalsTab: "Withdrawals",
   walletInspectorTab: "Wallet Inspector",
   studentSearchLabel: "Student search",
+  studentSearchPlaceholder: "Search by student name",
+  filtersTitle: "Filters",
   statusFilterLabel: "Status",
   gatewayFilterLabel: "Gateway",
   dateFromLabel: "From",
@@ -42,6 +44,7 @@ export const adminFinanceEn: AdminFinanceLabels = {
   },
   approveAction: "Approve",
   rejectAction: "Reject",
+  actionsHeader: "Actions",
   statusPending: "Pending",
   statusCompleted: "Completed",
   statusFailed: "Failed",
@@ -87,4 +90,5 @@ export const adminFinanceEn: AdminFinanceLabels = {
   paymentsEmpty: "No payments match the current filters.",
   withdrawalsEmpty: "No withdrawal requests are pending.",
   inspectorEmpty: "No wallet transactions to display.",
+  walletEmptyHint: "Pick a teacher above to review their balance and recent transactions.",
 };

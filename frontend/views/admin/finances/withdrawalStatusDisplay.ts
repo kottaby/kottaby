@@ -1,21 +1,28 @@
 /**
  * withdrawalStatusDisplay — the withdrawal / ledger status → tonal-lane +
  * localized-label mappings shared by the admin finance display projections
- * (`/admin/finances`): mapped lookups over the canonical `TransactionStatus`
- * wire values; any unknown wire value renders VERBATIM (honest fallback —
- * these are display projections, never lifecycle authorities).
+ * (`/admin/finances`): mapped lookups over the canonical capitalized
+ * `TransactionStatus` wire values; any unknown wire value renders VERBATIM
+ * (honest fallback — these are display projections, never lifecycle
+ * authorities).
  */
 
 import type { DirectoryTone } from "@/frontend/views/admin/users/utils";
 import type { AdminFinanceLabels } from "@/shared/locale/types/adminFinance";
 
-/** Settlement / ledger status → tonal lane (pending = warning; settled = terminal). */
+/**
+ * Settlement / ledger status → tonal lane over the canonical capitalized
+ * `TransactionStatus` wire values (Pending = warning, Completed = success,
+ * Failed = error); unknown wire values fall to error.
+ */
 export function withdrawalStatusTone(status: string): DirectoryTone {
   switch (status) {
-    case "pending":
+    case "Pending":
       return "warning";
-    case "completed":
+    case "Completed":
       return "success";
+    case "Failed":
+      return "error";
     default:
       return "error";
   }
@@ -23,15 +30,16 @@ export function withdrawalStatusTone(status: string): DirectoryTone {
 
 /**
  * Localized withdrawal-status label — mapped lookup over the canonical
- * `TransactionStatus` wire values; any unknown wire value renders VERBATIM.
+ * capitalized `TransactionStatus` wire values; any unknown wire value
+ * renders VERBATIM.
  */
 export function withdrawalStatusLabel(status: string, labels: AdminFinanceLabels): string {
   switch (status) {
-    case "pending":
+    case "Pending":
       return labels.statusPending;
-    case "completed":
+    case "Completed":
       return labels.statusCompleted;
-    case "failed":
+    case "Failed":
       return labels.statusFailed;
     default:
       return status;

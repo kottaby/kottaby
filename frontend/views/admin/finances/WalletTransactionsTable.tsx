@@ -14,6 +14,7 @@
  */
 
 import { Box, Card, Stack, Typography } from "@mui/material";
+import type { Theme } from "@mui/material/styles";
 import type { ReactNode } from "react";
 import type { AdminTeacherWalletQuery_adminTeacherWallet_transactions } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
@@ -44,6 +45,9 @@ interface WalletTransactionsTableProps {
   /** The 0-based page setter (the hook's own `setPage`). */
   readonly onPageChange: (page: number) => void;
 }
+
+/** Mobile transaction-card skin — the panel card with inner padding so the chip row insets. */
+const mobileCardSx = (theme: Theme) => ({ ...directoryPanelCardSx()(theme), p: 2 });
 
 /** The picked teacher's transaction ledger (desktop table + mobile cards). */
 export function WalletTransactionsTable({
@@ -87,28 +91,26 @@ export function WalletTransactionsTable({
             : null}
           {!loading && transactions.length === 0 ? <Card sx={directoryPanelCardSx()}>{empty}</Card> : null}
           {transactions.map(tx => (
-            <Card key={tx.id} sx={directoryPanelCardSx()}>
+            <Card key={tx.id} sx={mobileCardSx}>
               <Stack spacing={1}>
                 <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-                  <TonalChip tone={ledgerTypeTone(tx.type)} label={ledgerTypeLabel(tx.type, labels)} />
+                  <TonalChip outlined tone={ledgerTypeTone(tx.type)} label={ledgerTypeLabel(tx.type, labels)} />
                   <TonalChip tone={ledgerStatusTone(tx.status)} label={ledgerStatusLabel(tx.status, labels)} />
                 </Stack>
                 <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
                   <Typography variant="caption" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
                     {labels.amountHeader}
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                     {formatMoneyAmount(tx.amount)}
                   </Typography>
                 </Stack>
-                <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-                  <Typography variant="caption" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
-                    {labels.descriptionHeader}
-                  </Typography>
-                  <Typography variant="body2" sx={{ textAlign: "end" }}>
-                    {tx.description}
-                  </Typography>
-                </Stack>
+                {/* Description: full-width line under its label — long values
+                    right-aligned wrap ragged-left and lose scanability. */}
+                <Typography variant="caption" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
+                  {labels.descriptionHeader}
+                </Typography>
+                <Typography variant="body2">{tx.description}</Typography>
                 <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
                   <Typography variant="caption" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
                     {labels.dateHeader}

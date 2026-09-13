@@ -35,13 +35,18 @@ export function PaymentsStatusSelect({ value, id, labelId, onChange }: Readonly<
   const t = useAppTranslation(AdminFinance);
   return (
     <FormControl>
-      <InputLabel id={labelId}>{t.statusFilterLabel}</InputLabel>
+      <InputLabel id={labelId} shrink>
+        {t.statusFilterLabel}
+      </InputLabel>
       <Select
         labelId={labelId}
         id={id}
         value={value}
         label={t.statusFilterLabel}
         onChange={event => onChange(event.target.value)}
+        // Render the "" draft as its option text in the closed control —
+        // without displayEmpty the closed select shows an empty value area.
+        displayEmpty
         data-testid="admin-finances-filter-status"
       >
         <MenuItem value="">{t.allStatusesOption}</MenuItem>
@@ -76,13 +81,16 @@ export function PaymentsGatewaySelect({
   const t = useAppTranslation(AdminFinance);
   return (
     <FormControl>
-      <InputLabel id={labelId}>{t.gatewayFilterLabel}</InputLabel>
+      <InputLabel id={labelId} shrink>
+        {t.gatewayFilterLabel}
+      </InputLabel>
       <Select
         labelId={labelId}
         id={id}
         value={value}
         label={t.gatewayFilterLabel}
         onChange={event => onChange(event.target.value)}
+        displayEmpty
         data-testid="admin-finances-filter-gateway"
       >
         <MenuItem value="">{t.allGatewaysOption}</MenuItem>

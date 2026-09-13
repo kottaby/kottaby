@@ -131,6 +131,9 @@ export function RejectWithdrawalDialog({
         helperText={reasonInvalid ? te.adjustmentReasonRequired : undefined}
         aria-invalid={reasonInvalid}
         data-testid={`reject-withdrawal-reason-${transactionId}`}
+        // NOTE: no forced label shrink here — on a multiline outlined field
+        // the shrunk notch clips the label glyphs at the border; the
+        // un-shrunk in-field label is the input's hint.
         slotProps={{ htmlInput: { autoComplete: "off" } }}
       />
     </GovernanceFormDialog>

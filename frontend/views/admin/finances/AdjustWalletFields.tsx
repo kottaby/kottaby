@@ -15,9 +15,58 @@
  */
 
 import { Button, Stack, TextField, Typography } from "@mui/material";
+import type { SxProps, Theme } from "@mui/material/styles";
 import type { ReactNode } from "react";
 import { useAppTranslation } from "@/shared/locale";
 import { AdminFinance } from "@/shared/locale/namespaces/adminFinance";
+
+/** Muted overline + owner name — names the wallet the adjustment targets. */
+function TeacherIdentityCaption({ teacherName }: Readonly<{ teacherName: string }>): ReactNode {
+  const t = useAppTranslation(AdminFinance);
+  return (
+    <Stack spacing={0.5}>
+      <Typography
+        variant="caption"
+        component="p"
+        sx={theme => ({
+          color: theme.palette.text.secondary,
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          fontWeight: 600,
+        })}
+      >
+        {t.teacherPickerLabel}
+      </Typography>
+      <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.primary, fontWeight: 600 })}>
+        {teacherName}
+      </Typography>
+    </Stack>
+  );
+}
+
+/**
+ * Direction-button skin — the debit arm carries the error lane (the
+ * balance-decreasing direction reads as the risky one); credit keeps the
+ * primary lane.
+ */
+function directionButtonSx(direction: "credit" | "debit", active: boolean): SxProps<Theme> {
+  return theme => {
+    if (direction !== "debit") {
+      return { minHeight: { xs: 44, sm: 40 }, flex: 1 };
+    }
+    return {
+      minHeight: { xs: 44, sm: 40 },
+      flex: 1,
+      ...(active
+        ? {
+            bgcolor: theme.palette.error.main,
+            color: theme.palette.onError,
+            "&:hover": { bgcolor: theme.palette.error.dark },
+          }
+        : { borderColor: theme.palette.error.main, color: theme.palette.error.main }),
+    };
+  };
+}
 
 /** The dialog's fields: choice pair + amount + reason, with error flags. */
 export function AdjustWalletFields({
@@ -41,9 +90,7 @@ export function AdjustWalletFields({
 
   return (
     <>
-      <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
-        {teacherName}
-      </Typography>
+      <TeacherIdentityCaption teacherName={teacherName} />
       <Stack direction="row" spacing={1}>
         {(["credit", "debit"] as const).map(direction => (
           <Button
@@ -55,7 +102,7 @@ export function AdjustWalletFields({
               onDirectionPick(direction);
             }}
             data-testid={`admin-finances-adjust-direction-${direction}`}
-            sx={{ minHeight: { xs: 44, sm: 40 }, flex: 1 }}
+            sx={directionButtonSx(direction, drafts.direction === direction)}
           >
             {direction === "credit" ? t.directionCredit : t.directionDebit}
           </Button>
@@ -72,7 +119,10 @@ export function AdjustWalletFields({
         helperText={amountError ? t.adjustAmountInvalidMessage : undefined}
         aria-invalid={amountError}
         data-testid="admin-finances-adjust-amount"
-        slotProps={{ htmlInput: { inputMode: "decimal", autoComplete: "off" } }}
+        slotProps={{
+          htmlInput: { inputMode: "decimal", autoComplete: "off" },
+          inputLabel: { shrink: true },
+        }}
       />
       <TextField
         label={t.adjustReasonLabel}
@@ -87,7 +137,10 @@ export function AdjustWalletFields({
         helperText={reasonError ? t.adjustReasonInvalidMessage : undefined}
         aria-invalid={reasonError}
         data-testid="admin-finances-adjust-reason"
-        slotProps={{ htmlInput: { autoComplete: "off" } }}
+        slotProps={{
+          htmlInput: { autoComplete: "off" },
+          inputLabel: { shrink: true },
+        }}
       />
     </>
   );

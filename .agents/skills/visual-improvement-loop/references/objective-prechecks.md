@@ -14,6 +14,12 @@ decides; the rubric is reserved for what requires eyes.
 4. **Off-viewport bleed** — no element's bounding rect extends past the viewport edge (fixed/sticky excluded).
 5. **A11y smoke** — no `<img>` without `alt`; no icon-only button/link without an accessible name.
 
+**False-positive note (added 2026-09-13):** the off-viewport check flags elements whose bounding
+rect extends past the viewport even when they are clipped INSIDE an `overflow-x: auto` scroll
+container (e.g. a scrollable tab strip at 390px). Before treating an offender as a defect, verify
+it is contained by a scrollable ancestor (`scrollWidth > clientWidth`) and that page-level
+`documentElement.scrollWidth <= innerWidth` passes.
+
 ## Running (bundled script)
 
 ```bash

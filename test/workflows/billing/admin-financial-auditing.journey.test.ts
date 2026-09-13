@@ -598,7 +598,7 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
 
     // Debit: withdrawal/completed row whose description carries the manual
     // adjustment marker — never the payout-request wording.
-    const payoutTxnId = ledgerTxnIds[0];
+    const payoutTxnId: number | undefined = ledgerTxnIds.at(0);
     if (payoutTxnId === undefined) {
       throw new Error("journey: expected the settlement leg to have recorded a payout ledger row");
     }
@@ -712,7 +712,7 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
   test("step 5 — Denials: non-admin callers are forbidden through the real admin gate, anonymous is unauthorized, zero audit rows", async () => {
     const adminAuditsBefore = await countAuditLogsForActor(adminActor.userId);
     const teacherAuditsBefore = await countAuditLogsForActor(teacherA.userId);
-    const settlementTxnId = ledgerTxnIds[0];
+    const settlementTxnId: number | undefined = ledgerTxnIds.at(0);
     if (settlementTxnId === undefined) {
       throw new Error("journey: expected the settlement leg to have recorded a payout ledger row");
     }

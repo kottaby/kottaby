@@ -27,19 +27,38 @@ import { TonalChip } from "@/frontend/views/admin/users/ui";
 import { useAppTranslation } from "@/shared/locale/client";
 import { AdminFinance } from "@/shared/locale/namespaces/adminFinance";
 
-/** The shared settle action button skin — theme-palette colors only. */
-function settleButtonSx(hoverLane: "approve" | "reject"): SxProps<Theme> {
-  return theme => ({
-    minHeight: 44,
-    px: 2,
-    borderRadius: 2,
-    border: "1px solid",
-    borderColor: theme.palette.outline,
-    bgcolor: "transparent",
-    color: theme.palette.text.primary,
-    cursor: "pointer",
-    "&:hover": { borderColor: hoverLane === "reject" ? theme.palette.error.main : theme.palette.primary.main },
-  });
+/**
+ * The shared settle action button skins — theme-palette colors only. The
+ * pair is deliberately asymmetric: Approve is the contained primary (the
+ * payout-forwarding action), Reject is the outlined error lane (the
+ * destructive one) so intent scans before tap.
+ */
+function settleButtonSx(lane: "approve" | "reject"): SxProps<Theme> {
+  return theme =>
+    lane === "approve"
+      ? {
+          minHeight: 44,
+          px: 1.5,
+          borderRadius: 2,
+          whiteSpace: "nowrap",
+          border: "1px solid transparent",
+          bgcolor: theme.palette.primary.main,
+          color: theme.palette.onPrimary,
+          cursor: "pointer",
+          "&:hover": { bgcolor: theme.palette.primary.light },
+        }
+      : {
+          minHeight: 44,
+          px: 1.5,
+          borderRadius: 2,
+          whiteSpace: "nowrap",
+          border: "1px solid",
+          borderColor: theme.palette.error.main,
+          bgcolor: "transparent",
+          color: theme.palette.error.main,
+          cursor: "pointer",
+          "&:hover": { bgcolor: theme.palette.errorContainer, borderColor: theme.palette.error.light },
+        };
 }
 
 interface QueueSettleButtonsProps {
@@ -67,7 +86,7 @@ export function QueueSettleButtons({
   justifyContent,
 }: Readonly<QueueSettleButtonsProps>): ReactNode {
   return (
-    <Stack direction="row" spacing={1} sx={{ justifyContent }}>
+    <Stack direction="row" spacing={1.5} sx={{ justifyContent }}>
       <Box
         component="button"
         type="button"
@@ -118,12 +137,22 @@ export function WithdrawalRow({
         </Typography>
       </TableCell>
       <TableCell
-        sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}`, fontVariantNumeric: "tabular-nums" })}
+        sx={theme => ({
+          borderBottom: `1px solid ${theme.palette.border.light}`,
+          fontVariantNumeric: "tabular-nums",
+          textAlign: "end",
+        })}
       >
-        <Typography variant="body2">{formatMoneyAmount(item.transaction.amount)}</Typography>
+        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+          {formatMoneyAmount(item.transaction.amount)}
+        </Typography>
       </TableCell>
       <TableCell
-        sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}`, fontVariantNumeric: "tabular-nums" })}
+        sx={theme => ({
+          borderBottom: `1px solid ${theme.palette.border.light}`,
+          fontVariantNumeric: "tabular-nums",
+          textAlign: "end",
+        })}
       >
         <Typography variant="body2">{formatMoneyAmount(item.walletBalance)}</Typography>
       </TableCell>

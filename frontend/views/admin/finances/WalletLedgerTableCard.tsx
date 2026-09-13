@@ -42,6 +42,52 @@ interface WalletLedgerTableCardProps {
   readonly onPageChange: (page: number) => void;
 }
 
+/** One ledger row: type/status chips, right-aligned money + date, description. */
+function LedgerRow({
+  tx,
+  index,
+  locale,
+  labels,
+}: Readonly<{
+  tx: AdminTeacherWalletQuery_adminTeacherWallet_transactions;
+  index: number;
+  locale: string;
+  labels: AdminFinanceLabels;
+}>): ReactNode {
+  return (
+    <TableRow
+      sx={theme => ({
+        ...(index % 2 === 1 && { backgroundColor: theme.palette.action.hover }),
+        "&:hover": { backgroundColor: theme.palette.action.selected },
+      })}
+    >
+      <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
+        <TonalChip outlined tone={ledgerTypeTone(tx.type)} label={ledgerTypeLabel(tx.type, labels)} />
+      </TableCell>
+      <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
+        <TonalChip tone={ledgerStatusTone(tx.status)} label={ledgerStatusLabel(tx.status, labels)} />
+      </TableCell>
+      <TableCell
+        sx={theme => ({
+          borderBottom: `1px solid ${theme.palette.border.light}`,
+          fontVariantNumeric: "tabular-nums",
+          textAlign: "end",
+        })}
+      >
+        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+          {formatMoneyAmount(tx.amount)}
+        </Typography>
+      </TableCell>
+      <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
+        <Typography variant="body2">{tx.description}</Typography>
+      </TableCell>
+      <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}`, textAlign: "end" })}>
+        <Typography variant="body2">{formatApplicantDate(tx.createdAt, locale)}</Typography>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 /** Desktop (≥md) transaction ledger table card — the hand-rolled MUI table. */
 export function WalletLedgerTableCard({
   transactions,
@@ -55,18 +101,21 @@ export function WalletLedgerTableCard({
 }: Readonly<WalletLedgerTableCardProps>): ReactNode {
   return (
     <Card sx={directoryTableCardSx()}>
-      <Table sx={{ tableLayout: "fixed" }} aria-label={labels.typeHeader}>
+      <Table sx={{ tableLayout: "fixed" }} size="small" aria-label={labels.typeHeader}>
         <TableHead>
           <TableRow sx={theme => ({ bgcolor: theme.palette.surfaceContainerHigh })}>
-            <DirectoryHeaderCell width="14%">{labels.typeHeader}</DirectoryHeaderCell>
+            <DirectoryHeaderCell width="13%">{labels.typeHeader}</DirectoryHeaderCell>
             <DirectoryHeaderCell width="14%">{labels.statusHeader}</DirectoryHeaderCell>
-            <DirectoryHeaderCell width="16%">{labels.amountHeader}</DirectoryHeaderCell>
-            <DirectoryHeaderCell width="34%">{labels.descriptionHeader}</DirectoryHeaderCell>
-            <DirectoryHeaderCell width="22%">{labels.dateHeader}</DirectoryHeaderCell>
+            <DirectoryHeaderCell width="15%" align="end">
+              {labels.amountHeader}
+            </DirectoryHeaderCell>
+            <DirectoryHeaderCell width="40%">{labels.descriptionHeader}</DirectoryHeaderCell>
+            <DirectoryHeaderCell width="18%" align="end">
+              {labels.dateHeader}
+            </DirectoryHeaderCell>
           </TableRow>
         </TableHead>
         <TableBody aria-label={loading && transactions.length === 0 ? labels.loadingLabel : undefined}>
-          {" "}
           {loading && transactions.length === 0
             ? WalletLedgerSkeletonKeys.map(rowKey => (
                 <TableRow key={rowKey}>
@@ -88,34 +137,7 @@ export function WalletLedgerTableCard({
             </TableRow>
           ) : null}
           {transactions.map((tx, index) => (
-            <TableRow
-              key={tx.id}
-              sx={theme => ({
-                ...(index % 2 === 1 && { backgroundColor: theme.palette.action.hover }),
-                "&:hover": { backgroundColor: theme.palette.action.selected },
-              })}
-            >
-              <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-                <TonalChip tone={ledgerTypeTone(tx.type)} label={ledgerTypeLabel(tx.type, labels)} />
-              </TableCell>
-              <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-                <TonalChip tone={ledgerStatusTone(tx.status)} label={ledgerStatusLabel(tx.status, labels)} />
-              </TableCell>
-              <TableCell
-                sx={theme => ({
-                  borderBottom: `1px solid ${theme.palette.border.light}`,
-                  fontVariantNumeric: "tabular-nums",
-                })}
-              >
-                <Typography variant="body2">{formatMoneyAmount(tx.amount)}</Typography>
-              </TableCell>
-              <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-                <Typography variant="body2">{tx.description}</Typography>
-              </TableCell>
-              <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-                <Typography variant="body2">{formatApplicantDate(tx.createdAt, locale)}</Typography>
-              </TableCell>
-            </TableRow>
+            <LedgerRow key={tx.id} tx={tx} index={index} locale={locale} labels={labels} />
           ))}
         </TableBody>
       </Table>

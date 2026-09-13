@@ -67,6 +67,8 @@ const ADMIN_FINANCE_STRING_KEYS = [
   "withdrawalsTab",
   "walletInspectorTab",
   "studentSearchLabel",
+  "studentSearchPlaceholder",
+  "filtersTitle",
   "statusFilterLabel",
   "gatewayFilterLabel",
   "dateFromLabel",
@@ -84,6 +86,7 @@ const ADMIN_FINANCE_STRING_KEYS = [
   "requestedAtHeader",
   "approveAction",
   "rejectAction",
+  "actionsHeader",
   "rejectDialogTitle",
   "rejectReasonLabel",
   "rejectReasonPlaceholder",
@@ -108,6 +111,7 @@ const ADMIN_FINANCE_STRING_KEYS = [
   "paymentsEmpty",
   "withdrawalsEmpty",
   "inspectorEmpty",
+  "walletEmptyHint",
 ] as const;
 
 /** The count-rendering pluralization keys on `AdminFinanceLabels`. */

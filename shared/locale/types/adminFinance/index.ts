@@ -38,8 +38,12 @@ export interface AdminFinanceLabels {
   /** Teacher wallet inspector tab. */
   readonly walletInspectorTab: string;
   // ─── Payments panel — filters ───────────────────────────────────────────────
+  /** Filter card title (covers search, status, gateway, and the date window). */
+  readonly filtersTitle: string;
   /** Student search filter label. */
   readonly studentSearchLabel: string;
+  /** Student search placeholder hint. */
+  readonly studentSearchPlaceholder: string;
   /** Payment-status filter label. */
   readonly statusFilterLabel: string;
   /** Payment-gateway filter label. */
@@ -90,6 +94,8 @@ export interface AdminFinanceLabels {
   readonly approveAction: string;
   /** Row action — open the reject dialog. */
   readonly rejectAction: string;
+  /** Withdrawal queue header — the settle-actions column. */
+  readonly actionsHeader: string;
   /** Withdrawal-queue lifecycle status label — pending payout. */
   readonly statusPending: string;
   /** Withdrawal-queue lifecycle status label — settled to completed. */
@@ -183,4 +189,6 @@ export interface AdminFinanceLabels {
   readonly withdrawalsEmpty: string;
   /** Wallet inspector empty state — no transactions to display. */
   readonly inspectorEmpty: string;
+  /** Unpicked-picker hint under the empty-state copy. */
+  readonly walletEmptyHint: string;
 }
