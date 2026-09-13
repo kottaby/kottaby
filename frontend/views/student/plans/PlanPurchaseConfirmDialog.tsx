@@ -2,6 +2,7 @@
 
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import type { PlanCatalogQuery_planCatalog } from "@/frontend/graphql/generated/gql/graphql";
 import { PlanPurchaseSummaryBody } from "@/frontend/views/student/plans/PlanPurchaseSummaryBody";
 import { useAppTranslation } from "@/shared/locale/client";
@@ -48,7 +49,29 @@ export function PlanPurchaseConfirmDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} aria-labelledby={PURCHASE_CONFIRM_TITLE_ID} fullWidth maxWidth="xs">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      aria-labelledby={PURCHASE_CONFIRM_TITLE_ID}
+      fullWidth
+      maxWidth="xs"
+      slotProps={{
+        backdrop: {
+          sx: theme => ({ backgroundColor: alpha(theme.palette.common.black, 0.65) }),
+        },
+        paper: {
+          elevation: 24,
+          sx: theme => ({
+            bgcolor:
+              theme.palette.mode === "dark"
+                ? theme.palette.surfaceContainerHighest
+                : theme.palette.surfaceContainerHigh,
+            border: 1,
+            borderColor: theme.palette.divider,
+          }),
+        },
+      }}
+    >
       <DialogTitle id={PURCHASE_CONFIRM_TITLE_ID} sx={{ fontWeight: 700, pr: 6 }}>
         {t.confirmDialogTitle}
       </DialogTitle>
@@ -58,9 +81,11 @@ export function PlanPurchaseConfirmDialog({
         disabled={purchasing}
         sx={theme => ({
           position: "absolute",
-          top: 12,
-          right: 12,
+          top: 8,
+          right: 8,
+          p: 1.5,
           color: theme.palette.text.secondary,
+          "& svg": { fontSize: 20 },
         })}
       >
         <CloseOutlined fontSize="small" />
@@ -68,11 +93,23 @@ export function PlanPurchaseConfirmDialog({
       <DialogContent sx={{ pt: 1 }}>
         <PlanPurchaseSummaryBody plan={plan} error={error} />
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} disabled={purchasing} sx={{ minHeight: 44 }}>
+      <DialogActions sx={{ px: 3, pb: 3, pt: 1 }}>
+        <Button
+          onClick={onClose}
+          disabled={purchasing}
+          sx={theme => ({
+            minHeight: 44,
+            fontWeight: 600,
+            color: theme.palette.text.primary,
+            border: 1,
+            borderColor: theme.palette.divider,
+            borderRadius: 2,
+            flex: { xs: 1 },
+          })}
+        >
           {t.cancelButton}
         </Button>
-        <Button onClick={onConfirm} variant="contained" disabled={purchasing} sx={{ minHeight: 44 }}>
+        <Button onClick={onConfirm} variant="contained" disabled={purchasing} sx={{ minHeight: 44, flex: { xs: 1 } }}>
           {purchasing ? t.confirmBusyButton : t.confirmButton}
         </Button>
       </DialogActions>

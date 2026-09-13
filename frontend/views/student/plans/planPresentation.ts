@@ -17,6 +17,6 @@ import { groupDecimalDigits } from "@/shared/lib/group-decimal-digits";
  * `groupDecimalDigits` helper — the fraction digits and any sign stay
  * verbatim from the wire value.
  */
-export function formatPlanAmount(amount: string, currency: string): string {
-  return `${groupDecimalDigits(amount)} ${currency}`;
+export function formatPlanAmount(amount: string, currency: string, localizedLabel?: string): string {
+  return `${groupDecimalDigits(amount)} ${localizedLabel ?? currency}`;
 }

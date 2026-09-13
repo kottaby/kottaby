@@ -32,3 +32,7 @@ matches the finding, say so in the wave report: that gap is a playbook candidate
 When two findings on different screens share a root cause in a shared primitive (grid, container,
 toolbar), escalate to the orchestrator as a CROSS-FILE decision — one fix in the primitive, not
 local patches per screen.
+
+| Grid reflow reads accidental (odd last card dangles) | Grid container sx: `"& > :last-child:nth-of-type(odd)": { gridColumn: { sm: "span 2", lg: "auto" } }` — MUI breakpoint objects are MIN-WIDTH; a value set at `sm` leaks into `lg`+ unless explicitly reset at the next breakpoint. |
+| Centered empty/error bodies in short pages | Wrap the branch in a Stack with `minHeight: calc(100dvh - <chrome>)` + `justifyContent: center`; size the subtraction to the page's actual chrome (pages WITHOUT a heading need only the frame padding — a one-size calc over-subtracts and re-creates top-anchoring). |
+| "Retry" copy with no retry control | Add the retry CTA wired to the actual recovery action (`refetch()` for query errors, route push for purchase retries); the copy that promises the action must not stay bare text. |

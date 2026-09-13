@@ -1,6 +1,7 @@
 "use client";
 
 import EventOutlined from "@mui/icons-material/EventOutlined";
+import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
 import { Button, Card, CardActions, CardContent, Chip, Stack, Typography } from "@mui/material";
 import type { PlanCatalogQuery_planCatalog } from "@/frontend/graphql/generated/gql/graphql";
 import { formatPlanAmount } from "@/frontend/views/student/plans/planPresentation";
@@ -22,7 +23,7 @@ export interface PlanPurchaseCardProps {
  */
 export function PlanPurchaseCard({ plan, onBuy, buying }: Readonly<PlanPurchaseCardProps>): React.ReactElement {
   const t = useAppTranslation(Checkout);
-  const laneLabel: string | null = plan.balanceLane === null ? null : resolveLaneLabel(plan.balanceLane, t);
+  const laneLabel = plan.balanceLane === null ? t.laneGeneralLabel : resolveLaneLabel(plan.balanceLane, t);
 
   return (
     <Card
@@ -42,8 +43,10 @@ export function PlanPurchaseCard({ plan, onBuy, buying }: Readonly<PlanPurchaseC
           <Typography variant="h6" component="p" sx={{ fontWeight: 700 }}>
             {plan.title}
           </Typography>
-          <Typography variant="h4" sx={theme => ({ fontWeight: 700, color: theme.palette.primary.main })}>
-            <span dir="ltr">{formatPlanAmount(plan.price, plan.currency)}</span>
+          <Typography variant="h4" sx={theme => ({ fontWeight: 700, color: theme.palette.primary.light })}>
+            <span dir="ltr">
+              {formatPlanAmount(plan.price, plan.currency, plan.currency === "EGP" ? t.currencyEgp : undefined)}
+            </span>
           </Typography>
           <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap" }}>
             <Chip
@@ -51,24 +54,23 @@ export function PlanPurchaseCard({ plan, onBuy, buying }: Readonly<PlanPurchaseC
               label={t.sessionsIncludedLine(plan.sessionCount)}
               size="small"
               sx={theme => ({
-                backgroundColor: theme.palette.surfaceContainerLow,
+                backgroundColor: theme.palette.surfaceContainer,
                 color: theme.palette.onSurfaceVariant,
               })}
             />
             <Chip
+              icon={<ScheduleOutlined />}
               label={t.validityLine(plan.intervalDays)}
               size="small"
               sx={theme => ({
-                backgroundColor: theme.palette.surfaceContainerLow,
+                backgroundColor: theme.palette.surfaceContainer,
                 color: theme.palette.onSurfaceVariant,
               })}
             />
           </Stack>
-          {laneLabel !== null && (
-            <Typography variant="body2" sx={theme => ({ color: theme.palette.onSurfaceVariant })}>
-              {t.laneCreditLine(laneLabel)}
-            </Typography>
-          )}
+          <Typography variant="body2" sx={theme => ({ color: theme.palette.onSurfaceVariant })}>
+            {t.laneCreditLine(laneLabel)}
+          </Typography>
         </Stack>
       </CardContent>
       <CardActions sx={{ px: 2, pb: 2, pt: 0 }}>

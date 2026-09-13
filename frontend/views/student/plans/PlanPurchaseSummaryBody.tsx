@@ -25,7 +25,7 @@ export function PlanPurchaseSummaryBody({ plan, error }: Readonly<PlanPurchaseSu
   const t = useAppTranslation(Checkout);
 
   return (
-    <Stack sx={{ gap: 2 }}>
+    <Stack sx={{ gap: 2.5 }}>
       <Stack
         direction="row"
         sx={theme => ({
@@ -53,7 +53,10 @@ export function PlanPurchaseSummaryBody({ plan, error }: Readonly<PlanPurchaseSu
             {plan.title}
           </Typography>
           <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>
-            {t.sessionsIncludedLine(plan.sessionCount)} · {t.validityLine(plan.intervalDays)}
+            {t.sessionsIncludedLine(plan.sessionCount)}{" "}
+            <Box component="span" sx={{ whiteSpace: "nowrap" }}>
+              · {t.validityLine(plan.intervalDays)}
+            </Box>
           </Typography>
         </Box>
       </Stack>
@@ -78,14 +81,16 @@ export function PlanPurchaseSummaryBody({ plan, error }: Readonly<PlanPurchaseSu
             fontVariantNumeric: "tabular-nums",
           })}
         >
-          <span dir="ltr">{formatPlanAmount(plan.price, plan.currency)}</span>
+          <span dir="ltr">
+            {formatPlanAmount(plan.price, plan.currency, plan.currency === "EGP" ? t.currencyEgp : undefined)}
+          </span>
         </Typography>
       </Stack>
       <Alert
         icon={<LockOutlined fontSize="inherit" />}
         severity="info"
         variant="standard"
-        sx={theme => ({ color: theme.palette.onSurfaceVariant })}
+        sx={theme => ({ color: theme.palette.onSurfaceVariant, textAlign: "start", alignItems: "center" })}
       >
         {t.confirmDialogSecureNote}
       </Alert>

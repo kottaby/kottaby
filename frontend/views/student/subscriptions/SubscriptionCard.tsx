@@ -1,8 +1,8 @@
 "use client";
 
 import ErrorOutlined from "@mui/icons-material/ErrorOutlined";
-import { Chip, Stack, Typography } from "@mui/material";
-import type { Palette } from "@mui/material/styles";
+import { Button, Chip, Stack, Typography } from "@mui/material";
+import { alpha, type Palette } from "@mui/material/styles";
 import type { ReactNode } from "react";
 import type {
   MySubscriptionsQuery_mySubscriptions,
@@ -71,6 +71,7 @@ interface SubscriptionCardProps {
   readonly row: MySubscriptionsQuery_mySubscriptions;
   readonly t: CheckoutLabels;
   readonly locale: string;
+  readonly onRetry: () => void;
 }
 
 /**
@@ -79,7 +80,7 @@ interface SubscriptionCardProps {
  * the validity window (blank placeholder while pending — the wire carries
  * NULL honestly).
  */
-export function SubscriptionCard({ row, t, locale }: Readonly<SubscriptionCardProps>): ReactNode {
+export function SubscriptionCard({ row, t, locale, onRetry }: Readonly<SubscriptionCardProps>): ReactNode {
   const failed = isFailedPaymentRow(row);
   const chipTone = chipToneFor(row.status, failed);
   const chipLabel = failed ? paymentFailedChipLabel(t) : statusChipLabel(row.status, t);
@@ -125,9 +126,24 @@ export function SubscriptionCard({ row, t, locale }: Readonly<SubscriptionCardPr
           })}
         >
           <ErrorOutlined fontSize="small" sx={{ mt: 0.25 }} />
-          <Typography variant="body2" component="p">
-            {t.failedPaymentGuidance}
-          </Typography>
+          <Stack sx={{ gap: 1, alignItems: "flex-start" }}>
+            <Typography variant="body2" component="p">
+              {t.failedPaymentGuidance}
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              color="inherit"
+              onClick={onRetry}
+              sx={theme => ({
+                minHeight: 44,
+                color: "inherit",
+                borderColor: alpha(theme.palette.onErrorContainer, 0.5),
+              })}
+            >
+              {t.retryButton}
+            </Button>
+          </Stack>
         </Stack>
       ) : null}
       <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "baseline", gap: 2 }}>

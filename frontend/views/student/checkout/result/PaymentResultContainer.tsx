@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@apollo/client/react";
-import { Alert, CircularProgress, Stack, Typography } from "@mui/material";
+import { Alert, Button, CircularProgress, Stack, Typography } from "@mui/material";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
@@ -106,7 +106,7 @@ export function PaymentResultContainer(props: Readonly<PaymentResultContainerPro
   // Authoritative re-query — student-scoped server-side, zero arguments.
   // `cache-and-network` keeps the redirect-return fresh: cache-first paint,
   // network revalidation on every mount.
-  const { data, loading, error } = useQuery(mySubscriptionsQueryDocument, {
+  const { data, loading, error, refetch } = useQuery(mySubscriptionsQueryDocument, {
     fetchPolicy: "cache-and-network",
   });
 
@@ -123,16 +123,42 @@ export function PaymentResultContainer(props: Readonly<PaymentResultContainerPro
       return <PermissionDeniedFallback />;
     }
     return (
-      <Stack data-testid={PAYMENT_RESULT_TEST_ID} sx={{ alignItems: "center", gap: 2 }}>
-        <Alert data-testid={PAYMENT_RESULT_ERROR_TEST_ID} severity="error" variant="outlined">
+      <Stack
+        data-testid={PAYMENT_RESULT_TEST_ID}
+        sx={{ alignItems: "center", justifyContent: "center", gap: 2, minHeight: "calc(100dvh - 32px)" }}
+      >
+        <Alert
+          data-testid={PAYMENT_RESULT_ERROR_TEST_ID}
+          severity="error"
+          variant="outlined"
+          sx={{ width: "100%", maxWidth: 360 }}
+        >
           {t.genericError}
         </Alert>
+        <Button
+          variant="outlined"
+          color="error"
+          onClick={() => void refetch()}
+          sx={{ width: "100%", maxWidth: 360, minHeight: 44 }}
+        >
+          {t.retryButton}
+        </Button>
       </Stack>
     );
   }
 
   return (
-    <Stack data-testid={PAYMENT_RESULT_TEST_ID} sx={{ alignItems: "center", gap: 3, py: { xs: 2, sm: 4 }, px: 1 }}>
+    <Stack
+      data-testid={PAYMENT_RESULT_TEST_ID}
+      sx={{
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 3,
+        minHeight: "calc(100dvh - 32px)",
+        py: { xs: 2, sm: 4 },
+        px: 1,
+      }}
+    >
       {arm === null ? (
         <CheckingArm t={t} />
       ) : (
@@ -161,10 +187,10 @@ function CheckingArm({ t }: Readonly<{ t: CheckoutLabels }>): ReactNode {
       sx={{ alignItems: "center", gap: 2 }}
     >
       <CircularProgress size={32} />
-      <Typography variant="h6" component="p">
+      <Typography variant="h6" component="p" sx={{ textAlign: "center" }}>
         {t.resultCheckingTitle}
       </Typography>
-      <Typography variant="body2" component="p">
+      <Typography variant="body2" component="p" sx={{ textAlign: "center", maxWidth: 300 }}>
         {t.resultCheckingBody}
       </Typography>
     </Stack>

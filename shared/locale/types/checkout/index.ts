@@ -40,12 +40,20 @@ export interface CheckoutLabels {
   readonly laneTajweed: string;
   /** Balance-lane vocabulary — mirrors the Reviews credit-lane value. */
   readonly laneReviews: string;
+  /** Balance-lane vocabulary — the general account balance for lane-less plans. */
+  readonly laneGeneralLabel: string;
+  /** Currency label — the EGP display label in the active locale. */
+  readonly currencyEgp: string;
+  /** Trust note under the catalog grid — the hosted Paymob payment surface. */
+  readonly paymobTrustNote: string;
   /** Plan card feature line — the lane the included sessions credit to (ICU {lane}). */
   readonly laneCreditLine: (laneLabel: string) => string;
   /** Empty-catalog title (no active plans). */
   readonly emptyTitle: string;
   /** Empty-catalog body. */
   readonly emptyBody: string;
+  /** Empty-catalog CTA — re-checks the catalog for newly published plans. */
+  readonly emptyActionButton: string;
 
   // ── Purchase confirmation dialog ────────────────────────────────────────
   /** Confirm-dialog title before a purchase is submitted. */

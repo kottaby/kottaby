@@ -3,16 +3,11 @@
 import { useQuery } from "@apollo/client/react";
 import { Alert, Container, Snackbar, Stack, Typography } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
-import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import type { PlanCatalogQuery_planCatalog } from "@/frontend/graphql/generated/gql/graphql";
 import { planCatalogQueryDocument } from "@/frontend/graphql/sharedDocuments";
-import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
-import { mapGraphQLErrorByCode, normalizeGraphQLErrorCode } from "@/frontend/providers/apollo/error-link.map";
-import { PlanPurchaseCardList } from "@/frontend/views/student/plans/PlanPurchaseCardList";
 import { PlanPurchaseConfirmDialog } from "@/frontend/views/student/plans/PlanPurchaseConfirmDialog";
-import { PlansEmptyState } from "@/frontend/views/student/plans/PlansEmptyState";
-import { PlansLoadingSkeleton } from "@/frontend/views/student/plans/PlansLoadingSkeleton";
-import { PLANS_CATALOG_TEST_ID, PLANS_ERROR_TEST_ID } from "@/frontend/views/student/plans/plansViewIds";
+import { PlansCatalogBody } from "@/frontend/views/student/plans/PlansCatalogBody";
+import { PLANS_CATALOG_TEST_ID } from "@/frontend/views/student/plans/plansViewIds";
 import { PLAN_CATALOG_SNACKBAR_AUTOHIDE_MS } from "@/frontend/views/student/plans/purchaseHelpers";
 import { usePurchaseSubscription } from "@/frontend/views/student/plans/usePurchaseSubscription";
 import { Checkout, useAppTranslation } from "@/shared/locale";
@@ -32,8 +27,8 @@ import { Checkout, useAppTranslation } from "@/shared/locale";
  * |---|-----------|-----------------------------------|
  * | 1 | query in flight (no settled payload yet) | skeleton cards (`aria-busy`) |
  * | 2 | query error, denial family (`permission-fallback` / `auth-recovery`) | shared `PermissionDeniedFallback` |
- * | 3 | any other query error (masked 500 …) | inline `Alert` with `checkout.genericError` |
- * | 4 | zero active plans | empty state (`emptyTitle` / `emptyBody`) |
+ * | 3 | any other query error (masked 500 …) | centered stack: error `Alert` + retry CTA (`genericError` / `retryButton`) |
+ * | 4 | zero active plans | centered empty state (`emptyTitle` / `emptyBody`) |
  * | 5 | plans present | `PlanPurchaseCard` grid |
  *
  * Checkout wiring — the Buy CTA opens the confirm dialog for that plan;
@@ -113,7 +108,12 @@ export function PlansCatalogContainer(): ReactNode {
           plans={plans}
           onBuy={openDialog}
           buying={purchasing}
-          genericErrorMessage={t.genericError}
+          onRetry={() => {
+            void refetch();
+          }}
+          onRefresh={() => {
+            void refetch();
+          }}
         />
       </Stack>
       <PlanPurchaseConfirmDialog
@@ -143,51 +143,4 @@ export function PlansCatalogContainer(): ReactNode {
 /** Stateful catalog read (cache-and-network — refetches on mount; `useLazyQuery` is banned). */
 function useCatalogQuery() {
   return useQuery(planCatalogQueryDocument, { fetchPolicy: "cache-and-network" });
-}
-
-interface PlansCatalogBodyProps {
-  readonly loading: boolean;
-  readonly queryError: unknown;
-  readonly plans: readonly PlanCatalogQuery_planCatalog[];
-  readonly onBuy: (plan: PlanCatalogQuery_planCatalog) => void;
-  readonly buying: boolean;
-  readonly genericErrorMessage: string;
-}
-
-/**
- * The swapping body below the always-on chrome — skeleton / denial
- * fallback / error alert / empty state / plan grid.
- */
-function PlansCatalogBody({
-  loading,
-  queryError,
-  plans,
-  onBuy,
-  buying,
-  genericErrorMessage,
-}: Readonly<PlansCatalogBodyProps>): ReactNode {
-  if (loading && plans.length === 0) {
-    return <PlansLoadingSkeleton />;
-  }
-  // Apollo settles queries with data-or-error; the truthy gate keeps the
-  // compiler informed without unsafe assertions.
-  if (queryError) {
-    const rawCode = extractErrorCode(queryError);
-    const code = rawCode === null ? "" : normalizeGraphQLErrorCode(rawCode);
-    const action = mapGraphQLErrorByCode(code, { contextKind: "query", hasForm: false });
-    if (action?.kind === "permission-fallback" || action?.kind === "auth-recovery") {
-      return <PermissionDeniedFallback />;
-    }
-    return (
-      <Stack data-testid={PLANS_ERROR_TEST_ID} sx={{ py: { xs: 4, sm: 6 } }}>
-        <Alert severity="error" variant="outlined">
-          {genericErrorMessage}
-        </Alert>
-      </Stack>
-    );
-  }
-  if (!loading && plans.length === 0) {
-    return <PlansEmptyState />;
-  }
-  return <PlanPurchaseCardList plans={plans} onBuy={onBuy} buying={buying} />;
 }

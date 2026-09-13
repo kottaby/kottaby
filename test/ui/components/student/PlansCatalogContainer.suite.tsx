@@ -12,7 +12,8 @@
  *
  *   branch 1  query in flight → skeleton cards, no settled surface leaks
  *   branch 2  FORBIDDEN → shared permission fallback (chrome stays)
- *   branch 3  masked INTERNAL_SERVER_ERROR → generic inline alert
+ *   branch 3  masked INTERNAL_SERVER_ERROR → generic inline alert + retry CTA
+ *   branch 3b retry CTA refetches the catalog (the alert survives a re-failed read)
  *   branch 4  zero active plans → empty state
  *   branch 5  populated catalog → card titles, prices, chips, Buy CTAs
  *   branch 6  Buy CTA opens the confirm dialog (summary labels + price)
@@ -282,7 +283,7 @@ describe("PlansCatalogContainer", () => {
       });
     });
 
-    test(`[${locale}] branch 3 — masked internal error renders the generic alert`, async () => {
+    test(`[${locale}] branch 3 — masked internal error renders the generic alert + retry CTA`, async () => {
       renderPlans(
         [
           {
@@ -294,6 +295,34 @@ describe("PlansCatalogContainer", () => {
         ],
         locale
       );
+      await waitFor(() => {
+        expect(screen.getByTestId(PLANS_ERROR_TEST_ID)).toBeDefined();
+      });
+      expect(screen.getByText(t.genericError)).toBeDefined();
+      expect(screen.getByText(t.retryButton)).toBeDefined();
+    });
+
+    test(`[${locale}] branch 3b — the retry CTA refetches the catalog from the error surface`, async () => {
+      // A masked-error mock per read: the mount consumes the first, the
+      // retry consumes the second (the alert survives the re-failed read).
+      const maskedError = (): MockLink.MockedResponse => ({
+        request: { query: planCatalogQueryDocument, variables: CATALOG_VARIABLES },
+        result: {
+          errors: [{ message: "INTERNAL_SERVER_ERROR (masked)", extensions: { code: "INTERNAL_SERVER_ERROR" } }],
+        },
+      });
+      const sentOperations: string[] = [];
+      renderPlansWithOperationLog([maskedError(), maskedError()], locale, name => {
+        sentOperations.push(name);
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId(PLANS_ERROR_TEST_ID)).toBeDefined();
+      });
+      expect(sentOperations.filter(name => name === "PlanCatalog")).toHaveLength(1);
+      fireEvent.click(screen.getByText(t.retryButton));
+      await waitFor(() => {
+        expect(sentOperations.filter(name => name === "PlanCatalog").length).toBeGreaterThanOrEqual(2);
+      });
       await waitFor(() => {
         expect(screen.getByTestId(PLANS_ERROR_TEST_ID)).toBeDefined();
       });
@@ -323,10 +352,11 @@ describe("PlansCatalogContainer", () => {
           expect(screen.getByText(t.laneCreditLine(t[LANE_LABEL_KEYS[plan.balanceLane]]))).toBeDefined();
         }
       }
-      // Laneless rows render no lane feature line.
+      // Laneless rows render the general account-balance lane line.
+      expect(screen.getByText(t.laneCreditLine(t.laneGeneralLabel))).toBeDefined();
       expect(screen.queryAllByText(t.laneCreditLine(t.laneReviews))).toHaveLength(0);
-      // The price renders verbatim from the wire decimal string.
-      expect(screen.getByText(`${PLAN_CATALOG_ROWS[0].price} ${PLAN_CATALOG_ROWS[0].currency}`)).toBeDefined();
+      // The price renders verbatim from the wire decimal string with the localized currency label.
+      expect(screen.getByText(`${PLAN_CATALOG_ROWS[0].price} ${t.currencyEgp}`)).toBeDefined();
       // Buy CTAs carry the localized copy.
       expect(screen.getAllByText(t.buyButton).length).toBeGreaterThanOrEqual(PLAN_CATALOG_ROWS.length);
     });
@@ -341,7 +371,7 @@ describe("PlansCatalogContainer", () => {
       // The selected plan's summary rides the dialog.
       const dialog = screen.getByRole("dialog");
       expect(dialog.textContent).toContain("Tajweed & Tilawa");
-      expect(dialog.textContent).toContain("300.00 EGP");
+      expect(dialog.textContent).toContain(`300.00 ${t.currencyEgp}`);
     });
 
     test(`[${locale}] branch 7 — dialog dismiss closes without a wire call`, async () => {

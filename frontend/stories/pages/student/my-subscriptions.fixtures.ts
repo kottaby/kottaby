@@ -21,6 +21,7 @@ export const SUBSCRIPTION_ROWS: readonly SubscriptionRowFixture[] = [
     status: SubscriptionStatus.Pending,
     startDate: null,
     endDate: null,
+    paymentVerifiedAt: "2099-01-10T09:00:00.000Z",
   }),
   subscriptionRow({
     id: "sub-failed",

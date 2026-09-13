@@ -1,5 +1,8 @@
 "use client";
 
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import ErrorOutlined from "@mui/icons-material/ErrorOutlined";
+import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
 import { Button, CircularProgress, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { MySubscriptionsQuery_mySubscriptions } from "@/frontend/graphql/generated/gql/graphql";
@@ -46,6 +49,13 @@ const ARM_BODIES: Readonly<Record<PaymentResultArm, (t: CheckoutLabels) => strin
   failed: t => t.resultFailedBody,
 };
 
+/** The per-arm icon — the panel's status glyph (tone-matched). */
+const ARM_ICONS: Readonly<Record<PaymentResultArm, ReactNode>> = {
+  success: <CheckCircleOutlined sx={{ fontSize: 48 }} />,
+  pending: <ScheduleOutlined sx={{ fontSize: 48 }} />,
+  failed: <ErrorOutlined sx={{ fontSize: 48 }} />,
+};
+
 /** The per-arm CTA — retry/view navigation targets and variants. */
 export function ResultArmBody({ arm, newest, t, onRetry, onView }: Readonly<ResultArmBodyProps>): ReactNode {
   const tone = resultArmTone(arm);
@@ -70,6 +80,7 @@ export function ResultArmBody({ arm, newest, t, onRetry, onView }: Readonly<Resu
           py: { xs: 4, sm: 6 },
         })}
       >
+        {ARM_ICONS[arm]}
         <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
           {title}
         </Typography>
@@ -105,10 +116,11 @@ function ArmActions({
           color={color}
           startIcon={<CircularProgress size={16} color="inherit" />}
           onClick={onRetry}
+          sx={{ minHeight: 44 }}
         >
           {t.retryButton}
         </Button>
-        <Button variant="text" onClick={onView}>
+        <Button variant="text" onClick={onView} sx={{ minHeight: 44 }}>
           {t.viewSubscriptionsButton}
         </Button>
       </Stack>
@@ -117,17 +129,17 @@ function ArmActions({
   if (arm === "failed") {
     return (
       <Stack sx={{ alignItems: "center", gap: 1.5, width: "100%" }}>
-        <Button variant="contained" color={color} fullWidth sx={{ maxWidth: 480 }} onClick={onRetry}>
+        <Button variant="contained" color={color} fullWidth sx={{ maxWidth: 480, minHeight: 44 }} onClick={onRetry}>
           {t.retryButton}
         </Button>
-        <Button variant="outlined" fullWidth sx={{ maxWidth: 480 }} onClick={onView}>
+        <Button variant="outlined" fullWidth sx={{ maxWidth: 480, minHeight: 44 }} onClick={onView}>
           {t.viewSubscriptionsButton}
         </Button>
       </Stack>
     );
   }
   return (
-    <Button variant="contained" onClick={onView}>
+    <Button variant="contained" sx={{ width: "100%", maxWidth: 480, minHeight: 44 }} onClick={onView}>
       {t.viewSubscriptionsButton}
     </Button>
   );

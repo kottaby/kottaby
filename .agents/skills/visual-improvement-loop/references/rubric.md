@@ -48,3 +48,12 @@ Verdict: READY | NEEDS FIXES
 ```
 
 Findings must be actionable blind: name the exact element, describe the defect precisely, and propose a fix kind. An inspector must verify claims with a `region` crop before reporting them; otherwise keep quiet about it. If the image is a blank/error/login page, report that and stop.
+
+## DOM arbitration of disputed findings (orchestrator rule)
+
+VLM inspectors hallucinate label text (especially Arabic) and estimate sizes/alignment that pixels
+cannot prove. Before acting on any disputed finding — and before accepting any READY score that
+rests on a dismissed finding — arbitrate with DOM ground truth via `agent-browser eval`: computed
+styles (`letterSpacing`, `minHeight`, `textAlign`), `getBoundingClientRect` for sizes/centering,
+Range client-rects for bidi/line ordering, and the translation source for copy claims. Record the
+measurement in the outcome; a finding disproven by DOM evidence is dismissed, not accepted debt.

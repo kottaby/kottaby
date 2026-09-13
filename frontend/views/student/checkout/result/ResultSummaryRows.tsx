@@ -4,6 +4,8 @@ import { Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { MySubscriptionsQuery_mySubscriptions } from "@/frontend/graphql/generated/gql/graphql";
 import { statusChipLabel } from "@/frontend/views/student/checkout/result/resultPresentation";
+import { formatSubscriptionDate } from "@/frontend/views/student/subscriptions/subscriptionsViewLabels";
+import { useAppLocale } from "@/shared/locale/localeContext";
 import type { CheckoutLabels } from "@/shared/locale/types/checkout";
 
 /**
@@ -22,12 +24,19 @@ interface ResultSummaryRowsProps {
 
 /** The summary rows — label/value pairs straight from the server row. */
 export function ResultSummaryRows({ newest, t }: Readonly<ResultSummaryRowsProps>): ReactNode {
+  const locale = useAppLocale();
   return (
     <Stack sx={{ gap: 1, width: "100%" }}>
       <SummaryRow label={t.planLabel} value={String(newest.planId)} />
       <SummaryRow label={t.statusColumn} value={statusChipLabel(newest.status, t)} />
-      <SummaryRow label={t.startDateColumn} value={newest.startDate ?? t.emptyValue} />
-      <SummaryRow label={t.endDateColumn} value={newest.endDate ?? t.emptyValue} />
+      <SummaryRow
+        label={t.startDateColumn}
+        value={newest.startDate === null ? t.emptyValue : formatSubscriptionDate(newest.startDate, locale)}
+      />
+      <SummaryRow
+        label={t.endDateColumn}
+        value={newest.endDate === null ? t.emptyValue : formatSubscriptionDate(newest.endDate, locale)}
+      />
     </Stack>
   );
 }

@@ -64,3 +64,34 @@ AGENTS.md and `.agents/instructions/` files are hand-curated; runs NEVER update 
   asymmetric dialog gutter → logical `paddingInline` token spacing; low-contrast select icon →
   mode-aware text token on `.MuiSelect-icon`; weak dialog isolation → scoped `slotProps` backdrop
   scrim+blur. → landed: `references/fix-patterns.md` (4 new rows, updated in this change).
+
+### 2026-09-13 — paymob-gateway-integration (visual-improvement-loop R1: 41 captures, 3 pages, EN+AR)
+
+- Snapshot refs emit as `[ref=eN]` (not `@eN`) in this agent-browser version — `grep -o '@e[0-9]*'`
+  never matches; extract `ref=e[0-9]+` and re-prefix `@`. → landed: `references/capture-protocol.md`
+  (Version & environment gotchas, updated in this change).
+- Console dump is cumulative per session — clear (`console --clear`) after each navigation so the
+  pre-check gate judges only the current page. → landed: `references/capture-protocol.md` (same section).
+- Back-to-back agent-browser calls inside `$(...)` race (empty snapshots) — retry loops gated on DOM
+  state markers. → landed: `references/capture-protocol.md` (same section).
+- Storybook iframes lack `next/font` variables — Arabic renders in fallback fonts; Arabic
+  shaping/tracking findings are capture artifacts unless computed styles confirm. → landed:
+  `references/capture-protocol.md` (same section).
+- VLM inspectors hallucinate Arabic labels and estimate sizes/alignment DOM disproves (alert
+  "centering", 40px buttons that measure 44, date bidi order, invented strings like "عرض الشكاوى") —
+  arbitrate disputed findings with `agent-browser eval` ground truth before acting; a DOM-disproven
+  finding is dismissed, not accepted debt. → landed: `references/rubric.md` (DOM arbitration rule,
+  updated in this change).
+- Story fixture state-machines can make arms unreachable: unverified-pending rows render the derived
+  failed presentation, so the amber pending chip never appeared in any capture — assert each arm's
+  UNIQUE state marker when capturing. → landed: `references/storybook-protocol.md` (per-arm state
+  markers, updated in this change). Feature specifics in the plan outcome.
+- MUI breakpoint objects are min-width: `sm` grid overrides leak into `lg`+ — reset at the next
+  breakpoint. → landed: `references/fix-patterns.md` (grid reflow row, updated in this change).
+- Centered-branch `minHeight` calc must match the page's actual chrome (heading vs no-heading pages
+  differ); one-size calcs re-create top-anchoring. → landed: `references/fix-patterns.md`.
+- `--lifecycle codescene` drift (flagged 2026-09-11) — promoted the fix: SKILL.md now says
+  `--lifecycle duplicates`. → landed: SKILL.md Phase 5 + golden rule 4 wording (updated in this change).
+- Subagent image delivery WORKS in the current environment (Explore agents render screenshots) —
+  supersedes the 2026-09-11 VLM-CLI note; single-image-per-subagent remains the rule. → landed:
+  `references/capture-protocol.md` (Reading shots note, updated in this change).

@@ -25,7 +25,10 @@ export function PlanPurchaseCardList({
       sx={{
         display: "grid",
         gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" },
-        gap: { xs: 2, md: 3 },
+        gap: 3,
+        "& > :last-child:nth-of-type(odd)": {
+          gridColumn: { sm: "span 2", lg: "auto" },
+        },
       }}
     >
       {plans.map(plan => (

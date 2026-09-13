@@ -43,13 +43,22 @@ export function SubscriptionsEmptyState(): ReactNode {
       <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
         {t.subscriptionsEmptyTitle}
       </Typography>
-      <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, maxWidth: 420 })}>
+      <Typography
+        variant="body2"
+        sx={theme => ({
+          color: theme.palette.text.secondary,
+          maxWidth: 420,
+          textAlign: "center",
+          textWrap: "balance",
+        })}
+      >
         {t.subscriptionsEmptyBody}
       </Typography>
       <Button
         variant="contained"
+        color="secondary"
         onClick={() => router.push(STUDENT_PLANS_ROUTE)}
-        sx={{ minHeight: 44, px: 4, borderRadius: 999 }}
+        sx={{ minHeight: 44, px: 4, borderRadius: 999, width: { xs: "100%", sm: "auto" } }}
       >
         {t.browsePlansButton}
       </Button>
