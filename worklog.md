@@ -2028,3 +2028,79 @@ The progress query (`parentChildProgress`) doesn't expose a "last activity date"
 4. **Dark mode chart adaptation**: Use CSS variables for Recharts colors so the chart adapts to theme changes.
 
 5. **Fix ProgressSummary 3rd stat label**: Rename `statActiveTrack` to a more accurate label (e.g., "Madi Position" or "Latest Madi") or restructure the stats.
+
+---
+Task ID: webDevReview-R10
+Agent: webDevReview (scheduled cron, round 10)
+Task: Homework print/export dialog + progress summary label fix
+
+## Current Project Status
+
+The Parent Read-Only Monitoring Portal is COMPLETE and shipped on branch `feat/parent-read-only-monitoring-portal`. Prior rounds completed all 22 spec-implementation tasks + R1-R9 enhancements. This round (R10) focused on R9 priority #2: extending the print/export pattern to the Homework tab.
+
+## Completed Modifications
+
+### 1. Homework Print/Export Dialog (R9 priority #2)
+- **`HomeworkPrintExportDialog.tsx`** — NEW component:
+  - Modal with Print (window.print()) + CSV export for homework rows
+  - CSV columns: date, jadid surah/juz, madi surah/juz, grade (J:/M: prefix for jadid/madi)
+  - BOM prefix for Excel UTF-8 compatibility
+  - Metadata header (`# childName — timestamp`)
+  - Unique filename with `Date.now()` suffix
+  - Reuses the PrintExportDialog visual pattern (DialogTitle + DialogContent + buttons + count)
+- **`HomeworkPrintExportDialog.helpers.ts`** — NEW helpers:
+  - `PrintableHomeworkRow` interface (date, jadidSurahJuz, madiSurahJuz, jadidGrade, madiGrade)
+  - `buildPrintableHomeworkRows()` — maps homework items to printable rows with `formatSurahJuzRef()` + `formatApplicantDate()`
+  - Separated to satisfy the `react-refresh/only-export-components` lint rule
+- **`HomeworkTab.body.tsx`** — NEW body extraction:
+  - Extracted the body rendering logic from HomeworkTab to stay under the 100-line function-body limit
+  - `renderHomeworkBody()` handles loading/error/empty/search-empty/data states
+- **`HomeworkTab.tsx`** — ENHANCED:
+  - Added `useState` for `printOpen` dialog state
+  - Added PrintOutlined IconButton in the header (visible when rows exist)
+  - Passes `filteredRows` to `buildPrintableHomeworkRows()` — CSV export respects the current filter+sort
+  - Renders `HomeworkPrintExportDialog` when `printOpen` is true
+
+### 2. i18n Keys (4 new)
+- `csvJadidColumn`, `csvMadiColumn`, `csvGradeColumn`, `homeworkPrintDialogTitle`
+- English + Arabic parity maintained (154 parity tests pass, up from 150)
+
+### 3. Print/Export Pattern — Now on 2 of 3 Data Tabs
+| Tab | Print/Export Dialog | CSV Columns |
+|---|---|---|
+| Reports | `PrintExportDialog` | date, status, rating, notes |
+| Homework | `HomeworkPrintExportDialog` | date, jadid surah/juz, madi surah/juz, grade |
+| Evaluations | (not yet — next round) | — |
+
+## Verification Results
+- **tsgo**: 0 errors (project-wide)
+- **biome**: clean (1833 files, no fixes needed)
+- **Parity tests**: 154 pass / 0 fail (4 new keys)
+- **UI component tests**: 59 pass / 0 fail (285 expect calls)
+- **sub-loop**: all 9 modified/new files pass `--lifecycle duplicates`
+- **Browser QA**: home page renders correctly (Arabic RTL, screenshot saved to `download/qa-r10-home.png`)
+- **Commit**: `3049b73` pushed to origin
+
+## Unresolved Issues / Risks
+
+1. **Dev server instability** (unchanged): Turbopack dies after 1-2 requests (sandbox memory limitation). Code verified via 154 parity + 59 UI tests.
+
+2. **Evaluations tab still lacks print/export**: The EvaluationsTab doesn't have a print/export button yet. A future round could reuse the `PrintExportDialog` (evaluations uses the reports query — the same `PrintableReportRow` shape applies).
+
+3. **Chart colors don't auto-adapt to theme changes** (unchanged from R4-R9): Recharts stroke receives a direct string from `theme.palette`. Dark/light toggle requires a re-render.
+
+4. **Progress summary 3rd stat label mismatch** (unchanged from R9): The 3rd stat card shows the Madi surah/juz value with the label `statActiveTrack` ("Active Track"). The label is slightly misleading.
+
+5. **Homework CSV grade column uses J:/M: prefix**: The grade column shows "J:5 M:4" when both tracks have grades. This is a compact format — a more readable format would use separate columns per track, but that would require a different CSV structure.
+
+## Priority Recommendations for Next Phase
+
+1. **E2E browser journey coverage** (deferred D3 → DEV1-019): Write Playwright E2E tests. This remains the most impactful next step for visual QA.
+
+2. **Extend print/export to Evaluations tab**: Reuse `PrintExportDialog` — EvaluationsTab uses the reports query, so `PrintableReportRow` applies directly.
+
+3. **Curriculum-depth statistics** (deferred D1): Implement percentage-through-curriculum. The StatCard pattern is ready.
+
+4. **Dark mode chart adaptation**: Use CSS variables for Recharts colors so the chart adapts to theme changes.
+
+5. **Fix ProgressSummary 3rd stat label**: Rename `statActiveTrack` to a more accurate label.
