@@ -46,7 +46,7 @@
 ### - [x] 0.2 Plan-Review Gate — `outcome/plan-review-R1.md`
 - Confirm the generation-time Phase 1.5 review verdict (`outcome/plan-review-R1.md`) is present and clean; if implementation reveals drift, re-run the review and record R2 before continuing.
 - _Requirements: REQ-001_
-- [ ] 0.2.QL/.TE/.SEC: n/a (verification task).
+- [x] 0.2.QL/.TE/.SEC: n/a (verification task).
 - [x] 0.2.SR **Semantic Review**: any spec↔code drift discovered during implementation is written back into specs/plan/tasks in the same commit.
 - [x] 0.2.IV **Instruction Verification**: `.agents/spec-process-guide/` templates re-read.
 ---
