@@ -39,7 +39,17 @@ export function renderChildrenBody(
   }
   if (children.length === 0) {
     return (
-      <>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          flex: 1,
+          minHeight: { xs: "55vh", sm: "60vh" },
+          width: "100%",
+        }}
+      >
         <IconCircleEmptyState
           testId="parent-children-empty"
           icon={<GroupOutlined sx={{ fontSize: 36 }} />}
@@ -50,11 +60,11 @@ export function renderChildrenBody(
           variant="outlined"
           startIcon={<LinkOutlined />}
           onClick={onHandshake}
-          sx={theme => ({ alignSelf: "flex-start", borderColor: theme.palette.primary.main })}
+          sx={theme => ({ borderColor: theme.palette.primary.main })}
         >
           {t.childrenEmptyCta}
         </Button>
-      </>
+      </Box>
     );
   }
   return (
