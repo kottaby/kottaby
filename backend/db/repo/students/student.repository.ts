@@ -36,12 +36,16 @@
  * sibling `student.repository.credit-lane.helpers.ts` module (extracted
  * verbatim); the namespace's `creditLaneBalance` method is a one-to-one
  * delegation wrapper, so the public API (names, signatures, behavior) is
- * unchanged.
+ * unchanged. The subscription-lane expiry zeroing
+ * (`zeroLaneIfNoCoveringSubscription` and its frozen
+ * `ZERO_LANE_BALANCE_COLUMNS` map) follows the same extraction pattern in
+ * the sibling `student.repository.zero-lane.helpers.ts` module.
  */
 import { and, desc, eq, ilike, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
 import { type AnyPgColumn, alias } from "drizzle-orm/pg-core";
 import { db, queryDb } from "@/backend/db";
 import * as studentRepositoryCreditLaneImpl from "@/backend/db/repo/students/student.repository.credit-lane.helpers";
+import * as studentRepositoryZeroLaneImpl from "@/backend/db/repo/students/student.repository.zero-lane.helpers";
 import { students } from "@/backend/db/schema/students/students";
 import { users } from "@/backend/db/schema/users/users";
 import type { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
@@ -535,6 +539,35 @@ export namespace StudentRepository {
     tx?: DBTransaction
   ): Promise<StudentSelectType | null> {
     return studentRepositoryCreditLaneImpl.creditLaneBalance(studentId, lane, amount, tx);
+  }
+
+  /**
+   * Zeroes ONE student subscription-credit lane when NO subscription still
+   * covers it — the expiry-sweep write that retires an expired
+   * subscription's credited period balance (one guarded UPDATE, honest
+   * boolean for lanes-zeroed counting).
+   *
+   * Implementation lives in the sibling
+   * `student.repository.zero-lane.helpers.ts` module (same extraction
+   * convention as `creditLaneBalance`); this method is a one-to-one
+   * delegation wrapper, so the public API (name, signature, behavior) is
+   * unchanged. Statement-shape notes — the single fused predicate set, the
+   * frozen `ZERO_LANE_BALANCE_COLUMNS` lane resolution, the bound enum
+   * parameters, the structural `balance_trial` exemption and the explicit
+   * `updated_at` stamp — are documented on the implementation.
+   *
+   * @returns `true` iff the row matched (the lane was positive and
+   *   uncovered) and was zeroed; `false` when the student is unknown, the
+   *   lane is already zero, or a covering `active`/`pending` subscription
+   *   of the same user credits the same lane. The repository raises
+   *   nothing — the caller classifies the miss.
+   */
+  export async function zeroLaneIfNoCoveringSubscription(
+    studentId: number,
+    lane: SubscriptionCreditLane,
+    tx?: DBTransaction
+  ): Promise<boolean> {
+    return studentRepositoryZeroLaneImpl.zeroLaneIfNoCoveringSubscription(studentId, lane, tx);
   }
 
   /**

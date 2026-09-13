@@ -43,3 +43,7 @@ Run integration smokes with `bun run test:integration` (parallel runner). Each i
 ## Linting Rules
 
 - NEVER use `oxlint-disable` comments — fix the root cause.
+
+## Reference Docs
+
+- Subscription expiry sweep (`SubscriptionExpiryService.expireDue` — one-transaction cohort sweep, conditional lane zeroing, counts-only): `docs/billing/subscription-validity-window-expiry.md`

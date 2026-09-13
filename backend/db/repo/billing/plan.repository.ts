@@ -13,7 +13,7 @@
  *
  * Write methods take an optional `tx: DBTransaction` as their last parameter.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { ConflictError } from "@/backend/lib/errors";
@@ -169,6 +169,43 @@ export namespace PlanRepository {
       [id]
     );
     return result.rows[0] ?? null;
+  }
+
+  /**
+   * Resolves the credited balance lane for a batch of plan IDs — the expiry
+   * sweep's ONE batched plan read.
+   *
+   * Transactional reads run as a Drizzle `inArray` select on the supplied
+   * executor, so the sweep judges the lane vocabulary on the same snapshot
+   * its flip wrote against; non-transactional reads run as raw parameterized
+   * SQL through `queryDb` (Neon HTTP fast path). An empty ID list
+   * short-circuits to an empty result without touching the database (the pg
+   * protocol cannot expand an empty array into `IN`).
+   *
+   * @returns One `{ id, balanceLane }` row per matched plan. `balanceLane`
+   * is the raw stored value, `null` included — an unconfigured lane is the
+   * caller's fail-safe skip case, not this read's concern.
+   */
+  export async function findBalanceLanesByIds(
+    ids: readonly number[],
+    tx?: DBQueryExecutor
+  ): Promise<Array<Pick<PlanSelectType, "id" | "balanceLane">>> {
+    if (ids.length === 0) {
+      return [];
+    }
+    if (tx && isDBTransaction(tx)) {
+      // Transactional read — Drizzle select on the supplied executor.
+      return tx
+        .select({ id: plans.id, balanceLane: plans.balanceLane })
+        .from(plans)
+        .where(inArray(plans.id, [...ids]));
+    }
+    // Non-transactional read — raw SQL via queryDb (Neon HTTP fast path).
+    const result = await queryDb<{ id: number; balanceLane: PlanSelectType["balanceLane"] }>(
+      `SELECT id, balance_lane AS "balanceLane" FROM plans WHERE id = ANY($1::int[])`,
+      [[...ids]]
+    );
+    return result.rows;
   }
 
   /**

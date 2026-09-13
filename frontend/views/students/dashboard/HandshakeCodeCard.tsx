@@ -105,11 +105,14 @@ export function HandshakeCodeCard(): ReactNode {
         {t.yourCodeDescription}
       </Typography>
       <Stack
-        spacing={2}
         sx={{
           flexDirection: { xs: "column", sm: "row" },
           alignItems: { xs: "stretch", sm: "center" },
-          justifyContent: "space-between",
+          // Group the copy affordance directly beside the code atom —
+          // `space-between` pushed the button to the card's far edge on
+          // wide viewports, leaving a dead band between the pair.
+          justifyContent: { sm: "flex-start" },
+          gap: 2,
         }}
       >
         <CodeChip code={handshakeCode} />
