@@ -48,6 +48,7 @@ export type SessionArbitrationProbeType = Pick<
   | "feeHeld"
   | "heldBalanceLane"
   | "confirmedByStudentAt"
+  | "resolutionOutcome"
   | "resolvedAt"
 >;
 

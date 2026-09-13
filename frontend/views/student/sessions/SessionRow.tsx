@@ -173,9 +173,10 @@ export function SessionRow({
             locale={locale}
           />
         ) : null}
-        {session.resolutionNote !== null && session.resolvedAt !== null ? (
+        {session.resolvedAt !== null && (session.resolutionOutcome !== null || session.resolutionNote !== null) ? (
           <SessionRowResolutionNote
             sessionId={session.id}
+            outcome={session.resolutionOutcome}
             note={session.resolutionNote}
             resolvedAt={session.resolvedAt}
             locale={locale}

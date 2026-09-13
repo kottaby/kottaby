@@ -34,11 +34,14 @@
  * transitively register the types through the `gqlSchema.ts` side-effect
  * chain.
  */
+
+import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import {
+  DisputeResolutionPothosEnum,
   SessionIntentPothosEnum,
   SessionStatusPothosEnum,
   SessionTypePothosEnum,
@@ -126,6 +129,34 @@ function toSessionIntent(intent: NonNullable<SessionReturnType["intent"]>): Sess
 }
 
 /**
+ * Maps the `dispute_resolution` pgEnum value carried by the canonical
+ * `SessionReturnType` row onto the `DisputeResolution` TS enum — exhaustive
+ * switch (one case per member, no `default`) with the same fail-closed
+ * never-guard fallback as {@link toSessionStatus}. The wire vocabulary is
+ * value-identical to the storage vocabulary (both spell the PascalCase
+ * members), so this mapper is pure re-typing, never re-spelling.
+ */
+function toDisputeResolution(outcome: NonNullable<SessionReturnType["resolutionOutcome"]>): DisputeResolution {
+  switch (outcome) {
+    case "Cancel":
+      return DisputeResolution.Cancel;
+    case "Complete":
+      return DisputeResolution.Complete;
+    case "Refund":
+      return DisputeResolution.Refund;
+    case "PartialRefund":
+      return DisputeResolution.PartialRefund;
+    case "Uphold":
+      return DisputeResolution.Uphold;
+  }
+  // Exhaustiveness guard — the pgEnum union above guarantees this is
+  // unreachable (the registration.service.ts fail-closed idiom, without a
+  // `default` clause).
+  const exhaustive: never = outcome;
+  throw new Error(`Unexpected dispute resolution outcome: ${String(exhaustive)}`);
+}
+
+/**
  * The canonical `Session` GraphQL object. Producers return
  * `SessionReturnType` (the session table's derived select row). Field order
  * mirrors plan §3.1: `id` first, participant ids, lifecycle enums, fee
@@ -191,6 +222,18 @@ export const SessionPothosObject = gqlSchemaBuilder.objectRef<SessionReturnType>
     disputeReason: t.exposeString("disputeReason", { nullable: true }),
     disputedAt: t.expose("disputedAt", { type: "DateTime", nullable: true }),
     resolutionNote: t.exposeString("resolutionNote", { nullable: true }),
+    // The formal arbitration decision (CR-5) — the storage mirror of the
+    // `DisputeResolution` wire enum. NULL for rows never disputed or
+    // resolved before the column shipped (the note alone never carried
+    // the decision: admins may resolve without writing one).
+    resolutionOutcome: t.field({
+      type: DisputeResolutionPothosEnum,
+      nullable: true,
+      resolve: parent => {
+        if (parent.resolutionOutcome === null) return null;
+        return toDisputeResolution(parent.resolutionOutcome);
+      },
+    }),
     resolvedAt: t.expose("resolvedAt", { type: "DateTime", nullable: true }),
     // Server-derived admin attention badge — computed by the admin
     // directory read per row (a disputed row, or a scheduled row whose

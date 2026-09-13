@@ -101,6 +101,7 @@ import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
+import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
@@ -127,6 +128,7 @@ const SESSION_ROW_KEYS = [
   "id",
   "intent",
   "resolutionNote",
+  "resolutionOutcome",
   "resolvedAt",
   "sessionType",
   "startedAt",
@@ -699,7 +701,12 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       const disputed = await SessionRepository.openDisputeOnce(row.id, actors.studentUserId, "r", tx);
       expect(disputed?.status).toBe(SessionStatus.Disputed);
 
-      const resolved = await SessionRepository.resolveDisputeCancelOnce(row.id, "refunded in full", tx);
+      const resolved = await SessionRepository.resolveDisputeCancelOnce(
+        row.id,
+        "refunded in full",
+        DisputeResolution.Cancel,
+        tx
+      );
 
       expect(resolved).not.toBeNull();
       expect(resolved?.status).toBe(SessionStatus.Cancelled);
@@ -708,6 +715,8 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       // read it off the returned row.
       expect(resolved?.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
       expect(resolved?.resolutionNote).toBe("refunded in full");
+      // CR-5: the formal outcome is persisted beside the note.
+      expect(resolved?.resolutionOutcome).toBe(DisputeResolution.Cancel);
       expect(resolved?.resolvedAt).not.toBeNull();
       expect(resolved?.resolvedAt?.getTime()).toBe(resolved?.updatedAt.getTime());
       // A cancellation never writes an end stamp; the dispute reason stays.
@@ -723,24 +732,41 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
 
       const row = await insertSessionRow(tx, actors);
       await SessionRepository.openDisputeOnce(row.id, actors.studentUserId, "r", tx);
-      const bare = await SessionRepository.resolveDisputeCancelOnce(row.id, null, tx);
+      const bare = await SessionRepository.resolveDisputeCancelOnce(row.id, null, DisputeResolution.Cancel, tx);
       expect(bare?.status).toBe(SessionStatus.Cancelled);
       expect(bare?.resolutionNote).toBeNull();
+      // The outcome persists even when the note is absent (CR-5's reason).
+      expect(bare?.resolutionOutcome).toBe(DisputeResolution.Cancel);
 
       // A scheduled row is not disputed — the guarded predicate misses.
       const scheduledRow = await insertSessionRow(tx, actors);
-      const notDisputed = await SessionRepository.resolveDisputeCancelOnce(scheduledRow.id, "n", tx);
+      const notDisputed = await SessionRepository.resolveDisputeCancelOnce(
+        scheduledRow.id,
+        "n",
+        DisputeResolution.Cancel,
+        tx
+      );
       expect(notDisputed).toBeNull();
       const stillScheduled = await readSessionRow(tx, scheduledRow.id);
       expect(stillScheduled.status).toBe(SessionStatus.Scheduled);
       expect(stillScheduled.feeHeld).toBe(true);
 
       // Double-resolve: the second attempt matches zero rows.
-      const doubleResolve = await SessionRepository.resolveDisputeCancelOnce(row.id, "again", tx);
+      const doubleResolve = await SessionRepository.resolveDisputeCancelOnce(
+        row.id,
+        "again",
+        DisputeResolution.Cancel,
+        tx
+      );
       expect(doubleResolve).toBeNull();
 
       // Unknown session id.
-      const unknown = await SessionRepository.resolveDisputeCancelOnce(missingSessionId, "n", tx);
+      const unknown = await SessionRepository.resolveDisputeCancelOnce(
+        missingSessionId,
+        "n",
+        DisputeResolution.Cancel,
+        tx
+      );
       expect(unknown).toBeNull();
     });
   });
@@ -753,7 +779,13 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       expect(started?.startedAt).not.toBeNull();
       await SessionRepository.openDisputeOnce(row.id, actors.studentUserId, "r", tx);
 
-      const resolved = await SessionRepository.resolveDisputeCompleteOnce(row.id, "held per policy", tx);
+      const resolved = await SessionRepository.resolveDisputeCompleteOnce(
+        row.id,
+        "held per policy",
+        DisputeResolution.Complete,
+        tx
+      );
+      expect(resolved?.resolutionOutcome).toBe(DisputeResolution.Complete);
 
       expect(resolved).not.toBeNull();
       expect(resolved?.status).toBe(SessionStatus.Completed);
@@ -778,7 +810,12 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       // IS-NOT-NULL predicate misses, and the row stays disputed.
       const neverStarted = await insertSessionRow(tx, actors);
       await SessionRepository.openDisputeOnce(neverStarted.id, actors.studentUserId, "r", tx);
-      const rejected = await SessionRepository.resolveDisputeCompleteOnce(neverStarted.id, "n", tx);
+      const rejected = await SessionRepository.resolveDisputeCompleteOnce(
+        neverStarted.id,
+        "n",
+        DisputeResolution.Complete,
+        tx
+      );
       expect(rejected).toBeNull();
       const stillDisputed = await readSessionRow(tx, neverStarted.id);
       expect(stillDisputed.status).toBe(SessionStatus.Disputed);
@@ -787,9 +824,19 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
 
       // Wrong state + unknown id.
       const scheduledRow = await insertSessionRow(tx, actors);
-      const notDisputed = await SessionRepository.resolveDisputeCompleteOnce(scheduledRow.id, "n", tx);
+      const notDisputed = await SessionRepository.resolveDisputeCompleteOnce(
+        scheduledRow.id,
+        "n",
+        DisputeResolution.Complete,
+        tx
+      );
       expect(notDisputed).toBeNull();
-      const unknown = await SessionRepository.resolveDisputeCompleteOnce(missingSessionId, "n", tx);
+      const unknown = await SessionRepository.resolveDisputeCompleteOnce(
+        missingSessionId,
+        "n",
+        DisputeResolution.Complete,
+        tx
+      );
       expect(unknown).toBeNull();
     });
   });
@@ -927,14 +974,19 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     });
   });
 
-  test("resolveConsumedDisputeOnce completes a consumed dispute and returns the eight-column arbitration probe", async () => {
+  test("resolveConsumedDisputeOnce completes a consumed dispute and returns the nine-column arbitration probe", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
       const row = await insertConsumedSessionRow(tx, actors);
       const disputed = await SessionRepository.openPostConfirmationDisputeOnce(row.id, actors.studentUserId, "r", tx);
       expect(disputed?.status).toBe(SessionStatus.Disputed);
 
-      const resolved = await SessionRepository.resolveConsumedDisputeOnce(row.id, "refunded in full", tx);
+      const resolved = await SessionRepository.resolveConsumedDisputeOnce(
+        row.id,
+        "refunded in full",
+        DisputeResolution.PartialRefund,
+        tx
+      );
 
       expect(resolved).not.toBeNull();
       // The returned row is exactly the arbitration probe projection —
@@ -945,12 +997,17 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
         "feeHeld",
         "heldBalanceLane",
         "id",
+        "resolutionOutcome",
+        "resolvedAt",
         "status",
         "studentId",
         "teacherId",
       ]);
       expect(resolved?.id).toBe(row.id);
       expect(resolved?.status).toBe(SessionStatus.Completed);
+      // The outcome rides the probe (the caller's response re-read carries
+      // it too — one source of truth for the participant-facing decision).
+      expect(resolved?.resolutionOutcome).toBe(DisputeResolution.PartialRefund);
       expect(resolved?.studentId).toBe(actors.studentUserId);
       expect(resolved?.teacherId).toBe(actors.teacherUserId);
       expect(resolved?.fee).toBe("10.00");
@@ -982,7 +1039,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
 
       const row = await insertConsumedSessionRow(tx, actors);
       await SessionRepository.openPostConfirmationDisputeOnce(row.id, actors.studentUserId, "r", tx);
-      const bare = await SessionRepository.resolveConsumedDisputeOnce(row.id, null, tx);
+      const bare = await SessionRepository.resolveConsumedDisputeOnce(row.id, null, DisputeResolution.Refund, tx);
       expect(bare?.status).toBe(SessionStatus.Completed);
       expect(bare?.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
       const bareRow = await readSessionRow(tx, row.id);
@@ -992,7 +1049,9 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       // shipped CANCEL/COMPLETE pair — never through this consumed leg.
       const heldDisputed = await insertSessionRow(tx, actors);
       await SessionRepository.openDisputeOnce(heldDisputed.id, actors.studentUserId, "r", tx);
-      expect(await SessionRepository.resolveConsumedDisputeOnce(heldDisputed.id, "n", tx)).toBeNull();
+      expect(
+        await SessionRepository.resolveConsumedDisputeOnce(heldDisputed.id, "n", DisputeResolution.Refund, tx)
+      ).toBeNull();
       const stillHeldDisputed = await readSessionRow(tx, heldDisputed.id);
       expect(stillHeldDisputed.status).toBe(SessionStatus.Disputed);
       expect(stillHeldDisputed.feeHeld).toBe(true);
@@ -1000,14 +1059,22 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
 
       // Wrong states + unknown id.
       const scheduledRow = await insertSessionRow(tx, actors);
-      expect(await SessionRepository.resolveConsumedDisputeOnce(scheduledRow.id, "n", tx)).toBeNull();
+      expect(
+        await SessionRepository.resolveConsumedDisputeOnce(scheduledRow.id, "n", DisputeResolution.Refund, tx)
+      ).toBeNull();
       const cancelledRow = await insertSessionRow(tx, actors);
       await SessionRepository.cancelSessionOnce(cancelledRow.id, actors.studentUserId, null, tx);
-      expect(await SessionRepository.resolveConsumedDisputeOnce(cancelledRow.id, "n", tx)).toBeNull();
-      expect(await SessionRepository.resolveConsumedDisputeOnce(missingSessionId, "n", tx)).toBeNull();
+      expect(
+        await SessionRepository.resolveConsumedDisputeOnce(cancelledRow.id, "n", DisputeResolution.Refund, tx)
+      ).toBeNull();
+      expect(
+        await SessionRepository.resolveConsumedDisputeOnce(missingSessionId, "n", DisputeResolution.Refund, tx)
+      ).toBeNull();
 
       // Double-resolve: the second attempt matches zero rows.
-      expect(await SessionRepository.resolveConsumedDisputeOnce(row.id, "again", tx)).toBeNull();
+      expect(
+        await SessionRepository.resolveConsumedDisputeOnce(row.id, "again", DisputeResolution.Refund, tx)
+      ).toBeNull();
       const onceOnly = await readSessionRow(tx, row.id);
       expect(onceOnly.resolutionNote).toBeNull();
     });
@@ -1031,7 +1098,12 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       );
       expect(disputed?.status).toBe(SessionStatus.Disputed);
 
-      const resolved = await SessionRepository.resolveConsumedDisputeOnce(neverHeld.id, "n", tx);
+      const resolved = await SessionRepository.resolveConsumedDisputeOnce(
+        neverHeld.id,
+        "n",
+        DisputeResolution.Refund,
+        tx
+      );
       expect(resolved).not.toBeNull();
       expect(resolved?.heldBalanceLane).toBeNull();
       expect(resolved?.feeHeld).toBe(false);
@@ -1079,7 +1151,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     });
   });
 
-  test("findArbitrationProbe returns exactly the eight-column escrow projection, null for unknown ids", async () => {
+  test("findArbitrationProbe returns exactly the ten-column escrow projection, null for unknown ids", async () => {
     await runInRollback(async tx => {
       const actors = await createSessionActors(tx);
       const missingId = await absentSessionId(tx);
@@ -1095,6 +1167,8 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
         "feeHeld",
         "heldBalanceLane",
         "id",
+        "resolutionOutcome",
+        "resolvedAt",
         "status",
         "studentId",
         "teacherId",
@@ -1113,7 +1187,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       await SessionRepository.openPostConfirmationDisputeOnce(row.id, actors.studentUserId, "r", tx);
       const afterOpen = await SessionRepository.findArbitrationProbe(row.id, tx);
       expect(afterOpen?.status).toBe(SessionStatus.Disputed);
-      await SessionRepository.resolveConsumedDisputeOnce(row.id, "n", tx);
+      await SessionRepository.resolveConsumedDisputeOnce(row.id, "n", DisputeResolution.Uphold, tx);
       const afterResolve = await SessionRepository.findArbitrationProbe(row.id, tx);
       expect(afterResolve?.status).toBe(SessionStatus.Completed);
     });
@@ -1668,7 +1742,12 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       const disputed = await insertSessionRow(tx, actors);
       await SessionRepository.startSessionOnce(disputed.id, actors.teacherUserId, tx);
       await SessionRepository.openDisputeOnce(disputed.id, actors.studentUserId, "r", tx);
-      const arbitrated = await SessionRepository.resolveDisputeCompleteOnce(disputed.id, "held per policy", tx);
+      const arbitrated = await SessionRepository.resolveDisputeCompleteOnce(
+        disputed.id,
+        "held per policy",
+        DisputeResolution.Complete,
+        tx
+      );
       if (arbitrated === null) {
         throw new Error("expected the arbitration COMPLETE resolution to return the settled row");
       }
@@ -2016,8 +2095,8 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       await SessionRepository.openPostConfirmationDisputeOnce(row.id, actors.studentUserId, "r", tx);
 
       const outcomes = await Promise.allSettled([
-        SessionRepository.resolveConsumedDisputeOnce(row.id, "refund granted", tx),
-        SessionRepository.resolveConsumedDisputeOnce(row.id, "upheld instead", tx),
+        SessionRepository.resolveConsumedDisputeOnce(row.id, "refund granted", DisputeResolution.Refund, tx),
+        SessionRepository.resolveConsumedDisputeOnce(row.id, "upheld instead", DisputeResolution.Uphold, tx),
       ]);
 
       expect(outcomes.map(outcome => outcome.status)).toEqual(["fulfilled", "fulfilled"]);
@@ -2048,7 +2127,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       // — nothing to arbitrate), then the entry lands. The final state is
       // the open dispute, never a phantom resolution.
       const outcomes = await Promise.allSettled([
-        SessionRepository.resolveConsumedDisputeOnce(row.id, "n", tx),
+        SessionRepository.resolveConsumedDisputeOnce(row.id, "n", DisputeResolution.Refund, tx),
         SessionRepository.openPostConfirmationDisputeOnce(row.id, actors.studentUserId, "r", tx),
       ]);
       expect(outcomes.map(outcome => outcome.status)).toEqual(["fulfilled", "fulfilled"]);
@@ -2067,7 +2146,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       const second = await insertConsumedSessionRow(tx, actors);
       const bothOutcomes = await Promise.allSettled([
         SessionRepository.openPostConfirmationDisputeOnce(second.id, actors.studentUserId, "r", tx),
-        SessionRepository.resolveConsumedDisputeOnce(second.id, "n", tx),
+        SessionRepository.resolveConsumedDisputeOnce(second.id, "n", DisputeResolution.Refund, tx),
       ]);
       expect(bothOutcomes.map(outcome => outcome.status)).toEqual(["fulfilled", "fulfilled"]);
       const [openOutcome2, resolveOutcome2] = bothOutcomes.map(outcome =>
@@ -2125,7 +2204,12 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       );
       expect(disputed?.disputeReason).toBe(hostileReason);
 
-      const resolved = await SessionRepository.resolveConsumedDisputeOnce(row.id, hostileNote, tx);
+      const resolved = await SessionRepository.resolveConsumedDisputeOnce(
+        row.id,
+        hostileNote,
+        DisputeResolution.Uphold,
+        tx
+      );
       expect(resolved).not.toBeNull();
 
       // The text landed verbatim as data and nothing executed: the row and
@@ -2459,13 +2543,21 @@ describe("SessionRepository — standalone executor paths (committed fixtures)",
 
     // Pool-fallback resolutions: CANCEL releases the hold marker; COMPLETE
     // consumes it.
-    const cancelled = await SessionRepository.resolveDisputeCancelOnce(fixture.cancelOutcome.id, "pool-cancel");
+    const cancelled = await SessionRepository.resolveDisputeCancelOnce(
+      fixture.cancelOutcome.id,
+      "pool-cancel",
+      DisputeResolution.Cancel
+    );
     expect(cancelled?.status).toBe(SessionStatus.Cancelled);
     expect(cancelled?.feeHeld).toBe(false);
     expect(cancelled?.resolutionNote).toBe("pool-cancel");
     expect(cancelled?.resolvedAt).not.toBeNull();
 
-    const completed = await SessionRepository.resolveDisputeCompleteOnce(fixture.startedOutcome.id, "pool-complete");
+    const completed = await SessionRepository.resolveDisputeCompleteOnce(
+      fixture.startedOutcome.id,
+      "pool-complete",
+      DisputeResolution.Complete
+    );
     expect(completed?.status).toBe(SessionStatus.Completed);
     expect(completed?.feeHeld).toBe(false);
     expect(completed?.endedAt).not.toBeNull();
@@ -2502,7 +2594,11 @@ describe("SessionRepository — standalone executor paths (committed fixtures)",
     expect(disputed?.status).toBe(SessionStatus.Disputed);
     expect(disputed?.disputeReason).toBe("pool-dispute");
 
-    const resolved = await SessionRepository.resolveConsumedDisputeOnce(fixture.consumed.id, "pool-resolve");
+    const resolved = await SessionRepository.resolveConsumedDisputeOnce(
+      fixture.consumed.id,
+      "pool-resolve",
+      DisputeResolution.Refund
+    );
     expect(resolved).not.toBeNull();
     expect(Object.keys(resolved ?? {}).toSorted((a, b) => a.localeCompare(b))).toEqual([
       "confirmedByStudentAt",
@@ -2510,10 +2606,13 @@ describe("SessionRepository — standalone executor paths (committed fixtures)",
       "feeHeld",
       "heldBalanceLane",
       "id",
+      "resolutionOutcome",
+      "resolvedAt",
       "status",
       "studentId",
       "teacherId",
     ]);
+    expect(resolved?.resolutionOutcome).toBe(DisputeResolution.Refund);
     expect(resolved?.status).toBe(SessionStatus.Completed);
     expect(resolved?.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
 

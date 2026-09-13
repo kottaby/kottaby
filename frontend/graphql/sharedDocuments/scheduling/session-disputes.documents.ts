@@ -75,6 +75,7 @@ export const openSessionDisputeMutationDocument: TypedDocumentNode<
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
     }
   }
@@ -115,6 +116,7 @@ export const openPostConfirmationDisputeMutationDocument: TypedDocumentNode<
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
     }
   }
@@ -156,6 +158,7 @@ export const resolveSessionDisputeMutationDocument: TypedDocumentNode<
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
     }
   }
@@ -198,6 +201,7 @@ export const adminDisputedSessionsQueryDocument: TypedDocumentNode<
           disputeReason
           disputedAt
           resolutionNote
+          resolutionOutcome
           resolvedAt
         }
         studentName
@@ -246,6 +250,7 @@ export const adminDisputeCaseQueryDocument: TypedDocumentNode<AdminDisputeCaseQu
         disputeReason
         disputedAt
         resolutionNote
+        resolutionOutcome
         resolvedAt
       }
       report {

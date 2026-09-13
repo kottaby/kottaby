@@ -92,6 +92,7 @@ function dialogRowFixture(
     disputeReason: "Teacher ended the session early.",
     disputedAt: "2099-01-10T13:20:00.000Z",
     resolutionNote: null,
+    resolutionOutcome: null,
     resolvedAt: RESOLVED_ISO,
     ...overrides,
   };

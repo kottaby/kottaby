@@ -160,6 +160,7 @@ function disputeFixture(
     disputeReason: FILED_DISPUTE_REASON,
     disputedAt: DISPUTED_ISO,
     resolutionNote: null,
+    resolutionOutcome: null,
     resolvedAt: null,
     ...overrides,
   };

@@ -3,15 +3,22 @@
 import { CheckCircleOutlined as ResolvedIcon } from "@mui/icons-material";
 import { Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { DisputeResolution as WireDisputeResolution } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { Sessions, useAppTranslation } from "@/shared/locale";
 import type { AppLocale } from "@/shared/locale/AppLocale";
+import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 interface SessionRowResolutionNoteProps {
   /** Row identity (testid suffix). */
   readonly sessionId: string;
-  /** The arbitration note the admin recorded — never empty here. */
-  readonly note: string;
+  /** The formal arbitration decision — null only for pre-CR-5 resolved rows. */
+  readonly outcome: WireDisputeResolution | null;
+  /**
+   * The arbitration note the admin recorded — optional since CR-5: the
+   * OUTCOME carries the line; the note is added detail when present.
+   */
+  readonly note: string | null;
   /** The arbitration moment (rendered locale-aware, muted). */
   readonly resolvedAt: string;
   /** Active request locale — drives the date formatter. */
@@ -19,22 +26,49 @@ interface SessionRowResolutionNoteProps {
 }
 
 /**
- * Participant-side arbitration-outcome line — rendered ONLY when the row
- * carries the admin's resolution note (the arbitration terminal stamp).
- * The student and the teacher each see HOW the case ended on the row
- * itself: the note (truncated, full text through the tooltip) plus the
- * resolved moment at the line end (flexShrink:0 — the truncation ellipsis
- * always lands on the note run, never on the date). Mirrors
- * `SessionRowCancelReason`'s RTL-safe clamp (min-width:0 + xs full-bleed
- * pin) so the line cannot push the card wider inside the wrap-friendly
- * flex row.
+ * Pure wire→label map for the persisted arbitration outcome. Exhaustive
+ * over the `DisputeResolution` wire enum with a `never` guard; `null`
+ * (a resolved row that predates the stored outcome) falls back to the
+ * honest generic "Resolved" label — never fabricated copy.
+ */
+export function resolutionOutcomeLabel(outcome: WireDisputeResolution | null, t: SessionsLabels): string {
+  switch (outcome) {
+    case WireDisputeResolution.Cancel:
+      return t.outcomeCancel;
+    case WireDisputeResolution.Complete:
+      return t.outcomeComplete;
+    case WireDisputeResolution.Refund:
+      return t.outcomeRefund;
+    case WireDisputeResolution.PartialRefund:
+      return t.outcomePartialRefund;
+    case WireDisputeResolution.Uphold:
+      return t.outcomeUphold;
+    case null:
+      return t.outcomeUnrecorded;
+  }
+  const exhaustive: never = outcome;
+  throw new Error(`Unexpected resolution outcome: ${String(exhaustive)}`);
+}
+
+/**
+ * Participant-side arbitration-outcome line — rendered when the row
+ * carries the arbitration terminal stamp (`resolvedAt`) and ANY decision
+ * evidence (the stored outcome, or a pre-CR-5 note). The student and the
+ * teacher each see HOW the case ended on the row itself: the formal
+ * outcome (emphasized), the optional note (truncated, full text through
+ * the tooltip), and the resolved moment at the line end (flexShrink:0 —
+ * the truncation ellipsis always lands on the note run, never on the
+ * date). Mirrors `SessionRowCancelReason`'s RTL-safe clamp (min-width:0 +
+ * xs full-bleed pin) so the line cannot push the card wider inside the
+ * wrap-friendly flex row.
  *
  * Tone: the check icon picks up `success.main` — the dispute reached a
- * decision; informational emphasis, never an error treatment (the note
- * copy itself stays neutral secondary text).
+ * decision; informational emphasis, never an error treatment (the outcome
+ * and note copy stay neutral secondary text).
  */
 export function SessionRowResolutionNote({
   sessionId,
+  outcome,
   note,
   resolvedAt,
   locale,
@@ -66,12 +100,22 @@ export function SessionRowResolutionNote({
           {t.arbitrationOutcomeLine}
         </Typography>
         <Typography
+          data-testid={`session-resolution-outcome-${sessionId}`}
           variant="body2"
           noWrap
-          sx={theme => ({ color: theme.palette.text.secondary, minWidth: 0, flex: "1 1 0" })}
+          sx={theme => ({ color: theme.palette.text.secondary, fontWeight: 700, flexShrink: 0 })}
         >
-          {note}
+          {resolutionOutcomeLabel(outcome, t)}
         </Typography>
+        {note !== null ? (
+          <Typography
+            variant="body2"
+            noWrap
+            sx={theme => ({ color: theme.palette.text.secondary, minWidth: 0, flex: "1 1 0", opacity: 0.85 })}
+          >
+            {`— ${note}`}
+          </Typography>
+        ) : null}
         <Typography
           variant="body2"
           noWrap

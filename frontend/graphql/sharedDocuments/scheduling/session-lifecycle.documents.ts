@@ -28,7 +28,7 @@ import type {
  *
  * Every `Session` selection carries the dispute/cancel-audit
  * fields (`cancelReason`, `disputeReason`, `disputedAt`, `resolutionNote`,
- * `resolvedAt` — all nullable) so the rows that render them (cancelled
+ * `resolutionOutcome`, `resolvedAt` — all nullable) so the rows that render them (cancelled
  * rows with a persisted cancel reason; the admin arbitration list) and
  * the cache-normalize `update` arms share ONE field shape across the
  * family.
@@ -68,6 +68,7 @@ export const createSessionMutationDocument: TypedDocumentNode<CreateSessionMutat
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
     }
   }
@@ -99,6 +100,7 @@ export const startSessionMutationDocument: TypedDocumentNode<StartSessionMutatio
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
     }
   }
@@ -133,6 +135,7 @@ export const completeSessionMutationDocument: TypedDocumentNode<
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
     }
   }
@@ -167,6 +170,7 @@ export const cancelSessionMutationDocument: TypedDocumentNode<CancelSessionMutat
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
     }
   }
@@ -208,6 +212,7 @@ export const confirmSessionCompletionMutationDocument: TypedDocumentNode<
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
     }
   }

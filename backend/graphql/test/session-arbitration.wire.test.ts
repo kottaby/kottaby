@@ -198,6 +198,7 @@ const RESOLVE_DISPUTE_DOC = gql`
       status
       feeHeld
       resolutionNote
+      resolutionOutcome
       resolvedAt
     }
   }
@@ -651,6 +652,7 @@ describe("resolveSessionDispute — held-family values ride the shipped held-esc
     expect(payload.status).toBe("Cancelled");
     expect(payload.feeHeld).toBe(false);
     expect(payload.resolutionNote).toBe("held dispute cancelled");
+    expect(payload.resolutionOutcome).toBe("Cancel");
     const afterRefund = await readHifzBalance(cast.primaryStudent.userId);
     expect(afterRefund).toBe(beforeRefund + 1);
   });

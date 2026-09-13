@@ -102,6 +102,7 @@ function caseFixture(
       disputeReason: "Session ended before the full recitation review.",
       disputedAt: DISPUTED_ISO,
       resolutionNote: null,
+      resolutionOutcome: null,
       resolvedAt: null,
     },
     studentName: STUDENT_NAME,

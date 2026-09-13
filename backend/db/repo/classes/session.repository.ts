@@ -73,6 +73,7 @@ import * as sessionRepositoryImpl from "@/backend/db/repo/classes/session.reposi
 import * as sessionRepositoryWaveImpl from "@/backend/db/repo/classes/session.repository.wave.helpers";
 import { session } from "@/backend/db/schema/classes/session";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
+import type { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import type {
   AdminSessionDetail,
@@ -290,13 +291,21 @@ export namespace SessionRepository {
   export async function resolveDisputeCancelOnce(
     id: number,
     resolutionNote: string | null,
+    resolutionOutcome: DisputeResolution,
     tx?: DBTransaction
   ): Promise<SessionSelectType | null> {
     const now = new Date();
     const executor = tx ?? db;
     const rows = await executor
       .update(session)
-      .set({ status: SessionStatus.Cancelled, feeHeld: false, resolutionNote, resolvedAt: now, updatedAt: now })
+      .set({
+        status: SessionStatus.Cancelled,
+        feeHeld: false,
+        resolutionNote,
+        resolutionOutcome,
+        resolvedAt: now,
+        updatedAt: now,
+      })
       .where(and(eq(session.id, id), eq(session.status, SessionStatus.Disputed)))
       .returning();
     return rows[0] ?? null;
@@ -344,6 +353,7 @@ export namespace SessionRepository {
   export async function resolveDisputeCompleteOnce(
     id: number,
     resolutionNote: string | null,
+    resolutionOutcome: DisputeResolution,
     tx?: DBTransaction
   ): Promise<SessionSelectType | null> {
     const now = new Date();
@@ -355,6 +365,7 @@ export namespace SessionRepository {
         feeHeld: false,
         endedAt: now,
         resolutionNote,
+        resolutionOutcome,
         resolvedAt: now,
         updatedAt: now,
       })

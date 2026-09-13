@@ -372,7 +372,7 @@ export namespace SessionArbitrationService {
       // The guarded completion leg fires FIRST: the loser of a concurrent
       // arbitration matches zero rows here and classifies as the state
       // conflict before any money moves.
-      const resolved = await SessionRepository.resolveConsumedDisputeOnce(sessionId, resolutionNote, tx);
+      const resolved = await SessionRepository.resolveConsumedDisputeOnce(sessionId, resolutionNote, resolution, tx);
       if (resolved === null) {
         rejectStateConflict("Session arbitration denied: session not resolvable in its current state", sessionId, t);
       }

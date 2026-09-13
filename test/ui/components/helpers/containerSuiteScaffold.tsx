@@ -35,6 +35,7 @@ import {
 import type { ReactElement } from "react";
 import {
   type AdminSessionsQuery_adminSessions_items,
+  type DisputeResolution,
   SessionIntent,
   SessionStatus,
   SessionType,
@@ -227,6 +228,7 @@ export interface SessionWireRow {
   readonly disputeReason: string | null;
   readonly disputedAt: string | null;
   readonly resolutionNote: string | null;
+  readonly resolutionOutcome: DisputeResolution | null;
   readonly resolvedAt: string | null;
 }
 
@@ -264,6 +266,7 @@ export function buildSessionWireRow(
     disputeReason: null,
     disputedAt: null,
     resolutionNote: null,
+    resolutionOutcome: null,
     resolvedAt: null,
     ...overrides,
   };
@@ -552,6 +555,7 @@ export function buildAdminSessionRowFixture(
     disputeReason: null,
     disputedAt: null,
     resolutionNote: null,
+    resolutionOutcome: null,
     resolvedAt: null,
     needsAttention: false,
     ...overrides,

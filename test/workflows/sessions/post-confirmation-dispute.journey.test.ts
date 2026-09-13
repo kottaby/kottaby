@@ -438,7 +438,7 @@ afterAll(async () => {
     expect(await countAuditLogsForActor(secondAdminUserId)).toBe(0);
   }
 
-  // The earning/withdrawal ledger rows are append-only and restrict-delete
+  // The earning/arbitration-reversal ledger rows are append-only and restrict-delete
   // into the wallet (which the cast teardown would cascade away) — swept
   // under the trigger suspension, then re-probed to zero while the wallets
   // still exist.
@@ -669,11 +669,12 @@ describe("Journey J1 — dispute → queue → case review → Refund arbitratio
     expect(auditDetails.notePresent).toBe(true);
 
     // The ledger: the original earning plus exactly ONE compensating
-    // withdrawal row, session-keyed, completed, amount verbatim, traceable
-    // by its reversal description.
+    // arbitration-reversal row (CR-4's dedicated clawback type),
+    // session-keyed, completed, amount verbatim, traceable by its
+    // reversal description.
     const ledgerRows = await readLedgerRowsForSession(refundSession.id);
     expect(ledgerRows.map(row => row.type).toSorted((a, b) => a.localeCompare(b))).toEqual(
-      [TransactionType.Earning, TransactionType.Withdrawal].toSorted((a, b) => a.localeCompare(b))
+      [TransactionType.Earning, TransactionType.ArbitrationReversal].toSorted((a, b) => a.localeCompare(b))
     );
     const ordered = ledgerRows.toSorted((a, b) => a.id - b.id);
     const compensating = ordered.at(-1);
@@ -761,7 +762,7 @@ describe("Journey J2 — PartialRefund on the 25.00 fee debits exactly 15.00", (
     // partial amount.
     const ledgerRows = await readLedgerRowsForSession(partialSession.id);
     expect(ledgerRows.map(row => row.type).toSorted((a, b) => a.localeCompare(b))).toEqual(
-      [TransactionType.Earning, TransactionType.Withdrawal].toSorted((a, b) => a.localeCompare(b))
+      [TransactionType.Earning, TransactionType.ArbitrationReversal].toSorted((a, b) => a.localeCompare(b))
     );
     const ordered = ledgerRows.toSorted((a, b) => a.id - b.id);
     const compensating = ordered.at(-1);
@@ -1091,7 +1092,7 @@ testOnRealPostgres(
     expect(lanesAfter.trial - lanesBefore.trial).toBe(1);
     const ledgerRows = await readLedgerRowsForSession(raceSession.id);
     expect(ledgerRows.map(row => row.type).toSorted((a, b) => a.localeCompare(b))).toEqual(
-      [TransactionType.Earning, TransactionType.Withdrawal].toSorted((a, b) => a.localeCompare(b))
+      [TransactionType.Earning, TransactionType.ArbitrationReversal].toSorted((a, b) => a.localeCompare(b))
     );
     const audits = await readAuditsForSession(raceSession.id);
     expect(audits.map(row => row.actionType)).toEqual([AuditActionType.Override]);

@@ -482,10 +482,13 @@ describe("SessionArbitrationService — arbitration outcomes (runInRollback)", (
         tx
       );
 
-      // The row: completed with the resolution stamps.
+      // The row: completed with the resolution stamps — and since CR-5 the
+      // FORMAL outcome persists beside them (the note is optional; the
+      // decision is not).
       expect(resolved.status).toBe(SessionStatus.Completed);
       expect(resolved.resolvedAt).not.toBeNull();
       expect(resolved.resolutionNote).toBeNull();
+      expect(resolved.resolutionOutcome).toBe(DisputeResolution.Refund);
 
       // The teacher leg: the compensating arbitration-reversal row keyed to the
       // session, the balance debited to exactly zero, `total_earning`

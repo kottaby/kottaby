@@ -82,6 +82,7 @@ function rowFixture(overrides?: Partial<AdminDisputedSessionsQuery_adminDisputed
     disputeReason: FILED_DISPUTE_REASON,
     disputedAt: DISPUTED_ISO,
     resolutionNote: null,
+    resolutionOutcome: null,
     resolvedAt: null,
     ...overrides,
   };

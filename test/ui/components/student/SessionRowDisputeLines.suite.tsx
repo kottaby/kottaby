@@ -14,10 +14,15 @@
  *   1. DISPUTED row (reason + moment set) — the dispute line renders with
  *      the filed reason text and the localized disputed moment, on BOTH
  *      role surfaces.
- *   2. ARBITRATED row (resolution note + resolved moment set) — the
- *      arbitration-outcome line renders with the admin note and the
- *      localized resolved moment; the dispute reason line co-renders (the
- *      claimed reason stays part of the case story after the decision).
+ *   2. ARBITRATED row (outcome + resolved moment set) — the
+ *      arbitration-outcome line renders the FORMAL decision (CR-5: the
+ *      localized outcome name is the emphasized run), the optional admin
+ *      note, and the localized resolved moment; the dispute reason line
+ *      co-renders (the claimed reason stays part of the case story after
+ *      the decision).
+ *   2b. OUTCOME-ONLY row (the session-326 shape: resolved with NO note) —
+ *      the line renders the decision alone; nothing fabricated for the
+ *      absent note.
  *   3. CLEAN rows (every audit column null) — NEITHER line renders (the
  *      row stays exactly as it was before the feature: no placeholder
  *      fabrication).
@@ -35,7 +40,7 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { cleanup } from "@testing-library/react";
-import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
+import { DisputeResolution, SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { SessionRow } from "@/frontend/views/student/sessions/SessionRow";
 import type { SessionRowRole } from "@/frontend/views/student/sessions/sessionRowPresentation";
 import type { AppLocale } from "@/shared/locale/AppLocale";
@@ -77,6 +82,7 @@ function arbitratedRow(overrides?: Partial<SessionWireRow>): SessionWireRow {
       disputeReason: DISPUTE_REASON,
       disputedAt: DISPUTED_ISO,
       resolutionNote: RESOLUTION_NOTE,
+      resolutionOutcome: DisputeResolution.PartialRefund,
       resolvedAt: RESOLVED_ISO,
       ...overrides,
     }
@@ -134,6 +140,8 @@ describe("SessionRow dispute lines — participant arbitration transparency", ()
     );
     const line = liveScreen.getByTestId("session-resolution-note-7313");
     expect(line).toBeDefined();
+    // The formal decision is its own emphasized run (CR-5).
+    expect(liveScreen.getByTestId("session-resolution-outcome-7313").textContent).toBe("Partially refunded");
     expect(line.textContent).toContain(RESOLUTION_NOTE);
     expect(line.textContent).toContain("Arbitration outcome");
     expect(line.textContent).toContain(expectedStamp(RESOLVED_ISO, locale));
@@ -169,6 +177,60 @@ describe("SessionRow dispute lines — participant arbitration transparency", ()
       "en"
     );
     expect(liveScreen.queryByTestId("session-resolution-note-7305")).toBeNull();
+  });
+
+  test("outcome-only row (resolved with NO note — the session-326 shape) renders the decision alone", () => {
+    const locale: AppLocale = "en";
+    renderWithMocks(
+      <SessionRow
+        session={arbitratedRow({
+          id: "7310",
+          resolutionNote: null,
+          resolutionOutcome: DisputeResolution.PartialRefund,
+        })}
+        onCancelIntent={() => undefined}
+        role={STUDENT_ROLE}
+      />,
+      [],
+      locale
+    );
+    const line = liveScreen.getByTestId("session-resolution-note-7310");
+    expect(line).toBeDefined();
+    expect(liveScreen.getByTestId("session-resolution-outcome-7310").textContent).toBe("Partially refunded");
+    expect(line.textContent).toContain("Arbitration outcome");
+    expect(line.textContent).toContain(expectedStamp(RESOLVED_ISO, locale));
+    // No note run, no em-dash note stub — the absent note renders nothing.
+    expect(line.textContent).not.toContain(RESOLUTION_NOTE);
+  });
+
+  test("outcome vocabulary renders per value — Uphold names the teacher-favor decision", () => {
+    renderWithMocks(
+      <SessionRow
+        session={arbitratedRow({
+          id: "7314",
+          resolutionNote: null,
+          resolutionOutcome: DisputeResolution.Uphold,
+        })}
+        onCancelIntent={() => undefined}
+        role={STUDENT_ROLE}
+      />,
+      [],
+      "en"
+    );
+    expect(liveScreen.getByTestId("session-resolution-outcome-7314").textContent).toBe("Upheld in the teacher's favor");
+  });
+
+  test("honest-null pin — a resolved moment with NEITHER outcome nor note renders NO line", () => {
+    renderWithMocks(
+      <SessionRow
+        session={cleanRow({ id: "7315", resolvedAt: RESOLVED_ISO })}
+        onCancelIntent={() => undefined}
+        role={STUDENT_ROLE}
+      />,
+      [],
+      "en"
+    );
+    expect(liveScreen.queryByTestId("session-resolution-note-7315")).toBeNull();
   });
 
   test("cancel reason + arbitrated outcome coexist — all three audit lines render", () => {
@@ -233,6 +295,7 @@ describe("SessionRow dispute lines — participant arbitration transparency", ()
       locale
     );
     const line = liveScreen.getByTestId("session-resolution-note-7307");
+    expect(liveScreen.getByTestId("session-resolution-outcome-7307").textContent).toBe("Partially refunded");
     expect(line.textContent).toContain(RESOLUTION_NOTE);
     expect(line.textContent).toContain(expectedStamp(RESOLVED_ISO, locale));
   });

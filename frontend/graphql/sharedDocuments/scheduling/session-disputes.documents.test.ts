@@ -192,6 +192,7 @@ const DISPUTE_SESSION_ROW: readonly string[] = [
   "disputeReason",
   "disputedAt",
   "resolutionNote",
+  "resolutionOutcome",
   "resolvedAt",
 ];
 
@@ -380,7 +381,14 @@ describe("session-disputes documents — one family Session field shape (id FIRS
   });
 
   test("the dispute/cancel-audit legs stay selected (rows restyle without a refetch)", () => {
-    for (const name of ["cancelReason", "disputeReason", "disputedAt", "resolutionNote", "resolvedAt"]) {
+    for (const name of [
+      "cancelReason",
+      "disputeReason",
+      "disputedAt",
+      "resolutionNote",
+      "resolutionOutcome",
+      "resolvedAt",
+    ]) {
       expect(DISPUTE_SESSION_ROW).toContain(name);
     }
   });

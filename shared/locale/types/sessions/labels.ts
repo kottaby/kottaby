@@ -108,6 +108,14 @@ export interface SessionsLabels {
   readonly disputeReasonLine: string;
   /** Participant row line label — the arbitration note the admin recorded. */
   readonly arbitrationOutcomeLine: string;
+  /** The formal arbitration outcome vocabulary — mirrors EVERY DisputeResolution value. */
+  readonly outcomeCancel: string;
+  readonly outcomeComplete: string;
+  readonly outcomeRefund: string;
+  readonly outcomePartialRefund: string;
+  readonly outcomeUphold: string;
+  /** The generic outcome label used when a resolved row predates the stored outcome. */
+  readonly outcomeUnrecorded: string;
   /** Success notice — the session was started. */
   readonly sessionStartedNotice: string;
   /** Success notice — the session was completed. */

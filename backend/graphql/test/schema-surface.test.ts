@@ -233,7 +233,14 @@ const WALLET_ENUMS = ["TransactionStatus", "TransactionType"] as const;
 /** arbitration outcome vocabulary — registered ONCE, no pgEnum backing. */
 const DISPUTE_ENUMS = ["DisputeResolution"] as const;
 /** nullable `Session` fields — the dispute + reason surface (R-105/R-107). */
-const DISPUTE_SESSION_FIELDS = ["cancelReason", "disputeReason", "disputedAt", "resolutionNote", "resolvedAt"] as const;
+const DISPUTE_SESSION_FIELDS = [
+  "cancelReason",
+  "disputeReason",
+  "disputedAt",
+  "resolutionNote",
+  "resolutionOutcome",
+  "resolvedAt",
+] as const;
 /** scheduling enum trio — registered ONCE in `shared/enum.pothos.ts`. */
 const SESSION_LIFECYCLE_ENUMS = ["SessionIntent", "SessionStatus", "SessionType"] as const;
 /**
@@ -860,6 +867,9 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     for (const name of ["cancelReason", "disputeReason", "resolutionNote"]) {
       expect(fields[name]?.type.toString()).toBe("String");
     }
+    // The formal outcome is the DisputeResolution vocabulary, nullable (rows
+    // resolved before the column shipped carry NULL).
+    expect(fields.resolutionOutcome?.type.toString()).toBe("DisputeResolution");
     for (const name of ["disputedAt", "resolvedAt"]) {
       expect(fields[name]?.type.toString()).toBe("DateTime");
     }

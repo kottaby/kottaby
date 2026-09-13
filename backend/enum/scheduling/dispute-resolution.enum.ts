@@ -2,9 +2,11 @@
  * DisputeResolution enum — the admin arbitration vocabulary for exiting the
  * `disputed` lifecycle state. Values are canonical and wire-identical (the
  * GraphQL enum member name and its runtime value are the same string).
- * There is NO pgEnum backing this vocabulary — it is a pure transition
- * selector carried on the arbitration mutation, never stored as a column
- * value (the outcome it selects is recorded in `session.status`).
+ * The chosen value is persisted on `session.resolution_outcome` (the
+ * `dispute_resolution` pgEnum in `backend/db/schema/enums.ts` is the
+ * storage mirror) since CR-5 — participants read the formal outcome off
+ * the row itself; `session.status` records only the outcome FAMILY
+ * (cancelled vs completed), not the exact decision.
  *
  * Domain contract: `disputed` is NOT terminal — every disputed session is
  * resolved by an admin to exactly one terminal state. The vocabulary serves

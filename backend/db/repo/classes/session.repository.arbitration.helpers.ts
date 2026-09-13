@@ -29,6 +29,7 @@
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { session } from "@/backend/db/schema/classes/session";
+import type { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import type { DBTransaction, SessionArbitrationProbeType, SessionSelectType } from "@/backend/types";
 
@@ -104,13 +105,14 @@ export async function openPostConfirmationDisputeOnce(
 export async function resolveConsumedDisputeOnce(
   id: number,
   resolutionNote: string | null,
+  resolutionOutcome: DisputeResolution,
   tx?: DBTransaction
 ): Promise<SessionArbitrationProbeType | null> {
   const now = new Date();
   const executor = tx ?? db;
   const rows = await executor
     .update(session)
-    .set({ status: SessionStatus.Completed, resolutionNote, resolvedAt: now, updatedAt: now })
+    .set({ status: SessionStatus.Completed, resolutionNote, resolutionOutcome, resolvedAt: now, updatedAt: now })
     .where(and(eq(session.id, id), eq(session.status, SessionStatus.Disputed), eq(session.feeHeld, false)))
     .returning({
       id: session.id,
@@ -121,6 +123,7 @@ export async function resolveConsumedDisputeOnce(
       feeHeld: session.feeHeld,
       heldBalanceLane: session.heldBalanceLane,
       confirmedByStudentAt: session.confirmedByStudentAt,
+      resolutionOutcome: session.resolutionOutcome,
       resolvedAt: session.resolvedAt,
     });
   return rows[0] ?? null;
@@ -149,6 +152,7 @@ export async function findArbitrationProbe(
     feeHeld: session.feeHeld,
     heldBalanceLane: session.heldBalanceLane,
     confirmedByStudentAt: session.confirmedByStudentAt,
+    resolutionOutcome: session.resolutionOutcome,
     resolvedAt: session.resolvedAt,
   };
   if (tx) {
@@ -159,6 +163,7 @@ export async function findArbitrationProbe(
     `SELECT id, status, student_id AS "studentId", teacher_id AS "teacherId", fee,
      fee_held AS "feeHeld", held_balance_lane AS "heldBalanceLane",
      confirmed_by_student_at AS "confirmedByStudentAt",
+     resolution_outcome AS "resolutionOutcome",
      resolved_at AS "resolvedAt"
      FROM session WHERE id = $1 LIMIT 1`,
     [id]

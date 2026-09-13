@@ -22,6 +22,21 @@ export const appLocale = pgEnum("app_locale", ["ar", "en"]);
 
 export const sessionStatus = pgEnum("session_status", ["scheduled", "started", "completed", "cancelled", "disputed"]);
 
+/**
+ * The formal arbitration outcome — persisted on `session.resolution_outcome`
+ * when an admin resolves a dispute (either escrow family). Values are
+ * wire-identical to the GraphQL `DisputeResolution` enum (the TS enum is the
+ * registration source; this pgEnum is the storage mirror). Nullable: rows
+ * never disputed (or resolved before the column existed) stay NULL.
+ */
+export const disputeResolution = pgEnum("dispute_resolution", [
+  "Cancel",
+  "Complete",
+  "Refund",
+  "PartialRefund",
+  "Uphold",
+]);
+
 export const sessionType = pgEnum("session_type", ["student_session", "teacher_evaluation", "re_evaluation"]);
 
 export const sessionIntent = pgEnum("session_intent", ["hifz", "tajweed", "evaluation"]);

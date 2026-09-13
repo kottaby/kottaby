@@ -1042,6 +1042,7 @@ type Session {
   intent: SessionIntent
   needsAttention: Boolean!
   resolutionNote: String
+  resolutionOutcome: DisputeResolution
   resolvedAt: DateTime
   sessionType: SessionType!
   startedAt: DateTime
