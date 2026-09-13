@@ -11,7 +11,9 @@ decides; the rubric is reserved for what requires eyes.
    turns every later shot into a login-page screenshot).
 2. **Console sweep** — `agent-browser console --level error` empty (or only known-ignored entries).
 3. **Horizontal overflow** — `document.documentElement.scrollWidth <= window.innerWidth` at this viewport.
-4. **Off-viewport bleed** — no element's bounding rect extends past the viewport edge (fixed/sticky excluded).
+4. **Off-viewport bleed** — no element's bounding rect extends past the viewport edge (fixed/sticky excluded;
+   elements visually clipped by an `overflow: hidden|clip` ancestor are also excluded — their rects poke past the
+   edge but no visible bleed exists; observable bleed still fails).
 5. **A11y smoke** — no `<img>` without `alt`; no icon-only button/link without an accessible name.
 
 ## Running (bundled script)

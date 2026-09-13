@@ -316,3 +316,20 @@ Work Log:
 Stage Summary:
 - Wave now spans R1-R10 (minimum 10 satisfied); stop condition met twice (R5+R6 and R9+R10, 0 new findings in 2 consecutive iterations at final tip)
 - Branch tip delivers issue #134 complete per SKILL.md: 200/0 battery, tsgo 0, all ACs code-verified, bookkeeping truthful, zero residue
+
+---
+Task ID: 8
+Agent: Orchestrator
+Task: Visual improvement loop to 10/10 — implemented plan-related pages, mobile + desktop, per .agents/skills/visual-improvement-loop/SKILL.md
+
+Work Log:
+- Surfaces: /login, /student/dashboard, /student/sessions, /subscriptions @ 1440x900/834x1112/390x844, EN+AR (20 captures, pglite dev server)
+- Pass 1: 5 real finding clusters fixed in 2 disjoint waves (handshake grouping, code weight, empty-state centering, coming-soon Chip, footer RTL hover, locale-aware dashboard metadata); precheck hardened (clipped-bleed exclusion, per-nav console clear)
+- Pixel adjudications disproved 5 VLM micro-claims (deltas 0-2px / token-exact)
+- Passes 2-3: gate fully green; inspectors confirmed all fixes; LOW-only residuals accepted per rubric with dual justifications
+- Prototype comparison skipped (REQ-060 — prototyped surfaces are future scope, D3)
+- Gates: sub-loop duplicates x10, tsgo 0, oxlint 0/0, biome clean, suites 17/17 7/7 2/2 28p/0f (snapshot re-pinned, class hashes only)
+
+Stage Summary:
+- Outcome: ai/plans/sprint_1/subscription-validity-window-expiry/outcome/visual-scoring-outcome.md
+- Skill evolution promoted: capture-protocol, fix-patterns, rubric, objective-prechecks, visual-precheck.sh, evolution-log
