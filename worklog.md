@@ -131,3 +131,24 @@ Stage Summary:
 - SEC: console.* grep over all 13 touched code files → zero; mutation variables carry only input.rating + sessionId; error arms carry resolved copy strings, never raw payloads
 - SR: enum Record lookups (RATE_ELIGIBLE_STATUSES et al., no === on enums); hex-code grep → zero (theme palette/MUI tokens via sx only); no direct style props; zero plan-artifact refs in code comments
 - tasks.md 4.2 + all 4.2.* sub-checkboxes [x]; outcome/4.2-outcome.md filled; no commit/push/build (per instruction)
+
+---
+Task ID: 4.4
+Agent: Phase 4 Component-Test Agent (4.4 final deliverables)
+Task: Sprint 3 student-evaluation plan — task 4.4 component tests close-out (REQ-009.8 matrix, QL, site-footer drift determination, deliverables)
+
+Work Log:
+- Context read: tasks.md 4.4 + subs, test/ui/AGENTS.md in full, specs REQ-009(.2/.4/.5/.6/.8), 4.2-outcome (incl. the regression-fix section), the new rate-teacher-dialog entry+suite, translation-preload.ts
+- SITE-FOOTER DRIFT DETERMINATION: ran test/ui/components/landing/site-footer.test.tsx on the current tree (1 pass / 1 fail — ar snapshot: stored test-rtl-1b0r344/zliyy0 vs rendered 1nxin0/1jx0gqv, log /tmp/task44z-sitefooter-current.log); git stash push -u -m task44z (all 5 modified + 2 untracked files; tree verified clean) → re-run on the clean 4.1-era tree: SAME 1 pass / 1 fail with the byte-identical drift signature (log /tmp/task44z-sitefooter-clean.log; grep counts identical across both logs); git stash pop restored all 7 files (status identical to pre-stash; canonical copies in /tmp/task44z-backup/ throughout). Snapshot file last committed in #56/#49 (predates the branch). VERDICT: PRE-EXISTING → documented in outcome, left untouched, NO snapshot regeneration
+- QL: sub-loop --lifecycle duplicates exit 0 x5 — translation-preload.ts, rate-teacher-dialog.test.tsx, rate-teacher-dialog.suite.tsx, StudentSessionsDialogs.tsx, StudentSessionsContainer.tsx (logs /tmp/task44z-ql-*.log)
+- Final re-run of rate-teacher-dialog.test.tsx (official single-file stack: KOTTABY_TEST_RUNNER_OK=1 + .env.test.ci + preload chain test-env→happydom→translation-preload→next-dynamic-mock): 15 pass / 0 fail / 109 expect(), exit 0 (log /tmp/task44z-rate-final.log)
+- Full-suite disposition: official single-shot bun run test:ui:components dies mid-run with ZERO test failures + no summary (bun process crash in the admin region; log /tmp/task44z-full-suite.log; reproduces the 3 prior attempts); sanctioned disaggregation over ALL 48 component test files per-file with the identical official chain (logs /tmp/task44z-disp-b1.log + b2.log): 46/48 exit 0, aggregate 620 pass / 30 skip / 1 fail / 3738 expect(); the 1 fail = the pre-existing site-footer snapshot; 3 environment/OOM notes: AdminSessionGovernanceContainer exit=137 (OOM, after 25 pass/0 fail; pre-existing per /tmp/task44s-chunks.log+individual.log), BroadcastComposeContainer exit=134 (SIGABRT, after 18 pass/0 fail), and the single-shot runner process death itself
+- Cross-checks on the post-stash tree: TeacherSessionsContainer.test.tsx 35 pass / 12 skip / 0 fail / 401 expect(); StudentSessionsContainer.test.tsx 29 pass / 10 skip / 0 fail / 295 expect() — both exit 0, matching the 4.2-regression-fix session's numbers
+
+Stage Summary:
+- REQ-009.8 matrix fully mapped to suite cases (7 cases × 2 locales + bootstrap = 15 tests / 109 expect()); CTA hidden pre-confirmation (no mutation mock = leaked-op proof), hidden-when-rated (chip end-state), visible dual-confirmed, submit-gated dispatch (empty submit can never reach the wire) + boundary 1/5 stars, VALIDATION rating-field inline error, ALREADY_SUBMITTED → mapped-only notice + rated state
+- SEC attested: unrated-render + deny paths assert no network call via mock-list supply/exhaustion (structural proof in-test); component tier serverless; fixtures carry ids/scores only
+- SR attested: no server dependency (Happy DOM + MockedProvider only); zero toMatchSnapshot in the rate suite; semantic assertions via translation handles; lookup-table enum handling; no plan-artifact comments
+- IV attested: test/ui/AGENTS.md + tasks.md protocol read and observed (preload warming incl. Sessions, getLabels discipline, MUI class gotchas, no oxlint-disable)
+- Deliverables: outcome/4.4-outcome.md (mapping table, files, raw counts, verdict evidence, attestations, carry-forward); tasks.md 4.4 + 4.4.* flipped [x]; this worklog entry; backups in /tmp/task44z-backup/ (cp --parents) + logs /tmp/task44z-*.log
+- No commit/push/build (per instruction)

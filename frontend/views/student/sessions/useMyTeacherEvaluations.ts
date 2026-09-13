@@ -7,9 +7,6 @@ import type {
 } from "@/frontend/graphql/generated/gql/graphql";
 import { myTeacherEvaluationsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 
-/** `__typename` of the normalized `Evaluation` cache entity. */
-const EVALUATION_TYPE_NAME = "Evaluation";
-
 /** The read's own payload row shape (one persisted teacher rating). */
 export type TeacherEvaluationRow = MyTeacherEvaluationsQuery_myTeacherEvaluations;
 
@@ -35,6 +32,15 @@ export function deriveRatedSessionIds(rows: readonly TeacherEvaluationRow[]): Re
  * and with it the row's rated state, converges WITHOUT any refetch. The
  * payload row itself is already normalized into the cache by the mutation
  * write (id-bearing entity, default normalization).
+ *
+ * The prepend goes through `writeQuery` (read → prepend → write) rather
+ * than `cache.modify`: the modify form returned a raw `cache.identify()`
+ * STRING as the prepended entry, and under Apollo Client v4 a string in a
+ * reference list is stored verbatim but never resolvable as a `Reference`
+ * on read — the field silently read back empty and the active watch never
+ * re-notified, so the rated set (and the row's rated chip) never converged
+ * after a successful rating. `writeQuery` stores a real reference and
+ * broadcasts to the read's watchers.
  */
 export function updateCacheOnSubmitted(
   cache: ApolloCache,
@@ -42,16 +48,11 @@ export function updateCacheOnSubmitted(
 ): void {
   const submitted = result.data?.submitTeacherEvaluation;
   if (submitted === undefined) return;
-  const evaluationRef = cache.identify({ __typename: EVALUATION_TYPE_NAME, id: submitted.id });
-  if (evaluationRef === undefined) return;
-  cache.modify({
-    id: "ROOT_QUERY",
-    fields: {
-      myTeacherEvaluations(existing: unknown) {
-        if (!Array.isArray(existing)) return [evaluationRef];
-        return [evaluationRef, ...existing];
-      },
-    },
+  const existing = cache.readQuery({ query: myTeacherEvaluationsQueryDocument });
+  const rows = existing?.myTeacherEvaluations ?? [];
+  cache.writeQuery({
+    query: myTeacherEvaluationsQueryDocument,
+    data: { myTeacherEvaluations: [submitted, ...rows] },
   });
 }
 

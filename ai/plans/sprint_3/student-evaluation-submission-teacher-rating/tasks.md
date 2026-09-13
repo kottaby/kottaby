@@ -207,15 +207,15 @@
 - [x] 4.3.SR **Semantic Review**: route literal single-sourced (no second literal in the repo).
 - [x] 4.3.IV **Instruction Verification**: read `frontend/AGENTS.md` + frontend instructions.
 
-### - [ ] 4.4 Component Tests — `test/ui/components/student/rate-teacher-dialog.test.tsx` (NEW)
+### - [x] 4.4 Component Tests — `test/ui/components/student/rate-teacher-dialog.test.tsx` (NEW)
 - REQ-009.8 matrix (CTA hidden pre-confirmation / hidden when rated / visible dual-confirmed; dialog dispatch with selected rating; VALIDATION field error render; ALREADY_SUBMITTED → notice + rated state) using the component-test stack (Happy DOM + mocked Apollo via `renderWithWrapper` from `@/test/ui/components/TestWrapper`; labels resolved via `Sessions.getLabels(getTranslations(locale))` — `test/ui/AGENTS.md`). `translation-preload.ts` does NOT currently warm the `Sessions` handle — add `Sessions` and `Errors` to its warming loop as part of this task (load-bearing, `test/ui/AGENTS.md:163-165`).
 - Run `bun run test:ui:components`.
 - _Requirements: REQ-009, REQ-013.5_
-- [ ] 4.4.QL **Quality Loop**: sub-loop exit 0.
-- [ ] 4.4.TE **Test Engineering**: Tier 2/4 cases enumerated in REQ-009.8.
-- [ ] 4.4.SEC **Security & Tenancy Audit**: tests assert no network call fires for unrated-render and deny paths.
-- [ ] 4.4.SR **Semantic Review**: no server dependency, no snapshots-as-truth for behavior.
-- [ ] 4.4.IV **Instruction Verification**: read `test/ui/` rules + tests instructions.
+- [x] 4.4.QL **Quality Loop**: sub-loop exit 0.
+- [x] 4.4.TE **Test Engineering**: Tier 2/4 cases enumerated in REQ-009.8.
+- [x] 4.4.SEC **Security & Tenancy Audit**: tests assert no network call fires for unrated-render and deny paths.
+- [x] 4.4.SR **Semantic Review**: no server dependency, no snapshots-as-truth for behavior.
+- [x] 4.4.IV **Instruction Verification**: read `test/ui/` rules + tests instructions.
 ---
 
 ## Phase 5 — Review Wave & Knowledge Propagation
