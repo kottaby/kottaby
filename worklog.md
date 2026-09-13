@@ -1296,3 +1296,97 @@ Stage Summary:
 - Plan COMPLETE. All checkboxes [x]. All outcome files written (25 total).
 - Canonical doc published at docs/parents/monitoring-portal.md
 - The Parent Read-Only Monitoring Portal is shipped, verified, and documented.
+
+---
+Task ID: webDevReview-R1
+Agent: webDevReview (scheduled cron)
+Task: Post-launch QA + styling enhancement + feature additions
+
+## Current Project Status
+
+The Parent Read-Only Monitoring Portal (ai/plans/sprint_3/parent-read-only-monitoring-portal) is COMPLETE and shipped on branch `feat/parent-read-only-monitoring-portal`. All 22 spec-implementation tasks are done, 318 tests green, all quality gates pass. This round focused on the user's mandates: "Improve styling with more details!!!" and "Add more features and functionality!!!"
+
+## Completed Modifications
+
+### Styling Improvements (visual polish)
+1. **ChildCard** (`ParentChildrenRootContainer.parts.tsx`):
+   - Added Avatar with child initials (first letter of full name)
+   - Added left accent bar (primary color, fades in on hover)
+   - Added hover elevation (boxShadow[4]) + transform translateY(-2px)
+   - Improved skeleton with avatar placeholder + 2-line layout
+2. **Root header** (`ParentChildrenRootContainer.tsx`):
+   - Added primary-colored Avatar icon (GroupOutlined) at the left
+   - Added bottom border accent (2px primary color)
+   - Added refresh IconButton (RefreshOutlined)
+   - Added quick stats bar (Chip showing total children count + label)
+3. **ChildSwitcher** (`ParentChildDetailContainer.parts.tsx`):
+   - Added Avatar with initials in each MenuItem (ListItemIcon)
+   - Added startAdornment Avatar for the selected value
+   - Improved Select styling (rounded corners, 56px min height)
+   - Enhanced skeleton (56px height, rounded)
+4. **Detail container Tabs** (`ParentChildDetailContainer.tsx`):
+   - Added icons to each tab: CalendarMonth (attendance), Description (reports),
+     Assignment (homework), RateReview (evaluations), TrendingUp (progress)
+   - Tab labels via TAB_LABEL_KEYS lookup table (type-safe)
+   - Added refresh IconButton on the detail header
+   - Added bottom border accent on header
+5. **AttendanceRow** (`AttendanceTab.parts.tsx`):
+   - Added status-colored left border (green=completed, blue=started, amber=scheduled, red=cancelled/disputed)
+   - Added status icon circle (CheckCircle, PlayCircle, Schedule, Cancel, WarningAmber)
+   - Added status icon inside the Chip
+   - Added hover elevation
+   - Enhanced skeleton with icon placeholder + accent border
+6. **ReportRow** (`ReportsTab.parts.tsx`):
+   - Added date icon (CalendarMonthOutlined) before the date
+   - Added star-rating Chip (filled primary when rated, outlined when not)
+   - Added notes icon (DescriptionOutlined) when notes exist
+   - Added left accent border (primary when deep-link target, divider otherwise)
+   - Added hover elevation
+7. **HomeworkRow** (`HomeworkTab.parts.tsx`):
+   - Added track icons (AutoStories for Jadid, Replay for Madi)
+   - Added colored left borders on track blocks (primary for Jadid, secondary for Madi)
+   - Added date icon (AutoStoriesOutlined) before the date
+   - Added hover elevation
+8. **ProgressPositionBlock** (`ProgressTab.parts.tsx` + `ProgressTab.tsx`):
+   - Added track icons (AutoStories for Jadid, Replay for Madi) passed from parent
+   - Added colored accent borders (primary for Jadid, secondary for Madi)
+   - Improved position run layout (surah/juz prominent + ayah range)
+   - Added hover elevation
+
+### Feature Additions
+1. **Refresh button** on root container + detail container (refetches the linked children query)
+2. **Quick stats bar** on root container (total children count Chip + label)
+3. **Tab icons** on detail container (5 outlined icons, one per tab)
+4. **Status-colored badges** on attendance rows (green/amber/red/blue per status)
+5. **attendanceStatusColor()** helper — maps SessionStatus to MUI palette paths (border/icon/chip)
+6. **childInitial()** helper — extracts first letter of a name for avatar display
+7. **4 new i18n keys**: refreshLabel, lastUpdatedLabel, statTotalChildren, statRecentSessions (en/ar parity maintained)
+
+## Verification Results
+- **tsgo**: 0 errors (project-wide)
+- **biome**: 0 warnings, no fixes applied (1819 files)
+- **Parity tests**: 105 pass / 0 fail (4 new keys + 1 new function slot)
+- **UI component tests**: 59 pass / 0 fail (285 expect() calls)
+- **sub-loop**: all 10 modified view files + 4 locale files pass `--lifecycle duplicates`
+- **Browser QA**: home page renders correctly (Arabic RTL, full navigation, prayer times). Screenshot saved to `/home/z/my-project/download/qa-home.png` (401KB)
+- **Commits**: 2 new commits pushed to origin (cc41747 + 088d5cd)
+
+## Unresolved Issues / Risks
+
+1. **Dev server instability**: The Next.js 16 Turbopack dev server process dies after serving 1-2 requests (sandbox memory limitation with the `@typescript/native-preview` + Turbopack combination). This prevents sustained browser QA of the portal routes (`/parent/children` requires parent authentication). The code is verified via 318 tests + tsgo + biome. The dev server auto-restarts if using the `/tmp/dev-restart.sh` wrapper, but each restart requires ~12s recompilation.
+
+2. **Sandbox branch-reset behavior**: The sandbox resets the git working branch to `main` between bash commands. Every bash command must start with `git checkout feat/parent-read-only-monitoring-portal` to restore the correct working tree. The `2>/dev/null || true` pattern masks failures when uncommitted changes block the checkout.
+
+3. **Portal route untested in browser**: The `/parent/children` route requires parent authentication (the `withPageAuth` guard redirects unauthenticated users). The auth boundary IS proven by the `UnauthorizedError` in the dev log (the `Me` query is rejected). But the full portal UI (ChildCard avatars, tab icons, status-colored rows) hasn't been visually verified in a browser session.
+
+## Priority Recommendations for Next Phase
+
+1. **E2E browser journey coverage** (deferred D3 → DEV1-019): Write Playwright E2E tests that log in as a parent and verify the portal renders with the enhanced styling. This is the most impactful next step for visual QA.
+
+2. **Rate limiting on parent child-id probing** (deferred D5): Implement rate limiting on the portal read queries to prevent brute-force child-id enumeration. Currently every `studentId` mismatch returns the same constant 403 (no oracle), but rate limiting would add defense-in-depth.
+
+3. **Curriculum-depth statistics** (deferred D1): Implement percentage-through-curriculum and per-ayah completion maps over the `lessons`/`progress` tables. Currently `progress` is a skeleton with no writers; MVP progress = row count + latest homework surah/juz position per track.
+
+4. **Dev server stability investigation**: Explore running the dev server without Turbopack (webpack mode) or with a lower memory footprint to keep the process alive longer in the sandbox. The `next.config.ts` has `useTypeScriptCli: false` which should help, but the `@typescript/native-preview` detection still occurs.
+
+5. **Additional portal features** (if stable): Consider adding print/export functionality for reports, a calendar view for attendance, and push notification preferences.
