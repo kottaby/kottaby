@@ -256,7 +256,7 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expectZeroMutations(traffic);
     });
 
-    test("UNAUTHORIZED denial → PermissionDeniedFallback (same constant-shape surface as FORBIDDEN)", async () => {
+    test("UNAUTHORIZED → ErrorRetryAlert (auth-recovery owned by the apollo errorLink; container renders its default error path)", async () => {
       const traffic = createNetworkTraffic();
       renderPortal(
         <ParentChildrenRootContainer student={null} />,
@@ -265,16 +265,25 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
         locale
       );
 
-      // UNAUTHORIZED is classified through the same `extractErrorCode` path
-      // as FORBIDDEN — both terminate at the PermissionDeniedFallback.
+      // Under the canonical `mapGraphQLErrorByCode` dispatcher, UNAUTHORIZED
+      // maps to kind "auth-recovery" — owned by the apollo errorLink's
+      // deduped token-refresh path, NOT the container's permission-fallback
+      // branch. The container's `denied` guard evaluates false, so the
+      // render falls through to the default `ErrorRetryAlert` error surface
+      // (in production the errorLink intercepts UNAUTHORIZED for auth
+      // recovery before the query result surfaces).
       await waitFor(() => {
-        expect(screen.getByText(te.forbiddenRole)).toBeDefined();
+        expect(screen.getByText(te.internalServerError)).toBeDefined();
       });
-      expect(screen.getByText(te.forbidden)).toBeDefined();
-      expect(screen.queryByText(t.portalPageTitle)).toBeNull();
+      expect(screen.getByText(t.loadErrorBody)).toBeDefined();
+      expect(screen.getByRole("button", { name: tc.retry })).toBeDefined();
+
+      // NOT the permission-denied surface — UNAUTHORIZED is not FORBIDDEN.
+      expect(screen.queryByText(te.forbiddenRole)).toBeNull();
+      expect(screen.queryByText(te.forbidden)).toBeNull();
       expect(screen.queryByText(RAW_TRANSPORT_MESSAGE_SENTINEL)).toBeNull();
 
-      // Read-only posture holds.
+      // Read-only posture holds (the error arrived over a query, not a mutation).
       expectZeroMutations(traffic);
     });
 

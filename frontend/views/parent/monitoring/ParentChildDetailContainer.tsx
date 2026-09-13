@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import { myLinkedChildrenQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
+import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { AttendanceTab } from "@/frontend/views/parent/monitoring/AttendanceTab";
 import { EvaluationsTab } from "@/frontend/views/parent/monitoring/EvaluationsTab";
 import { HomeworkTab } from "@/frontend/views/parent/monitoring/HomeworkTab";
@@ -88,8 +89,11 @@ export function ParentChildDetailContainer(props: Readonly<ParentChildDetailCont
 
   const { data, loading, error } = useQuery(myLinkedChildrenQueryDocument);
 
-  const errorCode = error === undefined ? null : extractErrorCode(error);
-  if (errorCode === "FORBIDDEN" || errorCode === "UNAUTHORIZED") {
+  const errorCode = error ? extractErrorCode(error) : null;
+  const denied =
+    errorCode !== null &&
+    mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
+  if (denied) {
     return <PermissionDeniedFallback />;
   }
 

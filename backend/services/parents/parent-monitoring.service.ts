@@ -28,7 +28,7 @@
  *
  * Disciplines enforced here:
  *  - Defense-in-depth actor re-check — every method starts with
- *    `requireActor(parentActorId, UserRole.Parent, locale, undefined,
+ *    `requireActor(parentActorId, UserRole.Parent, locale, outerTx,
  *    false)` (the relaxed READ path: identity + role only; a
  *    governed-but-not-deleted parent's self-scoped reads stay visible).
  *    The helper is imported from the same-domain sibling

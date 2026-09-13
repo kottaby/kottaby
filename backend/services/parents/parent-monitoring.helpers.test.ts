@@ -241,9 +241,7 @@ describe("parent-monitoring.helpers — mapSessionToAttendanceEntry", () => {
     // @ts-expect-error exercising the fail-closed guard with a corrupt value
     const corruptRow: SessionSelectType = { ...baseSession, status: "totally_invalid_status" };
 
-    expect(() => mapSessionToAttendanceEntry(corruptRow)).toThrow(
-      /corrupt session_status value totally_invalid_status/
-    );
+    expect(() => mapSessionToAttendanceEntry(corruptRow)).toThrow(/corrupt session_status value/);
     expect(logSpy).toHaveBeenCalledTimes(1);
     expect(logSpy.mock.calls[0][1]).toEqual(
       expect.objectContaining({

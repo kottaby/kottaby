@@ -121,7 +121,7 @@ function toSessionStatus(raw: SessionSelectType["status"]): SessionStatus {
     entity: "session",
     locale: "en",
   });
-  throw new Error(`ParentMonitoringService: corrupt session_status value ${raw}`);
+  throw new Error("ParentMonitoringService: corrupt session_status value");
 }
 
 /**
@@ -143,7 +143,7 @@ function toSurahJuzRef(raw: NonNullable<HomeWorkSelectType["currentSurahJuz"]>):
     entity: "home_work",
     locale: "en",
   });
-  throw new Error(`ParentMonitoringService: corrupt surah_juz_ref value ${raw}`);
+  throw new Error("ParentMonitoringService: corrupt surah_juz_ref value");
 }
 
 /**

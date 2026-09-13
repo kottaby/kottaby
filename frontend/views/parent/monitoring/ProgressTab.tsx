@@ -9,6 +9,7 @@ import { IconCircleEmptyState } from "@/frontend/components/ui/IconCircleEmptySt
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import { parentChildProgressQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
+import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { ProgressPositionBlock, ProgressSkeleton } from "@/frontend/views/parent/monitoring/ProgressTab.parts";
 import { Common, Errors, ParentMonitoring, useAppTranslation } from "@/shared/locale";
 
@@ -55,8 +56,11 @@ export function ProgressTab(props: Readonly<ProgressTabProps>): ReactNode {
     variables: { studentId: props.studentId },
   });
 
-  const errorCode = error === undefined ? null : extractErrorCode(error);
-  if (errorCode === "FORBIDDEN" || errorCode === "UNAUTHORIZED") {
+  const errorCode = error ? extractErrorCode(error) : null;
+  const denied =
+    errorCode !== null &&
+    mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
+  if (denied) {
     return <PermissionDeniedFallback />;
   }
 

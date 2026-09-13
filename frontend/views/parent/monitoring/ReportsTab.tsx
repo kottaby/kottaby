@@ -9,6 +9,7 @@ import { IconCircleEmptyState } from "@/frontend/components/ui/IconCircleEmptySt
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import { parentChildReportsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
+import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { ReportRow, ReportsSkeleton } from "@/frontend/views/parent/monitoring/ReportsTab.parts";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
@@ -50,8 +51,11 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
     variables: { studentId: props.studentId, page: undefined, pageSize: undefined },
   });
 
-  const errorCode = error === undefined ? null : extractErrorCode(error);
-  if (errorCode === "FORBIDDEN" || errorCode === "UNAUTHORIZED") {
+  const errorCode = error ? extractErrorCode(error) : null;
+  const denied =
+    errorCode !== null &&
+    mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
+  if (denied) {
     return <PermissionDeniedFallback />;
   }
 
