@@ -47,7 +47,6 @@ import { Common as CommonNs } from "@/shared/locale/namespaces/common";
 import { Errors as ErrorsNs } from "@/shared/locale/namespaces/errors";
 import { ParentMonitoring as ParentMonitoringNs } from "@/shared/locale/namespaces/parentMonitoring";
 import { getTranslations } from "@/shared/locale/server";
-import { resetNavigationCalls, testNavigationState } from "@/test/ui/components/translation-preload";
 import {
   CHILD_A_ID,
   CHILD_A_NAME,
@@ -62,7 +61,8 @@ import {
   linkedListMock,
   renderPortal,
   settleNetwork,
-} from "./helpers";
+} from "@/test/ui/components/parent/monitoring/helpers";
+import { resetNavigationCalls, testNavigationState } from "@/test/ui/components/translation-preload";
 
 /** Never rendered — the raw transport message stays behind the `extractErrorCode` boundary. */
 const RAW_TRANSPORT_MESSAGE_SENTINEL = "FORBIDDEN (masked transport surface)";
@@ -157,10 +157,10 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expect(nameA.getAttribute("dir")).toBe("auto");
       const nameB = screen.getByText(CHILD_B_NAME);
       expect(nameB.getAttribute("dir")).toBe("auto");
-      expect(screen.getAllByText(formatApplicantDate(CREATED_AT_ISO, locale)).length).toBe(2);
+      expect(screen.getAllByText(formatApplicantDate(CREATED_AT_ISO, locale))).toHaveLength(2);
 
       // Two cards rendered (one per linked child).
-      expect(screen.getAllByTestId("parent-child-card").length).toBe(2);
+      expect(screen.getAllByTestId("parent-child-card")).toHaveLength(2);
 
       // The `?student=` prop is present → no auto-replace fires (the param
       // signals explicit list browsing, not cold-entry).

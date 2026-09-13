@@ -965,3 +965,94 @@ Carry-forward to task 6.5 (E2E journey tests):
 - J3: unlinked parent probing foreign/nonexistent ids → SAME constant 403 shape byte-identical across causes, asserted in BOTH en and ar.
 - J2: sever the link → EVERY portal read immediately 403s and the children list excludes the child (no cache may extend visibility).
 - J4: two confirmed children → both listed; per-child reads return that child's rows only.
+
+---
+
+Task ID: 6.4
+Agent: Frontend UI Tests Subagent (general-purpose)
+Task: UI component tests — ParentChildrenRootContainer + ParentChildTabs (5-tab state matrix)
+
+Work Log:
+- Read SKILL.md (re-read), worklog.md (full), all sprint-3 outcome files (esp. 6.1-repo-tests-outcome.md + 6.3-wire-tests-outcome.md + 5.3-portal-views-outcome.md), tasks.md task 6.4 section, AGENTS.md (root + frontend + test/ui + test/ui/components), frontend.instructions.md, tests.instructions.md.
+- Read the existing test file (ParentChildrenRootContainer.test.tsx — 18 tests) and the shared helpers.tsx (mock builders + fixture factories + recording-link render helper).
+- Read the five tab components (ProgressTab, AttendanceTab, ReportsTab, HomeworkTab, EvaluationsTab) to understand the state matrix + testid hooks + label keys.
+- Confirmed `feat/parent-read-only-monitoring-portal` checked out at the start of EVERY bash command.
+
+EXECUTED — three files in scope (1 modified + 1 new + helpers verified):
+
+1. `test/ui/components/parent/monitoring/ParentChildrenRootContainer.test.tsx` (MODIFIED — 3 lint fixes):
+   - FIRST sub-loop run: lint:type-aware FAILED with 3 errors.
+   - Fix 1: relative import `./helpers` → `@/test/ui/components/parent/monitoring/helpers` (AGENTS.md `@/` alias rule).
+   - Fix 2: `expect(screen.getAllByText(...).length).toBe(2)` → `expect(screen.getAllByText(...)).toHaveLength(2)` (sonarjs/prefer-specific-assertions).
+   - Fix 3: same pattern on `screen.getAllByTestId("parent-child-card")`.
+   - Re-run sub-loop: exit 0.
+   - Run-test: 18 pass / 0 fail / 106 expect() calls (2.72s).
+
+2. `test/ui/components/parent/monitoring/ParentChildTabs.test.tsx` (NEW — 41 tests):
+   - Authored the FIVE-tab × {loading, empty, data, FORBIDDEN} state matrix required by REQ-053. The prior subagent's suite covered only the root container, not the five tab components.
+   - 5 tabs (ProgressTab, AttendanceTab, ReportsTab, HomeworkTab, EvaluationsTab) × 4 states × 2 locales (ar RTL + en LTR) = 40 tests + 1 per-child re-keying proof = 41 tests.
+   - Each tab is mounted directly with a mocked Apollo provider (RECORDING ApolloLink + MockLink) and driven through its four rendering branches.
+   - State matrix per tab: loading → skeleton (aria-busy, data-testid="parent-<tab>-loading"); empty → IconCircleEmptyState (testId="parent-<tab>-empty"); data → per-row Card list (data-testid="parent-<tab>-list"); FORBIDDEN → PermissionDeniedFallback (raw transport message NEVER renders).
+   - Per-child re-keying proof: a test-only ProgressTabRekeyWrapper flips the studentId prop on click. The test verifies (a) the initial child's progressRowCount heading renders first, (b) after the re-key click the foreign child's progressRowCount heading renders (NOT the initial child's — Apollo cache isolation holds), (c) both queries carried their OWN studentId (traffic.capturedVariables contains both), (d) ZERO mutations crossed the wire.
+   - Translation discipline: assertions reference ONLY preloaded label objects resolved through ParentMonitoring.getLabels(getTranslations(locale)) and Errors.getLabels(getTranslations(locale)). ZERO hardcoded Arabic/English copy.
+   - Read-only posture (REQ-023.4): every render mounts the recording link; expectZeroMutations(traffic) asserts ZERO mutation operations crossed the wire.
+   - FIRST sub-loop run: tsgo FAILED (ReportsTab requires `session` prop; unused ReactNode import) → fixed. oxlint FAILED (`"completed" as never` unsafe type assertion) → simplified to default Scheduled status. lint:type-aware FAILED (duplicate react import; non-Readonly props) → consolidated import + Readonly<...> wrapper.
+   - Re-run sub-loop: exit 0.
+   - Run-test: 41 pass / 0 fail / 175 expect() calls.
+
+3. `test/ui/components/parent/monitoring/helpers.tsx` (VERIFIED — no changes needed):
+   - Sub-loop exit 0 on the FIRST run (tsgo + oxlint + biome + lint:type-aware + check:duplicates all passed).
+   - The helpers already export all 5 mock builders (progressMock, sessionsMock, reportsMock, homeworkMock + their InFlight and Failure variants) and all 5 fixture factories (linkedChildFixture, attendanceRowFixture, reportRowFixture, homeworkRowFixture, homeworkTrackFixture, progressFixture) needed by the new tab suite.
+
+COMBINED RUN:
+- KOTTABY_TEST_RUNNER_OK=1 TEST_SERVER_MODE=production TEST_CI=1 bun --env-file=.env.test test --parallel=1 test/ui/components/parent/monitoring/ --preload ./test/ui/test-env.ts --preload ./test/ui/components/happydom-preload.ts --preload ./test/ui/components/translation-preload.ts --preload ./test/ui/components/next-dynamic-mock.ts
+- 59 pass / 0 fail / 281 expect() calls (5.83s) across both files.
+
+ENVIRONMENT NOTE: the `test-env.ts` preload requires TEST_CI=1 (or isTestCi() to be true). The `.env.test` file does NOT carry TEST_CI=1 (only `.env.test.ci` does). Setting `TEST_CI=1` inline in the env before the `bun test` invocation satisfies the guard — the preload normalizes `"1"` to `"true"` per its own comment. No `.env.test` modification needed.
+
+6.4.QL — Quality Loop (sub-loop.ts --lifecycle duplicates):
+- helpers.tsx → ✅ exit 0 (FIRST run — no fixes needed).
+- ParentChildrenRootContainer.test.tsx → ✅ exit 0 (after 3 lint fixes: @/ alias + 2× toHaveLength).
+- ParentChildTabs.test.tsx → ✅ exit 0 (after tsgo + oxlint + lint:type-aware fixes on first authoring: ReportsTab session prop, unused ReactNode import, unsafe type assertion, duplicate react import, non-Readonly props).
+- Applicable rule files discovered and read: AGENTS.md (root), frontend/AGENTS.md, test/ui/AGENTS.md, test/ui/components/AGENTS.md, .agents/instructions/frontend.instructions.md, .agents/instructions/tests.instructions.md.
+
+6.4.TE — Test Engineering (4-Tier Framework — the state matrix IS Tier 1):
+- 59 pass / 0 fail / 281 expect() calls (5.83s) across both files.
+- Tier 1 (the state matrix): 5 tabs × 4 states × 2 locales = 40 tests (ParentChildTabs) + 9 states × 2 locales = 18 tests (ParentChildrenRootContainer) = 58 state-matrix tests.
+- Tier 2 (boundary): empty ?student= + zero children → no auto-replace; empty ?student= + ≥1 child → auto-replace; ?student= present → no auto-replace; per-child re-keying proof; raw transport message NEVER renders.
+- Tier 3 (chaos): N/A at the component tier — mocked Apollo serializes deterministically. Concurrent-mixed-calls coverage lives in service tests (6.2) + wire tests (6.3).
+- Tier 4 (security): ZERO mutations on the wire (REQ-023.4) asserted on every render; denied states render zero child data; server error messages never rendered raw.
+
+6.4.SEC — Security & Tenancy Audit:
+- Denied states render zero child data — FORBIDDEN denial replaces the entire tab content with PermissionDeniedFallback. No list, no skeleton, no per-row cards render. Verified per tab × per locale.
+- Server error messages never rendered raw — the RAW_TRANSPORT_MESSAGE_SENTINEL is asserted absent from the DOM on every denial arm. The denial copy is the localized errors.forbiddenRole / errors.forbidden namespace string.
+- Read-only posture (REQ-023.4) — ZERO mutation operations cross the wire on every render. The recording link captures real link traffic; expectZeroMutations(traffic) asserts the operations list carries ZERO entries with operation === "mutation".
+- Per-child cache isolation — switching studentId re-issues the query with the new id; the foreign child's rows never appear under the initial child's id. Apollo's cache isolation holds (the studentId variable IS the cache key).
+
+6.4.SR — Semantic Review:
+- No snapshot-brittleness — every assertion is structural (testid presence, text content, aria attributes, navigation call counts). No toMatchInlineSnapshot / toMatchSnapshot calls.
+- Mocks typed against generated documents — helpers' fixture factories return CLOSED shapes typed against codegen-emitted *Query_*_items extracted-field types. Never Partial<...> stand-ins.
+- No cross-layer imports — test files import only from @/frontend/views/parent/monitoring, @/test/ui/components/parent/monitoring/helpers, @/shared/locale/*, @testing-library/react, bun:test, react. No @/backend imports.
+- Comments ZERO plan-artifact references (grep-verified clean across all 3 files).
+- Convention adherence: bun:test imports only, @/ path aliases throughout, toHaveLength(N) instead of .length).toBe(N), Readonly<...> props on test-only wrappers, for (const locale of ["ar", "en"]) loop for RTL + LTR coverage, settleNetwork() before zero-mutation assertions, afterEach cleanup, no oxlint-disable comments.
+
+6.4.IV — Instruction Verification: read all printed rule files (AGENTS.md root + frontend + test/ui + test/ui/components, frontend.instructions.md, tests.instructions.md). All conventions honored.
+
+Stage Summary:
+- Three files in scope (1 modified + 1 new + helpers verified), all sub-loop exit 0 at the deepest lifecycle stage (duplicates).
+- 59 tests pass / 0 fail / 281 expect() calls across both test files via the scoped test:ui:components lane.
+- The FIVE-tab × {loading, empty, data, FORBIDDEN} state matrix is locked down across BOTH locales (ar RTL + en LTR).
+- Per-child re-keying proof pins Apollo cache isolation (studentId variable IS the cache key).
+- Read-only posture (REQ-023.4) asserted on every render — ZERO mutations cross the wire.
+- Outcome file written: ai/plans/sprint_3/parent-read-only-monitoring-portal/outcome/6.4-ui-tests-outcome.md.
+- Worklog block appended (this entry).
+- tasks.md checkbox: `- [ ] 6.4 UI component tests` → `- [x] 6.4 UI component tests` (only the main line — subtask checkboxes left as-is per task instructions).
+- Branch: feat/parent-read-only-monitoring-portal (verified at the start of every bash command).
+
+Carry-forward to task 6.5 (E2E journey tests):
+- The component-tier state matrix is now pinned. Task 6.5's journey tests should observe the SAME state transitions end-to-end through the REAL UI → REAL wire → REAL service → REAL DB stack.
+- J1: teacher completes session + submits report/homework → parent reads them via the portal. The tab data-state assertions here prove the component renders the rows; the journey test proves the rows flow end-to-end.
+- J2: sever the link → EVERY portal read immediately 403s and the children list excludes the child. The FORBIDDEN state assertions here prove the component renders PermissionDeniedFallback; the journey test proves the denial fires end-to-end with no cache extension.
+- J4: two confirmed children → both listed; per-child reads return that child's rows only. The per-child re-keying proof here pins the Apollo cache isolation; the journey test proves the switcher navigation + per-child reads work end-to-end.
+- The bodyShapeOf redaction helper (from task 6.3) can be reused in journey tests when comparing denial bodies across multiple probes.
+- The recording-link pattern (renderPortal helper) can be reused in journey tests that need to assert wire traffic at the component level. For journey tests against the REAL wire, the recording link is N/A (the real wire is the source of truth).

@@ -338,7 +338,7 @@ Read-only vertical slice, bottom-up: canonical types → repository parent-scope
   - Write outcome: `outcome/6.3-wire-tests-outcome.md`
   - _Requirements: REQ-020, REQ-021, REQ-022, REQ-024, REQ-030, REQ-052_
 
-- [ ] 6.4 UI component tests
+- [x] 6.4 UI component tests
   - CREATE suites under `test/ui/components/parent-monitoring/` (Happy DOM + mocked Apollo, NO server — lane `bun run test:ui:components`; verify parent-domain precedent under `test/ui/components/` and `test/ui/AGENTS.md` before picking sub-directory naming).
   - Coverage (REQ-053): children list empty/loaded; switcher URL-param behavior (selection writes `?student=`; `useQuery` re-keys on student id — a previously rendered child's rows never appear under the new one); FIVE tabs × {loading, empty, data, FORBIDDEN/403} states; `PermissionDeniedFallback` for FORBIDDEN; `ErrorRetryAlert` for transient errors; RTL render arm for `ar` with full namespace copy.
   - Assert NO mutation operations appear in mocked-Apollo requests from the portal views (REQ-023.4).
