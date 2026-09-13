@@ -1,7 +1,7 @@
 # `tasks.md` — Subscription Validity Window & Expiry
 
-**Plan directory:** `ai/plans/sprint_1/subscription-validity-window-expiry/`
-**Specs:** `specs.md` · **Plan:** `plan.md` · **Ledger:** `deferred-items.md` · **Outcomes:** `outcome/`
+**Plan directory:** this directory (under `ai/finished_plans/sprint_1/`; moved from `ai/plans/` on completion)
+**Specs:** `specs.md` · **Plan:** `plan.md` · **Ledger:** removed on completion (D1–D3 ✅ Done) · **Outcomes:** removed on completion
 
 **Nature of this ticket:** backend-only enforcement of an already-written validity window — AC1 is verification/lock-in only (no re-implementation), AC2 is a new externally-triggered cron route + sweep service + two guarded repo statements + one partial index implementing Decision D2 (O1 conditional lane zeroing), AC3 is a narrow failure-branch insertion into the existing booking debit ladder (Decision D3). Zero GraphQL delta (D4), zero new env keys (D1), zero UI (REQ-060), ride the existing VALIDATION snackbar fallback (D7).
 
