@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@apollo/client/react";
-import { TrendingUpOutlined } from "@mui/icons-material";
+import { AutoStoriesOutlined, ReplayOutlined, TrendingUpOutlined } from "@mui/icons-material";
 import { Box, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
@@ -111,11 +111,15 @@ export function ProgressTab(props: Readonly<ProgressTabProps>): ReactNode {
           position={progress.latestJadidPosition}
           trackLabel={t.progressLatestJadidLabel}
           noneLabel={t.progressPositionNone}
+          icon={<AutoStoriesOutlined fontSize="small" />}
+          accentColor="primary.main"
         />
         <ProgressPositionBlock
           position={progress.latestMadiPosition}
           trackLabel={t.progressLatestMadiLabel}
           noneLabel={t.progressPositionNone}
+          icon={<ReplayOutlined fontSize="small" />}
+          accentColor="secondary.main"
         />
       </Box>
     );
