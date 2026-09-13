@@ -127,6 +127,3 @@ export async function checkRateLimit(identifier: string, limiter: RateLimiterCon
 }
 
 /** Test helper — clears the in-memory windows (for isolated test runs). */
-export function resetRateLimitWindowsForTests(): void {
-  windows.clear();
-}

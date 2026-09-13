@@ -30,4 +30,4 @@ export const TAB_LABEL_KEYS: Readonly<
 };
 
 export type { TabKey };
-export { DEFAULT_TAB, isTabKey, TAB_KEYS };
+export { TAB_KEYS };

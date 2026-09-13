@@ -23,6 +23,7 @@ const config: KnipConfig = {
     // registers all Pothos types by side-effect (no named imports from the call site)
     "backend/graphql/gqlSchema.definitions.ts",
     "backend/graphql/pothos/index.ts",
+    "backend/graphql/pothos/parents/parent-monitoring.pothos.ts",
     "backend/graphql/query/index.ts",
     "backend/graphql/mutation/index.ts",
 
@@ -31,6 +32,7 @@ const config: KnipConfig = {
     "test/ui/test-env.ts",
     "test/ui/components/happydom-preload.ts",
     "test/ui/components/next-dynamic-mock.ts",
+    "test/ui/components/parent/monitoring/helpers.tsx",
 
     // Bun test runners invoked by path string only (run-locked-cmd wrapper args
     // in package.json scripts + the AGENTS.md-documented AI runner) — knip

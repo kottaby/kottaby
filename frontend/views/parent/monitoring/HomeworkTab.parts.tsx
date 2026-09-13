@@ -8,7 +8,6 @@ import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { HomeworkTrackBlock } from "@/frontend/views/parent/monitoring/HomeworkTab.parts.helpers";
 import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 
-export { HomeworkTrackBlock } from "./HomeworkTab.parts.helpers";
 
 const HOMEWORK_SKELETON_KEYS: readonly string[] = ["homework-skeleton-1", "homework-skeleton-2", "homework-skeleton-3"];
 

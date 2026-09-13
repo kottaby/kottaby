@@ -1,15 +1,6 @@
 import type { ParentChildSessionsQuery_parentChildSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 
-export type StatusColorKey = "success" | "info" | "warning" | "error" | "divider";
 
-export function statusColorKey(status: string): StatusColorKey {
-  const key = status.toLowerCase();
-  if (key === "completed") { return "success"; }
-  if (key === "started") { return "info"; }
-  if (key === "scheduled") { return "warning"; }
-  if (key === "cancelled" || key === "disputed") { return "error"; }
-  return "divider";
-}
 
 export interface CalendarDay {
   readonly day: number;
@@ -21,9 +12,6 @@ export interface CalendarMonth {
   readonly month: number;
 }
 
-export function calendarMonthKey(cm: CalendarMonth): string {
-  return cm.year + "-" + cm.month;
-}
 
 export function shiftMonth(cm: CalendarMonth, delta: number): CalendarMonth {
   const total = cm.year * 12 + cm.month + delta;
