@@ -127,4 +127,13 @@ export const parentMonitoringEn: ParentMonitoringLabels = {
   statCompletionRate: "Completion Rate",
   statUpcomingSessions: "Upcoming",
   summaryHeading: "Summary",
+  homeworkSummaryHeading: "Homework Progress",
+  statLatestJadid: "Latest Jadid",
+  statLatestMadi: "Latest Madi",
+  statAverageGrade: "Average Grade",
+  statHomeworkCount: "Homework Count",
+  ratingTrendHeading: "Rating Trend",
+  ratingTrendAxisLabel: "Rating",
+  ratingTrendSessionLabel: "Session",
+  ratingTrendEmpty: "No rating data available yet",
 };

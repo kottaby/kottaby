@@ -244,4 +244,26 @@ export interface ParentMonitoringLabels {
   readonly statUpcomingSessions: string;
   /** Section heading for the summary stats card. */
   readonly summaryHeading: string;
+
+  // ─── Homework summary stats card ──────────────────────────────────────
+  /** Section heading for the homework summary card. */
+  readonly homeworkSummaryHeading: string;
+  /** Label for the latest Jadid surah/juz position stat. */
+  readonly statLatestJadid: string;
+  /** Label for the latest Madi surah/juz position stat. */
+  readonly statLatestMadi: string;
+  /** Label for the average grade stat. */
+  readonly statAverageGrade: string;
+  /** Label for the homework completion count stat. */
+  readonly statHomeworkCount: string;
+
+  // ─── Reports rating trend chart ───────────────────────────────────────
+  /** Section heading for the rating trend chart. */
+  readonly ratingTrendHeading: string;
+  /** Label for the rating (y-axis) on the chart. */
+  readonly ratingTrendAxisLabel: string;
+  /** Label for the session (x-axis) on the chart. */
+  readonly ratingTrendSessionLabel: string;
+  /** Label shown when no rating data is available for the chart. */
+  readonly ratingTrendEmpty: string;
 }

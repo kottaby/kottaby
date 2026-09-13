@@ -12,6 +12,7 @@ import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { type PrintableReportRow, PrintExportDialog } from "@/frontend/views/parent/monitoring/PrintExportDialog";
+import { RatingTrendChart } from "@/frontend/views/parent/monitoring/RatingTrendChart";
 import { ReportRow, ReportsSkeleton } from "@/frontend/views/parent/monitoring/ReportsTab.parts";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
@@ -21,11 +22,9 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
   const commonT = useAppTranslation(Common);
   const locale = useAppLocale();
   const [printOpen, setPrintOpen] = useState(false);
-
   const { data, loading, error, refetch } = useQuery(parentChildReportsQueryDocument, {
     variables: { studentId: props.studentId, page: undefined, pageSize: undefined },
   });
-
   const errorCode = error ? extractErrorCode(error) : null;
   const denied =
     errorCode !== null &&
@@ -33,10 +32,8 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
   if (denied) {
     return <PermissionDeniedFallback />;
   }
-
   const rows = data?.parentChildReports?.items;
   const showPrintButton = rows !== undefined && rows.length > 0;
-
   let body: ReactNode;
   if (rows === undefined) {
     body =
@@ -65,27 +62,29 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
     );
   } else {
     body = (
-      <Box
-        className="printable-section"
-        component="output"
-        aria-label={t.reportsSectionTitle}
-        data-testid="parent-reports-list"
-        sx={{ display: "grid", gap: 2 }}
-      >
-        {rows.map(row => (
-          <ReportRow key={row.id} row={row} labels={t} locale={locale} deepLinkSessionId={props.session} />
-        ))}
-        <Typography
-          className="print-timestamp"
-          variant="caption"
-          sx={theme => ({ color: theme.palette.text.secondary })}
+      <>
+        <RatingTrendChart items={rows} labels={t} locale={locale} />
+        <Box
+          className="printable-section"
+          component="output"
+          aria-label={t.reportsSectionTitle}
+          data-testid="parent-reports-list"
+          sx={{ display: "grid", gap: 2 }}
         >
-          {t.printTimestampLabel(formatApplicantDate(new Date().toISOString(), locale))}
-        </Typography>
-      </Box>
+          {rows.map(row => (
+            <ReportRow key={row.id} row={row} labels={t} locale={locale} deepLinkSessionId={props.session} />
+          ))}
+          <Typography
+            className="print-timestamp"
+            variant="caption"
+            sx={theme => ({ color: theme.palette.text.secondary })}
+          >
+            {t.printTimestampLabel(formatApplicantDate(new Date().toISOString(), locale))}
+          </Typography>
+        </Box>
+      </>
     );
   }
-
   const printableRows: readonly PrintableReportRow[] =
     rows?.map(row => ({
       date: formatApplicantDate(row.sessionStartedAt ?? row.createdAt, locale),
@@ -93,7 +92,6 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
       rating: row.studentRatingByTeacher,
       notes: row.teacherNotes,
     })) ?? [];
-
   return (
     <Stack spacing={2} sx={{ width: "100%" }}>
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>

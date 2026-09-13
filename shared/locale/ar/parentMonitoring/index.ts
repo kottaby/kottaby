@@ -140,4 +140,13 @@ export const parentMonitoringAr: ParentMonitoringLabels = {
   statCompletionRate: "نسبة الإكمال",
   statUpcomingSessions: "قادمة",
   summaryHeading: "الملخص",
+  homeworkSummaryHeading: "تقدم الواجبات",
+  statLatestJadid: "أحدث الجديد",
+  statLatestMadi: "أحدث الماضي",
+  statAverageGrade: "متوسط الدرجة",
+  statHomeworkCount: "عدد الواجبات",
+  ratingTrendHeading: "اتجاه التقييم",
+  ratingTrendAxisLabel: "التقييم",
+  ratingTrendSessionLabel: "الحصة",
+  ratingTrendEmpty: "لا توجد بيانات تقييم بعد",
 };

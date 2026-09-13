@@ -154,6 +154,17 @@ const MANDATED_KEYS = [
   "statCompletionRate",
   "statUpcomingSessions",
   "summaryHeading",
+  // Homework summary stats
+  "homeworkSummaryHeading",
+  "statLatestJadid",
+  "statLatestMadi",
+  "statAverageGrade",
+  "statHomeworkCount",
+  // Reports rating trend chart
+  "ratingTrendHeading",
+  "ratingTrendAxisLabel",
+  "ratingTrendSessionLabel",
+  "ratingTrendEmpty",
 ] as const;
 
 /**

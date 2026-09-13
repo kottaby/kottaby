@@ -10,6 +10,7 @@ import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDen
 import { parentChildHomeworkQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
+import { HomeworkSummary } from "@/frontend/views/parent/monitoring/HomeworkSummary";
 import { HomeworkRow, HomeworkSkeleton } from "@/frontend/views/parent/monitoring/HomeworkTab.parts";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
@@ -85,16 +86,19 @@ export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
     );
   } else {
     body = (
-      <Box
-        component="output"
-        aria-label={t.homeworkSectionTitle}
-        data-testid="parent-homework-list"
-        sx={{ display: "grid", gap: 2 }}
-      >
-        {rows.map(row => (
-          <HomeworkRow key={row.id} row={row} labels={t} locale={locale} />
-        ))}
-      </Box>
+      <>
+        <HomeworkSummary items={rows} labels={t} />
+        <Box
+          component="output"
+          aria-label={t.homeworkSectionTitle}
+          data-testid="parent-homework-list"
+          sx={{ display: "grid", gap: 2 }}
+        >
+          {rows.map(row => (
+            <HomeworkRow key={row.id} row={row} labels={t} locale={locale} />
+          ))}
+        </Box>
+      </>
     );
   }
 
