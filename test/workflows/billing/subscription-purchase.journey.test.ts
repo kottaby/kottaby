@@ -45,6 +45,12 @@
  *      `balance_reviews` credited exactly the seeded plan's `sessionCount`
  *      (hifz/tajweed byte-identical): the seeded, documented lane routes
  *      like any other plan end-to-end.
+ *  12. Student A purchases the journey's own Tajweed-lane plan (provisioned
+ *      in the fixture transaction) and the emitter confirms it →
+ *      `balance_tajweed` credited exactly the plan's `sessionCount` with
+ *      hifz/reviews/trial byte-identical; a replay of the SAME confirmed
+ *      event acks replayed with no second credit; no foreign actor observes
+ *      a balance change, inbox entry, or publish.
  *
  * Journey rules honored (`test/workflows/AGENTS.md`):
  * - fixtures COMMITTED in `beforeAll` inside ONE committing transaction;
@@ -130,6 +136,8 @@ const MS_PER_DAY = 86_400_000;
 const PLAN_SESSION_COUNT = 7;
 /** Activation window of the journey plan (days). */
 const PLAN_INTERVAL_DAYS = 30;
+/** Session count of the Tajweed-lane fixture plan (distinct from the Hifz plan's). */
+const TAJWEED_PLAN_SESSION_COUNT = 5;
 
 const tracked = new TrackedFixtures();
 
@@ -146,6 +154,7 @@ const KEY_PURCHASE = `${PREFIX}-key-purchase`;
 const KEY_SECOND = `${PREFIX}-key-second`;
 const KEY_PARENT = `${PREFIX}-key-parent`;
 const KEY_REVIEWS = `${PREFIX}-key-reviews`;
+const KEY_TAJWEED = `${PREFIX}-key-tajweed`;
 
 /**
  * The SEEDED Reviews-lane demo plan (step 11's purchase target). Seeded by
@@ -167,6 +176,7 @@ let parentActor: { readonly userId: number };
 let parentUser: UserSelectType;
 let planRow: PlanSelectType;
 let reviewsPlanRow: PlanSelectType;
+let tajweedPlanRow: PlanSelectType;
 
 /** A journey cast member: the actor-context bundle plus its user row. */
 interface JourneyActorRow {
@@ -280,14 +290,20 @@ async function readBalances(studentUserId: number): Promise<StudentBalance> {
   if (!row) {
     throw new Error("readBalances: student fixture row vanished");
   }
-  return { hifz: row.balanceHifz, tajweed: row.balanceTajweed, reviews: row.balanceReviews };
+  return {
+    hifz: row.balanceHifz,
+    tajweed: row.balanceTajweed,
+    reviews: row.balanceReviews,
+    trial: row.balanceTrial,
+  };
 }
 
-/** The student balance lanes this journey asserts on (nullable columns). */
+/** The student balance lanes this journey asserts on (trial is non-nullable). */
 interface StudentBalance {
   readonly hifz: number | null;
   readonly tajweed: number | null;
   readonly reviews: number | null;
+  readonly trial: number;
 }
 
 /** Independent read-back oracle — direct Drizzle count on the inbox. */
@@ -384,6 +400,16 @@ beforeAll(async () => {
     });
     tracked.register(plans, planRow.id);
 
+    tajweedPlanRow = await createTestPlan(tx, {
+      title: `${PREFIX} tajweed plan`,
+      sessionCount: TAJWEED_PLAN_SESSION_COUNT,
+      price: "150.00",
+      currency: "EGP",
+      intervalDays: PLAN_INTERVAL_DAYS,
+      balanceLane: SubscriptionCreditLane.Tajweed,
+    });
+    tracked.register(plans, tajweedPlanRow.id);
+
     // The seeded Reviews-lane plan (step 11's purchase target): a read-only
     // catalog lookup — the row is environment seed state, never registered
     // for cleanup (we never mutate it). A missing row is a loud environment
@@ -474,16 +500,17 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       .select()
       .from(subscriptionPurchaseIdempotency)
       .where(eq(subscriptionPurchaseIdempotency.idempotencyKey, KEY_PURCHASE));
+    // Track every service-created row for teardown before asserting
+    // cardinality — a duplicate row must not strand committed rows.
+    tracked.register(subscriptions, result.subscription.id);
+    tracked.register(studentPayments, result.payment.id);
+    for (const claimRow of claimRows) {
+      tracked.register(subscriptionPurchaseIdempotency, claimRow.id);
+    }
     expect(claimRows).toHaveLength(1);
     expect(claimRows[0]?.userId).toBe(studentA.userId);
     expect(claimRows[0]?.subscriptionId).toBe(result.subscription.id);
 
-    // Track every service-created row for teardown.
-    tracked.register(subscriptions, result.subscription.id);
-    tracked.register(studentPayments, result.payment.id);
-    if (claimRows[0]) {
-      tracked.register(subscriptionPurchaseIdempotency, claimRows[0].id);
-    }
     ledgerSubscriptionIds.push(result.subscription.id);
     ledgerPaymentIds.push(result.payment.id);
   });
@@ -648,10 +675,10 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       .select()
       .from(subscriptionPurchaseIdempotency)
       .where(eq(subscriptionPurchaseIdempotency.idempotencyKey, KEY_SECOND));
-    expect(claimRows).toHaveLength(1);
-    if (claimRows[0]) {
-      tracked.register(subscriptionPurchaseIdempotency, claimRows[0].id);
+    for (const claimRow of claimRows) {
+      tracked.register(subscriptionPurchaseIdempotency, claimRow.id);
     }
+    expect(claimRows).toHaveLength(1);
 
     const event: PaymentWebhookEvent = {
       reference: result.checkout.providerReference,
@@ -788,10 +815,10 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       .select()
       .from(subscriptionPurchaseIdempotency)
       .where(eq(subscriptionPurchaseIdempotency.idempotencyKey, KEY_REVIEWS));
-    expect(claimRows).toHaveLength(1);
-    if (claimRows[0]) {
-      tracked.register(subscriptionPurchaseIdempotency, claimRows[0].id);
+    for (const claimRow of claimRows) {
+      tracked.register(subscriptionPurchaseIdempotency, claimRow.id);
     }
+    expect(claimRows).toHaveLength(1);
 
     const event: PaymentWebhookEvent = {
       reference: result.checkout.providerReference,
@@ -832,12 +859,119 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       .select()
       .from(notifications)
       .where(eq(notifications.relatedEntityId, result.subscription.id));
+    for (const notification of reviewsNotifs) {
+      tracked.register(notifications, notification.id);
+    }
     expect(reviewsNotifs).toHaveLength(1);
     if (reviewsNotifs[0]) {
-      tracked.register(notifications, reviewsNotifs[0].id);
       expect(reviewsNotifs[0].type).toBe(NotificationType.PaymentConfirmation);
       expect(reviewsNotifs[0].userId).toBe(studentA.userId);
     }
     expect(publishSpy.mock.calls).toHaveLength(2);
+  });
+
+  test("step 12 — Student A: purchase on the Tajweed-lane fixture plan + confirmed event → balance_tajweed credited exactly; replay never double-credits", async () => {
+    expect(tajweedPlanRow.balanceLane).toBe(SubscriptionCreditLane.Tajweed);
+
+    const balancesBefore = await readBalances(studentA.userId);
+    const foreignBefore = await readBalances(studentB.userId);
+    const countsBefore = await pendingSetCounts(studentA.userId);
+
+    const result = await SubscriptionPurchaseService.purchase(
+      studentA.userId,
+      { planId: tajweedPlanRow.id },
+      KEY_TAJWEED,
+      "en"
+    );
+    expect(result.subscription.status).toBe(SubscriptionStatus.Pending);
+    expect(result.payment.amount).toBe(tajweedPlanRow.price);
+    expect(result.payment.currency).toBe(tajweedPlanRow.currency);
+    tracked.register(subscriptions, result.subscription.id);
+    tracked.register(studentPayments, result.payment.id);
+    ledgerSubscriptionIds.push(result.subscription.id);
+    ledgerPaymentIds.push(result.payment.id);
+    const claimRows = await db
+      .select()
+      .from(subscriptionPurchaseIdempotency)
+      .where(eq(subscriptionPurchaseIdempotency.idempotencyKey, KEY_TAJWEED));
+    for (const claimRow of claimRows) {
+      tracked.register(subscriptionPurchaseIdempotency, claimRow.id);
+    }
+    expect(claimRows).toHaveLength(1);
+
+    const event: PaymentWebhookEvent = {
+      reference: result.checkout.providerReference,
+      outcome: "confirmed",
+      amount: result.payment.amount,
+      currency: result.payment.currency,
+    };
+    const outcome = await SubscriptionActivationService.processWebhookEvent(event, "en");
+    expect(outcome).toEqual({ processed: true });
+
+    // The tajweed lane credited exactly the plan's sessionCount; every sibling
+    // lane — hifz, reviews, and the trial lane — is byte-identical.
+    const balancesAfter = await readBalances(studentA.userId);
+    expect((balancesAfter.tajweed ?? 0) - (balancesBefore.tajweed ?? 0)).toBe(TAJWEED_PLAN_SESSION_COUNT);
+    expect(balancesAfter.hifz).toBe(balancesBefore.hifz);
+    expect(balancesAfter.reviews).toBe(balancesBefore.reviews);
+    expect(balancesAfter.trial).toBe(balancesBefore.trial);
+
+    // The fourth subscription activated; the payment decided paid.
+    const active = await subscriptionRow(result.subscription.id);
+    expect(active.status).toBe(SubscriptionStatus.Active);
+    expect((await paymentRow(result.payment.id)).status).toBe(PaymentStatus.Paid);
+
+    // The committed pending set grew by exactly the fourth pair.
+    const countsAfter = await pendingSetCounts(studentA.userId);
+    expect(countsAfter).toEqual({
+      subs: countsBefore.subs + 1,
+      payments: countsBefore.payments + 1,
+      junction: countsBefore.junction + 1,
+      claims: countsBefore.claims + 1,
+    });
+
+    // ONE more persisted notification (student A's inbox now holds three) and
+    // ONE more post-commit publish — addressed to Student A ONLY.
+    expect(await inboxCount(studentA.userId)).toBe(3);
+    const tajweedNotifs = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.relatedEntityId, result.subscription.id));
+    for (const notification of tajweedNotifs) {
+      tracked.register(notifications, notification.id);
+    }
+    expect(tajweedNotifs).toHaveLength(1);
+    if (tajweedNotifs[0]) {
+      expect(tajweedNotifs[0].type).toBe(NotificationType.PaymentConfirmation);
+      expect(tajweedNotifs[0].userId).toBe(studentA.userId);
+      expect(tajweedNotifs[0].title).toBe(NOTIFS_EN.eventPaymentConfirmedTitle);
+      expect(tajweedNotifs[0].body).toBe(NOTIFS_EN.eventPaymentConfirmedBody(tajweedPlanRow.title));
+    }
+    expect(publishSpy.mock.calls).toHaveLength(3);
+    const lastPublish: unknown = publishSpy.mock.calls[2]?.[0];
+    if (!Array.isArray(lastPublish) || lastPublish.length !== 1) {
+      throw new Error("expected exactly one published delivery receipt for the tajweed activation");
+    }
+    const receipt = lastPublish[0];
+    if (!isRecord(receipt) || !Array.isArray(receipt.recipientUserIds)) {
+      throw new Error("expected the published receipt to carry its recipient ids");
+    }
+    expect(receipt.recipientUserIds).toEqual([studentA.userId]);
+
+    // Foreign invariance: no other cast member's balance, inbox, or own list
+    // observed anything of this leg.
+    expect(await readBalances(studentB.userId)).toEqual(foreignBefore);
+    expect(await inboxCount(studentB.userId)).toBe(0);
+    expect(await inboxCount(parentActor.userId)).toBe(0);
+
+    // Replaying the SAME confirmed event acks replayed and credits nothing:
+    // the decided rows, every lane, the inbox, and the publish log stay
+    // byte-identical.
+    const replayOutcome = await SubscriptionActivationService.processWebhookEvent(event, "en");
+    expect(replayOutcome).toEqual({ processed: true, replayed: true });
+    expect(await readBalances(studentA.userId)).toEqual(balancesAfter);
+    expect((await paymentRow(result.payment.id)).status).toBe(PaymentStatus.Paid);
+    expect(await inboxCount(studentA.userId)).toBe(3);
+    expect(publishSpy.mock.calls).toHaveLength(3);
   });
 });
