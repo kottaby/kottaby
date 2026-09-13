@@ -95,3 +95,17 @@ Work Log:
 Stage Summary:
 - 4.1/4.2/4.3 all [x] with outcome files
 - 4.4 remains (locale keys + parity) then 5.1 hardening
+
+---
+Task ID: 4.4
+Agent: Spec Implementation Orchestrator
+Task: Task 4.4 locale keys + parity (per SKILL.md §Task Execution Protocol)
+
+Work Log:
+- 25-key inventory formalized (23 sessions + 2 errors) — all present in types/en/ar layers, zero missing
+- Parity suites extended (sessions registry + errors domain pin): sessions 20/0, errors 23/0, notifications 131/0, server 21/0
+- UI suites 42 pass/4 skip/0 fail; tsgo 0; sub-loop exit 0
+
+Stage Summary:
+- Phase 4 COMPLETE (4.1-4.4 all [x] with outcome files)
+- Next: 5.1 hardening + adversarial wave

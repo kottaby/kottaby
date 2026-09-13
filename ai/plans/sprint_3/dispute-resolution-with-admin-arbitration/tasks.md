@@ -146,10 +146,10 @@ Backend-first with a **test-first journey** authored right after repo primitives
   - Outcome: `outcome/4.3-student-dispute-action-outcome.md`
   - _Requirements: REQ-1, REQ-9_
 
-- [ ] 4.4 Locale keys (en + ar) + parity
+- [x] 4.4 Locale keys (en + ar) + parity
   - `shared/locale/{types,en,ar}/errors/` : `partialRefundAmountInvalid`, `disputeResolutionMismatch`; extend `sessions` namespace labels for post-confirmation copy (open confirm copy, outcome labels, case dialog titles)
   - Parity tests green: `shared/locale/sessions-namespace.parity.test.ts` (+ errors parity)
-  - [ ] 4.4.QL / 4.4.TE (parity) / 4.4.SEC / 4.4.SR / 4.4.IV
+  - [x] 4.4.QL / [x] 4.4.TE (parity) / [x] 4.4.SEC / [x] 4.4.SR / [x] 4.4.IV
   - Outcome: `outcome/4.4-locale-outcome.md`
   - _Requirements: REQ-0.5, REQ-2, REQ-3, REQ-5, REQ-9_
 

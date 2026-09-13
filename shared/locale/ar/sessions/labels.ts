@@ -74,11 +74,9 @@ export const sessionsAr: SessionsLabels = {
   escrowHeldChip: "الرسوم محجوزة",
   escrowConsumedChip: "الرسوم مستهلكة",
   resolutionRefundLabel: "رد الرسوم للطالب",
-  resolutionRefundHelper:
-    "يُعاد كامل رسوم الجلسة المكتملة إلى الطالب ويُخصم المبلغ من محفظة المعلم.",
+  resolutionRefundHelper: "يُعاد كامل رسوم الجلسة المكتملة إلى الطالب ويُخصم المبلغ من محفظة المعلم.",
   resolutionPartialRefundLabel: "رد جزئي",
-  resolutionPartialRefundHelper:
-    "يُعاد جزء محدد من الرسوم إلى الطالب ويبقى الباقي للمعلم. يُحدد المبلغ أدناه.",
+  resolutionPartialRefundHelper: "يُعاد جزء محدد من الرسوم إلى الطالب ويبقى الباقي للمعلم. يُحدد المبلغ أدناه.",
   resolutionUpholdLabel: "إقرار الإنجاز",
   resolutionUpholdHelper: "تبقى الجلسة المكتملة كما هي ولا تتحرك أي مبالغ.",
   partialAmountLabel: "مبلغ الرد",
