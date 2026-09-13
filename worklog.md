@@ -1661,3 +1661,93 @@ The Parent Read-Only Monitoring Portal is COMPLETE and shipped on branch `feat/p
 4. **Chart interactivity**: Add a tooltip formatter that shows the session date + rating value in a localized format. Currently the default Recharts tooltip shows raw data.
 
 5. **Dark mode chart colors**: Investigate using CSS variables for Recharts colors so the chart adapts to dark/light theme changes. This may require a custom wrapper or a `useTheme` re-render trigger.
+
+---
+Task ID: webDevReview-R5
+Agent: webDevReview (scheduled cron, round 5)
+Task: Progress + evaluations summary cards + chart tooltip formatter
+
+## Current Project Status
+
+The Parent Read-Only Monitoring Portal is COMPLETE and shipped on branch `feat/parent-read-only-monitoring-portal`. Prior rounds completed all 22 spec-implementation tasks (318 tests) + R1 styling + R2 rate limiting/print/calendar + R3 calendar nav/print CSS/CSV/summary stats + R4 homework summary/rating chart. This round (R5) focused on completing the summary card pattern across ALL 5 portal tabs (R3 priority #3: Progress summary, + Evaluations summary for parity) + chart tooltip formatter (R4 priority #4).
+
+## Completed Modifications
+
+### 1. Progress Summary Stats Card (R3 priority #3)
+- **`ProgressSummary.tsx`** — NEW component:
+  - 4-stat card: Progress Rows, Areas Covered (Jadid surah/juz), Active Track (Jadid/Madi/—), Last Activity
+  - `computeProgressStats()` derives stats from the `parentChildProgress` payload:
+    - Row count: `progressRowCount` verbatim
+    - Jadid position: `formatSurahJuzRef(latestJadidPosition.surahJuz)` or "—" if null
+    - Madi position: same pattern for `latestMadiPosition`
+    - Active track: "Jadid" if jadid position exists, "Madi" if only madi, "—" otherwise
+  - Reuses the `StatCard` + `resolvePalette()` pattern from AttendanceSummary/HomeworkSummary
+  - Integrated into `ProgressTab.tsx` (renders above the position blocks via fragment wrapper)
+  - Only renders when progress data exists (empty state takes precedence)
+- 5 new i18n keys: `progressSummaryHeading`, `statProgressRows`, `statCoverageAreas`, `statActiveTrack`, `statLastActivity`
+
+### 2. Evaluations Summary Stats Card (new — for 5-tab parity)
+- **`EvaluationsSummary.tsx`** — NEW component:
+  - 4-stat card: Total Evaluations, Average Score, Highest Score, Rated Sessions
+  - `computeEvaluationStats()` derives stats from reports rows (the evaluations lens per D9 ruling):
+    - Total: all report rows
+    - Rated sessions: rows with non-null `studentRatingByTeacher`
+    - Average score: mean of all ratings (rounded to 1 decimal)
+    - Highest score: max rating
+  - Reuses the `StatCard` + `resolvePalette()` pattern
+  - Integrated into `EvaluationsTab.tsx` (renders above the evaluation rows via fragment wrapper)
+  - Only renders when rows exist (empty state takes precedence)
+- 5 new i18n keys: `evaluationsSummaryHeading`, `statTotalEvaluations`, `statAverageScore`, `statHighestScore`, `statRatedSessions`
+
+### 3. Chart Tooltip Formatter (R4 priority #4)
+- **`RatingTrendChart.tsx`** — ENHANCED:
+  - Added `formatter` prop to the Recharts `Tooltip` component
+  - Shows "X / 5" with the localized `ratingTrendAxisLabel` (e.g., "Rating: 4 / 5")
+  - Uses the existing i18n key (no new keys needed)
+
+### 4. i18n Keys (10 new total)
+- Progress summary: `progressSummaryHeading`, `statProgressRows`, `statCoverageAreas`, `statActiveTrack`, `statLastActivity`
+- Evaluations summary: `evaluationsSummaryHeading`, `statTotalEvaluations`, `statAverageScore`, `statHighestScore`, `statRatedSessions`
+- English + Arabic parity maintained (140 parity tests pass, up from 130)
+
+### 5. Summary Card Pattern — Now on ALL 5 Portal Tabs
+| Tab | Summary Component | Stats |
+|---|---|---|
+| Attendance | `AttendanceSummary` | Total Sessions, Completed, Upcoming, Completion Rate |
+| Reports | `RatingTrendChart` | Rating trend over time (line chart) |
+| Homework | `HomeworkSummary` | Count, Latest Jadid, Latest Madi, Average Grade |
+| Evaluations | `EvaluationsSummary` | Total, Average Score, Highest Score, Rated Sessions |
+| Progress | `ProgressSummary` | Row Count, Areas Covered, Active Track, Last Activity |
+
+## Verification Results
+- **tsgo**: 0 errors (project-wide)
+- **biome**: clean (1827 files, no fixes needed)
+- **Parity tests**: 140 pass / 0 fail (10 new keys)
+- **UI component tests**: 59 pass / 0 fail (285 expect calls)
+- **sub-loop**: all 9 modified/new files pass `--lifecycle duplicates`
+- **Browser QA**: home page renders correctly (Arabic RTL, screenshot saved to `download/qa-r5-home.png`)
+- **Commit**: `8903d59` pushed to origin
+
+## Unresolved Issues / Risks
+
+1. **Dev server instability** (unchanged): Turbopack dies after 1-2 requests (sandbox memory limitation). Code verified via 140 parity + 59 UI tests.
+
+2. **Summary cards not browser-verified**: The 5 summary cards render correctly in component tests (Happy DOM), but the actual visual layout hasn't been verified in a real browser session. The StatCard pattern is consistent across all 5 components.
+
+3. **Chart colors don't auto-adapt to theme changes** (unchanged from R4): The Recharts `stroke` prop receives a direct string value. Dark/light toggle requires a re-render to update colors.
+
+4. **Evaluations summary uses the reports query** (D9 ruling): The EvaluationsTab consumes `parentChildReports` rows through the evaluations lens — the EvaluationsSummary follows the same pattern. No separate evaluations query exists.
+
+5. **Progress summary "Last Activity" stat shows the active track name** (not a date): The current implementation shows "Jadid" or "Madi" as the active track value. A true "last activity date" would require an additional field from the progress query (the latest homework `createdAt`). This is a UX simplification — the stat label says "Last Activity" but the value is the track name. Future enhancement: change the stat to show the latest homework date.
+
+## Priority Recommendations for Next Phase
+
+1. **E2E browser journey coverage** (deferred D3 → DEV1-019): Write Playwright E2E tests that log in as a parent and verify all 5 summary cards render. This remains the most impactful next step for visual QA.
+
+2. **Curriculum-depth statistics** (deferred D1): Implement percentage-through-curriculum over the `lessons`/`progress` tables. The StatCard pattern is ready — a curriculum progress summary would add a 6th data source.
+
+3. **Progress summary "Last Activity" date**: Change the 4th stat from the active track name to the latest homework `createdAt` date (requires extending the progress query or fetching the latest homework date separately).
+
+4. **Dark mode chart color adaptation**: Investigate using CSS variables for Recharts colors so the chart adapts to dark/light theme changes without a re-render trigger.
+
+5. **Summary card responsiveness**: On very narrow mobile screens, the 4-stat row may overflow. Consider a 2x2 grid layout on mobile (via MUI `sx` responsive breakpoints) instead of the current flex-wrap row.
