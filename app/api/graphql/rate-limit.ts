@@ -26,6 +26,15 @@ export async function withRateLimit(
   request: NextRequest,
   eventHandler: (req: NextRequest) => Promise<Response>
 ): Promise<Response> {
+  // Test mode bypass: CI integration tests send 100+ GraphQL requests
+  // within the rate-limit window. Skip rate limiting entirely when
+  // TEST_CI or TEST_SERVER env flags are set.
+  if (process.env.TEST_CI === "1" || process.env.TEST_SERVER === "1") {
+    const response = await eventHandler(request);
+    applySpaceZCorsHeaders(response.headers, request.headers.get("origin"));
+    return response;
+  }
+
   const identifier = getClientIdentifier(request);
 
   // Deferred security note: a batched-GraphQL-array amplification guard will
