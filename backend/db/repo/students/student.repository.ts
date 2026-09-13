@@ -1,43 +1,4 @@
-/**
- * StudentRepository — data-access layer for the `students` role-child table.
- *
- * The `students` row shares its PK with `users.id` (FK ON DELETE CASCADE) and
- * carries the `handshake_code` parent-linking identifier plus the zeroed
- * credit balances (`balance_hifz`, `balance_tajweed`, `balance_reviews`) and
- * the segregated one-time free-trial lane (`balance_trial`) guarded by the
- * `trial_granted_at` marker.
- *
- * Registration-path writes (`createForRegistration`) take a REQUIRED
- * `tx: DBTransaction` (last param) so the registration transaction can roll
- * back on any child-insert failure (atomicity). The trial grant method
- * (`grantFreeTrialOnce`), the held-balance lane debit/refund methods
- * (`decrementLaneIfAvailable` / `incrementLane`) and the subscription
- * activation credit (`creditLaneBalance`) accept an optional `tx` so
- * they can run either inside a caller's transaction or standalone against
- * the global handle.
- *
- * Conventions per `backend/db/repo/AGENTS.md`:
- *  - Writes (`createForRegistration`) take a REQUIRED `tx` (atomicity);
- *    debit/refund use `queryDb` raw parameterized SQL on the
- *    non-transactional branch and the Drizzle builder on the transactional
- *    branch.
- *  - Reads are read-only, single-scalar/parameterized equality lookups that
- *    take an OPTIONAL `tx` (last param) and use `queryDb` (raw parameterized
- *    SQL) on the non-transactional branch, mirroring `UserRepository`
- *    `findByEmail` / `findById` — Neon HTTP fast path when eligible, Drizzle
- *    select inside a supplied transaction. No prepared statements (single
- *    equality, no reuse win), no `inArray`, no LIKE/ILIKE, no `sql` templates.
- *  - Zero business rules, zero log strings, zero i18n imports — reads return
- *    `null` on miss; the service layer owns validation, governance filtering
- *    and error mapping.
- *
- * File layout: the subscription activation credit (`creditLaneBalance` and
- * its frozen `CREDIT_LANE_BALANCE_COLUMNS` lane→column map) lives in the
- * sibling `student.repository.credit-lane.helpers.ts` module (extracted
- * verbatim); the namespace's `creditLaneBalance` method is a one-to-one
- * delegation wrapper, so the public API (names, signatures, behavior) is
- * unchanged.
- */
+/** * StudentRepository — data-access layer for the `students` role-child table. */
 import { and, asc, desc, eq, ilike, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
 import { type AnyPgColumn, alias } from "drizzle-orm/pg-core";
 import { db, queryDb } from "@/backend/db";
@@ -229,28 +190,7 @@ async function readHandshakeCodeJoinRow(code: string, tx?: DBTransaction): Promi
 }
 
 export namespace StudentRepository {
-  /**
-   * Inserts a `students` row for a freshly-created user during registration.
-   *
-   * Balances are explicitly zeroed for clarity-of-contract even though the
-   * schema applies `DEFAULT 0`. `handshakeCode` is server-generated
-   * by the service layer with a bounded retry loop on unique-violation.
-   * `parentId` is `null` at registration — set later via the parent
-   * handshake flow.
-   *
-   * The insert runs inside its own savepoint (a Drizzle nested transaction
-   * opened on the supplied `tx`): a unique-constraint rejection rolls back
-   * ONLY this insert and rethrows the driver error unchanged, leaving the
-   * caller's transaction usable. That is what lets the registration
-   * service's bounded collision retry regenerate a fresh code and insert
-   * again on the SAME transaction — without the savepoint, a rejected
-   * insert aborts the surrounding transaction and every subsequent
-   * statement on it fails with an aborted-transaction error. On success the
-   * savepoint is released, which is transparent to the surrounding
-   * registration transaction (same atomicity as a bare insert).
-   *
-   * @returns The inserted student row.
-   */
+  /** * Inserts a `students` row for a freshly-created user during registration. */
   export async function createForRegistration(
     userId: number,
     handshakeCode: string,
@@ -454,28 +394,7 @@ export namespace StudentRepository {
     return row ?? null;
   }
 
-  /**
-   * Atomically debits ONE allowance unit from the student's held-balance
-   * lane when the lane still holds a positive balance.
-   *
-   * ONE guarded conditional UPDATE per call: the balance predicate
-   * (`balance_<lane> > 0`) and the decrement share a single statement, so
-   * the check-and-subtract happens atomically under PostgreSQL's row lock
-   * (zero TOCTOU — a concurrent debit serializes on the same row and
-   * re-evaluates the predicate against the post-decrement value). The lane
-   * column is resolved exclusively through the frozen `LANE_BALANCE_COLUMNS`
-   * map keyed by `HeldBalanceLane` enum members; caller strings can never
-   * select a column.
-   *
-   * `updated_at` is stamped explicitly because the raw-SQL statement bypasses
-   * the query-builder's `$onUpdate` hook. The `balance_* >= 0` CHECK
-   * constraints stay untouched as the DB-layer backstop — the guarded
-   * predicate prevents the negative write from ever being attempted.
-   *
-   * @returns `true` when the row matched and the unit was debited, `false`
-   *   when the student is unknown or the lane balance was already zero (the
-   *   caller decides what the miss means — the repository raises nothing).
-   */
+  /** lane when the lane still holds a positive balance. */
   export async function decrementLaneIfAvailable(
     studentId: number,
     lane: HeldBalanceLane,
@@ -607,37 +526,7 @@ export namespace StudentRepository {
     return { rows, total: countRows[0]?.count ?? 0 };
   }
 
-  /**
-   * Lists the parent's confirmed-linked children: `students` rows INNER
-   * JOINed to their `users` accounts on the shared primary key, scoped by
-   * the `parent_id` grant and severed when the child's `users.is_deleted`
-   * flag is set (the soft-delete severance predicate). Ordered
-   * oldest-first by the student row's creation stamp with the integer id
-   * as the deterministic tiebreak, so consecutive reads never reorder
-   * rows authored in the same instant. Rides the `students_parent_id_idx`
-   * index for the `parent_id` equality scan.
-   *
-   * This method is the data-access contract for the parent-portal
-   * linked-children list: it returns the raw projection rows (id, full
-   * name, creation stamp) — governance re-checks, denial discipline and
-   * the readonly projection mapping live in the service layer. Zero
-   * permission logic here: the caller's `parentId` is the only identity
-   * the predicate consumes, and no client-supplied identity beyond that
-   * bound parameter reaches the statement.
-   *
-   * Runs as a Drizzle select on the caller's transaction when supplied,
-   * or against the global Drizzle handle otherwise (the `(tx ?? db)`
-   * pattern used by `listDirectory` — no `queryDb` raw-SQL branch needed
-   * for a join projected to a fixed column set). No prepared statements
-   * (Drizzle select inside a caller transaction is not the Neon HTTP
-   * path), no array-membership operators, no LIKE/ILIKE, no `sql`
-   * templates.
-   *
-   * @returns The linked-child rows in stable oldest-first order. An
-   *          unlinked parent (or one whose every linked child is
-   *          soft-deleted) yields an empty array — the caller decides
-   *          what that means.
-   */
+  /** the `parent_id` grant and severed when the child's `users. */
   export async function listLinkedChildrenByParentId(
     parentId: number,
     tx?: DBTransaction

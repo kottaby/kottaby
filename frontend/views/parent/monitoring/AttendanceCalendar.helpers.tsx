@@ -1,22 +1,23 @@
+import { Box } from "@mui/material";
+import type { ReactNode } from "react";
 import type { ParentChildSessionsQuery_parentChildSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 
 export type StatusColorKey = "success" | "info" | "warning" | "error" | "divider";
 
 export function statusColorKey(status: string): StatusColorKey {
-  const key = status.toLowerCase();
-  if (key === "completed") {
-    return "success";
+  switch (status.toLowerCase()) {
+    case "completed":
+      return "success";
+    case "started":
+      return "info";
+    case "scheduled":
+      return "warning";
+    case "cancelled":
+    case "disputed":
+      return "error";
+    default:
+      return "divider";
   }
-  if (key === "started") {
-    return "info";
-  }
-  if (key === "scheduled") {
-    return "warning";
-  }
-  if (key === "cancelled" || key === "disputed") {
-    return "error";
-  }
-  return "divider";
 }
 
 export interface CalendarDay {
@@ -41,6 +42,11 @@ export function shiftMonth(cm: CalendarMonth, delta: number): CalendarMonth {
 export function isCurrentMonth(cm: CalendarMonth): boolean {
   const now = new Date();
   return cm.year === now.getFullYear() && cm.month === now.getMonth();
+}
+
+export function currentMonth(): CalendarMonth {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() };
 }
 
 export function buildCalendarGrid(
@@ -75,4 +81,32 @@ export function buildCalendarGrid(
 export function formatMonthLabel(cm: CalendarMonth, locale: string): string {
   const date = new Date(cm.year, cm.month, 1);
   return date.toLocaleDateString(locale === "ar" ? "ar-EG" : "en-US", { month: "long", year: "numeric" });
+}
+
+const WEEKDAY_LABELS_EN: readonly string[] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAY_LABELS_AR: readonly string[] = ["أحد", "إثن", "ثلا", "أرب", "خمي", "جمع", "سبت"];
+
+export function weekdayLabels(locale: string): readonly string[] {
+  return locale === "ar" ? WEEKDAY_LABELS_AR : WEEKDAY_LABELS_EN;
+}
+
+export function StatusDot({ status }: Readonly<{ status: string }>): ReactNode {
+  const key = status.toLowerCase();
+  return (
+    <Box
+      sx={theme => {
+        let bgcolor: string = theme.palette.divider;
+        if (key === "completed") {
+          bgcolor = theme.palette.success.main;
+        } else if (key === "started") {
+          bgcolor = theme.palette.info.main;
+        } else if (key === "scheduled") {
+          bgcolor = theme.palette.warning.main;
+        } else if (key === "cancelled" || key === "disputed") {
+          bgcolor = theme.palette.error.main;
+        }
+        return { width: 8, height: 8, borderRadius: "50%", bgcolor };
+      }}
+    />
+  );
 }

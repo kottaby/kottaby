@@ -1,15 +1,14 @@
 "use client";
 
 import { AutoStoriesOutlined, ReplayOutlined } from "@mui/icons-material";
-import { Box, Card, Skeleton, Stack, Typography } from "@mui/material";
+import { Card, Skeleton, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import type {
-  ParentChildHomeworkQuery_parentChildHomework_items,
-  ParentChildHomeworkQuery_parentChildHomework_items_jadid,
-} from "@/frontend/graphql/generated/gql/graphql";
+import type { ParentChildHomeworkQuery_parentChildHomework_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
-import { formatSurahJuzRef } from "@/frontend/views/parent/monitoring/parentMonitoringDisplay";
+import { HomeworkTrackBlock } from "@/frontend/views/parent/monitoring/HomeworkTab.parts.helpers";
 import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
+
+export { HomeworkTrackBlock } from "./HomeworkTab.parts.helpers";
 
 const HOMEWORK_SKELETON_KEYS: readonly string[] = ["homework-skeleton-1", "homework-skeleton-2", "homework-skeleton-3"];
 
@@ -64,12 +63,9 @@ export function HomeworkRow({
         "&:hover": { boxShadow: theme.shadows[3] },
       })}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        <AutoStoriesOutlined sx={theme => ({ fontSize: 18, color: theme.palette.text.secondary })} />
-        <Typography variant="body2" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
-          {formatApplicantDate(row.createdAt, locale)}
-        </Typography>
-      </Box>
+      <Typography variant="body2" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
+        {formatApplicantDate(row.createdAt, locale)}
+      </Typography>
       <HomeworkTrackBlock
         track={row.jadid}
         trackLabel={labels.trackJadid}
@@ -87,75 +83,5 @@ export function HomeworkRow({
         accentColor="secondary.main"
       />
     </Card>
-  );
-}
-
-function HomeworkTrackBlock({
-  track,
-  trackLabel,
-  noneLabel,
-  columnGradeLabel,
-  icon,
-  accentColor,
-}: Readonly<{
-  track: ParentChildHomeworkQuery_parentChildHomework_items_jadid | null;
-  trackLabel: string;
-  noneLabel: string;
-  columnGradeLabel: string;
-  icon: ReactNode;
-  accentColor: string;
-}>): ReactNode {
-  if (track?.surahJuz == null) {
-    return (
-      <Stack
-        spacing={1}
-        sx={theme => ({
-          padding: 1.5,
-          borderRadius: 1.5,
-          bgcolor: theme.palette.action.hover,
-          borderLeft: 3,
-          borderColor: theme.palette.divider,
-        })}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          {icon}
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-            {trackLabel}
-          </Typography>
-        </Box>
-        <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>
-          {noneLabel}
-        </Typography>
-      </Stack>
-    );
-  }
-  const surahJuz = formatSurahJuzRef(track.surahJuz);
-  const fromAyah = track.fromAyah ?? "—";
-  const toAyah = track.toAyah ?? "—";
-  const grade = track.grade === null ? "—" : `${track.grade}`;
-  return (
-    <Stack
-      spacing={1}
-      sx={theme => ({
-        padding: 1.5,
-        borderRadius: 1.5,
-        bgcolor: theme.palette.action.hover,
-        borderLeft: 3,
-        borderColor: accentColor,
-      })}
-    >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        {icon}
-        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-          {trackLabel}
-        </Typography>
-      </Box>
-      <Typography variant="body2" dir="auto">
-        {surahJuz} · {fromAyah}–{toAyah}
-      </Typography>
-      <Typography variant="body2" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
-        {columnGradeLabel}: {grade}
-      </Typography>
-    </Stack>
   );
 }

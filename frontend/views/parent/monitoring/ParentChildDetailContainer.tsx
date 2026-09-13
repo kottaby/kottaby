@@ -19,39 +19,17 @@ import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.ma
 import { AttendanceTab } from "@/frontend/views/parent/monitoring/AttendanceTab";
 import { EvaluationsTab } from "@/frontend/views/parent/monitoring/EvaluationsTab";
 import { HomeworkTab } from "@/frontend/views/parent/monitoring/HomeworkTab";
+import {
+  buildDetailUrl,
+  resolveTab,
+  TAB_KEYS,
+  TAB_LABEL_KEYS,
+  type TabKey,
+} from "@/frontend/views/parent/monitoring/ParentChildDetailContainer.helpers";
 import { ChildSwitcher } from "@/frontend/views/parent/monitoring/ParentChildDetailContainer.parts";
 import { ProgressTab } from "@/frontend/views/parent/monitoring/ProgressTab";
 import { ReportsTab } from "@/frontend/views/parent/monitoring/ReportsTab";
 import { ParentMonitoring, useAppTranslation } from "@/shared/locale";
-
-const TAB_KEYS = ["attendance", "reports", "homework", "evaluations", "progress"] as const;
-type TabKey = (typeof TAB_KEYS)[number];
-const DEFAULT_TAB: TabKey = "attendance";
-
-function isTabKey(value: string): value is TabKey {
-  return (TAB_KEYS as readonly string[]).includes(value);
-}
-function resolveTab(tab: string | null): TabKey {
-  return tab !== null && isTabKey(tab) ? tab : DEFAULT_TAB;
-}
-function buildDetailUrl(studentId: string | number, tab: TabKey, session: string | null): string {
-  const params = new URLSearchParams();
-  params.set("tab", tab);
-  if (session !== null) {
-    params.set("session", session);
-  }
-  return `/parent/children/${studentId}?${params.toString()}`;
-}
-
-const TAB_LABEL_KEYS: Readonly<
-  Record<TabKey, "tabAttendance" | "tabReports" | "tabHomework" | "tabEvaluations" | "tabProgress">
-> = {
-  attendance: "tabAttendance",
-  reports: "tabReports",
-  homework: "tabHomework",
-  evaluations: "tabEvaluations",
-  progress: "tabProgress",
-};
 
 const TAB_ICONS: Readonly<Record<TabKey, ReactElement>> = {
   attendance: <CalendarMonthOutlined fontSize="small" />,
@@ -61,58 +39,49 @@ const TAB_ICONS: Readonly<Record<TabKey, ReactElement>> = {
   progress: <TrendingUpOutlined fontSize="small" />,
 };
 
+function renderTabContent(tab: TabKey, studentId: number, session: number | null, childName: string): ReactNode {
+  switch (tab) {
+    case "reports":
+      return <ReportsTab studentId={studentId} session={session} childName={childName} />;
+    case "homework":
+      return <HomeworkTab studentId={studentId} />;
+    case "evaluations":
+      return <EvaluationsTab studentId={studentId} />;
+    case "progress":
+      return <ProgressTab studentId={studentId} />;
+    default:
+      return <AttendanceTab studentId={studentId} />;
+  }
+}
+
 export function ParentChildDetailContainer(props: Readonly<ParentChildDetailContainerProps>): ReactNode {
   const t = useAppTranslation(ParentMonitoring);
   const router = useRouter();
   const { data, loading, error, refetch } = useQuery(myLinkedChildrenQueryDocument);
-
   const errorCode = error ? extractErrorCode(error) : null;
   const denied =
     errorCode !== null &&
     mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
-  if (denied) {
-    return <PermissionDeniedFallback />;
-  }
-
   const children = data?.myLinkedChildren ?? [];
   const currentChild = children.find(c => c.id === String(props.studentId));
   const activeTab = resolveTab(props.tab);
   const sessionNumber = props.session === null ? null : Number(props.session);
   const sessionArg = sessionNumber !== null && Number.isNaN(sessionNumber) ? null : sessionNumber;
-
+  if (denied) {
+    return <PermissionDeniedFallback />;
+  }
   const handleTabChange = (_: unknown, value: TabKey) => {
     router.replace(buildDetailUrl(props.studentId, value, props.session));
   };
   const handleSwitcherChange = (newId: string) => {
     router.push(buildDetailUrl(newId, activeTab, props.session));
   };
-
-  let tabContent: ReactNode;
-  switch (activeTab) {
-    case "reports":
-      tabContent = (
-        <ReportsTab studentId={props.studentId} session={sessionArg} childName={currentChild?.fullName ?? ""} />
-      );
-      break;
-    case "homework":
-      tabContent = <HomeworkTab studentId={props.studentId} />;
-      break;
-    case "evaluations":
-      tabContent = <EvaluationsTab studentId={props.studentId} />;
-      break;
-    case "progress":
-      tabContent = <ProgressTab studentId={props.studentId} />;
-      break;
-    default:
-      tabContent = <AttendanceTab studentId={props.studentId} />;
-      break;
-  }
-
+  const tabContent = renderTabContent(activeTab, props.studentId, sessionArg, currentChild?.fullName ?? "");
   const headerTitle = currentChild === undefined ? t.portalPageTitle : t.detailPageTitle(currentChild.fullName);
-
   return (
     <Stack spacing={3} sx={{ width: "100%" }}>
       <Box
+        className="portal-header"
         sx={theme => ({
           display: "flex",
           flexDirection: "row",
@@ -132,6 +101,7 @@ export function ParentChildDetailContainer(props: Readonly<ParentChildDetailCont
           </Typography>
         </Box>
         <IconButton
+          className="portal-refresh-button"
           aria-label={t.refreshLabel}
           onClick={() => {
             void refetch();
@@ -150,6 +120,7 @@ export function ParentChildDetailContainer(props: Readonly<ParentChildDetailCont
         onChange={handleSwitcherChange}
       />
       <Tabs
+        className="portal-tabs"
         value={activeTab}
         onChange={handleTabChange}
         variant="scrollable"

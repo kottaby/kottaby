@@ -9,32 +9,12 @@ import {
   type CalendarMonth,
   formatMonthLabel,
   isCurrentMonth,
+  StatusDot,
   shiftMonth,
 } from "@/frontend/views/parent/monitoring/AttendanceCalendar.helpers";
 
 const WEEKDAY_LABELS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const WEEKDAY_LABELS_AR = ["أحد", "إثن", "ثلا", "أرب", "خمي", "جمع", "سبت"];
-
-function StatusDot({ status }: Readonly<{ status: string }>): ReactNode {
-  const key = status.toLowerCase();
-  return (
-    <Box
-      sx={theme => {
-        let bgcolor: string = theme.palette.divider;
-        if (key === "completed") {
-          bgcolor = theme.palette.success.main;
-        } else if (key === "started") {
-          bgcolor = theme.palette.info.main;
-        } else if (key === "scheduled") {
-          bgcolor = theme.palette.warning.main;
-        } else if (key === "cancelled" || key === "disputed") {
-          bgcolor = theme.palette.error.main;
-        }
-        return { width: 8, height: 8, borderRadius: "50%", bgcolor };
-      }}
-    />
-  );
-}
 
 function currentMonth(): CalendarMonth {
   const now = new Date();
@@ -44,16 +24,12 @@ function currentMonth(): CalendarMonth {
 export function AttendanceCalendar({
   sessions,
   locale,
-}: Readonly<{
-  sessions: readonly ParentChildSessionsQuery_parentChildSessions_items[];
-  locale: string;
-}>): ReactNode {
+}: Readonly<{ sessions: readonly ParentChildSessionsQuery_parentChildSessions_items[]; locale: string }>): ReactNode {
   const weekdays = locale === "ar" ? WEEKDAY_LABELS_AR : WEEKDAY_LABELS_EN;
   const [viewMonth, setViewMonth] = useState<CalendarMonth>(currentMonth);
   const days = buildCalendarGrid(sessions, viewMonth);
   const monthLabel = formatMonthLabel(viewMonth, locale);
   const canGoForward = !isCurrentMonth(viewMonth);
-
   return (
     <Box sx={theme => ({ border: 1, borderColor: theme.palette.divider, borderRadius: 2, overflow: "hidden" })}>
       <Box
@@ -139,8 +115,8 @@ export function AttendanceCalendar({
                   spacing={0.5}
                   sx={{ flexWrap: "wrap", justifyContent: "center", maxWidth: "100%" }}
                 >
-                  {day.sessions.slice(0, 3).map(session => (
-                    <StatusDot key={session.id} status={session.status} />
+                  {day.sessions.slice(0, 3).map(s => (
+                    <StatusDot key={s.id} status={s.status} />
                   ))}
                   {day.sessions.length > 3 ? (
                     <Typography variant="caption" sx={{ fontSize: "0.6rem", fontWeight: 700 }}>
