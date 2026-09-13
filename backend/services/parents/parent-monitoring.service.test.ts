@@ -811,24 +811,30 @@ describe("ParentMonitoringService — Tier 4 (denial oracle across all per-stude
 
   test("oracle uniformity: every (method × cause) cell produces the same denial fingerprint under en", async () => {
     const fingerprints: string[] = [];
-    await Promise.all(
-      PER_STUDENT_METHODS.flatMap(method =>
-        CAUSES.map(async causeId => {
-          await runInRollback(async tx => {
-            silenceDomainLog();
-            mockActorAndGateSuccess();
-            setupCause(causeId);
-            try {
-              await method.call(PARENT_ACTOR_ID, causeStudentId(causeId), LOCALE_EN, tx);
-            } catch (err) {
-              if (err instanceof ForbiddenError) {
-                fingerprints.push(JSON.stringify({ code: err.code, message: err.message }));
-              }
+    // Serial, deliberately NOT Promise.all: the per-cause repo spies target
+    // shared module singletons, so parallel cells overwrite each other's mocks
+    // mid-flight and a cell can slip past the denial oracle (CI flake: 19/20
+    // fingerprints). Serial keeps each cell's spy setup scoped to its own call.
+    for (const method of PER_STUDENT_METHODS) {
+      for (const causeId of CAUSES) {
+        await runInRollback(async tx => {
+          silenceDomainLog();
+          mockActorAndGateSuccess();
+          setupCause(causeId);
+          try {
+            await method.call(PARENT_ACTOR_ID, causeStudentId(causeId), LOCALE_EN, tx);
+            throw new Error(
+              `oracle breach: ${method.name} did NOT deny cause '${causeId}' — expected the constant ForbiddenError`
+            );
+          } catch (err) {
+            if (!(err instanceof ForbiddenError)) {
+              throw err;
             }
-          });
-        })
-      )
-    );
+            fingerprints.push(JSON.stringify({ code: err.code, message: err.message }));
+          }
+        });
+      }
+    }
     expect(fingerprints).toHaveLength(PER_STUDENT_METHODS.length * CAUSES.length);
     expect(new Set(fingerprints).size).toBe(1);
     expect(fingerprints[0]).toBe(JSON.stringify({ code: "FORBIDDEN", message: enErrors.forbidden }));
