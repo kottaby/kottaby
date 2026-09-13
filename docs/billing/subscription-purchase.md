@@ -366,10 +366,21 @@ All three are registered in the typed env snapshot registry; `resetPaymentGatewa
   neutrally by the mock) and `failed` payments with `pending` subscriptions are the operator
   follow-up backlog; the ledger trigger means fixes are compensating rows or guarded transitions,
   never edits.
-- **Teacher verification purchase:** verification-plan purchase rides this exact flow —
-  no special-casing. The verification plan is looked up from the catalog (active-only; title
-  `"New Teacher Verification & Evaluation Plan"`, `reviews` lane) and the confirmed callback credits
-  the reviews lane like any other plan.
+- **Teacher verification purchase (dedicated surface):** verification-plan purchase rides this
+  money spine through its own dedicated, inputless `purchaseVerificationPlan` mutation — purchaser
+  identity is resolved exclusively from `ctx.user.id` (no input object exists on the wire), the
+  plan is resolved server-side from the active catalog by its canonical title
+  (`"New Teacher Verification & Evaluation Plan"`), and the idempotency key rides the same
+  `X-Idempotency-Key` header context. The pending payment row is written with a **NULL
+  `student_payments.student_id` owner** (the purchaser is a teacher applicant with no `students`
+  row) and no junction row is attempted. On a confirmed callback, activation **skips the lane
+  credit** for applicant-owned subscriptions: the students-row-first purchaser probe credits every
+  student purchase exactly as before and only falls through to the skip when no `students` row
+  exists, so student lanes are structurally unaffected. The why: a verification subscription gates
+  the teacher-applicant lifecycle (the `INV-TV` invariant family — purchase admits the applicant to
+  evaluation), not a student's session balance; a lane credit here would mint balance no student
+  flow should ever consume for that subscription. Full contract:
+  `docs/teachers/verification-plan-purchase.md`.
 
 ### Testing notes (binding for any suite touching this surface)
 

@@ -16,8 +16,7 @@ import {
   StatusShell,
 } from "@/frontend/views/teachers/dashboard/ApplicantStatusShell";
 import { CertifiedBranch } from "@/frontend/views/teachers/dashboard/ApplicantStatusZones";
-import type { PurchaseNotice } from "@/frontend/views/teachers/dashboard/VerificationPurchaseDialog";
-import { VerificationPurchaseDialog } from "@/frontend/views/teachers/dashboard/VerificationPurchaseDialog";
+import { VerificationPurchaseDialog, type PurchaseNotice } from "@/frontend/views/teachers/dashboard/VerificationPurchaseDialog";
 import { Applicant, Errors, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 /** Snackbar auto-hide window for the card-level purchase-notice slot. */
