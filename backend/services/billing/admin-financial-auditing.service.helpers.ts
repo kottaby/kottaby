@@ -26,7 +26,7 @@ import type { AuditLogWriteContract } from "@/backend/types";
 import type { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** The audit entity label for settlement/adjustment rows (`audit_logs.entity_type`). */
-export const TRANSACTION_ENTITY_TYPE = "teacher_transaction";
+const TRANSACTION_ENTITY_TYPE = "teacher_transaction";
 
 /**
  * The render label for wallet amounts (the platform currency constant).
@@ -114,7 +114,7 @@ export function composeDebitDescription(reason: string): string {
  * minimal parseable record. The `action` marker is preserved whenever it
  * can possibly fit — it is the audit trail's decision vocabulary.
  */
-export function serializeAuditDetails(details: Record<string, unknown>): string {
+function serializeAuditDetails(details: Record<string, unknown>): string {
   if (JSON.stringify(details).length <= AUDIT_DETAILS_MAX_LENGTH) {
     return JSON.stringify(details);
   }

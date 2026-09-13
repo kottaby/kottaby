@@ -183,14 +183,14 @@ type PgPaymentGateway = (typeof paymentGateway)["enumValues"][number];
  * mapping exhaustive — a schema/pgEnum change that adds or renames a value
  * fails the type check here instead of slipping through at runtime.
  */
-const PAYMENT_STATUS_BY_PG_VALUE: Record<PgPaymentStatus, PaymentStatus> = {
+const PAYMENT_STATUS_BY_PG_VALUE: Record<PgPaymentStatus, PaymentStatus | undefined> = {
   pending: PaymentStatus.Pending,
   paid: PaymentStatus.Paid,
   refunded: PaymentStatus.Refunded,
   failed: PaymentStatus.Failed,
 };
 
-const PAYMENT_GATEWAY_BY_PG_VALUE: Record<PgPaymentGateway, PaymentGateway> = {
+const PAYMENT_GATEWAY_BY_PG_VALUE: Record<PgPaymentGateway, PaymentGateway | undefined> = {
   stripe: PaymentGateway.Stripe,
   paypal: PaymentGateway.Paypal,
   paymob: PaymentGateway.Paymob,

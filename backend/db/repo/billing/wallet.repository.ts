@@ -16,10 +16,12 @@
  * settlement probes, the guarded settlement, the debit restore, the bonus
  * credit, and the manual debit adjustment) live in the sibling
  * `wallet.repository.admin.helpers.ts` module (extracted verbatim); the
- * teacher-facing primitives stay in this file, their shared
- * `debitWithLedgerRow` writer factored into the module-level function.
- * Every admin method is a one-to-one delegation wrapper, so the public API
- * (names, signatures, behavior) is unchanged.
+ * teacher-facing primitives stay in this file, and the guarded-debit pair
+ * (`debitForWithdrawalOnce` / `debitAdjustmentOnce`) delegates to the
+ * shared `debitWithLedgerRow` writer in
+ * `wallet.repository.shared-writer.ts`. Every admin method is a one-to-one
+ * delegation wrapper, so the public API (names, signatures, behavior) is
+ * unchanged.
  *
  * Conventions per `backend/db/repo/AGENTS.md` (mirroring
  * `SessionRepository`):
@@ -33,9 +35,10 @@
  *    `TransactionStatus` enum members, never string literals.
  */
 
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import * as walletRepositoryAdminImpl from "@/backend/db/repo/billing/wallet.repository.admin.helpers";
+import { debitWithLedgerRow } from "@/backend/db/repo/billing/wallet.repository.shared-writer";
 import { teacherTransaction, wallet } from "@/backend/db/schema/billing";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
@@ -146,72 +149,6 @@ export namespace WalletRepository {
       .from(teacherTransaction)
       .where(eq(teacherTransaction.walletId, walletId))
       .orderBy(sql`${teacherTransaction.id} DESC`);
-  }
-
-  /**
-   * Shared debit writer behind `debitForWithdrawalOnce` and
-   * `debitAdjustmentOnce`: inserts ONE `withdrawal` ledger row at
-   * `ledgerStatus` (the in-flight payout record or the completed
-   * manual-adjustment record) and debits the wallet `balance` by exactly
-   * `amount` via ONE guarded UPDATE — the funds guard lives in the
-   * statement's predicate (`balance >= amount`), mirroring
-   * `StudentRepository.decrementLaneIfAvailable`. The amount is a decimal
-   * STRING bound verbatim (never re-parsed — money discipline).
-   * `total_earning` is deliberately untouched: a debit spends the balance,
-   * it does not rewrite the lifetime earnings counter. The DB-side
-   * `wallet_balance_check >= 0` CHECK is the concurrent-overdraw backstop
-   * behind the predicate. `methodLabel` is the caller's fully-qualified
-   * method name, carried verbatim into the unreachable zero-row INSERT
-   * error so each public entry point keeps its own message.
-   *
-   * When `tx` is supplied, both writes compose on the caller's
-   * transaction. When `tx` is NOT supplied, the pair is wrapped in ONE
-   * atomic top-level transaction (`db.transaction`), so a missed guarded
-   * debit (`null` return on insufficient funds) rolls the ledger INSERT
-   * back with it — no orphan ledger row can survive without its matching
-   * balance change.
-   *
-   * @returns The inserted ledger row, or `null` when the guarded UPDATE
-   *     matched zero rows (insufficient funds — the caller classifies).
-   */
-  async function debitWithLedgerRow(
-    insert: {
-      readonly walletId: number;
-      readonly amount: string;
-      readonly description: string;
-    },
-    ledgerStatus: TransactionStatus,
-    methodLabel: string,
-    tx?: DBTransaction
-  ): Promise<TeacherTransactionSelectType | null> {
-    if (!tx) {
-      return db.transaction(nested => debitWithLedgerRow(insert, ledgerStatus, methodLabel, nested));
-    }
-    const executor = tx;
-    const ledgerRows = await executor
-      .insert(teacherTransaction)
-      .values({
-        walletId: insert.walletId,
-        sessionId: null,
-        description: insert.description,
-        amount: insert.amount,
-        type: TransactionType.Withdrawal,
-        status: ledgerStatus,
-      })
-      .returning();
-    const ledger = ledgerRows[0];
-    if (!ledger) {
-      throw new Error(`${methodLabel}: ledger INSERT returned zero rows`);
-    }
-    const debited = await executor
-      .update(wallet)
-      .set({ balance: sql`${wallet.balance} - ${insert.amount}`, updatedAt: new Date() })
-      .where(and(eq(wallet.id, insert.walletId), gte(wallet.balance, insert.amount)))
-      .returning({ id: wallet.id });
-    if (debited.length === 0) {
-      return null;
-    }
-    return ledger;
   }
 
   /**

@@ -277,10 +277,10 @@ export async function listPendingWithdrawalsForAdmin(
   });
 }
 
-// Re-exported for the namespace file's shared use below (the read helpers
-// `readWalletById` / `resolveTeacherName` stay module-private here).
+// Exported for the namespace file's mutation paths only (the read helpers
+// `readInSnapshot` / `resolveTeacherName` stay module-private here).
 /**
  * The wallet ownership read for the audit contract — the namespace file's
  * mutation paths reuse this module-private helper through this re-export.
  */
-export { readInSnapshot, readWalletById };
+export { readWalletById };

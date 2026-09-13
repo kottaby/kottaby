@@ -7,8 +7,9 @@
  * extraction; zero logic change). The public surface stays the
  * `WalletRepository` namespace in `wallet.repository.ts`: the methods below
  * back the namespace's admin members as one-to-one delegation targets, and
- * the teacher-facing credit/debit primitives remain implemented inline in
- * the namespace file. Nothing in this module is part of the public API.
+ * the manual debit adjustment delegates to the shared `debitWithLedgerRow`
+ * writer in `wallet.repository.shared-writer.ts`. Nothing in this module is
+ * part of the public API.
  *
  * Conventions carried over unchanged (per `backend/db/repo/AGENTS.md`,
  * mirroring `SessionRepository`):
@@ -22,6 +23,7 @@
 
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
+import { debitWithLedgerRow } from "@/backend/db/repo/billing/wallet.repository.shared-writer";
 import { teacherTransaction, wallet } from "@/backend/db/schema/billing";
 import type { transactionStatus, transactionType } from "@/backend/db/schema/enums";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
@@ -46,16 +48,18 @@ type PgTransactionStatus = (typeof transactionStatus)["enumValues"][number];
 /**
  * The map arms from the raw pgEnum string-literal unions to the canonical
  * TS enums (lexically identical values). `Record` over the union makes the
- * mapping exhaustive — a schema/pgEnum change that adds or renames a value
- * fails the type check here instead of slipping through at runtime.
+ * mapping exhaustive over the KEYS — a schema/pgEnum change that adds or
+ * renames a value fails the type check here instead of slipping through at
+ * runtime — while the `| undefined` VALUES keep the fail-closed miss guard
+ * type-sound (the pgEnum constraint makes it unreachable at runtime).
  */
-const TRANSACTION_TYPE_BY_PG_VALUE: Record<PgTransactionType, TransactionType> = {
+const TRANSACTION_TYPE_BY_PG_VALUE: Record<PgTransactionType, TransactionType | undefined> = {
   earning: TransactionType.Earning,
   withdrawal: TransactionType.Withdrawal,
   bonus: TransactionType.Bonus,
 };
 
-const TRANSACTION_STATUS_BY_PG_VALUE: Record<PgTransactionStatus, TransactionStatus> = {
+const TRANSACTION_STATUS_BY_PG_VALUE: Record<PgTransactionStatus, TransactionStatus | undefined> = {
   pending: TransactionStatus.Pending,
   completed: TransactionStatus.Completed,
   failed: TransactionStatus.Failed,
@@ -396,29 +400,5 @@ export async function debitAdjustmentOnce(
   insert: { readonly walletId: number; readonly amount: string; readonly description: string },
   tx?: DBTransaction
 ): Promise<TeacherTransactionSelectType | null> {
-  const executor = tx ?? db;
-  const ledgerRows = await executor
-    .insert(teacherTransaction)
-    .values({
-      walletId: insert.walletId,
-      sessionId: null,
-      description: insert.description,
-      amount: insert.amount,
-      type: TransactionType.Withdrawal,
-      status: TransactionStatus.Completed,
-    })
-    .returning();
-  const ledger = ledgerRows[0];
-  if (!ledger) {
-    throw new Error("WalletRepository.debitAdjustmentOnce: ledger INSERT returned zero rows");
-  }
-  const debited = await executor
-    .update(wallet)
-    .set({ balance: sql`${wallet.balance} - ${insert.amount}`, updatedAt: new Date() })
-    .where(and(eq(wallet.id, insert.walletId), gte(wallet.balance, insert.amount)))
-    .returning({ id: wallet.id });
-  if (debited.length === 0) {
-    return null;
-  }
-  return ledger;
+  return debitWithLedgerRow(insert, TransactionStatus.Completed, "WalletRepository.debitAdjustmentOnce", tx);
 }
