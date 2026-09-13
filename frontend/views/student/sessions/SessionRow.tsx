@@ -12,9 +12,10 @@ import { SessionRowMeta } from "@/frontend/views/student/sessions/SessionRowMeta
 import type { SessionRowAction } from "@/frontend/views/student/sessions/sessionRowAction";
 import {
   CANCELLABLE_STATUSES,
-  DISPUTABLE_STATUSES,
   DISPUTED_STATUS,
+  isDisputable,
   NO_VALUE_PLACEHOLDER,
+  type SessionRowRole,
   STATUS_LABEL_KEY,
 } from "@/frontend/views/student/sessions/sessionRowPresentation";
 import { Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
@@ -44,7 +45,7 @@ import { Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
  * row a pure affordance. `alertMessage` renders the row-scoped inline alert
  * the container raises (e.g. `SESSION_INVALID_TRANSITION` rejections).
  *
- * Role seam (4.3): the optional `actions` prop adds lifecycle CTAs BESIDE the
+ * Role seam: the optional `actions` prop adds lifecycle CTAs BESIDE the
  * Cancel button without forking the row — the teacher container passes
  * Start (`Scheduled`) / Complete (`Started`) descriptors, each carrying its
  * own in-flight `disabled` state; the student container passes the
@@ -55,6 +56,16 @@ import { Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
  * `TeacherSessionRow` wrapper was rejected because the Cancel CTA lives
  * INSIDE this row's action stack — the wrapper would have to duplicate the
  * meta/actions layout to sit next to it.
+ *
+ * Dispute-role seam: the row owner's `role` token scopes the dispute
+ * affordance through `isDisputable` — pre-completion rows stay disputable
+ * for BOTH surfaces, while the post-confirmation escalation (completed +
+ * student-confirmed + hold consumed) renders only on the student surface
+ * (the shared disputable-status set itself stays unwidened, so teacher
+ * rows never render the post-confirmation CTA). The token is a
+ * UI-affordance scope supplied by each surface's container (mounted behind
+ * that role's server-side page guard); the server re-validates ownership
+ * and the state matrix on every dispute mutation.
  *
  * Confirm-state display: the row renders the student-confirmation
  * meta cell whenever the stamp is set (dual-confirmation visibility for
@@ -101,6 +112,11 @@ interface SessionRowProps {
    * book, cron-r2 D9-bis mechanism extended with the `dispute` kind).
    */
   readonly disputeDisabled?: boolean;
+  /**
+   * The row owner's role token (each surface's container constant) —
+   * scopes the dispute affordance matrix via `isDisputable`.
+   */
+  readonly role: SessionRowRole;
   /** Extra lifecycle CTAs (teacher Start/Complete); the student path omits it. */
   readonly actions?: ReadonlyArray<SessionRowAction>;
 }
@@ -112,6 +128,7 @@ export function SessionRow({
   onCancelIntent,
   onDisputeIntent,
   disputeDisabled = false,
+  role,
   actions,
 }: Readonly<SessionRowProps>): ReactNode {
   const t = useAppTranslation(Sessions);
@@ -121,7 +138,7 @@ export function SessionRow({
   const statusLabel = statusLabelKey in t ? t[statusLabelKey] : session.status;
   const isCancellable = session.status in CANCELLABLE_STATUSES;
   const isDisputed = session.status in DISPUTED_STATUS;
-  const disputeIntent = session.status in DISPUTABLE_STATUSES && onDisputeIntent !== undefined ? onDisputeIntent : null;
+  const disputeIntent = isDisputable(session, role) && onDisputeIntent !== undefined ? onDisputeIntent : null;
   const intentText = session.intent ?? NO_VALUE_PLACEHOLDER;
 
   return (

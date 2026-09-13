@@ -132,17 +132,17 @@ Backend-first with a **test-first journey** authored right after repo primitives
   - Outcome: `outcome/4.1-documents-outcome.md`
   - _Requirements: REQ-5, REQ-6, REQ-9_
 
-- [ ] 4.2 Admin `/disputes` extensions
+- [x] 4.2 Admin `/disputes` extensions
   - `frontend/views/admin/disputes/`: extend `ResolveDisputeOptionGroup` to a **prop-driven** outcome list + rewritten change handler (the shipped two-way whitelist collapses unknown values to `Cancel`); thread `fee`/`feeHeld` props into `ResolveDisputeDialog` from the container's existing query data; add the partial-amount field with client validation; new `AdminDisputeCaseDialog` consuming `adminDisputeCase` (report/homework/recitation/audit, honest empty states); row chips showing escrow class
   - Component tests in `test/ui/components/` (Happy DOM, mocked Apollo)
-  - [ ] 4.2.QL / 4.2.TE / 4.2.SEC / 4.2.SR / 4.2.IV
+  - [x] 4.2.QL / 4.2.TE / 4.2.SEC / 4.2.SR / 4.2.IV
   - Outcome: `outcome/4.2-admin-disputes-ui-outcome.md`
   - _Requirements: REQ-5, REQ-6, REQ-9_
 
-- [ ] 4.3 Student dispute action (post-confirmation)
+- [x] 4.3 Student dispute action (post-confirmation)
   - `frontend/views/student/sessions/` row lifecycle CTAs: enable Dispute ONLY for student-role views via a role-scoped predicate `isDisputable(session, role)` — `SessionRow` is shared with the teacher surface, so the shipped shared `DISPUTABLE_STATUSES` set must NOT be widened (that would expose the CTA on teacher rows too)
   - Parameterize the dispute confirmation dialog: `SessionDisputeConfirmDialog` hardwires `openSessionDisputeMutationDocument`; accept the mutation document + result accessor as props (built on the already prop-driven layout) and pass `openPostConfirmationDisputeMutationDocument` from the student-side arm
-  - [ ] 4.3.QL / 4.3.TE / 4.3.SEC / 4.3.SR / 4.3.IV
+  - [x] 4.3.QL / 4.3.TE / 4.3.SEC / 4.3.SR / 4.3.IV
   - Outcome: `outcome/4.3-student-dispute-action-outcome.md`
   - _Requirements: REQ-1, REQ-9_
 

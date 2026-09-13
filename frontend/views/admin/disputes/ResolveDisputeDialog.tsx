@@ -1,27 +1,42 @@
 "use client";
 
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
+import { Dialog, DialogTitle } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import type { DisputeResolution } from "@/frontend/graphql/generated/gql/graphql";
-import { ResolveDisputeIntroBanner } from "@/frontend/views/admin/disputes/ResolveDisputeIntroBanner";
-import { ResolveDisputeNoteField } from "@/frontend/views/admin/disputes/ResolveDisputeNoteField";
-import { ResolveDisputeOptionGroup } from "@/frontend/views/admin/disputes/ResolveDisputeOptionGroup";
+import { ResolveDisputeActionsRow } from "@/frontend/views/admin/disputes/ResolveDisputeActionsRow";
+import { ResolveDisputeFormFields } from "@/frontend/views/admin/disputes/ResolveDisputeFormFields";
+import { resolveDisputeOutcomeOptions } from "@/frontend/views/admin/disputes/resolveDisputeOutcomeOptions";
+import {
+  deriveResolveDisputeDraftState,
+  isPartialAmountValid,
+} from "@/frontend/views/admin/disputes/resolvePartialAmount";
 import { useResolveSessionDispute } from "@/frontend/views/admin/disputes/useResolveSessionDispute";
-import { Common, Sessions, useAppTranslation } from "@/shared/locale";
+import { Common, Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
 /**
  * ResolveDisputeDialog — the ADMIN arbitration seam for one disputed session
- * (`/disputes`, R-111 / backend R-104). Structural sibling of the
- * participant `CancelSessionConfirmDialog` family: same portal/dialog/form
- * discipline, but the decision space is EXACTLY ONE terminal outcome
- * (the localized radios live in {@link ResolveDisputeOptionGroup}).
+ * (`/disputes`). Structural sibling of the participant
+ * `CancelSessionConfirmDialog` family: same portal/dialog/form discipline,
+ * but the decision space is EXACTLY ONE terminal outcome, OFFERED by the
+ * row's escrow class — held rows (`feeHeld=true`) choose between
+ * Cancel/Complete, consumed rows between Refund/PartialRefund/Uphold
+ * (`resolveDisputeOutcomeOptions`); the radios never offer an outcome
+ * outside the row's class and every picked value passes through as-is.
+ *
+ * Partial-refund amount: rendered ONLY while PARTIAL_REFUND is selected,
+ * gated client-side against the fee-bounded two-decimal money policy
+ * (`isPartialAmountValid` — the server re-validates before any write); a
+ * blocked submit raises the localized errors-namespace copy inside the
+ * dialog. A resolution that no longer belongs to the row's class (stale
+ * selection after a cache flip) raises the localized classification
+ * mismatch copy and disarms the submit — nothing is silently reclassified.
  *
  * Note field: OPTIONAL, ≤ {@link MAX_RESOLVE_NOTE_LENGTH} chars at the UI
  * seam (mirrors the backend contract), live raw-character counter. The
  * submit stays disabled until a resolution is chosen — an arbitration
  * outcome is never implied by a default.
  *
- * Mutation behavior (plan §3.2 — arbitration flow, NO refetch) — the
+ * Mutation behavior (arbitration flow, NO refetch) — the
  * `resolveSessionDispute` mutation, its cache-convergence `update` arm and
  * the extensions-code classification live in
  * {@link useResolveSessionDispute}; EVERY outcome surfaces a snackbar up to
@@ -42,6 +57,14 @@ export const MAX_RESOLVE_NOTE_LENGTH = 500;
 interface ResolveDisputeDialogProps {
   /** Id of the disputed session being arbitrated. */
   readonly sessionId: string;
+  /**
+   * The disputed row's escrow class — offers the outcome vocabulary
+   * (`true` → Cancel/Complete, `false` → Refund/PartialRefund/Uphold) and
+   * bounds the partial-refund amount validation.
+   */
+  readonly feeHeld: boolean;
+  /** The disputed row's verbatim fee (the partial-amount upper bound); `null` fails the range check closed. */
+  readonly fee: string | null;
   readonly open: boolean;
   /**
    * Dismiss intent (cancel Button / backdrop click / Escape) — ignored
@@ -63,6 +86,8 @@ interface ResolveDisputeDialogProps {
 /** Confirm-and-resolve arbitration dialog owning the `resolveSessionDispute` mutation. */
 export function ResolveDisputeDialog({
   sessionId,
+  feeHeld,
+  fee,
   open,
   onClose,
   onResolved,
@@ -71,11 +96,16 @@ export function ResolveDisputeDialog({
   onFailure,
 }: Readonly<ResolveDisputeDialogProps>): ReactNode {
   const t = useAppTranslation(Sessions);
+  const te = useAppTranslation(Errors);
   const tc = useAppTranslation(Common);
 
   // No default resolution — arbitration requires an EXPLICIT outcome choice.
   const [resolution, setResolution] = useState<DisputeResolution | null>(null);
   const [note, setNote] = useState("");
+  const [partialAmount, setPartialAmount] = useState("");
+  // The amount policy error raises LIVE once the value is a non-empty
+  // invalid amount, or after a submit attempt — never on a pristine field.
+  const [amountErrorArmed, setAmountErrorArmed] = useState(false);
 
   const { resolveDispute, loading } = useResolveSessionDispute({
     sessionId,
@@ -85,29 +115,50 @@ export function ResolveDisputeDialog({
     onFailure,
   });
 
+  // The offered outcomes + the picked value travel as STRINGS (the shipped
+  // wire-comparison idiom) so no enum-vs-enum comparison ever fires.
+  const options = resolveDisputeOutcomeOptions(feeHeld, t);
+  const { isPartialRefund, selectionOffClass, amountError } = deriveResolveDisputeDraftState({
+    resolution,
+    options,
+    fee,
+    partialAmount,
+    amountErrorArmed,
+    amountInvalidCopy: te.partialRefundAmountInvalid,
+  });
+
+  const handleResolutionChange = (next: DisputeResolution | null): void => {
+    setResolution(next);
+  };
+
+  const handleAmountChange = (next: string): void => {
+    setPartialAmount(next);
+    setAmountErrorArmed(next.length > 0 && !isPartialAmountValid(next, fee));
+  };
+
   const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    if (loading || resolution === null) return;
+    if (loading || resolution === null || selectionOffClass) return;
+    if (isPartialRefund && !isPartialAmountValid(partialAmount, fee)) {
+      setAmountErrorArmed(true);
+      return;
+    }
     const trimmed = note.trim();
     void resolveDispute({
       variables: {
         id: sessionId,
         resolution,
         note: trimmed.length === 0 ? null : trimmed,
-        // The consumed-escrow amount rides only with a PartialRefund
-        // arbitration; the shipped held-escrow outcomes never carry one.
-        partialAmount: null,
+        // The amount rides ONLY with a PartialRefund arbitration — every
+        // other outcome carries the explicit null.
+        partialAmount: isPartialRefund ? partialAmount : null,
       },
     });
   };
 
-  // Dismissal gate — enforces the `onClose` prop contract at the dialog
-  // itself: backdrop click and Escape are IGNORED while the mutation is
-  // pending (the cancel Button is separately disabled while loading).
+  /** Dismissal gate: backdrop/Escape are ignored while the mutation is pending. */
   const handleDialogClose = (): void => {
-    if (!loading) {
-      onClose();
-    }
+    if (!loading) onClose();
   };
 
   return (
@@ -122,39 +173,29 @@ export function ResolveDisputeDialog({
       <DialogTitle id="resolve-dispute-dialog-title" sx={theme => ({ color: theme.palette.onSurface })}>
         {t.resolveDisputeTitle}
       </DialogTitle>
-      <DialogContent sx={{ display: "grid", gap: 2 }}>
-        <ResolveDisputeIntroBanner body={t.resolveDisputeBody} />
-        <ResolveDisputeOptionGroup
-          value={resolution}
-          onChange={next => {
-            setResolution(next);
-          }}
-          t={t}
-        />
-        <ResolveDisputeNoteField
-          value={note}
-          onChange={next => {
-            setNote(next);
-          }}
-          maxLength={MAX_RESOLVE_NOTE_LENGTH}
-          t={t}
-        />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-        <Button onClick={onClose} disabled={loading} sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}>
-          {tc.cancel}
-        </Button>
-        <Button
-          type="submit"
-          variant="contained"
-          color="primary"
-          disabled={loading || resolution === null}
-          data-testid="resolve-dispute-submit"
-          sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
-        >
-          {t.resolveDisputeSubmit}
-        </Button>
-      </DialogActions>
+      <ResolveDisputeFormFields
+        introBody={t.resolveDisputeBody}
+        selectionOffClass={selectionOffClass}
+        mismatchCopy={te.disputeResolutionMismatch}
+        options={options}
+        resolution={resolution}
+        onResolutionChange={handleResolutionChange}
+        groupLabel={t.resolveDisputeTitle}
+        isPartialRefund={isPartialRefund}
+        partialAmount={partialAmount}
+        onAmountChange={handleAmountChange}
+        amountError={amountError}
+        note={note}
+        onNoteChange={setNote}
+        t={t}
+      />
+      <ResolveDisputeActionsRow
+        loading={loading}
+        canSubmit={resolution !== null && !selectionOffClass}
+        onCancel={onClose}
+        cancelLabel={tc.cancel}
+        submitLabel={t.resolveDisputeSubmit}
+      />
     </Dialog>
   );
 }

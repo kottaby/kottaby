@@ -80,3 +80,18 @@ Stage Summary:
 - Phase 3 complete: outcome/3.1-graphql-surface-outcome.md; checkbox 3.1 [x]
 - 4.1 carry-forward: OpenPostConfirmationDisputeMutation / AdminDisputeCaseQuery generated types; partialAmount InputMaybe<string>; DisputeResolution 5 members
 - All future subagent prompts carry explicit no-git-checkout clause (zombie hazard closed)
+
+---
+Task ID: 4.1-4.3
+Agent: Spec Implementation Orchestrator
+Task: Phase 4 frontend surfaces 4.1-4.3 (per SKILL.md §Task Execution Protocol)
+
+Work Log:
+- 4.1: dispute documents + codegen (openPostConfirmationDisputeMutationDocument, extended resolve with partialAmount, adminDisputeCaseQueryDocument); session-disputes.documents.test 18/0; tsgo 0; agent reconstructed tree safely after another stray main-checkout
+- 4.2+4.3: interrupted-run recovery via snapshot-reconcile (32-file delta re-applied); orchestrator ran full QL loop + UI test slices directly after repeated agent deadline deaths
+- Quality fixes: react-refresh/only-export-components ×2 (builders moved to sibling modules), jscpd clones (disputeDialog builder), max-lines-per-function (ResolveDisputeFormFields/ActionsRow extraction), unicorn/no-array-sort→toSorted, import-x/no-duplicates merges
+- Final gates: sub-loop exit 0 on all 37 scope files; tsgo 0; UI slice 51 pass/0 fail/4 pre-existing skips; journey 13/0
+
+Stage Summary:
+- 4.1/4.2/4.3 all [x] with outcome files
+- 4.4 remains (locale keys + parity) then 5.1 hardening

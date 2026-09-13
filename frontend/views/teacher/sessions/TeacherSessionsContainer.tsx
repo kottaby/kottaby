@@ -13,7 +13,9 @@
  * `useQuery` `variables`, which re-runs the STATEFUL `myTeacherSessions`
  * query (Apollo refetch semantics — `useLazyQuery` is banned per
  * `sharedDocuments/AGENTS.md`). Page-level authorization is owned by the
- * server guard (`withPageAuth`) — this container performs no role logic.
+ * server guard (`withPageAuth`) — the container passes its surface's
+ * row-role constant to the shared row slot (the dispute affordance seam
+ * below) but performs no authorization logic.
  *
  * Teacher lifecycle: **Start** on `Scheduled`,
  * **Complete** on `Started`, **Cancel** on `Scheduled`/`Started`, **dispute**
@@ -49,7 +51,11 @@
  * (whose `update`/eviction arms already normalize the cache) and the
  * dispute ownership lives in the reused `SessionDisputeConfirmDialog` (every
  * error arm → snackbar, row stays; success → cache normalize + slot release
- * — see the student container's dispute table, byte-identical wiring).
+ * — see the student container's dispute table, byte-identical wiring). The
+ * dispute dialog keeps the SHIPPED held-escrow mutation binding
+ * (`OPEN_SESSION_DISPUTE_MUTATION`): the teacher surface's dispute path is
+ * the pre-completion escalation only — the shared row's role token scopes
+ * the post-confirmation CTA off teacher rows entirely.
  * Cache
  * convergence is NORMALIZATION ONLY (NO refetch): every returned `Session!`
  * payload selects `id` first, and each mutation rewrites the transitioned
@@ -95,6 +101,8 @@ import type { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { myTeacherSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { SessionStatusFilterChips } from "@/frontend/views/student/sessions/SessionStatusFilterChips";
 import { StudentSessionsDialogs } from "@/frontend/views/student/sessions/StudentSessionsDialogs";
+import { OPEN_SESSION_DISPUTE_MUTATION } from "@/frontend/views/student/sessions/sessionDisputeMutations";
+import type { SessionRowRole } from "@/frontend/views/student/sessions/sessionRowPresentation";
 import { TeacherSessionsBody } from "@/frontend/views/teacher/sessions/TeacherSessionsBody";
 import { type ContainerNotice, SNACKBAR_AUTOHIDE_MS } from "@/frontend/views/teacher/sessions/teacherSessionSlots";
 import { useTeacherCancelDialogArms } from "@/frontend/views/teacher/sessions/useTeacherCancelDialogArms";
@@ -158,6 +166,11 @@ export function TeacherSessionsContainer(): ReactNode {
     clearComplete: slots.clearComplete,
   });
 
+  // The teacher surface's row-role constant: teacher rows dispute the
+  // pre-completion path only — the shared row's affordance matrix scopes
+  // the post-confirmation dispute CTA off this surface entirely.
+  const rowRole: SessionRowRole = "teacher";
+
   // The body below the chrome resolves through `TeacherSessionsBody`
   // (matrix branches 1–5) — extracting it keeps this orchestrator to state +
   // callbacks only while the chrome above renders in EVERY branch (the user
@@ -182,6 +195,7 @@ export function TeacherSessionsContainer(): ReactNode {
         inFlightSlots={slots.inFlightSlots}
         onStart={mutations.handleStart}
         onComplete={mutations.handleComplete}
+        role={rowRole}
         t={t}
       />
       <StudentSessionsDialogs
@@ -194,6 +208,7 @@ export function TeacherSessionsContainer(): ReactNode {
         onInvalidTransition={cancelArms.handleInvalidTransition}
         onDuplicateReplay={cancelArms.handleDuplicateReplay}
         onCancelFailure={cancelArms.handleFailure}
+        disputeMutation={OPEN_SESSION_DISPUTE_MUTATION}
         onDisputed={disputeArms.handleDisputed}
         onDisputeSessionMissing={disputeArms.handleDisputeSessionMissing}
         onDisputeInvalidTransition={disputeArms.handleDisputeInvalidTransition}

@@ -9,6 +9,8 @@ import { SessionStatusFilterChips } from "@/frontend/views/student/sessions/Sess
 import { StudentSessionsBody } from "@/frontend/views/student/sessions/StudentSessionsBody";
 import { StudentSessionsDialogs } from "@/frontend/views/student/sessions/StudentSessionsDialogs";
 import { StudentSessionsNoticeSnackbar } from "@/frontend/views/student/sessions/StudentSessionsNoticeSnackbar";
+import { resolveStudentDisputeMutation } from "@/frontend/views/student/sessions/sessionDisputeMutations";
+import type { SessionRowRole } from "@/frontend/views/student/sessions/sessionRowPresentation";
 import { useStudentSessionCancelArms } from "@/frontend/views/student/sessions/useStudentSessionCancelArms";
 import { useStudentSessionConfirm } from "@/frontend/views/student/sessions/useStudentSessionConfirm";
 import { useStudentSessionDialogSlots } from "@/frontend/views/student/sessions/useStudentSessionDialogSlots";
@@ -25,13 +27,24 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
  * `useQuery` `variables`, which re-runs the STATEFUL
  * `myStudentSessions` query (Apollo refetch semantics — `useLazyQuery`
  * is banned per `sharedDocuments/AGENTS.md`). Page-level authorization is
- * owned by the server guard (`withPageAuth`) — this container performs no
- * role logic. The stateful machinery lives in the sibling hooks:
+ * owned by the server guard (`withPageAuth`) — the container passes its
+ * surface's row-role constant to the shared row slot (see below) but
+ * performs no authorization logic. The stateful machinery lives in the
+ * sibling hooks:
  * `useStudentSessionDialogSlots` (dialog slots + per-row in-flight slot
  * book), `useStudentSessionNotices` (row alerts + snackbar notice),
  * `useStudentSessionCancelArms` / `useStudentSessionDisputeArms` (dialog
  * outcome routing) and `useStudentSessionConfirm` (the container-owned
  * confirm-completion mutation).
+ *
+ * Row-role token: this container supplies the shared row slot's
+ * `"student"` role constant — the affordance seam that lets student rows
+ * reach the post-confirmation dispute escalation on top of the shipped
+ * pre-completion path. The token is grounded in the surface's mounting:
+ * this component renders ONLY under the server-guarded `/student/sessions`
+ * page (`withPageAuth({ roles: [UserRole.Student] })`), and every dispute
+ * mutation re-validates the caller's ownership + the state matrix
+ * server-side — the token scopes UI affordances, never authorization.
  *
  * Render branches (visual state matrix) — the chrome (page title + filter
  * chips) renders in EVERY branch; only the body BELOW it swaps
@@ -64,7 +77,12 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
  * Dispute-dialog wiring — the `openSessionDispute` mutation
  * and its code classification live in {@link SessionDisputeConfirmDialog};
  * EVERY error arm surfaces a snackbar (the dispute error vocabulary)
- * and the row stays in the list (no eviction arm — the dialog's docblock):
+ * and the row stays in the list (no eviction arm — the dialog's docblock).
+ * The dialog rides a MUTATION BINDING the container resolves per disputed
+ * row's generation: post-confirmation rows (completed + student-confirmed
+ * + hold consumed) escalate through the post-confirmation document;
+ * pre-completion rows keep the shipped held-escrow document byte-stable
+ * (see `resolveStudentDisputeMutation`):
  *
  * | Outcome (extensions.code) | Container behavior |
  * |---------------------------|--------------------|
@@ -180,6 +198,23 @@ export function StudentSessionsContainer(): ReactNode {
     setNotice,
   });
 
+  // The dispute dialog's mutation arm resolves from the disputed row's
+  // generation: a post-confirmation row escalates through the
+  // post-confirmation document; pre-completion rows (and an unresolved id
+  // while the slot mounts, e.g. the list changed under an open dialog) keep
+  // the shipped held-escrow document. The operations authorize server-side,
+  // so a degraded binding can only surface a localized denial.
+  const disputedRow =
+    disputeDialogSessionId === null || data === undefined
+      ? null
+      : (data.myStudentSessions.items.find(session => session.id === disputeDialogSessionId) ?? null);
+  const disputeMutation = resolveStudentDisputeMutation(disputedRow);
+
+  // The student surface's row-role constant (see the docblock's trust
+  // note): student rows reach the post-confirmation dispute escalation;
+  // teacher rows keep the pre-completion path only.
+  const rowRole: SessionRowRole = "student";
+
   return (
     <Stack data-testid="student-sessions-view" sx={{ gap: 3 }}>
       <Stack sx={{ gap: 2 }}>
@@ -199,6 +234,7 @@ export function StudentSessionsContainer(): ReactNode {
         disputeInFlightSlots={inFlightSlots}
         inFlightSlots={inFlightSlots}
         onConfirm={handleConfirm}
+        role={rowRole}
         t={t}
       />
       <StudentSessionsDialogs
@@ -211,6 +247,7 @@ export function StudentSessionsContainer(): ReactNode {
         onInvalidTransition={cancelArms.handleInvalidTransition}
         onDuplicateReplay={cancelArms.handleDuplicateReplay}
         onCancelFailure={cancelArms.handleFailure}
+        disputeMutation={disputeMutation}
         onDisputed={disputeArms.handleDisputed}
         onDisputeSessionMissing={disputeArms.handleDisputeSessionMissing}
         onDisputeInvalidTransition={disputeArms.handleDisputeInvalidTransition}

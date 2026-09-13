@@ -166,4 +166,50 @@ export interface SessionsLabels {
   readonly pagerPreviousLabel: string;
   /** Admin pager — next page (icon-button aria-label). */
   readonly pagerNextLabel: string;
+  /** Escrow-class chip — the fee hold still sits in its original balance lane. */
+  readonly escrowHeldChip: string;
+  /** Escrow-class chip — the fee was consumed at dual confirmation (post-confirmation dispute). */
+  readonly escrowConsumedChip: string;
+  /** Resolution radio — REFUND outcome label (consumed-escrow rows only). */
+  readonly resolutionRefundLabel: string;
+  /** Resolution radio — REFUND outcome helper (the fee returns to the student; the teacher's wallet is debited). */
+  readonly resolutionRefundHelper: string;
+  /** Resolution radio — PARTIAL_REFUND outcome label (consumed-escrow rows only). */
+  readonly resolutionPartialRefundLabel: string;
+  /** Resolution radio — PARTIAL_REFUND outcome helper (a chosen slice of the fee returns to the student). */
+  readonly resolutionPartialRefundHelper: string;
+  /** Resolution radio — UPHOLD outcome label (consumed-escrow rows only). */
+  readonly resolutionUpholdLabel: string;
+  /** Resolution radio — UPHOLD outcome helper (the completed session stands; no money moves). */
+  readonly resolutionUpholdHelper: string;
+  /** Partial-refund amount field label — rendered only for the PARTIAL_REFUND outcome. */
+  readonly partialAmountLabel: string;
+  /** Partial-refund amount field placeholder. */
+  readonly partialAmountPlaceholder: string;
+  /** Admin row action — open the case-review dialog for one disputed session. */
+  readonly reviewCase: string;
+  /** Case-review dialog title. */
+  readonly caseReviewTitle: string;
+  /** Case-review section heading — the teacher's session report. */
+  readonly caseReviewReportTitle: string;
+  /** Case-review section heading — the session homework. */
+  readonly caseReviewHomeworkTitle: string;
+  /** Case-review section heading — the session recitation record. */
+  readonly caseReviewRecitationTitle: string;
+  /** Case-review section heading — the session-scoped audit trail. */
+  readonly caseReviewAuditTitle: string;
+  /** Case-review report meta label — the rating the student received from the teacher. */
+  readonly caseReviewRatingLabel: string;
+  /** Case-review homework meta label — the homework assigned for the current lesson. */
+  readonly caseReviewHomeworkCurrentLabel: string;
+  /** Case-review homework meta label — the revision homework. */
+  readonly caseReviewHomeworkRevisionLabel: string;
+  /** Case-review empty state — no report has been submitted for the session. */
+  readonly caseReviewEmptyReport: string;
+  /** Case-review empty state — no homework was recorded for the session. */
+  readonly caseReviewEmptyHomework: string;
+  /** Case-review empty state — no recitation record exists for the session. */
+  readonly caseReviewEmptyRecitation: string;
+  /** Case-review empty state — the session-scoped audit trail is empty. */
+  readonly caseReviewEmptyAudit: string;
 }

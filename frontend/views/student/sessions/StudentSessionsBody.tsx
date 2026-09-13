@@ -13,6 +13,7 @@ import {
   SessionsEmptyBranch,
   SessionsRowList,
 } from "@/frontend/views/student/sessions/sessionBodyBranches";
+import type { SessionRowRole } from "@/frontend/views/student/sessions/sessionRowPresentation";
 import type { InFlightSlots } from "@/frontend/views/student/sessions/studentSessionInFlightSlots";
 import { studentActionsForSession } from "@/frontend/views/student/sessions/useStudentSessionConfirm";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
@@ -31,6 +32,11 @@ interface StudentSessionsBodyProps {
   readonly inFlightSlots: InFlightSlots;
   /** Confirm-CTA intent — the container owns the mutation. */
   readonly onConfirm: (sessionId: string) => void;
+  /**
+   * The row-owner role token supplied by the student container (the
+   * student surface constant) — scopes the rows' dispute affordance matrix.
+   */
+  readonly role: SessionRowRole;
   readonly t: SessionsLabels;
 }
 
@@ -52,6 +58,7 @@ export function StudentSessionsBody({
   disputeInFlightSlots,
   inFlightSlots,
   onConfirm,
+  role,
   t,
 }: Readonly<StudentSessionsBodyProps>): ReactNode {
   if (loading && data === undefined) {
@@ -97,6 +104,7 @@ export function StudentSessionsBody({
       onCancelIntent={onCancelIntent}
       onDisputeIntent={onDisputeIntent}
       disputeInFlightSlots={disputeInFlightSlots}
+      role={role}
       actionsFor={session => studentActionsForSession(session, { t, inFlightSlots, onConfirm })}
     />
   );

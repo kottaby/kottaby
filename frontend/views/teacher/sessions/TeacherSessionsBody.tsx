@@ -20,6 +20,7 @@ import {
   SessionsEmptyBranch,
   SessionsRowList,
 } from "@/frontend/views/student/sessions/sessionBodyBranches";
+import type { SessionRowRole } from "@/frontend/views/student/sessions/sessionRowPresentation";
 import { TeacherSessionsLoadingSkeleton } from "@/frontend/views/teacher/sessions/TeacherSessionsLoadingSkeleton";
 import { teacherActionsForSession } from "@/frontend/views/teacher/sessions/teacherSessionCacheArms";
 import type { InFlightSlots } from "@/frontend/views/teacher/sessions/teacherSessionSlots";
@@ -38,6 +39,12 @@ export interface TeacherSessionsBodyProps {
   readonly inFlightSlots: InFlightSlots;
   readonly onStart: (sessionId: string) => void;
   readonly onComplete: (sessionId: string) => void;
+  /**
+   * The row-owner role token supplied by the teacher container (the
+   * teacher surface constant) — scopes the rows' dispute affordance matrix
+   * to the pre-completion path only.
+   */
+  readonly role: SessionRowRole;
   readonly t: SessionsLabels;
 }
 
@@ -59,6 +66,7 @@ export function TeacherSessionsBody({
   inFlightSlots,
   onStart,
   onComplete,
+  role,
   t,
 }: Readonly<TeacherSessionsBodyProps>): ReactNode {
   if (loading && data === undefined) {
@@ -105,6 +113,7 @@ export function TeacherSessionsBody({
       onCancelIntent={onCancelIntent}
       onDisputeIntent={onDisputeIntent}
       disputeInFlightSlots={disputeInFlightSlots}
+      role={role}
       actionsFor={session => teacherActionsForSession(session, { t, inFlightSlots, onStart, onComplete })}
     />
   );

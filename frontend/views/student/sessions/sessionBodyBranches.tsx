@@ -31,6 +31,7 @@ import { mapGraphQLErrorByCode, normalizeGraphQLErrorCode } from "@/frontend/pro
 import { SessionRow } from "@/frontend/views/student/sessions/SessionRow";
 import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
 import type { SessionRowAction } from "@/frontend/views/student/sessions/sessionRowAction";
+import type { SessionRowRole } from "@/frontend/views/student/sessions/sessionRowPresentation";
 import { type InFlightSlotBook, isSlotInFlight } from "@/frontend/views/student/sessions/sessionRowSlotBook";
 
 interface SessionQueryErrorBodyProps {
@@ -112,6 +113,11 @@ interface SessionsRowListProps {
   readonly onDisputeIntent: (sessionId: string) => void;
   /** Per-row dispute slot book — dispute CTAs disable per row. */
   readonly disputeInFlightSlots: InFlightSlotBook<string>;
+  /**
+   * The row-owner role token (each role surface's container constant) —
+   * scopes every row's dispute affordance matrix via `isDisputable`.
+   */
+  readonly role: SessionRowRole;
   /** The role's lifecycle-affordance builder (confirm / start / complete). */
   readonly actionsFor: (session: MyStudentSessionsQuery_myStudentSessions_items) => ReadonlyArray<SessionRowAction>;
 }
@@ -122,7 +128,7 @@ interface SessionsRowListProps {
  * resolved through the caller's affordance matrix (per payload shape).
  */
 export function SessionsRowList(props: Readonly<SessionsRowListProps>): ReactNode {
-  const { sessions, rowAlerts, onCancelIntent, onDisputeIntent, disputeInFlightSlots, actionsFor } = props;
+  const { sessions, rowAlerts, onCancelIntent, onDisputeIntent, disputeInFlightSlots, role, actionsFor } = props;
   return (
     <Stack sx={{ gap: 2 }}>
       {sessions.map(session => (
@@ -133,6 +139,7 @@ export function SessionsRowList(props: Readonly<SessionsRowListProps>): ReactNod
           onCancelIntent={onCancelIntent}
           onDisputeIntent={onDisputeIntent}
           disputeDisabled={isSlotInFlight(disputeInFlightSlots, session.id, "dispute")}
+          role={role}
           actions={actionsFor(session)}
         />
       ))}
