@@ -2,10 +2,9 @@
 
 import { Box, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import type { ParentChildSessionsQuery_parentChildSessions_items } from "@/frontend/graphql/generated/gql/graphql";
-import type { CalendarDay } from "@/frontend/views/parent/monitoring/AttendanceCalendar.helpers";
+import type { CalendarDay } from "@/frontend/views/parent/monitoring/AttendanceCalendar.logic";
 
-export function StatusDot({ status }: Readonly<{ status: string }>): ReactNode {
+function StatusDot({ status }: Readonly<{ status: string }>): ReactNode {
   const key = status.toLowerCase();
   return (
     <Box sx={theme => {
