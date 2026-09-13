@@ -85,6 +85,7 @@ export const sessionsEn: SessionsLabels = {
   resolutionUpholdHelper: "The completed session stands and no money moves.",
   partialAmountLabel: "Refund amount",
   partialAmountPlaceholder: "e.g. 12.50",
+  partialAmountFeeReference: "Session fee: {fee} {currency}",
   reviewCase: "Review case",
   caseReviewTitle: "Dispute case review",
   caseReviewReportTitle: "Session report",

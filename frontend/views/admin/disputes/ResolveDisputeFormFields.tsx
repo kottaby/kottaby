@@ -34,6 +34,8 @@ export function ResolveDisputeFormFields(
     partialAmount: string;
     onAmountChange: (next: string) => void;
     amountError: string | null;
+    /** The disputed row's verbatim fee — the amount field's reference line. */
+    fee: string | null;
     note: string;
     onNoteChange: (next: string) => void;
     t: SessionsLabels;
@@ -51,6 +53,7 @@ export function ResolveDisputeFormFields(
     partialAmount,
     onAmountChange,
     amountError,
+    fee,
     note,
     onNoteChange,
     t,
@@ -70,7 +73,13 @@ export function ResolveDisputeFormFields(
         groupLabel={groupLabel}
       />
       {isPartialRefund ? (
-        <ResolveDisputeAmountField value={partialAmount} onChange={onAmountChange} errorMessage={amountError} t={t} />
+        <ResolveDisputeAmountField
+          value={partialAmount}
+          onChange={onAmountChange}
+          errorMessage={amountError}
+          fee={fee}
+          t={t}
+        />
       ) : null}
       <ResolveDisputeNoteField value={note} onChange={onNoteChange} maxLength={MAX_NOTE_LENGTH} t={t} />
     </DialogContent>

@@ -72,7 +72,7 @@ import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { ConflictError, DomainError, NotFoundError } from "@/backend/lib/errors";
 import { SessionArbitrationService } from "@/backend/services/classes/session-arbitration.service";
-import type { DBTransaction, SessionInsertType, SessionSelectType } from "@/backend/types";
+import type { DBTransaction, SessionInsertType, SessionSelectType, UserSelectType } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 import { withImmutabilityTriggersSuspended } from "@/test/helpers/db-cleanup";
 import { isPgliteProvider } from "@/test/helpers/skip-when-pglite";
@@ -107,6 +107,8 @@ function expectDomainDenial(error: Error, code: string, message: string): void {
 interface ArbitrationActors {
   teacherUserId: number;
   studentUserId: number;
+  teacherUser: UserSelectType;
+  studentUser: UserSelectType;
 }
 
 /** Shared-PK `teacher` row insert (the wallet's FK parent). */
@@ -120,7 +122,7 @@ async function createArbitrationActors(tx: DBTransaction): Promise<ArbitrationAc
   await createTestTeacherRow(tx, teacherUser.id);
   const studentUser = await createTestUser(tx, { role: "student" });
   await createTestStudent(tx, studentUser.id);
-  return { teacherUserId: teacherUser.id, studentUserId: studentUser.id };
+  return { teacherUserId: teacherUser.id, studentUserId: studentUser.id, teacherUser, studentUser };
 }
 
 /**
@@ -916,6 +918,8 @@ describe("SessionArbitrationService — arbitration denials + case review (runIn
       expect(disputeCase.session.id).toBe(row.id);
       expect(disputeCase.session.status).toBe(SessionStatus.Completed);
       expect(disputeCase.session.disputeReason).not.toBeNull();
+      expect(disputeCase.studentName).toBe(actors.studentUser.fullName);
+      expect(disputeCase.teacherName).toBe(actors.teacherUser.fullName);
       expect(disputeCase.report?.teacherNotes).toBe("session ran short");
       expect(disputeCase.report?.studentRatingByTeacher).toBe(3);
       expect(disputeCase.homework?.currentGrade).toBe(90);
@@ -937,6 +941,8 @@ describe("SessionArbitrationService — arbitration denials + case review (runIn
 
       expect(disputeCase.session.id).toBe(row.id);
       expect(disputeCase.session.feeHeld).toBe(false);
+      expect(disputeCase.studentName).toBe(actors.studentUser.fullName);
+      expect(disputeCase.teacherName).toBe(actors.teacherUser.fullName);
       expect(disputeCase.report).toBeNull();
       expect(disputeCase.homework).toBeNull();
       expect(disputeCase.recitation).toBeNull();

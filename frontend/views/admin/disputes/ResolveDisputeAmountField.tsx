@@ -2,6 +2,7 @@
 
 import { TextField } from "@mui/material";
 import type { ReactNode } from "react";
+import { SESSION_FEE_CURRENCY } from "@/shared/constants";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
@@ -22,17 +23,23 @@ interface ResolveDisputeAmountFieldProps {
   readonly onChange: (next: string) => void;
   /** Localized error copy (the errors-namespace amount policy) — `null` renders the field clean. */
   readonly errorMessage: string | null;
+  /** The disputed row's verbatim fee — the amount's upper bound; `null` renders no reference line. */
+  readonly fee: string | null;
   /** Localized sessions-namespace labels (field vocabulary). */
   readonly t: SessionsLabels;
 }
 
-/** Partial-refund amount — decimal money field with the localized policy error. */
+/** Partial-refund amount — decimal money field with the fee reference and the localized policy error. */
 export function ResolveDisputeAmountField({
   value,
   onChange,
   errorMessage,
+  fee,
   t,
 }: Readonly<ResolveDisputeAmountFieldProps>): ReactNode {
+  const feeReference =
+    fee === null ? null : t.partialAmountFeeReference.replace("{fee}", fee).replace("{currency}", SESSION_FEE_CURRENCY);
+
   return (
     <TextField
       value={value}
@@ -42,7 +49,7 @@ export function ResolveDisputeAmountField({
       label={t.partialAmountLabel}
       placeholder={t.partialAmountPlaceholder}
       error={errorMessage !== null}
-      helperText={errorMessage ?? " "}
+      helperText={errorMessage ?? feeReference ?? " "}
       inputMode="decimal"
       autoComplete="off"
       data-testid="resolve-dispute-amount-field"

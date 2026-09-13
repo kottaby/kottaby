@@ -213,6 +213,8 @@ const ADMIN_DISPUTE_CASE_DOC = gql`
         disputeReason
         disputedAt
       }
+      studentName
+      teacherName
       report {
         id
       }
@@ -582,6 +584,9 @@ describe("adminDisputeCase — the admin case-review read", () => {
     expect(sessionPayload.id).toBe(sessionOracleId);
     expect(sessionPayload.status).toBe("Disputed");
     expect(sessionPayload.feeHeld).toBe(false);
+    // The participant display names resolve to the committed cast rows.
+    expect(payload.studentName).toBe(cast.primaryStudent.user.fullName);
+    expect(payload.teacherName).toBe(cast.teacher.user.fullName);
     // No report/homework/recitation was ever produced for the row — the
     // read fabricates nothing.
     expect(payload.report).toBeNull();

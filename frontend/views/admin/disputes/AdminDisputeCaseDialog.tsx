@@ -79,7 +79,13 @@ export function AdminDisputeCaseDialog({ sessionId, open, onClose }: Readonly<Ad
     const disputeCase: AdminDisputeCaseQuery["adminDisputeCase"] = data.adminDisputeCase;
     body = (
       <Stack sx={{ gap: 3 }}>
-        <AdminDisputeCaseSessionFacts session={disputeCase.session} t={t} locale={locale} />
+        <AdminDisputeCaseSessionFacts
+          session={disputeCase.session}
+          studentName={disputeCase.studentName}
+          teacherName={disputeCase.teacherName}
+          t={t}
+          locale={locale}
+        />
         <AdminDisputeCaseArtifacts disputeCase={disputeCase} t={t} />
         <AdminDisputeCaseAuditTrail entries={disputeCase.auditTrail} t={t} locale={locale} />
       </Stack>

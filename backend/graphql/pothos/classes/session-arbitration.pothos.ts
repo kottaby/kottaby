@@ -77,5 +77,18 @@ export const AdminDisputeCasePothosObject = gqlSchemaBuilder
         type: [AdminAuditLogEntryPothosObject],
         resolve: parent => [...parent.auditTrail],
       }),
+      // The participant display names resolved server-side — honest `null`
+      // when the user row is unreachable (the view falls back to the
+      // numeric identity).
+      studentName: t.field({
+        type: "String",
+        nullable: true,
+        resolve: parent => parent.studentName,
+      }),
+      teacherName: t.field({
+        type: "String",
+        nullable: true,
+        resolve: parent => parent.teacherName,
+      }),
     }),
   });

@@ -185,6 +185,7 @@ export function ResolveDisputeDialog({
         partialAmount={partialAmount}
         onAmountChange={handleAmountChange}
         amountError={amountError}
+        fee={fee}
         note={note}
         onNoteChange={setNote}
         t={t}

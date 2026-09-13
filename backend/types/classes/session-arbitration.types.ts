@@ -54,7 +54,9 @@ export type SessionArbitrationProbeType = Pick<
  * homework, or recitation renders no fabricated placeholder. The audit
  * trail entries are the canonical rendered admin-trail rows
  * (`AdminAuditLogEntryReturnType`), newest-first, and carry no note content
- * beyond what the audit convention already records.
+ * beyond what the audit convention already records. The participant display
+ * names resolve server-side; an unreachable user row surfaces as an honest
+ * `null` the view replaces with the numeric identity.
  */
 export interface AdminDisputeCaseReturnType {
   readonly session: SessionReturnType;
@@ -62,4 +64,6 @@ export interface AdminDisputeCaseReturnType {
   readonly homework: HomeWorkReturnType | null;
   readonly recitation: RecitationReturnType | null;
   readonly auditTrail: readonly AdminAuditLogEntryReturnType[];
+  readonly studentName: string | null;
+  readonly teacherName: string | null;
 }

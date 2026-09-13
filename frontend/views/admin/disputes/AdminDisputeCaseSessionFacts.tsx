@@ -29,6 +29,10 @@ const NO_VALUE_PLACEHOLDER = "—";
 interface AdminDisputeCaseSessionFactsProps {
   /** The case query's session detail (the shared dispute-family row). */
   readonly session: AdminDisputeCaseQuery_adminDisputeCase_session;
+  /** Server-resolved student display name; `null` falls back to the numeric identity. */
+  readonly studentName: string | null;
+  /** Server-resolved teacher display name; `null` falls back to the numeric identity. */
+  readonly teacherName: string | null;
   /** Localized sessions-namespace labels (the arbitration vocabulary). */
   readonly t: SessionsLabels;
   /** Active app locale — drives the dispute-moment formatter. */
@@ -38,6 +42,8 @@ interface AdminDisputeCaseSessionFactsProps {
 /** The session detail block of the case-review dialog. */
 export function AdminDisputeCaseSessionFacts({
   session,
+  studentName,
+  teacherName,
   t,
   locale,
 }: Readonly<AdminDisputeCaseSessionFactsProps>): ReactNode {
@@ -45,6 +51,9 @@ export function AdminDisputeCaseSessionFacts({
   const disputedText =
     session.disputedAt === null ? NO_VALUE_PLACEHOLDER : formatApplicantDate(session.disputedAt, locale);
   const disputeReason = session.disputeReason ?? NO_VALUE_PLACEHOLDER;
+  const studentLabel = studentName ?? `#${session.studentId}`;
+  const teacherLabel = teacherName ?? `#${session.teacherId}`;
+  const participantsText = `${studentLabel} · ${teacherLabel}`;
 
   return (
     <Stack data-testid="admin-dispute-case-session" sx={{ gap: 1.5 }}>
@@ -65,7 +74,7 @@ export function AdminDisputeCaseSessionFacts({
       <Stack sx={{ gap: 1.5, flexDirection: "row", flexWrap: "wrap", alignItems: "baseline" }}>
         <SessionMetaCell label={t.fee} value={feeText} />
         <SessionMetaCell label={t.disputedAtLabel} value={disputedText} />
-        <SessionMetaCell label={t.participantsLabel} value={`${session.studentId} · ${session.teacherId}`} />
+        <SessionMetaCell label={t.participantsLabel} value={participantsText} />
       </Stack>
       <Stack sx={{ gap: 0.5 }}>
         <Typography variant="overline" sx={theme => ({ color: theme.palette.text.secondary })}>

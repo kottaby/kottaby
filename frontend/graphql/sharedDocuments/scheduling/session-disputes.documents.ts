@@ -208,7 +208,8 @@ export const adminDisputedSessionsQueryDocument: TypedDocumentNode<
  * evidence bundle for one disputed session in a single response — the
  * session detail (the shared dispute-family `Session` selection), the
  * teacher report (with `studentRatingByTeacher`), the homework row, the
- * recitation record and the session-scoped audit-trail entries. The three
+ * recitation record and the session-scoped audit-trail entries, plus the
+ * server-resolved participant display names. The three
  * evidence artifacts are honest `null`s when absent (no report submitted,
  * no homework/recitation) — never fabricated placeholders. Admin-only
  * scope lives server-side (`$all{authenticated, role:[Admin]}` + the
@@ -280,6 +281,8 @@ export const adminDisputeCaseQueryDocument: TypedDocumentNode<AdminDisputeCaseQu
         entityId
         entityType
       }
+      studentName
+      teacherName
     }
   }
 `;

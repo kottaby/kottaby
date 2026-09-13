@@ -78,7 +78,13 @@
  * session-services' extraction layout).
  */
 
-import { HomeWorkRepository, RecitationRepository, ReportRepository, SessionRepository } from "@/backend/db/repo";
+import {
+  HomeWorkRepository,
+  RecitationRepository,
+  ReportRepository,
+  SessionRepository,
+  UserRepository,
+} from "@/backend/db/repo";
 import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { NotFoundError } from "@/backend/lib/errors";
@@ -475,8 +481,9 @@ export namespace SessionArbitrationService {
 
     // Concurrent independent reads — the artifacts share no write path and
     // no ordering requirement; the executor serializes them on the
-    // caller's connection.
-    const [report, homework, recitation, auditTrailPage] = await Promise.all([
+    // caller's connection. The participant display names ride the same
+    // batch so the case bundle composes in one round of reads.
+    const [report, homework, recitation, auditTrailPage, studentUser, teacherUser] = await Promise.all([
       ReportRepository.findBySessionId(sessionId, tx),
       HomeWorkRepository.findBySessionId(sessionId, tx),
       RecitationRepository.findBySessionId(sessionId, tx),
@@ -488,8 +495,18 @@ export namespace SessionArbitrationService {
         adminId,
         tx
       ),
+      UserRepository.findById(detail.studentId, tx),
+      UserRepository.findById(detail.teacherId, tx),
     ]);
 
-    return { session: detail, report, homework, recitation, auditTrail: auditTrailPage.items };
+    return {
+      session: detail,
+      report,
+      homework,
+      recitation,
+      auditTrail: auditTrailPage.items,
+      studentName: studentUser?.fullName ?? null,
+      teacherName: teacherUser?.fullName ?? null,
+    };
   }
 }

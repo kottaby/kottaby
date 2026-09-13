@@ -81,6 +81,7 @@ export const sessionsAr: SessionsLabels = {
   resolutionUpholdHelper: "تبقى الجلسة المكتملة كما هي ولا تتحرك أي مبالغ.",
   partialAmountLabel: "مبلغ الرد",
   partialAmountPlaceholder: "مثال: 12.50",
+  partialAmountFeeReference: "رسوم الجلسة: {fee} {currency}",
   reviewCase: "مراجعة الملف",
   caseReviewTitle: "مراجعة ملف النزاع",
   caseReviewReportTitle: "تقرير الجلسة",

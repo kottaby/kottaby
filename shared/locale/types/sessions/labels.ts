@@ -186,6 +186,8 @@ export interface SessionsLabels {
   readonly partialAmountLabel: string;
   /** Partial-refund amount field placeholder. */
   readonly partialAmountPlaceholder: string;
+  /** Partial-refund fee reference — the verbatim fee the amount is bounded by; `{fee}` and `{currency}` interpolate. */
+  readonly partialAmountFeeReference: string;
   /** Admin row action — open the case-review dialog for one disputed session. */
   readonly reviewCase: string;
   /** Case-review dialog title. */

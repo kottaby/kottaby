@@ -70,6 +70,10 @@ const DISPUTED_ISO = "2099-01-12T14:30:00.000Z";
 /** ASCII note text the report fixture carries (DATA, not locale copy). */
 const TEACHER_NOTES = "Student performed well; session ended early.";
 
+/** ASCII participant display names the case fixture resolves (DATA, not locale copy). */
+const STUDENT_NAME = "Fixture Student A";
+const TEACHER_NAME = "Fixture Teacher T";
+
 /** ASCII audit details payload (DATA, not locale copy). */
 const AUDIT_DETAILS = '{"resolution":"PartialRefund","partialAmount":"20.00","notePresent":false}';
 
@@ -100,6 +104,8 @@ function caseFixture(
       resolutionNote: null,
       resolvedAt: null,
     },
+    studentName: STUDENT_NAME,
+    teacherName: TEACHER_NAME,
     report: {
       id: "71001",
       sessionId: Number(CASE_SESSION_ID),

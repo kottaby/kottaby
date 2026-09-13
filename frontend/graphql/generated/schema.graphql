@@ -90,6 +90,8 @@ type AdminDisputeCase {
   recitation: SessionRecitation
   report: SessionReport
   session: Session!
+  studentName: String
+  teacherName: String
 }
 
 type AdminParentSnapshot {
