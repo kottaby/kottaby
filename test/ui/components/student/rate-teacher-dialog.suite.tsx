@@ -61,8 +61,8 @@ import { cleanup, fireEvent, type RenderResult, waitFor, within } from "@testing
 import {
   type MyStudentSessionsQuery_myStudentSessions_items,
   type MyTeacherEvaluationsQuery_myTeacherEvaluations,
-  type SubmitTeacherEvaluationMutation_submitTeacherEvaluation,
   SessionStatus,
+  type SubmitTeacherEvaluationMutation_submitTeacherEvaluation,
 } from "@/frontend/graphql/generated/gql/graphql";
 import {
   myStudentSessionsQueryDocument,
@@ -228,7 +228,7 @@ function rateValidationFieldErrorMock(rating: number): MockLink.MockedResponse {
           message: "VALIDATION (masked transport surface)",
           extensions: {
             code: "VALIDATION",
-            fields: [{ field: "rating", code: "RATING_OUT_OF_RANGE", message: RATING_FIELD_MESSAGE }],
+            fields: [{ field: "rating", code: "TEACHER_RATING_INVALID", message: RATING_FIELD_MESSAGE }],
           },
         },
       ],
@@ -316,7 +316,10 @@ for (const locale of componentSuiteLocales) {
 
     test("rate CTA hidden once the session sits in the rated set — read-only rated chip renders instead", async () => {
       renderRateFlow(
-        [listPageMock([DUAL_CONFIRMED_SESSION]), ratedHistoryMock([evaluationFixture(Number(RATE_SESSION_ID), "eval-existing")])],
+        [
+          listPageMock([DUAL_CONFIRMED_SESSION]),
+          ratedHistoryMock([evaluationFixture(Number(RATE_SESSION_ID), "eval-existing")]),
+        ],
         locale
       );
 
@@ -350,7 +353,7 @@ for (const locale of componentSuiteLocales) {
       // (five star radios + MUI's clear radio — never a decimal scale).
       expect(within(dialog).getByText(t.rateTeacherDialogTitle)).toBeDefined();
       expect(within(dialog).getByRole("button", { name: t.rateTeacherDialogCancel })).toBeDefined();
-      expect(within(dialog).getAllByRole("radio").length).toBe(6);
+      expect(within(dialog).getAllByRole("radio")).toHaveLength(6);
 
       // Submit is DISABLED while no star is chosen — an empty submit can
       // never reach the wire.
@@ -377,11 +380,19 @@ for (const locale of componentSuiteLocales) {
           within(screen.getByTestId(`session-row-${RATE_SESSION_ID}`)).getByText(t.teacherRatedChip)
         ).toBeDefined();
       });
-      expect(within(screen.getByTestId(`session-row-${RATE_SESSION_ID}`)).queryByRole("button", { name: t.rateTeacher })).toBeNull();
+      expect(
+        within(screen.getByTestId(`session-row-${RATE_SESSION_ID}`)).queryByRole("button", { name: t.rateTeacher })
+      ).toBeNull();
     });
 
     test("boundary dispatch — the 1-star and 5-star choices both reach the wire", async () => {
-      for (const rating of BOUNDARY_RATINGS) {
+      // Sequential sweep via recursion (the await-in-loop rule forbids a
+      // plain for/await — depth bounded by the fixed BOUNDARY_RATINGS list).
+      const dispatchNext = async (index: number): Promise<void> => {
+        if (index >= BOUNDARY_RATINGS.length) {
+          return;
+        }
+        const rating = BOUNDARY_RATINGS[index];
         const { unmount } = renderRateFlow(
           [listPageMock([DUAL_CONFIRMED_SESSION]), ratedHistoryMock([]), rateSuccessMock(rating)],
           locale
@@ -395,7 +406,9 @@ for (const locale of componentSuiteLocales) {
         expect(snackbarSeverityClass(t.rateTeacherSuccess)).toContain("MuiAlert-colorSuccess");
         expect(screen.queryByRole("dialog")).toBeNull();
         unmount();
-      }
+        await dispatchNext(index + 1);
+      };
+      await dispatchNext(0);
     });
 
     test("server VALIDATION addressed at the rating field renders inline under the stars and keeps the dialog open", async () => {
@@ -416,7 +429,9 @@ for (const locale of componentSuiteLocales) {
       const fieldError = within(dialog).getByText(RATING_FIELD_MESSAGE);
       expect((fieldError.closest(".MuiFormHelperText-root")?.className ?? "").includes("Mui-error")).toBe(true);
       expect(screen.getByRole("dialog")).toBeDefined();
-      expect(within(dialog).getByRole("button", { name: t.rateTeacherDialogSubmit }).getAttribute("disabled")).toBeNull();
+      expect(
+        within(dialog).getByRole("button", { name: t.rateTeacherDialogSubmit }).getAttribute("disabled")
+      ).toBeNull();
       // No local fallback fired: the field pair suppresses the generic
       // validation toast, no failure snackbar, and the row stays un-rated.
       expect(screen.queryByText(te.validation)).toBeNull();
