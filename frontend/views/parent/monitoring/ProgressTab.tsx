@@ -12,7 +12,7 @@ import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { ProgressSummary } from "@/frontend/views/parent/monitoring/ProgressSummary";
 import { ProgressPositionBlock, ProgressSkeleton } from "@/frontend/views/parent/monitoring/ProgressTab.parts";
-import { Common, Errors, ParentMonitoring, useAppTranslation } from "@/shared/locale";
+import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 /**
  * ProgressTab — the child's curriculum-progress summary: the
@@ -52,6 +52,7 @@ export function ProgressTab(props: Readonly<ProgressTabProps>): ReactNode {
   const t = useAppTranslation(ParentMonitoring);
   const te = useAppTranslation(Errors);
   const commonT = useAppTranslation(Common);
+  const locale = useAppLocale();
 
   const { data, loading, error, refetch } = useQuery(parentChildProgressQueryDocument, {
     variables: { studentId: props.studentId },
@@ -98,7 +99,7 @@ export function ProgressTab(props: Readonly<ProgressTabProps>): ReactNode {
   } else {
     body = (
       <>
-        <ProgressSummary progress={progress} labels={t} />
+        <ProgressSummary progress={progress} labels={t} locale={locale} />
         <Box
           component="output"
           aria-label={t.progressSectionTitle}

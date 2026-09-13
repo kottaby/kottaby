@@ -67,7 +67,7 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
     refetch
   );
   const printableRows: readonly PrintableReportRow[] =
-    rows?.map(row => ({
+    filteredRows?.map(row => ({
       date: formatApplicantDate(row.sessionStartedAt ?? row.createdAt, locale),
       status: row.sessionStatus,
       rating: row.studentRatingByTeacher,

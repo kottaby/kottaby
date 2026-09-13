@@ -4,6 +4,7 @@ import { AutoStoriesOutlined, BookmarkBorderOutlined, ReplayOutlined, TrendingUp
 import { Box, Card, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { ParentChildProgressQuery_parentChildProgress } from "@/frontend/graphql/generated/gql/graphql";
+import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { formatSurahJuzRef } from "@/frontend/views/parent/monitoring/parentMonitoringDisplay";
 import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 
@@ -32,24 +33,22 @@ function resolvePalette(
   return { bgcolor: theme.palette.info.main, fg: theme.palette.info.contrastText };
 }
 
-function computeProgressStats(progress: ParentChildProgressQuery_parentChildProgress): {
+function computeProgressStats(
+  progress: ParentChildProgressQuery_parentChildProgress,
+  locale: string
+): {
   readonly rowCount: number;
   readonly jadidValue: string;
   readonly madiValue: string;
-  readonly activeTrack: string;
+  readonly linkDate: string;
 } {
   const rowCount = progress.progressRowCount;
   const jadidValue =
     progress.latestJadidPosition !== null ? formatSurahJuzRef(progress.latestJadidPosition.surahJuz) : "—";
   const madiValue =
     progress.latestMadiPosition !== null ? formatSurahJuzRef(progress.latestMadiPosition.surahJuz) : "—";
-  let activeTrack = "—";
-  if (progress.latestJadidPosition !== null) {
-    activeTrack = "Jadid";
-  } else if (progress.latestMadiPosition !== null) {
-    activeTrack = "Madi";
-  }
-  return { rowCount, jadidValue, madiValue, activeTrack };
+  const linkDate = formatApplicantDate(progress.child.createdAt, locale);
+  return { rowCount, jadidValue, madiValue, linkDate };
 }
 
 interface StatCardProps {
@@ -105,11 +104,13 @@ function StatCard({ icon, value, label, color }: Readonly<StatCardProps>): React
 export function ProgressSummary({
   progress,
   labels,
+  locale,
 }: Readonly<{
   progress: ParentChildProgressQuery_parentChildProgress;
   labels: ParentMonitoringLabels;
+  locale: string;
 }>): ReactNode {
-  const stats = computeProgressStats(progress);
+  const stats = computeProgressStats(progress, locale);
   return (
     <Box sx={theme => ({ p: 2, borderRadius: 2, bgcolor: theme.palette.action.hover })}>
       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
@@ -136,7 +137,7 @@ export function ProgressSummary({
         />
         <StatCard
           icon={<BookmarkBorderOutlined fontSize="small" />}
-          value={stats.activeTrack}
+          value={stats.linkDate}
           label={labels.statLastActivity}
           color="info"
         />
