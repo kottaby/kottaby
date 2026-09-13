@@ -1,29 +1,13 @@
 "use client";
 
-import { Select, Skeleton, Stack, Typography } from "@mui/material";
+import { ListItemIcon, ListItemText, MenuItem, Select, Skeleton, Stack, Typography } from "@mui/material";
+import Avatar from "@mui/material/Avatar";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
-import MenuItem from "@mui/material/MenuItem";
 import type { ReactNode } from "react";
 import type { MyLinkedChildrenQuery_myLinkedChildren } from "@/frontend/graphql/generated/gql/graphql";
+import { childInitial } from "@/frontend/views/parent/monitoring/parentMonitoringDisplay";
 
-/**
- * Presentational parts of the ParentChildDetailContainer — the child
- * switcher (MUI Select) and its loading placeholder. Extracted from
- * the stateful container so the hook-bearing component stays inside
- * the file-size budget (frontend/views/* is capped at 150 lines per
- * `oxlint.config.mts`).
- */
-
-/**
- * Child switcher — a MUI Select dropdown of the parent's linked
- * children. Renders the children's full names as options; the current
- * child (matched by id) is selected. Changing the selection calls
- * `onChange` with the new child id (string — the GraphQL ID scalar).
- *
- * While the linked-children query is in flight, a skeleton placeholder
- * renders in place of the Select so the header never flickers empty.
- */
 export function ChildSwitcher({
   linkedChildren,
   currentId,
@@ -41,13 +25,18 @@ export function ChildSwitcher({
     return (
       <Stack data-testid="parent-child-switcher-loading" sx={{ gap: 0.5 }}>
         <Skeleton variant="text" sx={{ fontSize: "0.75rem", maxWidth: 80 }} />
-        <Skeleton variant="rectangular" sx={{ height: 40, maxWidth: 280, borderRadius: 1 }} />
+        <Skeleton variant="rectangular" sx={{ height: 56, maxWidth: 320, borderRadius: 2 }} />
       </Stack>
     );
   }
 
+  const currentChild = linkedChildren.find(c => c.id === currentId);
+
   return (
-    <FormControl variant="outlined" sx={{ maxWidth: 280 }}>
+    <FormControl
+      variant="outlined"
+      sx={{ maxWidth: 320, "& .MuiOutlinedInput-root": { borderRadius: 2, py: 0.5, minHeight: 56 } }}
+    >
       <InputLabel id="parent-child-switcher-label">{label}</InputLabel>
       <Select
         labelId="parent-child-switcher-label"
@@ -57,12 +46,44 @@ export function ChildSwitcher({
         onChange={event => {
           onChange(event.target.value);
         }}
+        startAdornment={
+          <Avatar
+            sx={theme => ({
+              width: 32,
+              height: 32,
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              bgcolor: theme.palette.primary.main,
+              color: theme.palette.primary.contrastText,
+              ml: 1,
+              mr: 1.5,
+            })}
+          >
+            {currentChild ? childInitial(currentChild.fullName) : "?"}
+          </Avatar>
+        }
       >
         {linkedChildren.map(child => (
-          <MenuItem key={child.id} value={child.id}>
-            <Typography component="span" dir="auto">
-              {child.fullName}
-            </Typography>
+          <MenuItem key={child.id} value={child.id} sx={{ py: 1 }}>
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <Avatar
+                sx={theme => ({
+                  width: 32,
+                  height: 32,
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  bgcolor: theme.palette.primary.main,
+                  color: theme.palette.primary.contrastText,
+                })}
+              >
+                {childInitial(child.fullName)}
+              </Avatar>
+            </ListItemIcon>
+            <ListItemText>
+              <Typography component="span" dir="auto" sx={{ fontWeight: 600 }}>
+                {child.fullName}
+              </Typography>
+            </ListItemText>
           </MenuItem>
         ))}
       </Select>

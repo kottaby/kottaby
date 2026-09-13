@@ -108,4 +108,8 @@ export const parentMonitoringEn: ParentMonitoringLabels = {
   // ─── Loading / error scaffolding ────────────────────────────────────────
   loadingLabel: "Loading…",
   loadErrorBody: "We couldn't load this information right now. Please try again.",
+  refreshLabel: "Refresh",
+  lastUpdatedLabel: (timestamp: string): string => `Last updated: ${timestamp}`,
+  statTotalChildren: "Total Children",
+  statRecentSessions: "Recent Sessions",
 };

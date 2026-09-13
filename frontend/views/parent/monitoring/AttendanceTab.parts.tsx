@@ -1,27 +1,36 @@
 "use client";
 
-import { Card, Chip, Skeleton, Stack, Typography } from "@mui/material";
-import type { ReactNode } from "react";
+import {
+  CancelOutlined,
+  CheckCircleOutlined,
+  PlayCircleOutlined,
+  ScheduleOutlined,
+  WarningAmberOutlined,
+} from "@mui/icons-material";
+import { Box, Card, Chip, Skeleton, Stack, Typography } from "@mui/material";
+import type { ReactElement, ReactNode } from "react";
 import type { ParentChildSessionsQuery_parentChildSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
-import { attendanceStatusLabel } from "@/frontend/views/parent/monitoring/parentMonitoringDisplay";
+import {
+  attendanceStatusColor,
+  attendanceStatusLabel,
+} from "@/frontend/views/parent/monitoring/parentMonitoringDisplay";
 import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 
-/**
- * Presentational parts of the AttendanceTab — the skeleton placeholder
- * and the per-row card. Extracted from the stateful tab so the
- * hook-bearing component stays inside the file-size budget
- * (frontend/views/* is capped at 150 lines per `oxlint.config.mts`).
- */
-
-/** Stable skeleton keys (avoids `noArrayIndexKey`). */
 const ATTENDANCE_SKELETON_KEYS: readonly string[] = [
   "attendance-skeleton-1",
   "attendance-skeleton-2",
   "attendance-skeleton-3",
 ];
 
-/** Skeleton placeholder for the initial-load state. */
+const STATUS_ICONS: Readonly<Record<string, ReactElement>> = {
+  completed: <CheckCircleOutlined fontSize="small" />,
+  started: <PlayCircleOutlined fontSize="small" />,
+  scheduled: <ScheduleOutlined fontSize="small" />,
+  cancelled: <CancelOutlined fontSize="small" />,
+  disputed: <WarningAmberOutlined fontSize="small" />,
+};
+
 export function AttendanceSkeleton(): ReactNode {
   return (
     <Stack aria-busy="true" data-testid="parent-attendance-loading" sx={{ gap: 2 }}>
@@ -31,22 +40,27 @@ export function AttendanceSkeleton(): ReactNode {
           variant="outlined"
           sx={theme => ({
             display: "flex",
-            flexDirection: "column",
-            gap: 1,
-            padding: 2,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 2,
+            padding: { xs: 2, sm: 2.5 },
             borderRadius: 2,
             borderColor: theme.palette.border.main,
+            borderLeft: 4,
+            borderLeftColor: theme.palette.divider,
           })}
         >
-          <Skeleton variant="text" sx={{ fontSize: "1rem", maxWidth: 180 }} />
-          <Skeleton variant="rounded" sx={{ height: 24, width: 120, borderRadius: 999 }} />
+          <Skeleton variant="circular" sx={{ width: 32, height: 32 }} />
+          <Stack sx={{ gap: 0.5, flex: 1 }}>
+            <Skeleton variant="text" sx={{ fontSize: "1rem", maxWidth: 180 }} />
+            <Skeleton variant="rounded" sx={{ height: 24, width: 120, borderRadius: 999 }} />
+          </Stack>
         </Card>
       ))}
     </Stack>
   );
 }
 
-/** One attendance row — date + status chip. */
 export function AttendanceRow({
   row,
   labels,
@@ -57,31 +71,60 @@ export function AttendanceRow({
   locale: string;
 }>): ReactNode {
   const dateIso = row.startedAt ?? row.createdAt;
+  const colors = attendanceStatusColor(row.status);
+  const statusKey = row.status.toLowerCase();
+  const icon = STATUS_ICONS[statusKey] ?? <ScheduleOutlined fontSize="small" />;
   return (
     <Card
       variant="outlined"
       data-testid="parent-attendance-row"
       sx={theme => ({
         display: "flex",
-        flexDirection: "column",
-        gap: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 2,
         padding: { xs: 2, sm: 2.5 },
         borderRadius: 2,
         borderColor: theme.palette.border.main,
+        borderLeft: 4,
+        borderLeftColor: colors.border,
+        transition: theme.transitions.create(["box-shadow", "border-color"], {
+          duration: theme.transitions.duration.shorter,
+        }),
+        "&:hover": { boxShadow: theme.shadows[2], borderColor: colors.border },
       })}
     >
-      <Typography variant="body2" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
-        {formatApplicantDate(dateIso, locale)}
-      </Typography>
-      <Chip
-        size="small"
-        label={attendanceStatusLabel(row.status, labels)}
+      <Box
         sx={theme => ({
-          alignSelf: "flex-start",
-          bgcolor: theme.palette.secondaryContainer,
-          color: theme.palette.onSecondaryContainer,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          bgcolor: theme.palette.action.hover,
+          color: colors.icon,
+          flexShrink: 0,
         })}
-      />
+      >
+        {icon}
+      </Box>
+      <Stack sx={{ gap: 0.5, flex: 1, minWidth: 0 }}>
+        <Typography variant="body2" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
+          {formatApplicantDate(dateIso, locale)}
+        </Typography>
+        <Chip
+          size="small"
+          label={attendanceStatusLabel(row.status, labels)}
+          icon={icon}
+          sx={theme => ({
+            alignSelf: "flex-start",
+            bgcolor: theme.palette.action.selected,
+            color: colors.icon,
+            "& .MuiChip-icon": { color: colors.icon },
+          })}
+        />
+      </Stack>
     </Card>
   );
 }

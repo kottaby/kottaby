@@ -196,4 +196,14 @@ export interface ParentMonitoringLabels {
    * reuses `CommonLabels.retry` — no separate key).
    */
   readonly loadErrorBody: string;
+
+  // ─── Extended portal actions (refresh + last-updated) ──────────────────
+  /** Accessible label for the portal refresh button (re-fetches the active query). */
+  readonly refreshLabel: string;
+  /** Label for the last-updated timestamp (interpolates a formatted time). */
+  readonly lastUpdatedLabel: (timestamp: string) => string;
+  /** Quick-stats card label — total linked children. */
+  readonly statTotalChildren: string;
+  /** Quick-stats card label — recent sessions count. */
+  readonly statRecentSessions: string;
 }

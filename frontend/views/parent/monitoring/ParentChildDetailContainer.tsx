@@ -1,9 +1,17 @@
 "use client";
 
 import { useQuery } from "@apollo/client/react";
-import { Box, Stack, Tab, Tabs, Typography } from "@mui/material";
+import {
+  AssignmentOutlined,
+  CalendarMonthOutlined,
+  DescriptionOutlined,
+  RateReviewOutlined,
+  RefreshOutlined,
+  TrendingUpOutlined,
+} from "@mui/icons-material";
+import { Box, IconButton, Stack, Tab, Tabs, Typography } from "@mui/material";
 import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import { myLinkedChildrenQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
@@ -16,51 +24,8 @@ import { ProgressTab } from "@/frontend/views/parent/monitoring/ProgressTab";
 import { ReportsTab } from "@/frontend/views/parent/monitoring/ReportsTab";
 import { ParentMonitoring, useAppTranslation } from "@/shared/locale";
 
-/**
- * ParentChildDetailContainer — the per-child portal surface mounted at
- * `/parent/children/<studentId>` by the server-guarded route. The
- * server page validates the `studentId` path segment (integer coercion
- * failures redirect to the portal root) and extracts `?tab=` /
- * `?session=` from `searchParams`, passing them as plain props.
- *
- * URL contract (URL IS the state — no parallel local copy, no Zustand):
- *  - `?student=` is NOT used here — the studentId arrives from the
- *    server-validated path segment. The child switcher navigates to
- *    `/parent/children/<newId>` (replaces the path segment, preserving
- *    `?tab=` and `?session=`) via `router.push` so the back button
- *    still works.
- *  - MUI `Tabs` writes `?tab=<attendance|reports|homework|evaluations
- *    |progress>` via `router.replace` (no history churn per tab click).
- *  - `?session=<id>` is forwarded to the Reports tab, which scrolls
- *    the matching session row into view (the deep-link target for
- *    session-scoped notifications).
- *
- * Data: stateful `useQuery(myLinkedChildrenQueryDocument)` — zero-arg
- * (the caller's verified identity IS the read scope). Drives the
- * header (current child's name via id match) and the switcher (full
- * children list). ALL per-tab `useQuery` hooks live in the tab
- * components and re-key on `studentId` so rows never leak across
- * children (Apollo cache isolation).
- *
- * Render state matrix:
- *  - linked-children loading → header + switcher skeleton, tab content
- *    renders independently (the active tab owns its own loading state)
- *  - linked-children FORBIDDEN → `PermissionDeniedFallback` (the
- *    server's `message` is NEVER rendered)
- *  - otherwise → header (title + subtitle) + switcher + MUI Tabs +
- *    active tab component
- *
- * MUI v9 discipline: `sx`-only styling, colors through theme-palette
- * callbacks, `*Outlined` icons, `dir="auto"` on the child name (bidi
- * isolation). Every user-facing string resolves through the
- * `ParentMonitoring` namespace handle.
- */
-
-/** Tab keys in display order — values double as the `?tab=` URL param. */
 const TAB_KEYS = ["attendance", "reports", "homework", "evaluations", "progress"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
-
-/** Default tab when the `?tab=` URL param is missing or unrecognized. */
 const DEFAULT_TAB: TabKey = "attendance";
 
 function isTabKey(value: string): value is TabKey {
@@ -83,11 +48,28 @@ function buildDetailUrl(studentId: string | number, tab: TabKey, session: string
   return `/parent/children/${studentId}?${params.toString()}`;
 }
 
+const TAB_LABEL_KEYS: Readonly<
+  Record<TabKey, "tabAttendance" | "tabReports" | "tabHomework" | "tabEvaluations" | "tabProgress">
+> = {
+  attendance: "tabAttendance",
+  reports: "tabReports",
+  homework: "tabHomework",
+  evaluations: "tabEvaluations",
+  progress: "tabProgress",
+};
+
+const TAB_ICONS: Readonly<Record<TabKey, ReactElement>> = {
+  attendance: <CalendarMonthOutlined fontSize="small" />,
+  reports: <DescriptionOutlined fontSize="small" />,
+  homework: <AssignmentOutlined fontSize="small" />,
+  evaluations: <RateReviewOutlined fontSize="small" />,
+  progress: <TrendingUpOutlined fontSize="small" />,
+};
+
 export function ParentChildDetailContainer(props: Readonly<ParentChildDetailContainerProps>): ReactNode {
   const t = useAppTranslation(ParentMonitoring);
   const router = useRouter();
-
-  const { data, loading, error } = useQuery(myLinkedChildrenQueryDocument);
+  const { data, loading, error, refetch } = useQuery(myLinkedChildrenQueryDocument);
 
   const errorCode = error ? extractErrorCode(error) : null;
   const denied =
@@ -106,7 +88,6 @@ export function ParentChildDetailContainer(props: Readonly<ParentChildDetailCont
   const handleTabChange = (_: unknown, value: TabKey) => {
     router.replace(buildDetailUrl(props.studentId, value, props.session));
   };
-
   const handleSwitcherChange = (newId: string) => {
     router.push(buildDetailUrl(newId, activeTab, props.session));
   };
@@ -134,13 +115,35 @@ export function ParentChildDetailContainer(props: Readonly<ParentChildDetailCont
 
   return (
     <Stack spacing={3} sx={{ width: "100%" }}>
-      <Box component="header">
-        <Typography variant="h5" component="h1" dir="auto" sx={{ fontWeight: 700 }}>
-          {headerTitle}
-        </Typography>
-        <Typography variant="body1" sx={theme => ({ color: theme.palette.text.secondary })}>
-          {t.detailPageSubtitle}
-        </Typography>
+      <Box
+        sx={theme => ({
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 2,
+          borderBottom: 2,
+          borderColor: theme.palette.primary.main,
+          paddingBottom: 2,
+        })}
+      >
+        <Box component="header" sx={{ flex: 1 }}>
+          <Typography variant="h5" component="h1" dir="auto" sx={{ fontWeight: 700 }}>
+            {headerTitle}
+          </Typography>
+          <Typography variant="body1" sx={theme => ({ color: theme.palette.text.secondary })}>
+            {t.detailPageSubtitle}
+          </Typography>
+        </Box>
+        <IconButton
+          aria-label={t.refreshLabel}
+          onClick={() => {
+            void refetch();
+          }}
+          disabled={loading}
+          size="small"
+        >
+          <RefreshOutlined />
+        </IconButton>
       </Box>
       <ChildSwitcher
         linkedChildren={children}
@@ -155,24 +158,23 @@ export function ParentChildDetailContainer(props: Readonly<ParentChildDetailCont
         variant="scrollable"
         scrollButtons="auto"
         aria-label={t.detailPageSubtitle}
+        sx={theme => ({
+          borderBottom: 1,
+          borderColor: theme.palette.divider,
+          "& .MuiTab-root": { minHeight: 56, textTransform: "none" },
+        })}
       >
-        <Tab value="attendance" label={t.tabAttendance} />
-        <Tab value="reports" label={t.tabReports} />
-        <Tab value="homework" label={t.tabHomework} />
-        <Tab value="evaluations" label={t.tabEvaluations} />
-        <Tab value="progress" label={t.tabProgress} />
+        {TAB_KEYS.map(key => (
+          <Tab key={key} value={key} label={t[TAB_LABEL_KEYS[key]]} icon={TAB_ICONS[key]} iconPosition="start" />
+        ))}
       </Tabs>
       <Box component="section">{tabContent}</Box>
     </Stack>
   );
 }
 
-/** Props contract — studentId/tab/session arrive validated from the server page. */
 export interface ParentChildDetailContainerProps {
-  /** The active child id (server-validated path segment). */
   readonly studentId: number;
-  /** The `?tab=` URL value (null if absent). */
   readonly tab: string | null;
-  /** The `?session=` deep-link target (null if absent). */
   readonly session: string | null;
 }

@@ -56,7 +56,7 @@ import { ParentMonitoring } from "@/shared/locale/namespaces/parentMonitoring";
 
 // ─── Mandated key inventory (the parent-monitoring surface ground truth) ───
 
-/** Every key the parentMonitoring UI namespace must carry (62 slots). */
+/** Every key the parentMonitoring UI namespace must carry (66 slots). */
 const MANDATED_KEYS = [
   // Portal root / linked-children list
   "portalPageTitle",
@@ -131,6 +131,10 @@ const MANDATED_KEYS = [
   // Loading / error scaffolding
   "loadingLabel",
   "loadErrorBody",
+  "refreshLabel",
+  "lastUpdatedLabel",
+  "statTotalChildren",
+  "statRecentSessions",
 ] as const;
 
 /**
@@ -156,8 +160,8 @@ const STATUS_LABEL_KEYS = [
 ] as const;
 
 /**
- * The eight function-valued slots (detail-page title interpolation + the
- * seven plural-count functions across children, attendance, reports,
+ * The nine function-valued slots (detail-page title interpolation + the
+ * eight function slots (seven plural-count + last-updated interpolation) across children, attendance, reports,
  * homework, evaluations, progress).
  */
 const FUNCTION_KEYS = [
@@ -168,6 +172,7 @@ const FUNCTION_KEYS = [
   "homeworkCount",
   "evaluationsCount",
   "progressRowCount",
+  "lastUpdatedLabel",
 ] as const;
 
 /** Arabic-script probe — at least one Arabic-block character in the value. */
@@ -217,7 +222,7 @@ describe("compile-time parity mirror — ar/en key sets agree", () => {
     expect(Object.hasOwn(parentMonitoringEn, key)).toBe(true);
   });
 
-  test("the mandated inventory is exhaustive (no silent key minting beyond the 62 slots)", () => {
+  test("the mandated inventory is exhaustive (no silent key minting beyond the 66 slots)", () => {
     const mandated = new Set<string>(MANDATED_KEYS);
     for (const key of Object.keys(parentMonitoringAr)) {
       expect(mandated.has(key)).toBe(true);
@@ -262,7 +267,7 @@ describe("no English fallthrough — ar map carries Arabic copy for every string
     }
   });
 
-  test("all eight ar FUNCTION slots return Arabic-script output for Arabic-flavored arguments", () => {
+  test("all nine ar FUNCTION slots return Arabic-script output for Arabic-flavored arguments", () => {
     const arChildName = "ولي الأمر";
     expect(ARABIC_SCRIPT.test(parentMonitoringAr.childrenCount(2))).toBe(true);
     expect(ARABIC_SCRIPT.test(parentMonitoringAr.detailPageTitle(arChildName))).toBe(true);
@@ -351,7 +356,7 @@ describe("template pins — function slots expand their arguments", () => {
     expect(parentMonitoringAr.progressRowCount(15)).toContain("سجل");
   });
 
-  test("all eight function slots are callable with non-empty output in BOTH locales", () => {
+  test("all nine function slots are callable with non-empty output in BOTH locales", () => {
     expect(parentMonitoringEn.childrenCount(2).length).toBeGreaterThan(0);
     expect(parentMonitoringEn.detailPageTitle("Adam").length).toBeGreaterThan(0);
     expect(parentMonitoringEn.attendanceCount(2).length).toBeGreaterThan(0);
@@ -370,7 +375,7 @@ describe("template pins — function slots expand their arguments", () => {
 });
 
 // ===========================================================================
-describe("function-slot inventory — exactly the eight locale functions, on BOTH maps", () => {
+describe("function-slot inventory — exactly the nine locale functions, on BOTH maps", () => {
   test.each([...FUNCTION_KEYS])("slot `%s` is a function on BOTH maps", key => {
     expect(typeof Reflect.get(parentMonitoringAr, key)).toBe("function");
     expect(typeof Reflect.get(parentMonitoringEn, key)).toBe("function");

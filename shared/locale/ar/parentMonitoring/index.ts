@@ -121,4 +121,8 @@ export const parentMonitoringAr: ParentMonitoringLabels = {
   // ─── Loading / error scaffolding ────────────────────────────────────────
   loadingLabel: "جارٍ التحميل…",
   loadErrorBody: "تعذّر تحميل هذه المعلومات الآن. يرجى المحاولة مرة أخرى.",
+  refreshLabel: "تحديث",
+  lastUpdatedLabel: (timestamp: string): string => `آخر تحديث: ${timestamp}`,
+  statTotalChildren: "إجمالي الأبناء",
+  statRecentSessions: "الحصص الأخيرة",
 };

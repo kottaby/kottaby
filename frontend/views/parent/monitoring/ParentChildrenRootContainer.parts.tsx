@@ -1,22 +1,13 @@
 "use client";
 
-import { Card, Skeleton, Stack, Typography } from "@mui/material";
+import { Avatar, Card, Skeleton, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { MyLinkedChildrenQuery_myLinkedChildren } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { childInitial } from "@/frontend/views/parent/monitoring/parentMonitoringDisplay";
 
-/**
- * Presentational parts of the ParentChildrenRootContainer — the
- * skeleton placeholder and the per-child card. Extracted from the
- * stateful container so the hook-bearing component stays inside the
- * file-size budget (frontend/views/* is capped at 150 lines per
- * `oxlint.config.mts`).
- */
-
-/** Stable skeleton keys (avoids `noArrayIndexKey`). */
 const ROOT_SKELETON_KEYS: readonly string[] = ["children-skeleton-1", "children-skeleton-2", "children-skeleton-3"];
 
-/** Skeleton placeholder for the initial-load state. */
 export function ChildrenListSkeleton(): ReactNode {
   return (
     <Stack aria-busy="true" data-testid="parent-children-loading" sx={{ gap: 2 }}>
@@ -26,25 +17,28 @@ export function ChildrenListSkeleton(): ReactNode {
           variant="outlined"
           sx={theme => ({
             display: "flex",
-            flexDirection: "column",
-            gap: 1,
-            padding: 2,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 2,
+            padding: { xs: 2, sm: 2.5 },
             borderRadius: 2,
             borderColor: theme.palette.border.main,
+            transition: theme.transitions.create(["box-shadow", "border-color"], {
+              duration: theme.transitions.duration.shorter,
+            }),
           })}
         >
-          <Skeleton variant="text" sx={{ fontSize: "1rem", maxWidth: 200 }} />
-          <Skeleton variant="text" sx={{ fontSize: "0.875rem", maxWidth: 140 }} />
+          <Skeleton variant="circular" sx={{ width: 44, height: 44 }} />
+          <Stack sx={{ gap: 0.5, flex: 1 }}>
+            <Skeleton variant="text" sx={{ fontSize: "1rem", maxWidth: 200 }} />
+            <Skeleton variant="text" sx={{ fontSize: "0.875rem", maxWidth: 140 }} />
+          </Stack>
         </Card>
       ))}
     </Stack>
   );
 }
 
-/**
- * One linked-child card — full name + link-establishment date. Clicking
- * the card navigates to the child's detail URL (`/parent/children/<id>`).
- */
 export function ChildCard({
   child,
   locale,
@@ -63,24 +57,68 @@ export function ChildCard({
       onClick={() => onSelect(child.id)}
       sx={theme => ({
         display: "flex",
-        flexDirection: "column",
-        gap: 0.5,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 2,
         padding: { xs: 2, sm: 2.5 },
         borderRadius: 2,
         borderColor: theme.palette.border.main,
         bgcolor: "transparent",
         cursor: "pointer",
         textAlign: "start",
-        "&:hover": { borderColor: theme.palette.primary.main },
-        "&:focus-visible": { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 2 },
+        position: "relative",
+        overflow: "hidden",
+        transition: theme.transitions.create(["box-shadow", "border-color", "transform"], {
+          duration: theme.transitions.duration.short,
+        }),
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 4,
+          bgcolor: theme.palette.primary.main,
+          opacity: 0,
+          transition: theme.transitions.create("opacity", {
+            duration: theme.transitions.duration.short,
+          }),
+        },
+        "&:hover": {
+          borderColor: theme.palette.primary.main,
+          boxShadow: theme.shadows[4],
+          transform: "translateY(-2px)",
+        },
+        "&:hover::before": {
+          opacity: 1,
+        },
+        "&:focus-visible": {
+          outline: `2px solid ${theme.palette.primary.main}`,
+          outlineOffset: 2,
+        },
       })}
     >
-      <Typography variant="subtitle1" component="span" dir="auto" sx={{ fontWeight: 700 }}>
-        {child.fullName}
-      </Typography>
-      <Typography variant="body2" component="span" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
-        {formatApplicantDate(child.createdAt, locale)}
-      </Typography>
+      <Avatar
+        sx={theme => ({
+          width: 44,
+          height: 44,
+          fontSize: "1.25rem",
+          fontWeight: 700,
+          bgcolor: theme.palette.primary.main,
+          color: theme.palette.primary.contrastText,
+          flexShrink: 0,
+        })}
+      >
+        {childInitial(child.fullName)}
+      </Avatar>
+      <Stack sx={{ gap: 0.5, flex: 1, minWidth: 0 }}>
+        <Typography variant="subtitle1" component="span" dir="auto" sx={{ fontWeight: 700 }}>
+          {child.fullName}
+        </Typography>
+        <Typography variant="body2" component="span" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
+          {formatApplicantDate(child.createdAt, locale)}
+        </Typography>
+      </Stack>
     </Card>
   );
 }
