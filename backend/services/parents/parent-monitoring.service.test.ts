@@ -814,9 +814,10 @@ describe("ParentMonitoringService — Tier 4 (denial oracle across all per-stude
     // Serial, deliberately NOT Promise.all: the per-cause repo spies target
     // shared module singletons, so parallel cells overwrite each other's mocks
     // mid-flight and a cell can slip past the denial oracle (CI flake: 19/20
-    // fingerprints). Serial keeps each cell's spy setup scoped to its own call.
-    for (const method of PER_STUDENT_METHODS) {
-      for (const causeId of CAUSES) {
+    // fingerprints). The cells chain through reduce()/then() — awaited
+    // sequentially without an await inside a loop statement.
+    const cells: ReadonlyArray<() => Promise<void>> = PER_STUDENT_METHODS.flatMap(method =>
+      CAUSES.map(causeId => async () => {
         await runInRollback(async tx => {
           silenceDomainLog();
           mockActorAndGateSuccess();
@@ -833,8 +834,9 @@ describe("ParentMonitoringService — Tier 4 (denial oracle across all per-stude
             fingerprints.push(JSON.stringify({ code: err.code, message: err.message }));
           }
         });
-      }
-    }
+      })
+    );
+    await cells.reduce<Promise<void>>((chain, cell) => chain.then(cell), Promise.resolve());
     expect(fingerprints).toHaveLength(PER_STUDENT_METHODS.length * CAUSES.length);
     expect(new Set(fingerprints).size).toBe(1);
     expect(fingerprints[0]).toBe(JSON.stringify({ code: "FORBIDDEN", message: enErrors.forbidden }));
