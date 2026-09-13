@@ -41,6 +41,7 @@ export const errorsAr: ErrorsLabels = {
   applicantNotFound: "لم يتم العثور على طلب التقديم كمعلم قرآن.",
   applicantCooldownActive: "يمكنك إعادة التقديم للتحقق كمعلم قرآن بعد {cooldownUntil}.",
   applicantStatusCorrupt: "تعذر قراءة حالة طلبك. يرجى التواصل مع فريق الدعم.",
+  applicantAlreadyCertified: "لقد تم اعتمادك كمعلم قرآن بالفعل، ولا يمكن إعادة عملية التحقق.",
   adminUsers: {
     userNotFound: "لم يتم العثور على المستخدم.",
     userAlreadyDeleted: "تم حذف هذا المستخدم بالفعل.",

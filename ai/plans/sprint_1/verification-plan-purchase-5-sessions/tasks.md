@@ -55,35 +55,35 @@
 
 ## Phase 2 — Backend Foundation
 
-- [ ] 1. **Nullable payment owner + type ripple audit**
+- [x] 1. **Nullable payment owner + type ripple audit**
   - Files: `backend/db/schema/billing/student-payments.ts` (drop `.notNull()` on `studentId` ~:38-40); run `bun run db push`.
   - Widen `StudentPaymentRepository.insertPayment` input (`backend/db/repo/billing/student-payment.repository.ts:92`) and any payment insert contract to `studentId: number | null`.
   - Audit NULL-context consumers of `StudentPaymentSelectType.studentId` (admin views, queries, codegen types); fix ONLY nullability compile errors — no behavior changes.
-  - [ ] 1.QL `bun run scripts/health/sub-loop.ts backend/db/schema/billing/student-payments.ts --lifecycle duplicates` + same for each edited file (exit 0)
-  - [ ] 1.TE Repo test (in `backend/db/test/logic/billing/student-payment.repository.test.ts` or colocated repo test): insert with `studentId = NULL` succeeds; existing non-null inserts unchanged; immutability trigger still blocks deletes. `runInRollback` + `tx` everywhere; `expectRepoError` for denials.
-  - [ ] 1.SEC NULL owner never widens read scope; no predicate change that hides student_id IS NULL rows from admins.
-  - [ ] 1.SR Checklist: no cross-layer imports; db push generated SQL matches intent (review the push diff).
-  - [ ] 1.IV Read printed AGENTS/instruction files; validate.
+  - [x] 1.QL `bun run scripts/health/sub-loop.ts backend/db/schema/billing/student-payments.ts --lifecycle duplicates` + same for each edited file (exit 0)
+  - [x] 1.TE Repo test (in `backend/db/test/logic/billing/student-payment.repository.test.ts` or colocated repo test): insert with `studentId = NULL` succeeds; existing non-null inserts unchanged; immutability trigger still blocks deletes. `runInRollback` + `tx` everywhere; `expectRepoError` for denials.
+  - [x] 1.SEC NULL owner never widens read scope; no predicate change that hides student_id IS NULL rows from admins.
+  - [x] 1.SR Checklist: no cross-layer imports; db push generated SQL matches intent (review the push diff).
+  - [x] 1.IV Read printed AGENTS/instruction files; validate.
   - _Requirements: REQ-3.2, REQ-3.4, REQ-9_
 
-- [ ] 2. **Applicant transition write + guard hardening**
+- [x] 2. **Applicant transition write + guard hardening**
   - Files: `backend/db/repo/teachers/applicant.repository.ts` (add `transitionToInEvaluation(userId, tx?)` — guarded single-statement UPDATE `SET status='in_evaluation', updated_at=now() WHERE id=$1 AND status IN ('pending','failed') RETURNING *`, `null` on miss); `backend/services/teachers/applicant-lifecycle.service.ts:196-228` (add `status === ApplicantStatus.Passed` rejection with `ValidationError("APPLICANT_ALREADY_CERTIFIED", t.applicantAlreadyCertified)` + `logDomainError`; `ApplicantStatus` as VALUE import).
   - i18n: `errors.applicantAlreadyCertified` → `shared/locale/types/errors/labels.ts`, `shared/locale/en/errors/index.ts`, `shared/locale/ar/errors/index.ts`; extend `shared/locale/errors-namespace.parity.test.ts` pins.
-  - [ ] 2.QL sub-loop `--lifecycle duplicates` on every edited file → exit 0
-  - [ ] 2.TE `backend/db/test/repo/teachers/applicant.repository.transition.test.ts`: pending→flip, failed→flip, zero-row no-op for in_evaluation/passed, nonexistent id → null. Guard tests appended to `backend/services/teachers/applicant-lifecycle.service.test.ts`: passed → code + translated message via `getServerTranslations("en").errorsTranslations.applicantAlreadyCertified`; existing cooldown cases stay green. Tiers 1-4 (boundary timestamp, concurrency via Promise.allSettled on transition, unicode names).
-  - [ ] 2.SEC Guarded UPDATE folds state into WHERE (no SELECT-then-UPDATE); zero-row handled; no new read surfaces.
-  - [ ] 2.SR No module state; no env-config additions needed; enums as value imports.
-  - [ ] 2.IV Read printed rule files; validate.
+  - [x] 2.QL sub-loop `--lifecycle duplicates` on every edited file → exit 0
+  - [x] 2.TE `backend/db/test/repo/teachers/applicant.repository.transition.test.ts`: pending→flip, failed→flip, zero-row no-op for in_evaluation/passed, nonexistent id → null. Guard tests appended to `backend/services/teachers/applicant-lifecycle.service.test.ts`: passed → code + translated message via `getServerTranslations("en").errorsTranslations.applicantAlreadyCertified`; existing cooldown cases stay green. Tiers 1-4 (boundary timestamp, concurrency via Promise.allSettled on transition, unicode names).
+  - [x] 2.SEC Guarded UPDATE folds state into WHERE (no SELECT-then-UPDATE); zero-row handled; no new read surfaces.
+  - [x] 2.SR No module state; no env-config additions needed; enums as value imports.
+  - [x] 2.IV Read printed rule files; validate.
   - _Requirements: REQ-4.1-4.3, REQ-4.5, REQ-4.6, REQ-7.1, REQ-0.5, REQ-8.1_
 
-- [ ] 3. **Shared verification-plan constants**
+- [x] 3. **Shared verification-plan constants**
   - Files: CREATE `shared/constants/verification-plan.constants.ts` (`export const VERIFICATION_PLAN_TITLE = "New Teacher Verification & Evaluation Plan" as const;` + `export const VERIFICATION_PLAN_SESSION_COUNT = 5 as const;`); register in `shared/constants/index.ts` barrel (`export * from "./verification-plan.constants"`).
   - UPDATE `backend/db/seeds/billing/seed-plans.ts:53-59` to source those fields from the constants (title, sessionCount) — prevents drift.
-  - [ ] 3.QL sub-loop per file (constants + barrel + seed) → exit 0
-  - [ ] 3.TE Extend `backend/db/test/logic/billing/plan-seed.test.ts` (or add a constants unit test): seeded plan carries the constant values; `sessionCount === 5` pinned (ticket's "Verification plan has exactly 5 sessions").
-  - [ ] 3.SEC Constants are read-only data; no env coupling.
-  - [ ] 3.SR `shared/` imports nothing from frontend/backend; barrel conventions honored.
-  - [ ] 3.IV Read printed rule files; validate.
+  - [x] 3.QL sub-loop per file (constants + barrel + seed) → exit 0
+  - [x] 3.TE Extend `backend/db/test/logic/billing/plan-seed.test.ts` (or add a constants unit test): seeded plan carries the constant values; `sessionCount === 5` pinned (ticket's "Verification plan has exactly 5 sessions").
+  - [x] 3.SEC Constants are read-only data; no env coupling.
+  - [x] 3.SR `shared/` imports nothing from frontend/backend; barrel conventions honored.
+  - [x] 3.IV Read printed rule files; validate.
   - _Requirements: REQ-1.1-1.4_
 
 ---

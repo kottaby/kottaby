@@ -204,6 +204,25 @@ describe("recitation record denial keys — flat domain additions on BOTH locale
 });
 
 // ===========================================================================
+describe("applicant purchase denial key — flat domain addition on BOTH locales", () => {
+  test("applicantAlreadyCertified is a top-level non-empty string on BOTH locale maps", () => {
+    // The `ErrorMessageKey` annotation below is the compile-time flatness
+    // proof itself: it admits ONLY `ErrorsLabels` slots typed as plain
+    // `string`, so nesting `applicantAlreadyCertified` under a grouped
+    // sub-block fails `bun tsgo` before this suite ever runs. Pinned
+    // explicitly (like the session-report keys above) because the
+    // route-source discovery cannot see service-tier consumers — the
+    // lifecycle guard resolves this key via
+    // `getServerTranslations(locale).errorsTranslations`.
+    const key: ErrorMessageKey = "applicantAlreadyCertified";
+    expect(Object.hasOwn(errorsAr, key)).toBe(true);
+    expect(Object.hasOwn(errorsEn, key)).toBe(true);
+    expect(nonEmptyLabelOf(errorsAr, key, "ar").length).toBeGreaterThan(0);
+    expect(nonEmptyLabelOf(errorsEn, key, "en").length).toBeGreaterThan(0);
+  });
+});
+
+// ===========================================================================
 describe("machine-constant exemption — `_health` payload constants stay OUT of locale files", () => {
   test("ZERO health-flavored keys exist in either locale's errors map", () => {
     for (const key of [...Object.keys(errorsAr), ...Object.keys(errorsEn)]) {

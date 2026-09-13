@@ -3,7 +3,9 @@
  *
  * Verifies:
  *  - Demo catalog seeding produces the expected plans.
- *  - Verification plan has `sessionCount = 5`.
+ *  - Verification plan is pinned to the shared verification-plan identity
+ *    constants (canonical title, sessionCount = 5) at the spec level and
+ *    carries both values in the seeded catalog row.
  *  - Every demo plan carries its declared balance lane.
  *  - Idempotency: Multiple seed passes produce no duplicate rows.
  *  - Deactivated demo plan is correctly marked inactive.
@@ -14,6 +16,10 @@ import { INITIAL_DEMO_PLANS, seedOrGet } from "@/backend/db/seeds/billing/seed-p
 import { createTestUser } from "@/backend/db/test/entity-setup";
 import { runInRollback } from "@/backend/db/test/test-utils";
 import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.service";
+import {
+  VERIFICATION_PLAN_SESSION_COUNT,
+  VERIFICATION_PLAN_TITLE,
+} from "@/shared/constants/verification-plan.constants";
 
 describe("Plan Catalog Seeding", () => {
   test("seedOrGet creates all demo plans and is idempotent on repeat execution", async () => {
@@ -27,9 +33,10 @@ describe("Plan Catalog Seeding", () => {
       const firstPass = await seedOrGet("en", admin.id, tx);
       expect(firstPass).toHaveLength(INITIAL_DEMO_PLANS.length);
 
-      // Verify "New Teacher Verification & Evaluation Plan" has sessionCount = 5
-      const verificationPlan = firstPass.find(p => p.title === "New Teacher Verification & Evaluation Plan");
+      // Verify the verification plan carries the canonical identity constants
+      const verificationPlan = firstPass.find(p => p.title === VERIFICATION_PLAN_TITLE);
       expect(verificationPlan).toBeDefined();
+      expect(verificationPlan?.sessionCount).toBe(VERIFICATION_PLAN_SESSION_COUNT);
       expect(verificationPlan?.sessionCount).toBe(5);
       expect(verificationPlan?.isActive).toBe(true);
 
@@ -51,5 +58,16 @@ describe("Plan Catalog Seeding", () => {
         expect(found?.balanceLane).toBe(demoPlan.balanceLane);
       }
     });
+  });
+
+  test("demo verification-plan spec is pinned to the shared identity constants", () => {
+    // The seeder itself must source the verification plan's identity from the
+    // shared constants — a literal here would silently drift from server-side
+    // plan resolution.
+    const verificationSpec = INITIAL_DEMO_PLANS.find(spec => spec.title === VERIFICATION_PLAN_TITLE);
+    expect(verificationSpec).toBeDefined();
+    expect(verificationSpec?.sessionCount).toBe(VERIFICATION_PLAN_SESSION_COUNT);
+    expect(verificationSpec?.sessionCount).toBe(5);
+    expect(verificationSpec?.shouldBeActive).toBe(true);
   });
 });

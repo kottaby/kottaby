@@ -35,9 +35,7 @@ export const studentPayments = pgTable(
   "student_payments",
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-    studentId: integer("student_id")
-      .notNull()
-      .references(() => students.id, { onDelete: "restrict" }),
+    studentId: integer("student_id").references(() => students.id, { onDelete: "restrict" }), // nullable owner: student id, or NULL for verification purchases (owner = subscriptions.user_id)
     subscriptionId: integer("subscription_id").references(() => subscriptions.id, {
       onDelete: "set null",
     }),

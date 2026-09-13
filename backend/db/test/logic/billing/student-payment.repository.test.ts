@@ -2,16 +2,25 @@
  * StudentPaymentRepository tests — 4-Tier verification suite, including the
  * payment-ledger trigger matrix.
  *
- * Tier 1: Happy-path data access (insert, findBySubscriptionId).
+ * Tier 1: Happy-path data access (insert with a student owner, insert with a
+ *         NULL owner, findBySubscriptionId).
  * Tier 2: Boundary conditions (unknown subscription id → null).
  * Tier 3: Guarded decisions + allowed trigger matrix rows (pending→paid ✅,
- *         pending→failed ✅, replay zero-rows after a decision).
+ *         pending→failed ✅, replay zero-rows after a decision — for owned
+ *         AND NULL-owner rows).
  * Tier 4: Blocked trigger matrix rows (paid→anything ❌, amount tamper ❌,
- *         DELETE ❌) — each violated expectation raises the DB guard, proven
- *         through the `expectRepoError` try/catch helper inside an explicit
- *         SAVEPOINT bracket created AFTER the probe row insert (a failed
- *         statement aborts the surrounding transaction; the savepoint keeps
- *         it queryable). NEVER `expect(...).rejects` inside a rollback.
+ *         owner assignment ❌, DELETE ❌) — each violated expectation raises
+ *         the DB guard, proven through the `expectRepoError` try/catch helper
+ *         inside an explicit SAVEPOINT bracket created AFTER the probe row
+ *         insert (a failed statement aborts the surrounding transaction; the
+ *         savepoint keeps it queryable). NEVER `expect(...).rejects` inside a
+ *         rollback.
+ *
+ * NULL owner: a payment whose purchaser has no `students` row (the owner is
+ * the subscription's generic user) inserts with `studentId = NULL` and lives
+ * under the exact same immutability trigger — the NULL-safe column freeze
+ * (`IS NOT DISTINCT FROM`) treats a NULL→value owner edit as a blocked
+ * identity change, and DELETE stays blocked.
  *
  * Probe gotchas encoded here: `now()` is transaction-stable (financial
  * columns are snapshotted before any write and compared after), and the
@@ -145,6 +154,43 @@ describe("StudentPaymentRepository", () => {
     });
   });
 
+  test("insertPayment accepts a NULL owner — a purchaser with no students row", async () => {
+    await runInRollback(async tx => {
+      // No `students` row exists for this purchaser (the owner of record is
+      // the subscription's generic user id) — the ledger row inserts with a
+      // NULL owner and reads it back verbatim.
+      const purchaser = await createTestUser(tx, { role: "teacher" });
+      const plan = await createTestPlan(tx);
+      const subscription = await createTestSubscription(tx, purchaser.id, plan.id, {
+        status: SubscriptionStatus.Pending,
+      });
+
+      const inserted = await StudentPaymentRepository.insertPayment(
+        {
+          studentId: null,
+          subscriptionId: subscription.id,
+          amount: plan.price,
+          currency: plan.currency,
+          paymentGateway: PaymentGateway.Mock,
+        },
+        tx
+      );
+
+      expect(inserted.id).toBeGreaterThan(0);
+      expect(inserted.studentId).toBeNull();
+      expect(inserted.subscriptionId).toBe(subscription.id);
+      expect(inserted.amount).toBe(plan.price);
+      expect(inserted.currency).toBe(plan.currency);
+      expect(inserted.paymentGateway).toBe(PaymentGateway.Mock);
+      expect(inserted.status).toBe(PaymentStatus.Pending);
+
+      const found = await StudentPaymentRepository.findBySubscriptionId(subscription.id, tx);
+      expect(found).not.toBeNull();
+      expect(found?.id).toBe(inserted.id);
+      expect(found?.studentId).toBeNull();
+    });
+  });
+
   // ─── Tier 3: Guarded decisions — the ALLOWED trigger matrix rows ────────
 
   test("pending→paid: markPaidOnce flips only the status and freezes every financial column", async () => {
@@ -200,6 +246,39 @@ describe("StudentPaymentRepository", () => {
       const after = await StudentPaymentRepository.findBySubscriptionId(subscriptionId, tx);
       expect(after?.status).toBe(PaymentStatus.Failed);
       expect(after?.amount).toBe(payment.amount);
+    });
+  });
+
+  test("pending→paid on a NULL-owner row: the allowed decision keeps the owner NULL", async () => {
+    await runInRollback(async tx => {
+      const purchaser = await createTestUser(tx, { role: "teacher" });
+      const plan = await createTestPlan(tx);
+      const subscription = await createTestSubscription(tx, purchaser.id, plan.id, {
+        status: SubscriptionStatus.Pending,
+      });
+      const payment = await StudentPaymentRepository.insertPayment(
+        {
+          studentId: null,
+          subscriptionId: subscription.id,
+          amount: plan.price,
+          currency: plan.currency,
+          paymentGateway: PaymentGateway.Mock,
+        },
+        tx
+      );
+
+      const paid = await StudentPaymentRepository.markPaidOnce(subscription.id, tx);
+      expect(paid).not.toBeNull();
+      if (paid) {
+        expect(paid.id).toBe(payment.id);
+        expect(paid.status).toBe(PaymentStatus.Paid);
+        expect(paid.studentId).toBeNull();
+        expect(paid.amount).toBe(payment.amount);
+        expect(paid.createdAt).toEqual(payment.createdAt);
+      }
+
+      // Replay delivery: zero rows, same guarded posture as owned rows.
+      expect(await StudentPaymentRepository.markPaidOnce(subscription.id, tx)).toBeNull();
     });
   });
 
@@ -289,6 +368,66 @@ describe("StudentPaymentRepository", () => {
       // Post-rollback the ledger row survived the blocked delete.
       const after = await StudentPaymentRepository.findBySubscriptionId(subscriptionId, tx);
       expect(after?.id).toBe(payment.id);
+    });
+  });
+
+  test("NULL-owner rows live under the same trigger: owner assignment and DELETE are blocked", async () => {
+    await runInRollback(async tx => {
+      const purchaser = await createTestUser(tx, { role: "teacher" });
+      const plan = await createTestPlan(tx);
+      const subscription = await createTestSubscription(tx, purchaser.id, plan.id, {
+        status: SubscriptionStatus.Pending,
+      });
+      const payment = await StudentPaymentRepository.insertPayment(
+        {
+          studentId: null,
+          subscriptionId: subscription.id,
+          amount: plan.price,
+          currency: plan.currency,
+          paymentGateway: PaymentGateway.Mock,
+        },
+        tx
+      );
+
+      // A real students.id — the FK must not be the blocker; the guard is.
+      const ownerCandidate = await createTestStudent(tx, (await createTestUser(tx, { role: "student" })).id);
+
+      // Bracket 1 — owner assignment smuggled into the permitted transition
+      // (NULL → a student id is a NULL-unsafe `=`'s classic escape; the
+      // NULL-safe freeze rejects it).
+      await tx.execute(sql`savepoint pay_null_owner_assign_probe`);
+      const assignError = await expectRepoError(() =>
+        tx
+          .update(studentPayments)
+          .set({ status: PaymentStatus.Paid, studentId: ownerCandidate.id })
+          .where(eq(studentPayments.id, payment.id))
+      );
+      await tx.execute(sql`rollback to savepoint pay_null_owner_assign_probe`);
+      expect(causeChainContainsMessage(assignError, UPDATE_GUARD_IMMUTABLE)).toBe(true);
+      expect(causeChainContainsMessage(assignError, UPDATE_GUARD_EXCEPTION)).toBe(true);
+
+      // Bracket 2 — plain owner edit with the status untouched.
+      await tx.execute(sql`savepoint pay_null_owner_edit_probe`);
+      const editError = await expectRepoError(() =>
+        tx.update(studentPayments).set({ studentId: ownerCandidate.id }).where(eq(studentPayments.id, payment.id))
+      );
+      await tx.execute(sql`rollback to savepoint pay_null_owner_edit_probe`);
+      expect(causeChainContainsMessage(editError, UPDATE_GUARD_IMMUTABLE)).toBe(true);
+
+      // Bracket 3 — DELETE stays blocked for a NULL-owner row.
+      await tx.execute(sql`savepoint pay_null_owner_delete_probe`);
+      const deleteError = await expectRepoError(() =>
+        tx.delete(studentPayments).where(eq(studentPayments.id, payment.id))
+      );
+      await tx.execute(sql`rollback to savepoint pay_null_owner_delete_probe`);
+      expect(causeChainContainsMessage(deleteError, UPDATE_GUARD_IMMUTABLE)).toBe(true);
+      expect(causeChainContainsMessage(deleteError, DELETE_GUARD_MESSAGE)).toBe(true);
+
+      // Post-rollback: still pending, owner still NULL, row intact.
+      const after = await StudentPaymentRepository.findBySubscriptionId(subscription.id, tx);
+      expect(after?.id).toBe(payment.id);
+      expect(after?.status).toBe(PaymentStatus.Pending);
+      expect(after?.studentId).toBeNull();
     });
   });
 });

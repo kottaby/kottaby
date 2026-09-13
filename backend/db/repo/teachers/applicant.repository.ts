@@ -19,7 +19,7 @@
  *    prepared statements — writes are excluded from preparation
  *    (`docs/drizzle/prepared-statements.md`).
  */
-import { and, desc, eq, ilike, or, type SQL, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, type SQL, sql } from "drizzle-orm";
 import type { PoolClient } from "pg";
 import { db, queryDb } from "@/backend/db";
 import { applicants } from "@/backend/db/schema/teachers/applicants";
@@ -228,6 +228,54 @@ export namespace ApplicantRepository {
     }
     // Standalone write — global db handle.
     const [row] = await db.update(applicants).set(attemptIncrement).where(eq(applicants.id, userId)).returning();
+    return row ?? null;
+  }
+
+  /**
+   * Guarded lifecycle transition `pending|failed` → `in_evaluation` — the
+   * status flip that opens an applicant's verification evaluation.
+   *
+   * Single-statement GUARDED UPDATE: the enterable prior states are folded
+   * into the WHERE predicate (`id = :userId AND status IN ('pending',
+   * 'failed')`) — never a read-then-write — and the RETURNING clause yields
+   * the post-transition row. Zero rows matched means the applicant is NOT in
+   * an enterable state (already `in_evaluation` — a concurrent/repeat caller,
+   * `passed` — rejected upstream by the lifecycle guard, or no row at all);
+   * the service tier disambiguates the reason, so `null` is a signal, not an
+   * error.
+   *
+   * `updated_at` is stamped DB-side (`now()`); `verification_attempts`,
+   * `last_attempt_at`, and `cooldown_until` are deliberately untouched —
+   * attempt accounting belongs to `recordVerificationAttempt` and the
+   * cooldown lifecycle to the write side.
+   *
+   * Parameterized always; no prepared statement (writes are excluded —
+   * `docs/drizzle/prepared-statements.md`).
+   *
+   * @returns The updated applicant row, or `null` when zero rows matched.
+   */
+  export async function transitionToInEvaluation(
+    userId: number,
+    tx?: DBTransaction
+  ): Promise<ApplicantSelectType | null> {
+    // Single guarded statement — prior state lives in the WHERE predicate, so
+    // racing/repeat callers cannot re-flip a row that already left the
+    // enterable states.
+    const transitionWrite = {
+      status: ApplicantStatus.InEvaluation,
+      updatedAt: sql`now()`,
+    };
+    const transitionGuard = and(
+      eq(applicants.id, userId),
+      inArray(applicants.status, [ApplicantStatus.Pending, ApplicantStatus.Failed])
+    );
+    if (tx) {
+      // Transactional write — joins the caller's atomic purchase flow.
+      const [row] = await tx.update(applicants).set(transitionWrite).where(transitionGuard).returning();
+      return row ?? null;
+    }
+    // Standalone write — global db handle.
+    const [row] = await db.update(applicants).set(transitionWrite).where(transitionGuard).returning();
     return row ?? null;
   }
 

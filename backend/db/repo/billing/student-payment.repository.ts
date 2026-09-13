@@ -84,6 +84,11 @@ export namespace StudentPaymentRepository {
    * the append-only ledger's only writer. The amount is the plan's decimal
    * string carried verbatim by the caller.
    *
+   * The owner is `studentId`: a student's id for student purchases, or
+   * `null` for purchases whose owner is the subscription's generic user
+   * (e.g. verification-plan purchases — the purchaser has no `students`
+   * row by construction).
+   *
    * @returns The inserted payment row with server defaults applied.
    * @throws ConflictError when the INSERT somehow returns no row — the
    *         ledger's append invariant makes that unreachable, so it can

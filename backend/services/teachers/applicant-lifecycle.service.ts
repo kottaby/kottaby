@@ -10,11 +10,13 @@
  *     distinction ever leaks to callers (no-oracle guarantee).
  *  2. `assertCanPurchaseVerification` — pure read + compute guard for
  *     buying verification sessions. Rejects with a localized
- *     `NotFoundError` (`APPLICANT_NOT_FOUND`) on a missing row and a
+ *     `NotFoundError` (`APPLICANT_NOT_FOUND`) on a missing row, a
  *     localized custom-code `ValidationError` (`APPLICANT_COOLDOWN_ACTIVE`)
- *     while a cooldown is active. The cooldown decision reads
- *     `applicants.cooldown_until` ONLY — never `users.suspended` or any
- *     governance field.
+ *     while a cooldown is active, and a localized custom-code
+ *     `ValidationError` (`APPLICANT_ALREADY_CERTIFIED`) when the applicant
+ *     is already `passed` (verification cannot be repeated). The cooldown
+ *     decision reads `applicants.cooldown_until` ONLY — never
+ *     `users.suspended` or any governance field.
  *  3. `recordReapplication` — delegates the single atomic attempt-increment
  *     to `ApplicantRepository.recordVerificationAttempt` and maps its
  *     `null` miss onto a localized `NotFoundError` (the returned updated row
@@ -27,9 +29,9 @@
  *    (cooldown durations belong to the write side, which this service is not).
  *  - Logging: `logger.logDomainError` fires ONLY on the enumerated expected
  *    domain rejections (missing-row guard/reapplication misses, active-
- *    cooldown block). Every happy path — including the profile `null`
- *    answer and the whole of `getMyApplicantProfile` — emits NOTHING.
- *    Unexpected internals bubble up unswallowed to the
+ *    cooldown block, already-certified block). Every happy path — including
+ *    the profile `null` answer and the whole of `getMyApplicantProfile` —
+ *    emits NOTHING. Unexpected internals bubble up unswallowed to the
  *    GraphQL masking boundary.
  *  - Zero writes outside the delegated re-application increment; no locks;
  *    no teacher-table or governance-field contact.
@@ -191,6 +193,11 @@ export namespace ApplicantLifecycleService {
    *     row exists (localized).
    * @throws ValidationError  code `APPLICANT_COOLDOWN_ACTIVE` with the
    *     localized template expanded around the formatted expiry timestamp.
+   * @throws ValidationError  code `APPLICANT_ALREADY_CERTIFIED` with the
+   *     localized literal when the stored status is `passed` — a certified
+   *     applicant can never re-purchase (checked after the cooldown branch,
+   *     so a certified row is rejected on that arm regardless of its
+   *     cooldown timestamps).
    *     Resolves silently otherwise — the happy path emits NOTHING.
    */
   export async function assertCanPurchaseVerification(
@@ -223,6 +230,17 @@ export namespace ApplicantLifecycleService {
         locale,
       });
       throw new ValidationError("APPLICANT_COOLDOWN_ACTIVE", message);
+    }
+    // Certification is terminal — a `passed` applicant can never re-enter
+    // the verification pipeline, no matter what its cooldown timestamps say.
+    if (row.status === ApplicantStatus.Passed) {
+      logger.logDomainError("Verification purchase denied: already certified", {
+        code: "APPLICANT_ALREADY_CERTIFIED",
+        entity: "applicants",
+        entityId: userId,
+        locale,
+      });
+      throw new ValidationError("APPLICANT_ALREADY_CERTIFIED", t.applicantAlreadyCertified);
     }
     // Eligible — deliberate silent no-op.
   }

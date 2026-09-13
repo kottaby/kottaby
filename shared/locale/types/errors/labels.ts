@@ -80,6 +80,13 @@ export interface ErrorsLabels {
   /** Fail-closed deny when an applicants row status cannot be interpreted as a known ApplicantStatus. */
   readonly applicantStatusCorrupt: string;
   /**
+   * Purchase reject for `ValidationError("APPLICANT_ALREADY_CERTIFIED", …)`:
+   * the caller's applicants row is already `passed`, so teacher verification
+   * can never be repeated. Generic copy — no user data may enter this
+   * message (no placeholders).
+   */
+  readonly applicantAlreadyCertified: string;
+  /**
    * Admin-user-management domain failures surfaced to operators through the
    * `errors` namespace. Each leaf is a self-contained sentence (no key echo)
    * consumed by admin services via property access on the localized bundle:
