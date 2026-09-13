@@ -83,10 +83,12 @@ export function AttendanceRow({
     minute: "2-digit",
     hour12: false,
   });
+  // The canonical date stamp already carries the start time, so the range
+  // line renders ONLY when an end time exists and adds real information
+  // (completed rows); start-only rows skip it instead of stuttering "15:00 15:00".
   let timeRange: string | null = null;
-  if (row.startedAt !== null) {
-    const start = timeFormatter.format(new Date(row.startedAt));
-    timeRange = row.endedAt !== null ? `${start} – ${timeFormatter.format(new Date(row.endedAt))}` : start;
+  if (row.startedAt !== null && row.endedAt !== null) {
+    timeRange = `${timeFormatter.format(new Date(row.startedAt))} – ${timeFormatter.format(new Date(row.endedAt))}`;
   }
   return (
     <Card
