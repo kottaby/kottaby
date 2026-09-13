@@ -75,6 +75,7 @@ import { ConflictError, isPgUniqueViolation, NotFoundError, ValidationError } fr
 import { logger } from "@/backend/lib/logger";
 import { getPaymentGateway } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
 import { MAX_INTERVAL_DAYS, MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
+import { isCarryableIdempotencyKey, isPositiveSafeId } from "@/backend/services/billing/purchase-guards.helpers";
 import { assertActorGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
 import type {
   DBQueryExecutor,
@@ -90,9 +91,6 @@ import type {
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
-/** The idempotency claim column's maximum key length (varchar(128) backstop). */
-const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
-
 /**
  * The client-safe conflict copy for an internal row-mapping breach — the
  * activation service's `abortActivation` discipline mirrored: the exact
@@ -104,22 +102,6 @@ const PAYMENT_PROCESSING_CONFLICT_MESSAGE = "Payment could not be processed.";
 
 /** The localized errors bundle shape consumed by every flow in this file. */
 type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
-
-/** Positive safe-integer guard for caller-supplied identifiers (no casts). */
-function isPositiveSafeId(value: number): boolean {
-  return Number.isSafeInteger(value) && value > 0;
-}
-
-/**
- * The carryable-key check: a claimable idempotency key is present and
- * within the claim column's length. An absent key is a validation reject
- * BEFORE any database work (the claim insert would otherwise fail on a
- * NOT NULL or an over-length value deep inside the transaction). The key
- * is never trimmed — an opaque value is carried verbatim.
- */
-function isCarryableIdempotencyKey(key: string | null): key is string {
-  return key !== null && key.length > 0 && key.length <= MAX_IDEMPOTENCY_KEY_LENGTH;
-}
 
 /**
  * The subscription-status vocabulary, widened to plain strings: the stored

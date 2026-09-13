@@ -90,14 +90,14 @@
 
 ## Phase 3 — Journey-First Service Implementation
 
-- [ ] 4. **Journey test FIRST (red)**
+- [x] 4. **Journey test FIRST (red)**
   - CREATE `test/workflows/teachers/verification-plan-purchase.journey.test.ts` implementing specs §6/J1 steps 1-8: cast via `createJourneyFixtures(prefix)` (includes an `applicant`) plus additional `createTestApplicant` rows for the cooldown/expired cases; plan fixture via `createTestPlan(tx, { title: VERIFICATION_PLAN_TITLE, sessionCount: 5, balanceLane: SubscriptionCreditLane.Reviews, price: "150.00", intervalDays: 14, isActive: true })`; webhook confirmation via direct `SubscriptionActivationService.processWebhookEvent(event, "en")` call; notification assertion via `spyOn(NotificationEngine, "publishReceipts")`; committed fixtures, UUID prefix `jrn_teacherverify_${randomUUID().slice(0,8)}`, tracked `afterAll` hard-deletes (`withImmutabilityTriggersSuspended` for `student_payments`), zero-residue re-probes.
   - Runs RED until Tasks 5-6 land (TDD gate) — do NOT silence with skips.
-  - [ ] 4.QL sub-loop on the new test file → exit 0 (compile-clean even while red)
-  - [ ] 4.TE The file IS the Tier coverage for the cross-actor flow (denial probes mandated by `test/workflows/AGENTS.md`).
-  - [ ] 4.SEC Honest authorization (real roles; no monkey-patching); foreign-actor denial probe included.
-  - [ ] 4.SR No `runInRollback`; translated-string assertions only.
-  - [ ] 4.IV Read `test/workflows/AGENTS.md` + `tests.instructions.md`; validate.
+  - [x] 4.QL sub-loop on the new test file → exit 0 (compile-clean even while red)
+  - [x] 4.TE The file IS the Tier coverage for the cross-actor flow (denial probes mandated by `test/workflows/AGENTS.md`).
+  - [x] 4.SEC Honest authorization (real roles; no monkey-patching); foreign-actor denial probe included.
+  - [x] 4.SR No `runInRollback`; translated-string assertions only.
+  - [x] 4.IV Read `test/workflows/AGENTS.md` + `tests.instructions.md`; validate.
   - Run: `bun run test/scripts/run-test.ts test/workflows/teachers/verification-plan-purchase.journey.test.ts`
   - _Requirements: REQ-8.5, REQ-9.2, REQ-4, REQ-5_
 

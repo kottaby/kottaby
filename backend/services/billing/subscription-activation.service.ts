@@ -27,8 +27,13 @@
  *      lane after the purchase commits — nothing mutated, one correlated
  *      error log, `{ processed: false }`), `activatePendingOnce` flips the
  *      subscription (zero rows ⇒ replay: NO credit, NO second
- *      notification), `markPaidOnce` decides the payment, the full
- *      `sessionCount` is credited to the plan's lane, and the
+ *      notification), `markPaidOnce` decides the payment, the purchaser
+ *      discrimination probe (students-row-FIRST) routes the credit — a
+ *      purchaser with a `students` row gets the full `sessionCount` credited
+ *      to the plan's lane, a purchaser holding only an `applicants` row is a
+ *      verification purchase whose lane credit is intentionally SKIPPED
+ *      (activation completes: active + paid), and a purchaser with NEITHER
+ *      row is a corrupt state that fails the unit closed — and the
  *      `payment_confirmation` notification is persisted in the SAME
  *      transaction — its copy composed in the RECIPIENT's persisted locale
  *      (the users row's `locale`, falling back to `defaultLocale` when the
@@ -66,6 +71,7 @@
  */
 
 import {
+  ApplicantRepository,
   PlanRepository,
   StudentPaymentRepository,
   StudentRepository,
@@ -288,9 +294,70 @@ async function emitConfirmationNotification(
 }
 
 /**
+ * The purchaser discrimination probe — routes the lane credit by the
+ * purchaser's row shape, students-row-FIRST:
+ *
+ *  - a `students` row exists ⇒ student purchase: the full `sessionCount` is
+ *    credited to the plan's designated lane (relative accumulation, same
+ *    transaction). Zero rows from the credit ⇒ the student row vanished
+ *    (unreachable through the FK restrict) — fail closed;
+ *  - NO `students` row but an `applicants` row ⇒ the verification-purchase
+ *    shape (the ledger row's owner column is NULL): the lane credit is
+ *    intentionally SKIPPED — no lane may ever be credited for a verification
+ *    subscription (its session grant is enforced by the booking flow over
+ *    the active subscription) — and the activation completes: active + paid,
+ *    with the receipt still composed for the purchaser;
+ *  - NEITHER row ⇒ a corrupt purchaser no writer can produce — fail closed
+ *    exactly like the vanished-student breach: the throw rolls the whole
+ *    activation unit back.
+ *
+ * The students-first order is what makes the skip unreachable for student
+ * purchasers: a `students` row always wins the credit, even in the
+ * degenerate both-rows state.
+ */
+async function applyPurchaserLaneCredit(
+  subscription: SubscriptionSelectType,
+  plan: PlanSelectType & { balanceLane: Exclude<PlanSelectType["balanceLane"], null> },
+  reference: string,
+  tx: DBTransaction
+): Promise<void> {
+  const purchaserStudent = await StudentRepository.findById(subscription.userId, tx);
+  if (purchaserStudent !== null) {
+    const credited = await StudentRepository.creditLaneBalance(
+      subscription.userId,
+      // Fail-closed lane resolution — an unknown stored lane aborts the
+      // unit closed instead of crediting a lane the plan never designated.
+      subscriptionCreditLaneOf(plan.balanceLane, { reference, subscriptionId: subscription.id, planId: plan.id }),
+      plan.sessionCount,
+      tx
+    );
+    if (credited === null) {
+      // The FK restrict makes a vanished student unreachable — fail closed.
+      abortActivation("student row vanished before the lane credit", {
+        reference,
+        subscriptionId: subscription.id,
+        studentId: subscription.userId,
+      });
+    }
+    return;
+  }
+  const applicant = await ApplicantRepository.findByUserId(subscription.userId, tx);
+  if (applicant === null) {
+    // Neither row exists — a corrupt purchaser. Fail closed.
+    abortActivation("student row vanished before the lane credit", {
+      reference,
+      subscriptionId: subscription.id,
+      studentId: subscription.userId,
+    });
+  }
+  // Verification purchase — the lane credit is deliberately not performed.
+}
+
+/**
  * The confirmed-delivery path — one transaction, fixed write order
  * (path-selection read → plan read + lane quarantine → guarded activation →
- * guarded payment decision → lane credit → in-tx notification persist).
+ * guarded payment decision → purchaser probe + lane credit → in-tx
+ * notification persist).
  * Any failure rolls the whole unit back: the subscription stays pending and
  * the gateway's retry re-classifies against the settled state. The
  * unconfigured-lane quarantine is the one mutation-free early exit: no
@@ -387,25 +454,10 @@ async function confirmPayment(
       });
     }
 
-    // The lane credit — the full session count, relative accumulation on the
-    // plan's designated lane, same transaction. Zero rows ⇒ the student row
-    // vanished (unreachable through the FK restrict) — fail closed.
-    const credited = await StudentRepository.creditLaneBalance(
-      subscription.userId,
-      // Fail-closed lane resolution — an unknown stored lane aborts the
-      // unit closed instead of crediting a lane the plan never designated.
-      subscriptionCreditLaneOf(plan.balanceLane, { reference, subscriptionId: subscription.id, planId: plan.id }),
-      plan.sessionCount,
-      tx
-    );
-    if (credited === null) {
-      // The FK restrict makes a vanished student unreachable — fail closed.
-      abortActivation("student row vanished before the lane credit", {
-        reference,
-        subscriptionId: subscription.id,
-        studentId: subscription.userId,
-      });
-    }
+    // The purchaser discrimination probe + lane credit — students-row-FIRST
+    // routing (credit for a student purchaser, intentional skip for the
+    // verification shape, fail-closed abort for a corrupt purchaser).
+    await applyPurchaserLaneCredit(subscription, plan, reference, tx);
 
     // Persist-first notification — the row commits with the activation. The
     // copy is composed in the RECIPIENT's persisted locale (the webhook has

@@ -51,6 +51,18 @@
  *  - Tier 4 (abuse): a tampered (reduced) amount quarantines with zero
  *    mutation; the zero-credit replay proof — balance read before/after a
  *    duplicate delivery is byte-identical and the decided rows untouched.
+ *  - Purchaser discrimination (the credit-skip branch): an APPLICANT-owned
+ *    confirmation (purchaser holds an `applicants` row, NO `students` row,
+ *    NULL ledger owner) SKIPS the lane credit without aborting — the
+ *    subscription ends active + paid and the receipt is still composed and
+ *    published for the purchaser; the students-first probe ORDER is pinned
+ *    by a both-rows purchaser who is still credited (a `students` row always
+ *    wins, so the skip is unreachable for student purchasers); a purchaser
+ *    with NEITHER row fails the unit closed (the abort rolls the delivery
+ *    back — pending pair, zero notification, one correlated abort log); and
+ *    a `failed` delivery on a verification pair keeps the existing failed
+ *    posture unchanged (payment failed, subscription pending, no credit,
+ *    no notification).
  *  - Window-arithmetic lock-in (Tier 2 boundaries, verify-and-pin — the
  *    activation flow's window arithmetic is pinned, never re-implemented):
  *    the committed row's endDate − startDate equals the plan row's
@@ -68,13 +80,15 @@ import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { db } from "@/backend/db";
-import { NotificationRepository } from "@/backend/db/repo";
+import { NotificationRepository, StudentRepository } from "@/backend/db/repo";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { students } from "@/backend/db/schema/students/students";
+import { applicants } from "@/backend/db/schema/teachers/applicants";
 import { users } from "@/backend/db/schema/users/users";
 import {
+  createTestApplicant,
   createTestPlan,
   createTestStudent,
   createTestStudentPayment,
@@ -87,11 +101,14 @@ import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
+import { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
+import { ConflictError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
 import { SubscriptionActivationService } from "@/backend/services/billing/subscription-activation.service";
 import { NotificationEngine } from "@/backend/services/notifications";
 import type {
+  ApplicantSelectType,
   DBTransaction,
   NotificationReturnType,
   PaymentWebhookEvent,
@@ -175,6 +192,53 @@ async function provisionPendingPair(
     currency: plan.currency,
   });
   return { user, student, plan, subscription, payment };
+}
+
+/** One pending verification purchase pair — an APPLICANT-owned pair (no students row; NULL ledger owner). */
+interface VerificationPairFixture {
+  readonly user: UserSelectType;
+  readonly applicant: ApplicantSelectType;
+  readonly plan: PlanSelectType;
+  readonly subscription: SubscriptionSelectType;
+  readonly payment: StudentPaymentSelectType;
+}
+
+/**
+ * The verification purchase shape: a teacher applicant (users row +
+ * `applicants` row) with NO `students` row — the subscription's owner is the
+ * generic user id and the ledger row's owner column is NULL, exactly the
+ * pending pair the verification purchase flow writes. The plan mirrors the
+ * verification plan's catalog shape (reviews lane, 5 sessions, 14 days).
+ */
+async function provisionVerificationPair(
+  tx: DBTransaction,
+  planOverrides: Partial<PlanSelectType> = {}
+): Promise<VerificationPairFixture> {
+  const user = await createTestUser(tx, { role: "teacher", locale: "en" });
+  const applicant = await createTestApplicant(tx, user.id);
+  const plan = await createTestPlan(tx, {
+    balanceLane: SubscriptionCreditLane.Reviews,
+    sessionCount: 5,
+    intervalDays: 14,
+    ...planOverrides,
+  });
+  const subscription = await createTestSubscription(tx, user.id, plan.id, {
+    status: SubscriptionStatus.Pending,
+    paymentMethod: PaymentGateway.Mock,
+    paymentReference: `mock_${crypto.randomUUID()}`,
+    startDate: null,
+    endDate: null,
+    paymentVerifiedAt: null,
+  });
+  // The applicant pair's ledger owner is NULL — no students row exists to own it.
+  const payment = await createTestStudentPayment(tx, user.id, subscription.id, {
+    status: PaymentStatus.Pending,
+    paymentGateway: PaymentGateway.Mock,
+    amount: plan.price,
+    currency: plan.currency,
+    studentId: null,
+  });
+  return { user, applicant, plan, subscription, payment };
 }
 
 /** A verified `confirmed` event carrying the pair's settled amount. */
@@ -940,6 +1004,182 @@ describe("SubscriptionActivationService — forged deliveries (Tier 4: abuse)", 
       expect(payAfter?.status).toBe(payBefore?.status);
       expect(subAfter?.startDate?.getTime()).toBe(subBefore?.startDate?.getTime());
       expect(subAfter?.updatedAt?.getTime()).toBe(subBefore?.updatedAt?.getTime());
+    });
+  });
+});
+
+describe("SubscriptionActivationService — purchaser discrimination probe (verification credit-skip)", () => {
+  test("applicant-owned confirmation: lane credit skipped, no abort — activation completes and the receipt still goes to the purchaser", async () => {
+    await runInRollback(async tx => {
+      const { user, plan, subscription, payment } = await provisionVerificationPair(tx);
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+      const creditSpy = trackSpy(spyOn(StudentRepository, "creditLaneBalance"));
+      const errorSpy = trackSpy(spyOn(logger, "error"));
+
+      const before = new Date(Date.now() - 1000);
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
+      );
+      const after = new Date(Date.now() + 1000);
+
+      // The credit primitive must NEVER fire for an applicant-owned pair,
+      // and the unit must not abort: the honest activation ack.
+      expect(outcome).toEqual({ processed: true });
+      expect(creditSpy).not.toHaveBeenCalled();
+      expect(errorSpy).not.toHaveBeenCalled();
+
+      // The subscription — active with the same activation window any
+      // purchase gets; the payment — decided paid, owner still NULL.
+      const subRows = await tx.select().from(subscriptions).where(eq(subscriptions.id, subscription.id)).limit(1);
+      const sub = subRows[0];
+      expect(sub?.status).toBe(SubscriptionStatus.Active);
+      const start = stampedDateOf(sub?.startDate, "subscriptions.start_date");
+      const end = stampedDateOf(sub?.endDate, "subscriptions.end_date");
+      expect(start.getTime()).toBeGreaterThanOrEqual(before.getTime());
+      expect(start.getTime()).toBeLessThanOrEqual(after.getTime());
+      expect(end.getTime() - start.getTime()).toBe(plan.intervalDays * 86_400_000);
+      const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);
+      expect(payRows[0]?.status).toBe(PaymentStatus.Paid);
+      expect(payRows[0]?.studentId).toBeNull();
+
+      // No students row appeared for the applicant — nothing was credited
+      // to any lane, and no lane owner was fabricated.
+      const studentRows = await tx.select().from(students).where(eq(students.id, user.id)).limit(1);
+      expect(studentRows).toHaveLength(0);
+
+      // The applicant row is untouched — activation owns money finality and
+      // notification only (the status flip happened at purchase time).
+      const applicantRows = await tx.select().from(applicants).where(eq(applicants.id, user.id)).limit(1);
+      expect(applicantRows[0]?.status).toBe(ApplicantStatus.Pending);
+      expect(applicantRows[0]?.verificationAttempts).toBe(0);
+
+      // The notification — unchanged emission: composed copy, the PURCHASER
+      // as recipient, persisted in-tx and published after commit.
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      const emitted = insertSpy.mock.calls[0]?.[0];
+      expect(emitted.userId).toBe(user.id);
+      expect(emitted.type).toBe(NotificationType.PaymentConfirmation);
+      expect(emitted.title).toBe(EN_NOTIFICATIONS.eventPaymentConfirmedTitle);
+      expect(emitted.body).toBe(EN_NOTIFICATIONS.eventPaymentConfirmedBody(plan.title));
+      expect(emitted.relatedEntityType).toBe("subscription");
+      expect(emitted.relatedEntityId).toBe(subscription.id);
+      expect(publishSpy).toHaveBeenCalledTimes(1);
+      const [receipts, publishLocale] = publishSpy.mock.calls[0] ?? [];
+      expect(publishLocale).toBe("en");
+      const receipt = receipts?.[0];
+      expect(receipt?.recipientUserIds).toEqual([user.id]);
+      expect(receipt?.notifications[0]?.userId).toBe(user.id);
+    });
+  });
+
+  test("probe order: a purchaser holding BOTH a students and an applicants row is still credited — students-first wins", async () => {
+    await runInRollback(async tx => {
+      // Degenerate both-rows state: the students-first probe order must keep
+      // this purchaser on the credit path — the credit-skip can never be
+      // reached for a purchaser with a students row.
+      const { student, plan, subscription, payment } = await provisionPendingPair(tx, {}, { role: "teacher" });
+      await createTestApplicant(tx, student.id);
+      spyNotificationSeams();
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
+      );
+
+      expect(outcome).toEqual({ processed: true });
+      const balances = await readBalances(tx, student.id);
+      expect(balances.balanceHifz).toBe(plan.sessionCount);
+      const subRows = await tx.select().from(subscriptions).where(eq(subscriptions.id, subscription.id)).limit(1);
+      expect(subRows[0]?.status).toBe(SubscriptionStatus.Active);
+      const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);
+      expect(payRows[0]?.status).toBe(PaymentStatus.Paid);
+    });
+  });
+
+  test("corrupt purchaser — neither a students nor an applicants row: the fail-closed abort fires and the unit rolls back", async () => {
+    await runInRollback(async tx => {
+      // A purchaser with NO role-child row at all is a state no writer can
+      // produce — the corruption detector must keep failing the unit closed
+      // (the throw rolls the whole activation unit back).
+      const user = await createTestUser(tx, { locale: "en" });
+      const plan = await createTestPlan(tx, { balanceLane: SubscriptionCreditLane.Reviews, sessionCount: 5 });
+      const subscription = await createTestSubscription(tx, user.id, plan.id, {
+        status: SubscriptionStatus.Pending,
+        paymentMethod: PaymentGateway.Mock,
+        paymentReference: `mock_${crypto.randomUUID()}`,
+        startDate: null,
+        endDate: null,
+        paymentVerifiedAt: null,
+      });
+      const payment = await createTestStudentPayment(tx, user.id, subscription.id, {
+        status: PaymentStatus.Pending,
+        paymentGateway: PaymentGateway.Mock,
+        amount: plan.price,
+        currency: plan.currency,
+        studentId: null,
+      });
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+      const errorSpy = trackSpy(spyOn(logger, "error"));
+
+      const abort = await expectRepoError(() =>
+        SubscriptionActivationService.processWebhookEvent(
+          confirmedEvent(subscription.paymentReference ?? "", payment.amount),
+          "en",
+          tx
+        )
+      );
+
+      // The preserved abort posture: the client-safe conflict copy, and one
+      // correlated diagnostic log carrying the exact breach detail.
+      expect(abort).toBeInstanceOf(ConflictError);
+      expect(abort.message).toBe("Payment could not be processed.");
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const [message, context] = errorSpy.mock.calls[0] ?? [];
+      expect(message).toContain("student row vanished before the lane credit");
+      expect(context).toMatchObject({
+        reference: subscription.paymentReference,
+        subscriptionId: subscription.id,
+        studentId: user.id,
+      });
+
+      // The rolled-back unit left NO trace: pending pair, no notification.
+      const subRows = await tx.select().from(subscriptions).where(eq(subscriptions.id, subscription.id)).limit(1);
+      expect(subRows[0]?.status).toBe(SubscriptionStatus.Pending);
+      expect(subRows[0]?.startDate).toBeNull();
+      expect(subRows[0]?.endDate).toBeNull();
+      const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);
+      expect(payRows[0]?.status).toBe(PaymentStatus.Pending);
+      expect(insertSpy).not.toHaveBeenCalled();
+      expect(publishSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  test("failed delivery on a verification pair: payment decided failed, subscription untouched, no credit, no notification", async () => {
+    await runInRollback(async tx => {
+      const { subscription, payment } = await provisionVerificationPair(tx);
+      const { insertSpy, publishSpy } = spyNotificationSeams();
+      const creditSpy = trackSpy(spyOn(StudentRepository, "creditLaneBalance"));
+
+      const outcome = await SubscriptionActivationService.processWebhookEvent(
+        failedEvent(subscription.paymentReference ?? "", payment.amount),
+        "en",
+        tx
+      );
+
+      expect(outcome).toEqual({ processed: true });
+      const subRows = await tx.select().from(subscriptions).where(eq(subscriptions.id, subscription.id)).limit(1);
+      expect(subRows[0]?.status).toBe(SubscriptionStatus.Pending);
+      expect(subRows[0]?.startDate).toBeNull();
+      expect(subRows[0]?.endDate).toBeNull();
+      expect(subRows[0]?.paymentVerifiedAt).toBeNull();
+      const payRows = await tx.select().from(studentPayments).where(eq(studentPayments.id, payment.id)).limit(1);
+      expect(payRows[0]?.status).toBe(PaymentStatus.Failed);
+      expect(creditSpy).not.toHaveBeenCalled();
+      expect(insertSpy).not.toHaveBeenCalled();
+      expect(publishSpy).not.toHaveBeenCalled();
     });
   });
 });
