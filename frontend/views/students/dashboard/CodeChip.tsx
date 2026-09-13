@@ -63,7 +63,9 @@ export function CodeChip({ code }: Readonly<CodeChipProps>): ReactNode {
         sx={{
           fontFamily: MONO_FONT_FAMILY,
           fontSize: { xs: "1.125rem", sm: "1.375rem" },
-          fontWeight: 600,
+          // Heavy weight keeps `0` vs `O` unambiguous at a glance — the code
+          // is transcribed by hand between accounts.
+          fontWeight: 700,
           letterSpacing: "0.12em",
         }}
       >

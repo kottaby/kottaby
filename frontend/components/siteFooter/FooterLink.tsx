@@ -27,7 +27,12 @@ export function FooterLink({ href, children }: Readonly<{ href: string; children
         "&:hover": {
           opacity: 1,
           color: "var(--mui-palette-secondary-light)",
+          // Physical +X drift reads as "forward" only in LTR; mirror the nudge
+          // for RTL so the affordance always points inline-end.
           transform: "translateX(3px)",
+        },
+        '[dir="rtl"] &:hover': {
+          transform: "translateX(-3px)",
         },
         // Keyboard users get the same copper cue as the hover state.
         "&:focus-visible": {

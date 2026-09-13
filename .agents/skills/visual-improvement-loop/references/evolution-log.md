@@ -64,3 +64,28 @@ AGENTS.md and `.agents/instructions/` files are hand-curated; runs NEVER update 
   asymmetric dialog gutter → logical `paddingInline` token spacing; low-contrast select icon →
   mode-aware text token on `.MuiSelect-icon`; weak dialog isolation → scoped `slotProps` backdrop
   scrim+blur. → landed: `references/fix-patterns.md` (4 new rows, updated in this change).
+
+### 2026-09-13 — subscription-validity-window-expiry (visual-improvement-loop run)
+
+- Sandbox tool-runners kill background dev servers between tool calls, AND a server that was started
+  before file edits keeps serving the stale module graph (HMR churn = phantom console errors + stale
+  titles after edits). Kill + fresh-start the server before every post-edit capture round; bundle
+  server-start + captures into one foreground call. → landed: `references/capture-protocol.md`
+  (Sessions & auth, updated in this change).
+- The precheck console sweep accumulated session-wide buffer entries across captures (constant phantom
+  FAIL on every shot). → landed: `scripts/visual-precheck.sh` now `console --clear` per navigation;
+  `references/objective-prechecks.md` note (updated in this change).
+- Off-viewport bleed check false-positived on decorative gradients clipped by `overflow:hidden`
+  ancestors. → landed: `scripts/visual-precheck.sh` skips ancestor-clipped offenders;
+  `references/objective-prechecks.md` check #4 (updated in this change).
+- VLM sub-8px alignment/spacing claims are unreliable: across 3 passes, three DIFFERENT icon-offset
+  directions, contradicting center/void positionings, and two "misaligned footer" claims — every one
+  disproven by DOM `getBoundingClientRect` (deltas 0-2px or token-exact). Pixel-verify before fixing;
+  contradictory findings = noise signature. → landed: `references/fix-patterns.md` watch-out row
+  (updated in this change); protocol note in `references/capture-protocol.md`.
+- VLM integer-granularity totals plateau ≈9.0-9.2 on defect-free surfaces; the 9.5 READY bar is
+  reachable only via the rubric's accepted-debt clause with pixel-verified adjudication. → noted in
+  `references/rubric.md` (updated in this change).
+- Repo db CLIs parse their own `--env-file` (must come AFTER the script path; `bun --env-file` itself
+  is consumed by bun). Fresh sandboxes need `cp .env.test.ci .env.test`. → plan outcome only
+  (repo-specific; not promoted to skill refs).
