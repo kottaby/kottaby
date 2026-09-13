@@ -9,11 +9,11 @@ import { SessionStatusFilterChips } from "@/frontend/views/student/sessions/Sess
 import { StudentSessionsBody } from "@/frontend/views/student/sessions/StudentSessionsBody";
 import { StudentSessionsDialogs } from "@/frontend/views/student/sessions/StudentSessionsDialogs";
 import { StudentSessionsNoticeSnackbar } from "@/frontend/views/student/sessions/StudentSessionsNoticeSnackbar";
+import { useMyTeacherEvaluations } from "@/frontend/views/student/sessions/useMyTeacherEvaluations";
 import { useStudentSessionCancelArms } from "@/frontend/views/student/sessions/useStudentSessionCancelArms";
 import { useStudentSessionConfirm } from "@/frontend/views/student/sessions/useStudentSessionConfirm";
 import { useStudentSessionDialogSlots } from "@/frontend/views/student/sessions/useStudentSessionDialogSlots";
 import { useStudentSessionDisputeArms } from "@/frontend/views/student/sessions/useStudentSessionDisputeArms";
-import { useMyTeacherEvaluations } from "@/frontend/views/student/sessions/useMyTeacherEvaluations";
 import { useStudentSessionNotices } from "@/frontend/views/student/sessions/useStudentSessionNotices";
 import { useStudentSessionRateArms } from "@/frontend/views/student/sessions/useStudentSessionRateArms";
 import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
@@ -162,27 +162,14 @@ export function StudentSessionsContainer(): ReactNode {
   // sessions-list payload is never widened for it).
   const { ratedSessionIds, markSessionRated } = useMyTeacherEvaluations();
 
-  const {
-    cancelDialogSessionId,
-    disputeDialogSessionId,
-    rateDialogSessionId,
-    inFlightSlots,
-    openCancelDialog,
-    closeCancelDialog,
-    openDisputeDialog,
-    closeDisputeDialog,
-    openRateDialog,
-    closeRateDialog,
-    claimConfirmSlot,
-    clearConfirmSlot,
-  } = useStudentSessionDialogSlots();
+  const slots = useStudentSessionDialogSlots();
 
   const { rowAlerts, notice, setRowAlerts, setNotice, dismissNotice } = useStudentSessionNotices();
 
   const cancelArms = useStudentSessionCancelArms({
     sessionsCopy: t,
     errorsCopy: te,
-    closeCancelDialog,
+    closeCancelDialog: slots.closeCancelDialog,
     setRowAlerts,
     setNotice,
   });
@@ -190,7 +177,7 @@ export function StudentSessionsContainer(): ReactNode {
   const disputeArms = useStudentSessionDisputeArms({
     sessionsCopy: t,
     errorsCopy: te,
-    closeDisputeDialog,
+    closeDisputeDialog: slots.closeDisputeDialog,
     setRowAlerts,
     setNotice,
   });
@@ -198,7 +185,7 @@ export function StudentSessionsContainer(): ReactNode {
   const rateArms = useStudentSessionRateArms({
     sessionsCopy: t,
     errorsCopy: te,
-    closeRateDialog,
+    closeRateDialog: slots.closeRateDialog,
     markSessionRated,
     setRowAlerts,
     setNotice,
@@ -208,8 +195,8 @@ export function StudentSessionsContainer(): ReactNode {
     cache: client.cache,
     sessionsCopy: t,
     errorsCopy: te,
-    claimConfirmSlot,
-    clearConfirmSlot,
+    claimConfirmSlot: slots.claimConfirmSlot,
+    clearConfirmSlot: slots.clearConfirmSlot,
     setRowAlerts,
     setNotice,
   });
@@ -228,22 +215,22 @@ export function StudentSessionsContainer(): ReactNode {
         error={error}
         data={data}
         rowAlerts={rowAlerts}
-        onCancelIntent={openCancelDialog}
-        onDisputeIntent={openDisputeDialog}
-        disputeInFlightSlots={inFlightSlots}
-        inFlightSlots={inFlightSlots}
+        onCancelIntent={slots.openCancelDialog}
+        onDisputeIntent={slots.openDisputeDialog}
+        disputeInFlightSlots={slots.inFlightSlots}
+        inFlightSlots={slots.inFlightSlots}
         onConfirm={handleConfirm}
         ratedSessionIds={ratedSessionIds}
-        onRate={openRateDialog}
+        onRate={slots.openRateDialog}
         t={t}
       />
       <StudentSessionsDialogs
-        cancelDialogSessionId={cancelDialogSessionId}
-        disputeDialogSessionId={disputeDialogSessionId}
-        rateDialogSessionId={rateDialogSessionId}
-        onCloseCancelDialog={closeCancelDialog}
-        onCloseDisputeDialog={closeDisputeDialog}
-        onCloseRateDialog={closeRateDialog}
+        cancelDialogSessionId={slots.cancelDialogSessionId}
+        disputeDialogSessionId={slots.disputeDialogSessionId}
+        rateDialogSessionId={slots.rateDialogSessionId}
+        onCloseCancelDialog={slots.closeCancelDialog}
+        onCloseDisputeDialog={slots.closeDisputeDialog}
+        onCloseRateDialog={slots.closeRateDialog}
         onCancelled={cancelArms.handleCancelled}
         onSessionMissing={cancelArms.handleSessionMissing}
         onInvalidTransition={cancelArms.handleInvalidTransition}

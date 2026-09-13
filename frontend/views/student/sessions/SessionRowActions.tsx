@@ -3,8 +3,8 @@
 import { StarOutlined } from "@mui/icons-material";
 import { Button, Chip, Tooltip } from "@mui/material";
 import type { ReactNode } from "react";
-import { TONE_COLORS } from "@/frontend/views/student/sessions/sessionRowPresentation";
 import type { SessionRowAction } from "@/frontend/views/student/sessions/sessionRowAction";
+import { TONE_COLORS } from "@/frontend/views/student/sessions/sessionRowPresentation";
 
 /**
  * The caller-supplied lifecycle affordances (teacher Start/Complete, student
@@ -43,6 +43,7 @@ export function SessionRowActions({
         }
         const cta = (
           <Button
+            key={action.id}
             variant="outlined"
             color={action.color ?? "primary"}
             disabled={action.disabled === true}

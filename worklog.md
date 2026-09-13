@@ -111,3 +111,23 @@ Stage Summary:
 - SEC attested: the deep-link target app/(dashboard)/student/sessions/page.tsx is withPageAuth({roles:[UserRole.Student]})-guarded (the guard is the only authorization boundary; role mismatches bounce to their own role dashboard; the deep link adds no new surface)
 - SR attested: route literal single-sourced (repo grep: the leaf constant + the page's own withPageAuth redirectTo self-reference + the non-importable bash ui-capture script + test frozen-value pins — no second app-code consumer literal); lookup tables not enum equality; no dead branches (NotificationDrawerBody.tsx:111 resolves every row through the map); no cross-layer imports added; zero plan-artifact comments; no colors
 - IV attested: frontend/AGENTS.md (cross-surface single-source rule, enum-safety lookup tables, no oxlint-disable) + printed frontend instructions; tasks.md 4.3 + sub-checkboxes flipped [x]; outcome/4.3-outcome.md filled
+
+---
+Task ID: 4.2
+Agent: Phase 4 Frontend QL+Tests Agent
+Task: Sprint 3 student-evaluation plan — task 4.2 QL + tests + deliverables (hook + dialog + CTA wiring verification)
+
+Work Log:
+- Context read: tasks.md 4.2 + its 5 subtasks, outcome/4.1-outcome.md + 3.4-outcome.md carry-forwards (document names, generated types, error codes, extensions.fields shape), the 4 key new files (RateTeacherDialog.tsx, useMyTeacherEvaluations.ts, useStudentSessionRateArms.ts, rateTeacherMutationError.ts), prototype screens.json (6 surfaces, PNGs not opened)
+- QL on the NEW extracted file FIRST run FAILED: tsgo TS2305 — rateTeacherMutationError.ts imported isNotFoundErrorFamily from sessionListCacheEviction, but the symbol lives in @/frontend/providers/apollo/error-link.map (line 72); fixed the import in-file (in-scope), re-ran: exit 0 (tsgo · oxlint · biome:check · lint:type-aware · check:duplicates; log /tmp/task42t-ql.log); the other 13 task files were QL-gated exit 0 in the prior session (handoff 14/14)
+- Test env bootstrapping in the fresh worktree: gitignored .env.test absent (run-test.ts hard-requires it) — materialized locally from .env.test.ci + localhost DATABASE_URL (gitignored, uncommitted); bun needs the ./ path prefix for the non-.test.* suite filter; the repo's direct-bun-test guard bypassed with KOTTABY_TEST_RUNNER_OK=1 per its own message (single-file + official preload chain, TEST_SERVER_MODE=production, --env-file=.env.test.ci)
+- Test A (error-link.map.test.ts via run-test.ts): 31 pass / 0 fail / 109 expect(), exit 0 — includes the two new mapping rows (EVALUATION_SESSION_NOT_COMPLETED gate-reject error notice; EVALUATION_ALREADY_SUBMITTED info notice, duplicateSuccessEquivalent exclusivity)
+- Test B (StudentSessionsContainer.suite.tsx single-file + preload chain): 28 pass / 10 skip / 0 fail / 292 expect(), exit 0; the 10 skips are the pre-existing environment deferrals (dispute typed 6c/6d, confirm 6h, cancel 7, list 8 × both locales), unrelated to rating; NO 4.4-warming failure occurred — the suite resolves copy via the scaffold's sessionSuiteLabels (direct getLabels), so the un-warmed Sessions handle did not bite; recorded as a 4.4 NOTE instead
+- Deliverables written: outcome/4.2-outcome.md (summary, full file set, prototype-fidelity table from screens.json + code, verification raw results, SEC/SR/IV grep-evidenced attestations, 4.4 carry-forward with export surface + i18n handles + translation-preload warming need); tasks.md 4.2 header + 4.2.QL/.TE/.SEC/.SR/.IV flipped [x]; worklog appended
+
+Stage Summary:
+- QL: sub-loop --lifecycle duplicates exit 0 on the extracted rateTeacherMutationError.ts (after the in-scope import fix); 14/14 task files gated exit 0 overall (13 prior + 1 this session)
+- TE: test A 31/0 (109 expect); test B 28 pass / 10 skip / 0 fail (292 expect) — both green, zero rate-flow regressions; rate-dialog component cases remain 4.4's scope per 4.2.TE
+- SEC: console.* grep over all 13 touched code files → zero; mutation variables carry only input.rating + sessionId; error arms carry resolved copy strings, never raw payloads
+- SR: enum Record lookups (RATE_ELIGIBLE_STATUSES et al., no === on enums); hex-code grep → zero (theme palette/MUI tokens via sx only); no direct style props; zero plan-artifact refs in code comments
+- tasks.md 4.2 + all 4.2.* sub-checkboxes [x]; outcome/4.2-outcome.md filled; no commit/push/build (per instruction)

@@ -41,7 +41,7 @@ export function updateCacheOnSubmitted(
   result: { data?: SubmitTeacherEvaluationMutation | null }
 ): void {
   const submitted = result.data?.submitTeacherEvaluation;
-  if (submitted === undefined || submitted === null) return;
+  if (submitted === undefined) return;
   const evaluationRef = cache.identify({ __typename: EVALUATION_TYPE_NAME, id: submitted.id });
   if (evaluationRef === undefined) return;
   cache.modify({

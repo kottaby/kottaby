@@ -1,5 +1,6 @@
 "use client";
 
+import { useApolloClient, useMutation } from "@apollo/client/react";
 import { StarBorderOutlined, StarOutlined } from "@mui/icons-material";
 import {
   Button,
@@ -13,21 +14,9 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import { useApolloClient, useMutation } from "@apollo/client/react";
-import type { ReactNode } from "react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { submitTeacherEvaluationMutationDocument } from "@/frontend/graphql/sharedDocuments";
-import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
-import { projectMutationFieldErrors } from "@/frontend/lib/mutationFieldErrors";
-import {
-  isNotFoundErrorFamily,
-  normalizeGraphQLErrorCode,
-} from "@/frontend/providers/apollo/error-link.map";
-import type { ApolloCache } from "@apollo/client";
-import {
-  evictSessionFromListFields,
-  STUDENT_SESSION_LIST_FIELDS,
-} from "@/frontend/views/student/sessions/sessionListCacheEviction";
+import { handleRateTeacherMutationError } from "@/frontend/views/student/sessions/rateTeacherMutationError";
 import { updateCacheOnSubmitted } from "@/frontend/views/student/sessions/useMyTeacherEvaluations";
 import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
@@ -50,7 +39,7 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
  * | masked `INTERNAL_SERVER_ERROR` / anything else   | `onFailure(sessions.genericError)` — error toast; the dialog stays open for a retry |
  *
  * The code → behavior classification lives in
- * {@link handleRateTeacherMutationError} (this file's module scope) so the
+ * {@link handleRateTeacherMutationError} (rateTeacherMutationError.ts) so the
  * component stays the seam only. The mapped-surface rows
  * (`EVALUATION_SESSION_NOT_COMPLETED` / `EVALUATION_ALREADY_SUBMITTED`) are
  * declared in the SINGLE error-mapping table
@@ -72,78 +61,6 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
  * logical composition (the star row inherits the document direction),
  * ≥44px touch targets on the action buttons.
  */
-
-/** Wire field path the VALIDATION `extensions.fields[]` pairs address. */
-const RATING_FIELD = "rating";
-
-/** Write-once arbiter rejection (the mapping table carries its notice row). */
-const EVALUATION_ALREADY_SUBMITTED_CODE = "EVALUATION_ALREADY_SUBMITTED";
-
-/** Dual-confirmation gate rejection (the mapping table carries its notice row). */
-const EVALUATION_SESSION_NOT_COMPLETED_CODE = "EVALUATION_SESSION_NOT_COMPLETED";
-
-/** Localized error-arms contract for one failed submit. */
-export interface RateTeacherErrorArms {
-  /** The Apollo cache — the not-found arm evicts the rated row. */
-  readonly cache: ApolloCache;
-  readonly sessionId: string;
-  /** `SESSION_NOT_FOUND` — the container should drop the row UI-side (cache is evicted here). */
-  readonly onSessionMissing: (sessionId: string) => void;
-  /** Gate reject — the container closes the dialog slot; the notice renders app-scope. */
-  readonly onSessionNotCompleted: (sessionId: string) => void;
-  /** Write-once reject — the container marks the row rated; the notice renders app-scope. */
-  readonly onAlreadySubmitted: (sessionId: string) => void;
-  /** Server-localized `rating` field pair — rendered inline under the stars. */
-  readonly onRatingFieldError: (message: string) => void;
-  /** Everything else — error toast; the dialog stays open for a retry. */
-  readonly onFailure: (message: string) => void;
-  /** `errors.validation` — resolved by the caller (compile-time i18n handle). */
-  readonly validationCopy: string;
-  /** `errors.forbidden` — resolved by the caller. */
-  readonly forbiddenCopy: string;
-  /** `sessions.genericError` — resolved by the caller. */
-  readonly genericErrorCopy: string;
-}
-
-/**
- * Submit-error arms, branch order preserved: not-found family → eviction +
- * `onSessionMissing`; write-once reject → `onAlreadySubmitted`; gate reject
- * → `onSessionNotCompleted`; server VALIDATION addressed at the rating
- * field → the inline field error; `FORBIDDEN` → `onFailure(forbiddenCopy)`;
- * everything else → `onFailure(genericErrorCopy)`.
- */
-export function handleRateTeacherMutationError(error: unknown, arms: RateTeacherErrorArms): void {
-  const rawCode = extractErrorCode(error);
-  const code = rawCode === null ? "" : normalizeGraphQLErrorCode(rawCode);
-
-  if (isNotFoundErrorFamily(code)) {
-    evictSessionFromListFields(arms.cache, arms.sessionId, STUDENT_SESSION_LIST_FIELDS);
-    arms.onSessionMissing(arms.sessionId);
-    return;
-  }
-  if (code === EVALUATION_ALREADY_SUBMITTED_CODE) {
-    arms.onAlreadySubmitted(arms.sessionId);
-    return;
-  }
-  if (code === EVALUATION_SESSION_NOT_COMPLETED_CODE) {
-    arms.onSessionNotCompleted(arms.sessionId);
-    return;
-  }
-  if (code === "VALIDATION") {
-    const ratingFieldError = projectMutationFieldErrors(error).find(pair => pair.field === RATING_FIELD);
-    if (ratingFieldError !== undefined) {
-      arms.onRatingFieldError(ratingFieldError.message);
-      return;
-    }
-    arms.onFailure(arms.validationCopy);
-    return;
-  }
-  if (code === "FORBIDDEN") {
-    arms.onFailure(arms.forbiddenCopy);
-    return;
-  }
-  arms.onFailure(arms.genericErrorCopy);
-}
 
 interface RateTeacherDialogProps {
   /** Id of the session being rated. */
@@ -194,9 +111,7 @@ export function RateTeacherDialog({
     // the mutation write) is prepended to the cached rated rows (newest
     // first). NO refetch — the row's rated state converges in place.
     update: updateCacheOnSubmitted,
-    onCompleted: () => {
-      onRated(sessionId);
-    },
+    onCompleted: () => onRated(sessionId),
     onError: error => {
       handleRateTeacherMutationError(error, {
         cache: client.cache,
@@ -216,9 +131,7 @@ export function RateTeacherDialog({
   // Dismissal gate — backdrop click and Escape are IGNORED while the
   // mutation is pending (the cancel Button is separately disabled).
   const handleDialogClose = (): void => {
-    if (!loading) {
-      onClose();
-    }
+    if (!loading) onClose();
   };
 
   const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>): void => {
@@ -234,8 +147,10 @@ export function RateTeacherDialog({
       fullWidth
       maxWidth="xs"
       fullScreen={isCompactViewport}
-      TransitionProps={{ timeout: reducedMotion ? 0 : undefined }}
-      slotProps={{ paper: { component: "form", onSubmit: handleSubmit } }}
+      slotProps={{
+        transition: { timeout: reducedMotion ? 0 : undefined },
+        paper: { component: "form", onSubmit: handleSubmit },
+      }}
       aria-labelledby="rate-teacher-dialog-title"
     >
       <DialogTitle id="rate-teacher-dialog-title" sx={dialogTheme => ({ color: dialogTheme.palette.onSurface })}>

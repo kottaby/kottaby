@@ -188,15 +188,15 @@
 - [ ] 4.1.SR **Semantic Review**: no inline type literals; generated-type imports only.
 - [ ] 4.1.IV **Instruction Verification**: read `frontend/graphql/AGENTS.md`, `frontend/graphql/sharedDocuments/AGENTS.md`.
 
-### - [ ] 4.2 Hook + Dialog + CTA Wiring — `frontend/views/student/sessions/useMyTeacherEvaluations.ts` (NEW), `RateTeacherDialog.tsx` (NEW), `useStudentSessionConfirm.ts` (EXTEND), `StudentSessionsDialogs.tsx` (EXTEND)
+### - [x] 4.2 Hook + Dialog + CTA Wiring — `frontend/views/student/sessions/useMyTeacherEvaluations.ts` (NEW), `RateTeacherDialog.tsx` (NEW), `useStudentSessionConfirm.ts` (EXTEND), `StudentSessionsDialogs.tsx` (EXTEND)
 - Build the rated-set hook, the dialog (MUI `Rating` 1..5, a11y + reduced-motion + RTL-safe), the `rate` descriptor with the REQ-009.2 gate, dialog hosting in the existing slot system, and success/error paths per REQ-009.5/6 (cache `update()`; error-link map additions for `EVALUATION_SESSION_NOT_COMPLETED` + `EVALUATION_ALREADY_SUBMITTED`).
 - SESSION_NOT_FOUND on submit → evict the row via the existing `sessionListCacheEviction` helper semantics.
 - _Requirements: REQ-009, REQ-011, REQ-002_
-- [ ] 4.2.QL **Quality Loop**: sub-loop on each touched file (exit 0).
-- [ ] 4.2.TE **Test Engineering**: component coverage in 4.4; hook logic verified through the dialog component path.
-- [ ] 4.2.SEC **Security & Tenancy Audit**: no `console.*`; deny-paths never log sensitive payloads client-side.
-- [ ] 4.2.SR **Semantic Review**: gated on enum-string lookup tables (no `===` on enums); no hardcoded colors; no direct style props on MUI components.
-- [ ] 4.2.IV **Instruction Verification**: read `frontend/AGENTS.md`, `frontend/views/AGENTS.md` + frontend instructions.
+- [x] 4.2.QL **Quality Loop**: sub-loop on each touched file (exit 0).
+- [x] 4.2.TE **Test Engineering**: component coverage in 4.4; hook logic verified through the dialog component path.
+- [x] 4.2.SEC **Security & Tenancy Audit**: no `console.*`; deny-paths never log sensitive payloads client-side.
+- [x] 4.2.SR **Semantic Review**: gated on enum-string lookup tables (no `===` on enums); no hardcoded colors; no direct style props on MUI components.
+- [x] 4.2.IV **Instruction Verification**: read `frontend/AGENTS.md`, `frontend/views/AGENTS.md` + frontend instructions.
 
 ### - [x] 4.3 Notification Deep-Link — `frontend/lib/notification-route-resolution.ts` (EXTEND)
 - Map `NotificationType.SessionCompletion → STUDENT_SESSIONS_ROUTE`; NO such constant exists today — create it in the leaf module following the `STUDENT_LINK_REQUESTS_ROUTE` precedent (`frontend/lib/notification-route-resolution.ts:13-16`), and point the existing nav item at the same constant (`frontend/views/dashboard/nav/navItems.ts:119` currently holds the `"/student/sessions"` literal) so the route is genuinely single-sourced; extend the existing route-resolution unit tests (unmapped types still fall back to `/notifications`).

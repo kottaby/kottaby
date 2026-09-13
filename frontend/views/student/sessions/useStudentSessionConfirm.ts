@@ -1,9 +1,7 @@
 import type { ApolloCache } from "@apollo/client";
 import { useMutation } from "@apollo/client/react";
 import { useCallback } from "react";
-import {
-  type MyStudentSessionsQuery_myStudentSessions_items,
-} from "@/frontend/graphql/generated/gql/graphql";
+import type { MyStudentSessionsQuery_myStudentSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 import { confirmSessionCompletionMutationDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import {
@@ -16,7 +14,10 @@ import {
   STUDENT_SESSION_LIST_FIELDS,
 } from "@/frontend/views/student/sessions/sessionListCacheEviction";
 import type { SessionRowAction } from "@/frontend/views/student/sessions/sessionRowAction";
-import { CONFIRM_PENDING_STATUSES, RATE_ELIGIBLE_STATUSES } from "@/frontend/views/student/sessions/sessionRowPresentation";
+import {
+  CONFIRM_PENDING_STATUSES,
+  RATE_ELIGIBLE_STATUSES,
+} from "@/frontend/views/student/sessions/sessionRowPresentation";
 import { type InFlightSlots, isInFlight } from "@/frontend/views/student/sessions/studentSessionInFlightSlots";
 import {
   dropRowAlert,
