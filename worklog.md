@@ -1751,3 +1751,79 @@ The Parent Read-Only Monitoring Portal is COMPLETE and shipped on branch `feat/p
 4. **Dark mode chart color adaptation**: Investigate using CSS variables for Recharts colors so the chart adapts to dark/light theme changes without a re-render trigger.
 
 5. **Summary card responsiveness**: On very narrow mobile screens, the 4-stat row may overflow. Consider a 2x2 grid layout on mobile (via MUI `sx` responsive breakpoints) instead of the current flex-wrap row.
+
+---
+Task ID: webDevReview-R6
+Agent: webDevReview (scheduled cron, round 6)
+Task: Mobile-responsive summaries + reports search/filter bar
+
+## Current Project Status
+
+The Parent Read-Only Monitoring Portal is COMPLETE and shipped on branch `feat/parent-read-only-monitoring-portal`. Prior rounds completed all 22 spec-implementation tasks + R1-R5 enhancements (styling, rate limiting, print/export, calendar, summary cards, rating chart). This round (R6) focused on R5 priority #5 (mobile responsiveness for summary cards) + a new search/filter feature for the Reports tab.
+
+## Completed Modifications
+
+### 1. Mobile-Responsive Summary Cards (R5 priority #5)
+- **All 4 summary components** (`AttendanceSummary`, `HomeworkSummary`, `EvaluationsSummary`, `ProgressSummary`):
+  - Replaced `<Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap", gap: 1.5 }}>` with responsive CSS grid
+  - New pattern: `<Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(4, 1fr)" }, gap: 1.5 }}>`
+  - **2 columns on mobile** (xs breakpoint, <600px) — cards stack in a 2x2 grid
+  - **4 columns on desktop** (sm+ breakpoint, ≥600px) — cards in a single row
+  - Removed unused `Stack` import from all 4 files
+  - Consistent card sizing across breakpoints (no more overflow on narrow screens)
+
+### 2. Reports Search/Filter Bar (new feature)
+- **`SearchFilterBar.tsx`** — NEW component:
+  - Search input with `SearchOutlined` start adornment + clear button
+  - Rating filter dropdown (All ratings / 1-5 stars)
+  - Result count indicator "X / Y" shown when a filter is active
+  - Responsive layout: column on mobile, row on desktop (`direction={{ xs: "column", sm: "row" }}`)
+- **`SearchFilterBar.helpers.ts`** — NEW helpers file:
+  - `SearchFilterState` interface (`{ query, ratingFilter }`)
+  - `filterReportRows<T>()` generic filter function — searches by notes + date, filters by rating
+  - Separated from the component file to satisfy the `react-refresh/only-export-components` lint rule
+- **`ReportsTab.body.tsx`** — NEW body extraction:
+  - Extracted the body rendering logic from ReportsTab to stay under the 100-line function-body limit
+  - `renderReportsBody()` handles loading/error/empty/search-empty/data states
+- **`ReportsTab.tsx`** — ENHANCED:
+  - Added `useState<SearchFilterState>` for the search query + rating filter
+  - Added `useMemo` for filtered rows (called BEFORE the conditional `denied` return — hooks order compliance)
+  - Renders `SearchFilterBar` between the `RatingTrendChart` and the report rows
+  - Empty state when no results match the search query (with `SearchOutlined` icon)
+
+### 3. i18n Keys (5 new)
+- `searchPlaceholder`, `searchClearLabel`, `searchNoResults`, `filterByRatingLabel`, `filterAllRatings`
+- English + Arabic parity maintained (145 parity tests pass, up from 140)
+
+## Verification Results
+- **tsgo**: 0 errors (project-wide)
+- **biome**: clean (1830 files, no fixes needed)
+- **Parity tests**: 145 pass / 0 fail (5 new keys)
+- **UI component tests**: 59 pass / 0 fail (285 expect calls)
+- **sub-loop**: all 12 modified/new files pass `--lifecycle duplicates`
+- **Browser QA**: home page renders correctly (Arabic RTL, screenshot saved to `download/qa-r6-home.png`)
+- **Commit**: `303cecb` pushed to origin
+
+## Unresolved Issues / Risks
+
+1. **Dev server instability** (unchanged): Turbopack dies after 1-2 requests (sandbox memory limitation). Code verified via 145 parity + 59 UI tests.
+
+2. **Search only on Reports tab**: The search/filter bar is currently only on the Reports tab. Homework and Evaluations tabs could benefit from the same pattern. The `SearchFilterBar` + `filterReportRows` helpers are generic enough to reuse.
+
+3. **Chart colors don't auto-adapt to theme changes** (unchanged from R4/R5): Recharts stroke receives a direct string from `theme.palette`. Dark/light toggle requires a re-render.
+
+4. **Progress summary "Last Activity" still shows track name** (unchanged from R5): The 4th stat shows "Jadid"/"Madi" instead of a date. Future enhancement: fetch the latest homework `createdAt`.
+
+5. **Search filters client-side only**: The filtering happens entirely on the client (the full dataset is fetched, then filtered via `useMemo`). For very large datasets, a server-side filter endpoint would be more efficient. The current approach is appropriate for the portal's typical data volume (tens of rows per child).
+
+## Priority Recommendations for Next Phase
+
+1. **E2E browser journey coverage** (deferred D3 → DEV1-019): Write Playwright E2E tests. This remains the most impactful next step for visual QA.
+
+2. **Extend search to Homework + Evaluations tabs**: Reuse the `SearchFilterBar` + `filterReportRows` pattern. Homework could filter by surah/juz; Evaluations by rating.
+
+3. **Curriculum-depth statistics** (deferred D1): Implement percentage-through-curriculum. The StatCard pattern is ready.
+
+4. **Dark mode chart adaptation**: Use CSS variables for Recharts colors so the chart adapts to theme changes.
+
+5. **Progress summary "Last Activity" date**: Change the 4th stat to show the latest homework date instead of the track name.
