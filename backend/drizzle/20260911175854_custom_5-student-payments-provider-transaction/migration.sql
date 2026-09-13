@@ -1,4 +1,5 @@
--- Source: 5-student-payments-provider-transaction.sql
+DO $$ BEGIN
+    -- Source: 5-student-payments-provider-transaction.sql
 -- =============================================================================
 -- 5-student-payments-provider-transaction.sql
 -- -----------------------------------------------------------------------------
@@ -54,7 +55,9 @@
 -- student_payments — provider transaction reference column (nullable)
 -- -----------------------------------------------------------------------------
 ALTER TABLE student_payments
-    ADD COLUMN IF NOT EXISTS provider_transaction_id varchar(64);--> statement-breakpoint
+    ADD COLUMN IF NOT EXISTS provider_transaction_id varchar(64);
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;--> statement-breakpoint
 -- -----------------------------------------------------------------------------
 -- student_payments — CHECK: a pending row starts undecided (INV-PAY2, insert
 --                     side — mirrors the Drizzle schema check of the same
