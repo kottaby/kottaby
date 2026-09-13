@@ -31,14 +31,9 @@ const DEFAULT_TAB: TabKey = "attendance";
 function isTabKey(value: string): value is TabKey {
   return (TAB_KEYS as readonly string[]).includes(value);
 }
-
 function resolveTab(tab: string | null): TabKey {
-  if (tab !== null && isTabKey(tab)) {
-    return tab;
-  }
-  return DEFAULT_TAB;
+  return tab !== null && isTabKey(tab) ? tab : DEFAULT_TAB;
 }
-
 function buildDetailUrl(studentId: string | number, tab: TabKey, session: string | null): string {
   const params = new URLSearchParams();
   params.set("tab", tab);
@@ -95,7 +90,9 @@ export function ParentChildDetailContainer(props: Readonly<ParentChildDetailCont
   let tabContent: ReactNode;
   switch (activeTab) {
     case "reports":
-      tabContent = <ReportsTab studentId={props.studentId} session={sessionArg} />;
+      tabContent = (
+        <ReportsTab studentId={props.studentId} session={sessionArg} childName={currentChild?.fullName ?? ""} />
+      );
       break;
     case "homework":
       tabContent = <HomeworkTab studentId={props.studentId} />;

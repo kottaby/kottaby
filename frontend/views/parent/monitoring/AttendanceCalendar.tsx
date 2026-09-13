@@ -1,9 +1,16 @@
 "use client";
 
-import { Box, Stack, Typography } from "@mui/material";
-import type { ReactNode } from "react";
+import { ChevronLeftOutlined, ChevronRightOutlined } from "@mui/icons-material";
+import { Box, IconButton, Stack, Typography } from "@mui/material";
+import { type ReactNode, useState } from "react";
 import type { ParentChildSessionsQuery_parentChildSessions_items } from "@/frontend/graphql/generated/gql/graphql";
-import { buildCalendarGrid } from "@/frontend/views/parent/monitoring/AttendanceCalendar.helpers";
+import {
+  buildCalendarGrid,
+  type CalendarMonth,
+  formatMonthLabel,
+  isCurrentMonth,
+  shiftMonth,
+} from "@/frontend/views/parent/monitoring/AttendanceCalendar.helpers";
 
 const WEEKDAY_LABELS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const WEEKDAY_LABELS_AR = ["أحد", "إثن", "ثلا", "أرب", "خمي", "جمع", "سبت"];
@@ -29,6 +36,11 @@ function StatusDot({ status }: Readonly<{ status: string }>): ReactNode {
   );
 }
 
+function currentMonth(): CalendarMonth {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() };
+}
+
 export function AttendanceCalendar({
   sessions,
   locale,
@@ -37,23 +49,53 @@ export function AttendanceCalendar({
   locale: string;
 }>): ReactNode {
   const weekdays = locale === "ar" ? WEEKDAY_LABELS_AR : WEEKDAY_LABELS_EN;
-  const days = buildCalendarGrid(sessions);
-  const now = new Date();
-  const monthName = now.toLocaleDateString(locale === "ar" ? "ar-EG" : "en-US", { month: "long", year: "numeric" });
+  const [viewMonth, setViewMonth] = useState<CalendarMonth>(currentMonth);
+  const days = buildCalendarGrid(sessions, viewMonth);
+  const monthLabel = formatMonthLabel(viewMonth, locale);
+  const canGoForward = !isCurrentMonth(viewMonth);
+
   return (
     <Box sx={theme => ({ border: 1, borderColor: theme.palette.divider, borderRadius: 2, overflow: "hidden" })}>
       <Box
         sx={theme => ({
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
           bgcolor: theme.palette.primary.main,
           color: theme.palette.primary.contrastText,
-          py: 1.5,
-          px: 2,
-          textAlign: "center",
+          py: 0.5,
+          px: 1,
         })}
       >
+        <IconButton
+          size="small"
+          aria-label="previous month"
+          onClick={() => {
+            setViewMonth(prev => shiftMonth(prev, -1));
+          }}
+          sx={theme => ({ color: theme.palette.primary.contrastText })}
+        >
+          <ChevronLeftOutlined fontSize="small" />
+        </IconButton>
         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-          {monthName}
+          {monthLabel}
         </Typography>
+        <IconButton
+          size="small"
+          aria-label="next month"
+          onClick={() => {
+            if (canGoForward) {
+              setViewMonth(prev => shiftMonth(prev, 1));
+            }
+          }}
+          disabled={!canGoForward}
+          sx={theme => ({
+            color: theme.palette.primary.contrastText,
+            "&.Mui-disabled": { color: theme.palette.primary.contrastText, opacity: 0.3 },
+          })}
+        >
+          <ChevronRightOutlined fontSize="small" />
+        </IconButton>
       </Box>
       <Box
         sx={theme => ({

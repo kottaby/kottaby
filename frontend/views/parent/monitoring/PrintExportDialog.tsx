@@ -3,20 +3,8 @@
 import { CloseOutlined, DownloadOutlined, PrintOutlined } from "@mui/icons-material";
 import { Box, Button, Dialog, DialogContent, DialogTitle, IconButton, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { ParentMonitoring, useAppTranslation } from "@/shared/locale";
-
-/**
- * PrintExportDialog — a modal that offers print and CSV export actions for
- * portal report data. Triggered by a toolbar button on the Reports tab.
- *
- * Actions:
- *  - Print: opens the browser print dialog (window.print())
- *  - Export CSV: serializes the report rows to CSV format and triggers
- *    a download via a Blob URL
- *
- * The dialog is a controlled component (open/onClose props). No data
- * fetching — the rows are passed in from the parent tab.
- */
+import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 export interface PrintableReportRow {
   readonly date: string;
@@ -25,16 +13,23 @@ export interface PrintableReportRow {
   readonly notes: string | null;
 }
 
+function escapeCsv(value: string): string {
+  return '"' + value.replace(/"/g, '""') + '"';
+}
+
 export function PrintExportDialog({
   open,
   onClose,
   rows,
+  childName,
 }: Readonly<{
   open: boolean;
   onClose: () => void;
   rows: readonly PrintableReportRow[];
+  childName: string;
 }>): ReactNode {
   const t = useAppTranslation(ParentMonitoring);
+  const locale = useAppLocale();
 
   const handlePrint = () => {
     onClose();
@@ -42,19 +37,22 @@ export function PrintExportDialog({
   };
 
   const handleExportCsv = () => {
-    const header = [t.attendanceColumnDate, t.reportsColumnRating, t.reportsColumnNotes].join(",");
+    const header = [t.attendanceColumnDate, t.csvStatusColumn, t.reportsColumnRating, t.reportsColumnNotes].join(",");
     const lines = rows.map(row => {
-      const date = `"${row.date}"`;
-      const rating = row.rating === null ? t.ratingNotRated : `"${row.rating}"`;
-      const notes = row.notes === null ? "" : `"${row.notes.replace(/"/g, '""')}"`;
-      return [date, rating, notes].join(",");
+      const date = escapeCsv(row.date);
+      const status = escapeCsv(row.status);
+      const rating = row.rating === null ? t.ratingNotRated : escapeCsv(String(row.rating));
+      const notes = row.notes === null ? "" : escapeCsv(row.notes);
+      return [date, status, rating, notes].join(",");
     });
-    const csv = [header, ...lines].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const now = formatApplicantDate(new Date().toISOString(), locale);
+    const meta = escapeCsv(`# ${childName} — ${now}`);
+    const csv = [meta, header, ...lines].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "parent-portal-reports.csv";
+    link.download = "parent-portal-reports-" + Date.now() + ".csv";
     link.click();
     URL.revokeObjectURL(url);
     onClose();

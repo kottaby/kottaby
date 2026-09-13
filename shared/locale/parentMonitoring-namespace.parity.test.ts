@@ -145,6 +145,9 @@ const MANDATED_KEYS = [
   "calendarViewLabel",
   "listViewLabel",
   "calendarMonthLabel",
+  // Print timestamp + CSV status
+  "printTimestampLabel",
+  "csvStatusColumn",
 ] as const;
 
 /**
@@ -170,7 +173,7 @@ const STATUS_LABEL_KEYS = [
 ] as const;
 
 /**
- * The nine function-valued slots (detail-page title interpolation + the
+ * The ten function-valued slots (detail-page title interpolation + the
  * eight function slots (seven plural-count + last-updated interpolation) across children, attendance, reports,
  * homework, evaluations, progress).
  */
@@ -183,6 +186,7 @@ const FUNCTION_KEYS = [
   "evaluationsCount",
   "progressRowCount",
   "lastUpdatedLabel",
+  "printTimestampLabel",
 ] as const;
 
 /** Arabic-script probe — at least one Arabic-block character in the value. */
@@ -277,7 +281,7 @@ describe("no English fallthrough — ar map carries Arabic copy for every string
     }
   });
 
-  test("all nine ar FUNCTION slots return Arabic-script output for Arabic-flavored arguments", () => {
+  test("all ten ar FUNCTION slots return Arabic-script output for Arabic-flavored arguments", () => {
     const arChildName = "ولي الأمر";
     expect(ARABIC_SCRIPT.test(parentMonitoringAr.childrenCount(2))).toBe(true);
     expect(ARABIC_SCRIPT.test(parentMonitoringAr.detailPageTitle(arChildName))).toBe(true);
@@ -366,7 +370,7 @@ describe("template pins — function slots expand their arguments", () => {
     expect(parentMonitoringAr.progressRowCount(15)).toContain("سجل");
   });
 
-  test("all nine function slots are callable with non-empty output in BOTH locales", () => {
+  test("all ten function slots are callable with non-empty output in BOTH locales", () => {
     expect(parentMonitoringEn.childrenCount(2).length).toBeGreaterThan(0);
     expect(parentMonitoringEn.detailPageTitle("Adam").length).toBeGreaterThan(0);
     expect(parentMonitoringEn.attendanceCount(2).length).toBeGreaterThan(0);
@@ -385,7 +389,7 @@ describe("template pins — function slots expand their arguments", () => {
 });
 
 // ===========================================================================
-describe("function-slot inventory — exactly the nine locale functions, on BOTH maps", () => {
+describe("function-slot inventory — exactly the ten locale functions, on BOTH maps", () => {
   test.each([...FUNCTION_KEYS])("slot `%s` is a function on BOTH maps", key => {
     expect(typeof Reflect.get(parentMonitoringAr, key)).toBe("function");
     expect(typeof Reflect.get(parentMonitoringEn, key)).toBe("function");

@@ -133,5 +133,6 @@ export const parentMonitoringAr: ParentMonitoringLabels = {
   calendarViewLabel: "عرض التقويم",
   listViewLabel: "عرض القائمة",
   calendarMonthLabel: "الشهر",
-
+  printTimestampLabel: (timestamp: string): string => `طُبع في ${timestamp}`,
+  csvStatusColumn: "حالة الحصة",
 };

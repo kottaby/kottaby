@@ -24,21 +24,38 @@ export interface CalendarDay {
   readonly sessions: readonly ParentChildSessionsQuery_parentChildSessions_items[];
 }
 
-export function buildCalendarGrid(
-  sessions: readonly ParentChildSessionsQuery_parentChildSessions_items[]
-): readonly CalendarDay[] {
+export interface CalendarMonth {
+  readonly year: number;
+  readonly month: number;
+}
+
+export function calendarMonthKey(cm: CalendarMonth): string {
+  return cm.year + "-" + cm.month;
+}
+
+export function shiftMonth(cm: CalendarMonth, delta: number): CalendarMonth {
+  const total = cm.year * 12 + cm.month + delta;
+  return { year: Math.floor(total / 12), month: ((total % 12) + 12) % 12 };
+}
+
+export function isCurrentMonth(cm: CalendarMonth): boolean {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
+  return cm.year === now.getFullYear() && cm.month === now.getMonth();
+}
+
+export function buildCalendarGrid(
+  sessions: readonly ParentChildSessionsQuery_parentChildSessions_items[],
+  target: CalendarMonth
+): readonly CalendarDay[] {
+  const firstDay = new Date(target.year, target.month, 1);
+  const lastDay = new Date(target.year, target.month + 1, 0);
   const startWeekday = firstDay.getDay();
   const daysInMonth = lastDay.getDate();
   const sessionsByDate = new Map<number, ParentChildSessionsQuery_parentChildSessions_items[]>();
   for (const session of sessions) {
     const dateIso = session.startedAt ?? session.createdAt;
     const date = new Date(dateIso);
-    if (date.getFullYear() === year && date.getMonth() === month) {
+    if (date.getFullYear() === target.year && date.getMonth() === target.month) {
       const day = date.getDate();
       const existing = sessionsByDate.get(day) ?? [];
       existing.push(session);
@@ -53,4 +70,9 @@ export function buildCalendarGrid(
     days.push({ day, sessions: sessionsByDate.get(day) ?? [] });
   }
   return days;
+}
+
+export function formatMonthLabel(cm: CalendarMonth, locale: string): string {
+  const date = new Date(cm.year, cm.month, 1);
+  return date.toLocaleDateString(locale === "ar" ? "ar-EG" : "en-US", { month: "long", year: "numeric" });
 }

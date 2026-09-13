@@ -76,3 +76,88 @@ html[dir="rtl"] body {
     color-scheme: dark;
   }
 }
+
+/* ─── Print stylesheets ───────────────────────────────────────────────
+   When the parent triggers a print (via the PrintExportDialog's
+   window.print() call), these rules hide the portal chrome (AppBar,
+   Sidebar, Tabs, Switcher, headers, refresh buttons) and show only
+   the report rows in a clean printable format. A `.printable-section`
+   class on the content wrapper marks the region that should remain
+   visible. Color adjustments ensure readable output on white paper. */
+
+@media print {
+  /* Hide the dashboard chrome */
+  .MuiAppBar-root,
+  .MuiDrawer-root,
+  .MuiToolbar-root,
+  /* Hide portal chrome: headers, tabs, switcher, toggle buttons, refresh buttons */
+  .portal-header,
+  .portal-tabs,
+  .portal-switcher,
+  .portal-toggle-group,
+  .portal-refresh-button,
+  .portal-print-button,
+  /* Hide MUI Fab and IconButton chrome */
+  .MuiFab-root,
+  .MuiIconButton-root {
+    display: none;
+  }
+
+  /* Reset the main content to full width (no sidebar offset) */
+  .MuiDrawer-paperAnchorLeft,
+  .MuiDrawer-paperAnchorRight {
+    display: none;
+  }
+
+  main {
+    margin: 0;
+    padding: 0;
+    max-width: 100%;
+  }
+
+  /* Force light-on-white for readability */
+  body {
+    background: white;
+    color: black;
+    font-size: 12pt;
+  }
+
+  /* Expand the printable section */
+  .printable-section {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Card borders become thin black for print */
+  .MuiCard-root {
+    border: 1px solid #999;
+    box-shadow: none;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 8px;
+  }
+
+  /* Typography renders crisp black */
+  .MuiTypography-root {
+    color: black;
+  }
+
+  /* Avoid page breaks inside rows */
+  .MuiStack-root {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Print footer with timestamp */
+  .print-timestamp {
+    display: block;
+    margin-top: 16px;
+    font-size: 9pt;
+    color: #666;
+  }
+}
+
+/* The print timestamp is hidden on screen */
+.print-timestamp {
+  display: none;
+}

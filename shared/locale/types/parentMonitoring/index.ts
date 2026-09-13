@@ -227,4 +227,9 @@ export interface ParentMonitoringLabels {
   /** Label for the current month. */
   readonly calendarMonthLabel: string;
 
+  // ─── Print timestamp + CSV status column ──────────────────────────────
+  /** Label for the print-timestamp footer (interpolates a formatted date). */
+  readonly printTimestampLabel: (timestamp: string) => string;
+  /** CSV column header for the session status column. */
+  readonly csvStatusColumn: string;
 }

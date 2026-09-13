@@ -66,6 +66,7 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
   } else {
     body = (
       <Box
+        className="printable-section"
         component="output"
         aria-label={t.reportsSectionTitle}
         data-testid="parent-reports-list"
@@ -74,6 +75,13 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
         {rows.map(row => (
           <ReportRow key={row.id} row={row} labels={t} locale={locale} deepLinkSessionId={props.session} />
         ))}
+        <Typography
+          className="print-timestamp"
+          variant="caption"
+          sx={theme => ({ color: theme.palette.text.secondary })}
+        >
+          {t.printTimestampLabel(formatApplicantDate(new Date().toISOString(), locale))}
+        </Typography>
       </Box>
     );
   }
@@ -94,6 +102,7 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
         </Typography>
         {showPrintButton ? (
           <IconButton
+            className="portal-print-button"
             aria-label={t.printLabel}
             onClick={() => {
               setPrintOpen(true);
@@ -113,6 +122,7 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
             setPrintOpen(false);
           }}
           rows={printableRows}
+          childName={props.childName}
         />
       ) : null}
     </Stack>
@@ -122,4 +132,5 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
 export interface ReportsTabProps {
   readonly studentId: number;
   readonly session: number | null;
+  readonly childName: string;
 }

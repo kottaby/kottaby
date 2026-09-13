@@ -275,7 +275,7 @@ describe("ReportsTab — state matrix", () => {
       test("loading → skeleton region with aria-busy; ZERO mutations on the wire", async () => {
         const traffic = createNetworkTraffic();
         renderPortal(
-          <ReportsTab studentId={ACTIVE_STUDENT_ID} session={null} />,
+          <ReportsTab studentId={ACTIVE_STUDENT_ID} session={null} childName="Test Child" />,
           traffic,
           [reportsInFlightMock(ACTIVE_STUDENT_ID)],
           locale
@@ -293,7 +293,7 @@ describe("ReportsTab — state matrix", () => {
       test("empty → IconCircleEmptyState with localized title", async () => {
         const traffic = createNetworkTraffic();
         renderPortal(
-          <ReportsTab studentId={ACTIVE_STUDENT_ID} session={null} />,
+          <ReportsTab studentId={ACTIVE_STUDENT_ID} session={null} childName="Test Child" />,
           traffic,
           [reportsMock(ACTIVE_STUDENT_ID, [])],
           locale
@@ -312,7 +312,7 @@ describe("ReportsTab — state matrix", () => {
         const traffic = createNetworkTraffic();
         const row = reportRowFixture({ studentRatingByTeacher: 5, teacherNotes: "Great work" });
         renderPortal(
-          <ReportsTab studentId={ACTIVE_STUDENT_ID} session={null} />,
+          <ReportsTab studentId={ACTIVE_STUDENT_ID} session={null} childName="Test Child" />,
           traffic,
           [reportsMock(ACTIVE_STUDENT_ID, [row])],
           locale
@@ -328,7 +328,7 @@ describe("ReportsTab — state matrix", () => {
       test("FORBIDDEN → PermissionDeniedFallback; raw transport message NEVER renders", async () => {
         const traffic = createNetworkTraffic();
         renderPortal(
-          <ReportsTab studentId={ACTIVE_STUDENT_ID} session={null} />,
+          <ReportsTab studentId={ACTIVE_STUDENT_ID} session={null} childName="Test Child" />,
           traffic,
           [reportsFailureMock(ACTIVE_STUDENT_ID, "FORBIDDEN")],
           locale
