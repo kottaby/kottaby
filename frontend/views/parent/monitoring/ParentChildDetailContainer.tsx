@@ -39,18 +39,24 @@ const TAB_ICONS: Readonly<Record<TabKey, ReactElement>> = {
   progress: <TrendingUpOutlined fontSize="small" />,
 };
 
-function renderTabContent(tab: TabKey, studentId: number, session: number | null, childName: string): ReactNode {
+function renderTabContent(
+  tab: TabKey,
+  studentId: number,
+  session: number | null,
+  childName: string,
+  deniedAction: Readonly<{ readonly label: string; readonly onAction: () => void }>
+): ReactNode {
   switch (tab) {
     case "reports":
-      return <ReportsTab studentId={studentId} session={session} childName={childName} />;
+      return <ReportsTab studentId={studentId} session={session} childName={childName} deniedAction={deniedAction} />;
     case "homework":
-      return <HomeworkTab studentId={studentId} />;
+      return <HomeworkTab studentId={studentId} deniedAction={deniedAction} />;
     case "evaluations":
-      return <EvaluationsTab studentId={studentId} />;
+      return <EvaluationsTab studentId={studentId} deniedAction={deniedAction} />;
     case "progress":
-      return <ProgressTab studentId={studentId} />;
+      return <ProgressTab studentId={studentId} deniedAction={deniedAction} />;
     default:
-      return <AttendanceTab studentId={studentId} />;
+      return <AttendanceTab studentId={studentId} deniedAction={deniedAction} />;
   }
 }
 
@@ -67,6 +73,12 @@ export function ParentChildDetailContainer(props: Readonly<ParentChildDetailCont
   const activeTab = resolveTab(props.tab);
   const sessionNumber = props.session === null ? null : Number(props.session);
   const sessionArg = sessionNumber !== null && Number.isNaN(sessionNumber) ? null : sessionNumber;
+  const deniedAction = {
+    label: t.backToChildrenAction,
+    onAction: () => {
+      router.push("/parent/children");
+    },
+  };
   if (denied) {
     return (
       <PermissionDeniedFallback
@@ -83,7 +95,13 @@ export function ParentChildDetailContainer(props: Readonly<ParentChildDetailCont
   const handleSwitcherChange = (newId: string) => {
     router.push(buildDetailUrl(newId, activeTab, props.session));
   };
-  const tabContent = renderTabContent(activeTab, props.studentId, sessionArg, currentChild?.fullName ?? "");
+  const tabContent = renderTabContent(
+    activeTab,
+    props.studentId,
+    sessionArg,
+    currentChild?.fullName ?? "",
+    deniedAction
+  );
   const headerTitle = currentChild === undefined ? t.portalPageTitle : t.detailPageTitle(currentChild.fullName);
   return (
     <Stack spacing={3} sx={{ width: "100%" }}>

@@ -63,7 +63,7 @@ export function ProgressTab(props: Readonly<ProgressTabProps>): ReactNode {
     errorCode !== null &&
     mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
   if (denied) {
-    return <PermissionDeniedFallback />;
+    return <PermissionDeniedFallback actionLabel={props.deniedAction?.label} onAction={props.deniedAction?.onAction} />;
   }
 
   const progress = data?.parentChildProgress;
@@ -149,4 +149,6 @@ export function ProgressTab(props: Readonly<ProgressTabProps>): ReactNode {
 export interface ProgressTabProps {
   /** The active child id (re-keys the Apollo query — rows never leak across children). */
   readonly studentId: number;
+  /** Page-level recovery affordance rendered inside the tab's FORBIDDEN fallback. */
+  readonly deniedAction?: Readonly<{ readonly label: string; readonly onAction: () => void }>;
 }

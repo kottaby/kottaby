@@ -33,7 +33,7 @@ export function AttendanceTab(props: Readonly<AttendanceTabProps>): ReactNode {
     errorCode !== null &&
     mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
   if (denied) {
-    return <PermissionDeniedFallback />;
+    return <PermissionDeniedFallback actionLabel={props.deniedAction?.label} onAction={props.deniedAction?.onAction} />;
   }
 
   const rows = data?.parentChildSessions?.items;
@@ -118,4 +118,6 @@ export function AttendanceTab(props: Readonly<AttendanceTabProps>): ReactNode {
 
 export interface AttendanceTabProps {
   readonly studentId: number;
+  /** Page-level recovery affordance rendered inside the tab's FORBIDDEN fallback. */
+  readonly deniedAction?: Readonly<{ readonly label: string; readonly onAction: () => void }>;
 }

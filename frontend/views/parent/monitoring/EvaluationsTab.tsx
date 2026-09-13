@@ -21,6 +21,17 @@ import {
 } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
+type DeniedAction = Readonly<{ readonly label: string; readonly onAction: () => void }>;
+
+/**
+ * TabDeniedFallback — thin wrapper keeping the EvaluationsTab function body
+ * under the per-function line budget while forwarding the page-level
+ * recovery action into the shared FORBIDDEN surface.
+ */
+function TabDeniedFallback({ action }: Readonly<{ readonly action?: DeniedAction }>): ReactNode {
+  return <PermissionDeniedFallback actionLabel={action?.label} onAction={action?.onAction} />;
+}
+
 export function EvaluationsTab(props: Readonly<EvaluationsTabProps>): ReactNode {
   const t = useAppTranslation(ParentMonitoring);
   const te = useAppTranslation(Errors);
@@ -51,7 +62,7 @@ export function EvaluationsTab(props: Readonly<EvaluationsTabProps>): ReactNode 
     [rows, searchState, locale]
   );
   if (denied) {
-    return <PermissionDeniedFallback />;
+    return <TabDeniedFallback action={props.deniedAction} />;
   }
   let body: ReactNode;
   if (rows === undefined) {
@@ -124,4 +135,6 @@ export function EvaluationsTab(props: Readonly<EvaluationsTabProps>): ReactNode 
 
 export interface EvaluationsTabProps {
   readonly studentId: number;
+  /** Page-level recovery affordance rendered inside the tab's FORBIDDEN fallback. */
+  readonly deniedAction?: Readonly<{ readonly label: string; readonly onAction: () => void }>;
 }

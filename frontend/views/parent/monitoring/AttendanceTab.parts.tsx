@@ -74,9 +74,14 @@ export function AttendanceRow({
   const colors = attendanceStatusColor(row.status);
   const statusKey = row.status.toLowerCase();
   const icon = STATUS_ICONS[statusKey] ?? <ScheduleOutlined fontSize="small" />;
-  const timeFormatter = new Intl.DateTimeFormat(locale === "ar" ? "ar-EG" : locale, {
+  // SAME rule as formatApplicantDate's resolveLocaleTag: only exact "en"
+  // selects English; UTC components + 24h clock keep digit/clock conventions
+  // consistent with the row's date stamp in BOTH locales.
+  const timeFormatter = new Intl.DateTimeFormat(locale === "en" ? "en" : "ar", {
+    timeZone: "UTC",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
   let timeRange: string | null = null;
   if (row.startedAt !== null) {

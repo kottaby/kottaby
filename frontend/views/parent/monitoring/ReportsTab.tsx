@@ -49,7 +49,7 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
     [rows, searchState, locale]
   );
   if (denied) {
-    return <PermissionDeniedFallback />;
+    return <PermissionDeniedFallback actionLabel={props.deniedAction?.label} onAction={props.deniedAction?.onAction} />;
   }
   const showPrintButton = rows !== undefined && rows.length > 0;
   const body = renderReportsBody(
@@ -114,6 +114,8 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
 
 export interface ReportsTabProps {
   readonly studentId: number;
+  /** Page-level recovery affordance rendered inside the tab's FORBIDDEN fallback. */
+  readonly deniedAction?: Readonly<{ readonly label: string; readonly onAction: () => void }>;
   readonly session: number | null;
   readonly childName: string;
 }

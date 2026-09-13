@@ -47,7 +47,7 @@ export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
     [rows, searchState, locale]
   );
   if (denied) {
-    return <PermissionDeniedFallback />;
+    return <PermissionDeniedFallback actionLabel={props.deniedAction?.label} onAction={props.deniedAction?.onAction} />;
   }
   const body = renderHomeworkBody(
     rows,
@@ -116,4 +116,6 @@ export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
 
 export interface HomeworkTabProps {
   readonly studentId: number;
+  /** Page-level recovery affordance rendered inside the tab's FORBIDDEN fallback. */
+  readonly deniedAction?: Readonly<{ readonly label: string; readonly onAction: () => void }>;
 }
