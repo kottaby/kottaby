@@ -144,16 +144,16 @@
 
 ## Phase 4 — Frontend
 
-- [ ] 9. **Purchase documents + dialog + CTA wiring + copy**
+- [x] 9. **Purchase documents + dialog + CTA wiring + copy**
   - CREATE `frontend/graphql/sharedDocuments/billing/verification-purchase.documents.ts`: `purchaseVerificationPlanMutationDocument` (`mutation purchaseVerificationPlan { subscription { id status planId … } payment { id amount currency status … } checkout { provider providerReference checkoutUrl } }` — `id` on every object; `TypedDocumentNode` types from codegen; exported through `billing/index.ts`).
   - CREATE `frontend/views/teachers/dashboard/VerificationPurchaseDialog.tsx` per `plan.md` §6 (planCatalog query + title constant, confirm/cancel, per-attempt idempotency key header, NoticeSnackbar feedback, `extractErrorCode` branching).
   - UPDATE `frontend/views/teachers/dashboard/ApplicantStatusZones.tsx` — both CTAs open the dialog; on success refetch `myApplicantProfileQueryDocument`.
   - i18n `applicant` keys: types + en + ar + parity pins (REQ-7.2).
-  - [ ] 9.QL sub-loop per file → exit 0
-  - [ ] 9.TE `test/ui/components/` component tests: dialog renders plan line (AR snapshot too), confirm mutation success → refetch + success snackbar; `APPLICANT_COOLDOWN_ACTIVE` → server message + refetch; `DUPLICATE_REQUEST` → info; generic error path; RTL render.
-  - [ ] 9.SEC No raw server messages rendered except the localized cooldown copy; key rotation policy implemented.
-  - [ ] 9.SR MUI v9 `sx`-only, theme palette callbacks, no hardcoded colors/strings; `useAppTranslation` handle + property access; hooks from `@apollo/client/react`; NO `useLazyQuery`.
-  - [ ] 9.IV Read printed files (frontend AGENTS/instructions); validate.
+  - [x] 9.QL sub-loop per file → exit 0
+  - [x] 9.TE `test/ui/components/` component tests: dialog renders plan line (AR snapshot too), confirm mutation success → refetch + success snackbar; `APPLICANT_COOLDOWN_ACTIVE` → server message + refetch; `DUPLICATE_REQUEST` → info; generic error path; RTL render.
+  - [x] 9.SEC No raw server messages rendered except the localized cooldown copy; key rotation policy implemented.
+  - [x] 9.SR MUI v9 `sx`-only, theme palette callbacks, no hardcoded colors/strings; `useAppTranslation` handle + property access; hooks from `@apollo/client/react`; NO `useLazyQuery`.
+  - [x] 9.IV Read printed files (frontend AGENTS/instructions); validate.
   - Run: `bun run test:ui:components`
   - _Requirements: REQ-6.1-6.6, REQ-7.2-7.3, REQ-0.5, REQ-9_
 

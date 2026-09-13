@@ -12,6 +12,11 @@
  * are a single behavioral contract: one caller-id rule, one key rule.
  */
 
+import { ValidationError } from "@/backend/lib/errors";
+import { logger } from "@/backend/lib/logger";
+import type { PlanSelectType } from "@/backend/types";
+import type { ErrorsLabels } from "@/shared/locale/types/errors";
+
 /** The idempotency claim column's maximum key length (varchar(128) backstop). */
 const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
 
@@ -37,4 +42,41 @@ export function isPositiveSafeId(value: number): boolean {
  */
 export function isCarryableIdempotencyKey(key: string | null): key is string {
   return key !== null && key.length > 0 && key.length <= MAX_IDEMPOTENCY_KEY_LENGTH;
+}
+
+/**
+ * Re-compares the FRESH in-transaction plan row against the price/currency
+ * the gateway checkout was created with (both carried verbatim from the
+ * pre-checkout plan read). An admin price or currency change between the
+ * checkout creation and this transaction would otherwise commit a pending
+ * pair whose stored amount disagrees with the amount the provider actually
+ * charged — a settlement guaranteed to quarantine. The mismatch is the
+ * generic localized validation denial (machine code `PLAN_PRICE_CHANGED`,
+ * field `planId`) thrown BEFORE any row write, so the transaction rolls
+ * back with nothing to release.
+ *
+ * The abandoned checkout session needs no compensation inside this flow:
+ * the built-in mock provider is stateless (a checkout is a pure descriptor
+ * mint — no provider-side session exists to void). A stateful provider
+ * integration owns its own abandoned-session compensation out-of-band.
+ *
+ * `logMessage` lets each purchase flow attribute the domain log to its own
+ * surface while the denial contract stays byte-identical across flows.
+ */
+export function assertPlanUnchangedSinceCheckout(
+  freshPlan: PlanSelectType,
+  checkoutAmount: string,
+  checkoutCurrency: string,
+  t: ErrorsLabels,
+  logMessage: string
+): void {
+  if (freshPlan.price === checkoutAmount && freshPlan.currency === checkoutCurrency) {
+    return;
+  }
+  logger.logDomainError(logMessage, {
+    code: "PLAN_PRICE_CHANGED",
+    entity: "plans",
+    entityId: freshPlan.id,
+  });
+  throw new ValidationError(t.validation, [{ field: "planId", code: "PLAN_PRICE_CHANGED", message: t.validation }]);
 }

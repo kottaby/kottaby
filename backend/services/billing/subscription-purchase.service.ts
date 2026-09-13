@@ -75,7 +75,11 @@ import { ConflictError, isPgUniqueViolation, NotFoundError, ValidationError } fr
 import { logger } from "@/backend/lib/logger";
 import { getPaymentGateway } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
 import { MAX_INTERVAL_DAYS, MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
-import { isCarryableIdempotencyKey, isPositiveSafeId } from "@/backend/services/billing/purchase-guards.helpers";
+import {
+  assertPlanUnchangedSinceCheckout,
+  isCarryableIdempotencyKey,
+  isPositiveSafeId,
+} from "@/backend/services/billing/purchase-guards.helpers";
 import { assertActorGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
 import type {
   DBQueryExecutor,
@@ -358,39 +362,6 @@ async function insertPendingSubscription(
 }
 
 /**
- * Re-compares the FRESH in-transaction plan row against the price/currency
- * the gateway checkout was created with (both carried verbatim from the
- * pre-checkout plan read). An admin price or currency change between the
- * checkout creation and this transaction would otherwise commit a pending
- * pair whose stored amount disagrees with the amount the provider actually
- * charged — a settlement guaranteed to quarantine. The mismatch is the
- * generic localized validation denial (machine code `PLAN_PRICE_CHANGED`,
- * field `planId`) thrown BEFORE any row write, so the transaction rolls
- * back with nothing to release.
- *
- * The abandoned checkout session needs no compensation inside this flow:
- * the built-in mock provider is stateless (a checkout is a pure descriptor
- * mint — no provider-side session exists to void). A stateful provider
- * integration owns its own abandoned-session compensation out-of-band.
- */
-function assertPlanUnchangedSinceCheckout(
-  freshPlan: PlanSelectType,
-  checkoutAmount: string,
-  checkoutCurrency: string,
-  t: ErrorsTranslations
-): void {
-  if (freshPlan.price === checkoutAmount && freshPlan.currency === checkoutCurrency) {
-    return;
-  }
-  logger.logDomainError("Subscription purchase rejected: plan price or currency changed during checkout", {
-    code: "PLAN_PRICE_CHANGED",
-    entity: "plans",
-    entityId: freshPlan.id,
-  });
-  throw new ValidationError(t.validation, [{ field: "planId", code: "PLAN_PRICE_CHANGED", message: t.validation }]);
-}
-
-/**
  * The purchase transaction body — the fixed, never reordered write order
  * (active-plan + lane re-validation → checkout-value re-comparison →
  * governance re-assertion → savepoint-bracketed idempotency claim →
@@ -414,7 +385,13 @@ async function purchaseInTx(
   // only committable when the fresh row still agrees with it. Thrown before
   // ANY row write — the rollback discards the checkout session with zero
   // rows written (see the helper's docblock on session compensation).
-  assertPlanUnchangedSinceCheckout(activePlan, checkoutAmount, checkoutCurrency, t);
+  assertPlanUnchangedSinceCheckout(
+    activePlan,
+    checkoutAmount,
+    checkoutCurrency,
+    t,
+    "Subscription purchase rejected: plan price or currency changed during checkout"
+  );
 
   // Governance re-assertion INSIDE the transaction: the pre-checkout check
   // read the actor before the gateway round-trip, so a caller deleted,

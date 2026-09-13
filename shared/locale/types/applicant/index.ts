@@ -53,4 +53,27 @@ export interface ApplicantLabels {
   readonly coldStartCertifiedTitle: string;
   /** Notification body emitted alongside `coldStartCertifiedTitle` — pure copy, no identifiers. */
   readonly coldStartCertifiedBody: string;
+  /** Purchase-dialog heading over the verification-plan confirmation. */
+  readonly purchaseDialogTitle: string;
+  /** Purchase-dialog supporting description beneath the heading. */
+  readonly purchaseDialogDescription: string;
+  /**
+   * Composite plan descriptor rendered inside the purchase dialog. The
+   * placeholder ORDER (title, price, currency, sessions, days) is pinned
+   * identical across BOTH locales by the parity suite; every value comes
+   * from the resolved plan-catalog row — never a client-side default.
+   */
+  readonly purchasePlanLine: (title: string, price: string, currency: string, sessions: number, days: number) => string;
+  /** Card-level purchase entry CTA on the pending prompt panel. */
+  readonly purchaseCta: string;
+  /** Purchase-dialog confirm CTA. */
+  readonly purchaseConfirmCta: string;
+  /** Purchase-dialog cancel CTA. */
+  readonly purchaseCancelCta: string;
+  /** Success notice shown after the purchase mutation completes. */
+  readonly purchaseSuccess: string;
+  /** Generic localized failure notice for every non-cooldown purchase denial — server messages never leak through it. */
+  readonly purchaseGenericError: string;
+  /** Info notice for an idempotent duplicate replay — the request was already received. */
+  readonly purchaseDuplicateInfo: string;
 }

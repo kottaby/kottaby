@@ -18,4 +18,15 @@ export const applicantEn: ApplicantLabels = {
   coldStartCertifiedTitle: "Your Teacher Certification Is Complete",
   coldStartCertifiedBody:
     "Congratulations — you are now a certified Qur'an teacher. All teaching surfaces are now open for you in the dashboard.",
+  purchaseDialogTitle: "Purchase Verification Plan",
+  purchaseDialogDescription:
+    "Review the plan below. Your verification evaluation starts as soon as the purchase is confirmed.",
+  purchasePlanLine: (title, price, currency, sessions, days) =>
+    `${title}: ${price} ${currency} — ${sessions} sessions over ${days} days`,
+  purchaseCta: "Purchase",
+  purchaseConfirmCta: "Confirm Purchase",
+  purchaseCancelCta: "Cancel",
+  purchaseSuccess: "Purchase completed. Your application is now in evaluation.",
+  purchaseGenericError: "The purchase could not be completed. Please try again.",
+  purchaseDuplicateInfo: "This purchase request was already received.",
 };

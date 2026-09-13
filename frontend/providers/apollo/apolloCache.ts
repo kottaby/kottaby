@@ -74,6 +74,15 @@ export function createApolloCache(): InMemoryCache {
       OnlineMeetingInfo: {
         keyFields: false,
       },
+      // Embedded scalar-only checkout descriptor (no `id`) returned by the
+      // purchase mutations (`gateway checkout session` — provider +
+      // providerReference + nullable hosted URL). First consumed by the
+      // teacher-applicant verification purchase document; cached inline
+      // under the root mutation field, never normalized into a standalone
+      // cache key (frontend/graphql/AGENTS.md embedded-type policy).
+      PaymentCheckout: {
+        keyFields: false,
+      },
       // Admin analytics-dashboard snapshot family — scalar-only sections of
       // the single `adminPlatformAnalytics` read model with no `id` anywhere
       // in the aggregate (see `frontend/graphql/generated/schema.graphql`),

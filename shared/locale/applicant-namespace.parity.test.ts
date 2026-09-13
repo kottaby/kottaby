@@ -14,7 +14,12 @@
  *      the timestamp is the ONLY interpolated value (no other user
  *      data enters the reject copy) and its NAME must stay identical ar/en so
  *      consumers can expand it uniformly.
- *   3. REGISTRY WIRING — the `Applicant` handle is registered in
+ *   3. PURCHASE-DIALOG KEYS — the verification-purchase surface's nine keys
+ *      exist non-empty in BOTH locales; `purchasePlanLine` is the namespace's
+ *      only function slot and its placeholder ORDER (title, price, currency,
+ *      sessions, days) is pinned identical ar/en; every ar string slot
+ *      carries Arabic script.
+ *   4. REGISTRY WIRING — the `Applicant` handle is registered in
  *      `shared/locale/namespaces/index.ts` with the conventional
  *      `<ns>.<ns>` id and its getter resolves to the composed bundle slice.
  *
@@ -81,14 +86,23 @@ describe("compile-time parity mirror — ar/en applicant key sets agree", () => 
     expect(enKeys).toEqual(arKeys);
   });
 
-  test("every value on BOTH maps is a non-empty localized string (zero dead keys)", () => {
+  test("every value on BOTH maps is a non-empty localized string or a function (zero dead keys)", () => {
     for (const key of Object.keys(applicantAr)) {
-      expect(nonEmptyLabelOf(applicantAr, key, "ar").length).toBeGreaterThan(0);
-      expect(nonEmptyLabelOf(applicantEn, key, "en").length).toBeGreaterThan(0);
+      const arValue: unknown = Reflect.get(applicantAr, key);
+      const enValue: unknown = Reflect.get(applicantEn, key);
+      expect(typeof arValue === "string" || typeof arValue === "function").toBe(true);
+      expect(typeof enValue === "string" || typeof enValue === "function").toBe(true);
+      if (typeof arValue === "string") {
+        expect(nonEmptyLabelOf(applicantAr, key, "ar").length).toBeGreaterThan(0);
+        expect(nonEmptyLabelOf(applicantEn, key, "en").length).toBeGreaterThan(0);
+      }
     }
     // Symmetric sweep — guards an en-only key that ar lost via future drift.
     for (const key of Object.keys(applicantEn)) {
-      expect(nonEmptyLabelOf(applicantAr, key, "ar").length).toBeGreaterThan(0);
+      const enValue: unknown = Reflect.get(applicantEn, key);
+      if (typeof enValue === "string") {
+        expect(nonEmptyLabelOf(applicantAr, key, "ar").length).toBeGreaterThan(0);
+      }
     }
   });
 
@@ -139,6 +153,85 @@ describe("cooldown placeholder pin — {cooldownUntil} only, identical name in B
         expect(enNames).toEqual(arNames);
       }
     }
+  });
+});
+
+// ===========================================================================
+describe("verification purchase dialog keys — mandated inventory + function pin", () => {
+  /** Arabic-script probe — at least one Arabic-block character in the value. */
+  const ARABIC_SCRIPT = /[\u0600-\u06FF]/;
+
+  /** Every key the verification-purchase dialog surface must carry. */
+  const PURCHASE_KEYS = [
+    "purchaseDialogTitle",
+    "purchaseDialogDescription",
+    "purchasePlanLine",
+    "purchaseCta",
+    "purchaseConfirmCta",
+    "purchaseCancelCta",
+    "purchaseSuccess",
+    "purchaseGenericError",
+    "purchaseDuplicateInfo",
+  ] as const;
+
+  /** The single function-valued slot (the composite plan descriptor). */
+  const PURCHASE_FUNCTION_KEYS = ["purchasePlanLine"] as const;
+
+  test.each([...PURCHASE_KEYS])("purchase key `%s` exists as a non-empty string in BOTH locales", key => {
+    if ((PURCHASE_FUNCTION_KEYS as readonly string[]).includes(key)) {
+      expect(typeof Reflect.get(applicantAr, key)).toBe("function");
+      expect(typeof Reflect.get(applicantEn, key)).toBe("function");
+      return;
+    }
+    expect(nonEmptyLabelOf(applicantAr, key, "ar").length).toBeGreaterThan(0);
+    expect(nonEmptyLabelOf(applicantEn, key, "en").length).toBeGreaterThan(0);
+  });
+
+  test("no OTHER slot is function-valued (string/function split is stable)", () => {
+    for (const key of Object.keys(applicantEn)) {
+      const isFunction = typeof Reflect.get(applicantEn, key) === "function";
+      expect(isFunction).toBe((PURCHASE_FUNCTION_KEYS as readonly string[]).includes(key));
+    }
+  });
+
+  test("every ar purchase STRING slot carries Arabic script (no English fallthrough)", () => {
+    for (const key of PURCHASE_KEYS) {
+      const value: unknown = Reflect.get(applicantAr, key);
+      if (typeof value === "string") {
+        expect(ARABIC_SCRIPT.test(value)).toBe(true);
+      }
+    }
+  });
+
+  test("purchasePlanLine placeholder ORDER is title → price → currency → sessions → days in BOTH locales", () => {
+    const TITLE = "«T»";
+    const PRICE = "«P»";
+    const CURRENCY = "«C»";
+    const SESSIONS = 5;
+    const DAYS = 14;
+    for (const labels of [applicantEn, applicantAr]) {
+      const line = labels.purchasePlanLine(TITLE, PRICE, CURRENCY, SESSIONS, DAYS);
+      const positions = [
+        line.indexOf(TITLE),
+        line.indexOf(PRICE),
+        line.indexOf(CURRENCY),
+        line.indexOf(String(SESSIONS)),
+        line.indexOf(String(DAYS)),
+      ];
+      for (const position of positions) {
+        expect(position).toBeGreaterThanOrEqual(0);
+      }
+      for (let i = 1; i < positions.length; i++) {
+        expect(positions[i]).toBeGreaterThan(positions[i - 1]);
+      }
+    }
+  });
+
+  test("purchasePlanLine carries the interpolated values in BOTH locales (placeholder parity)", () => {
+    expect(applicantEn.purchasePlanLine("T", "P", "C", 5, 14)).toContain("5");
+    expect(applicantEn.purchasePlanLine("T", "P", "C", 5, 14)).toContain("14");
+    expect(applicantAr.purchasePlanLine("T", "P", "C", 5, 14)).toContain("5");
+    expect(applicantAr.purchasePlanLine("T", "P", "C", 5, 14)).toContain("14");
   });
 });
 

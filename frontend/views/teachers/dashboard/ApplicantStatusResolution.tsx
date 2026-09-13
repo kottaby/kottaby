@@ -24,6 +24,7 @@ import {
   EligibleZone,
   PromptPanel,
 } from "@/frontend/views/teachers/dashboard/ApplicantStatusZones";
+import { PendingZone } from "@/frontend/views/teachers/dashboard/PendingPurchaseZone";
 import type { ApplicantLabels } from "@/shared/locale/types/applicant";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
 
@@ -59,13 +60,18 @@ interface ResolvedStatusBody {
  * reaches the wire). The `switch` over a same-type enum mirrors the
  * established `ProfileView.getRoleLabel` precedent; the default arm stays
  * defensive-corrupt rather than crashing or claiming anything false.
+ *
+ * The two purchase entry points — the pending prompt's purchase CTA and the
+ * eligible re-apply CTA — both raise `onPurchaseIntent`, which the hosting
+ * card turns into the verification-purchase confirmation dialog.
  */
 export function resolveStatusBody(
   status: ApplicantStatus,
   profile: MyApplicantProfileQuery_myApplicantProfile,
   t: ApplicantLabels,
   te: ErrorsLabels,
-  locale: string
+  locale: string,
+  onPurchaseIntent: () => void
 ): ResolvedStatusBody {
   switch (status) {
     case ApplicantStatus.Pending:
@@ -74,7 +80,9 @@ export function resolveStatusBody(
         chipIcon: PendingIcon,
         tone: "pending",
         accent: palette => palette.status.pendingContainer,
-        content: <PromptPanel>{t.pendingPrompt}</PromptPanel>,
+        content: (
+          <PendingZone promptText={t.pendingPrompt} ctaLabel={t.purchaseCta} onPurchaseIntent={onPurchaseIntent} />
+        ),
       };
     case ApplicantStatus.InEvaluation:
       return {
@@ -118,13 +126,19 @@ export function resolveStatusBody(
           content: null,
         };
       }
-      // Eligible re-application affordance (purchase route not wired yet).
+      // Eligible re-application affordance — opens the purchase dialog.
       return {
         chipLabel: t.statusFailed,
         chipIcon: ErrorIcon,
         tone: "success",
         accent: palette => palette.success.main,
-        content: <EligibleZone eligibleText={t.eligibleToReapply} reapplyLabel={t.reapplyCta} />,
+        content: (
+          <EligibleZone
+            eligibleText={t.eligibleToReapply}
+            reapplyLabel={t.reapplyCta}
+            onPurchaseIntent={onPurchaseIntent}
+          />
+        ),
       };
     case ApplicantStatus.Passed:
       // Explicit truthfulness branch instead of fall-through.

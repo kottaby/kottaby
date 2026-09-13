@@ -2,7 +2,8 @@
 
 import { useQuery } from "@apollo/client/react";
 import { Alert, Typography } from "@mui/material";
-import type { ReactNode } from "react";
+import { type ReactNode, useCallback, useState } from "react";
+import { NoticeSnackbar } from "@/frontend/components/ui/NoticeSnackbar";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import type { MyApplicantProfileQuery_myApplicantProfile } from "@/frontend/graphql/generated/gql/graphql";
 import { myApplicantProfileQueryDocument } from "@/frontend/graphql/sharedDocuments";
@@ -15,6 +16,8 @@ import {
   StatusShell,
 } from "@/frontend/views/teachers/dashboard/ApplicantStatusShell";
 import { CertifiedBranch } from "@/frontend/views/teachers/dashboard/ApplicantStatusZones";
+import type { PurchaseNotice } from "@/frontend/views/teachers/dashboard/VerificationPurchaseDialog";
+import { VerificationPurchaseDialog } from "@/frontend/views/teachers/dashboard/VerificationPurchaseDialog";
 import { Applicant, Errors, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 /**
@@ -35,17 +38,21 @@ import { Applicant, Errors, useAppLocale, useAppTranslation } from "@/shared/loc
  * | 2 | error code `UNAUTHORIZED` / `FORBIDDEN` | shared `PermissionDeniedFallback` — never bare `null` |
  * | 3 | any other transport error | inline `Alert` carrying `errors.internalServerError` |
  * | 4 | `myApplicantProfile === null` (one answer for never-applied + certified) | certified summary + informational teaching-surfaces hint |
- * | 5 | `Pending` | pending chip + awaiting-purchase prompt (purchase flow not yet implemented) |
+ * | 5 | `Pending` | pending chip + awaiting-purchase prompt + purchase CTA (opens the dialog) |
  * | 6 | `InEvaluation` | info chip + attempt counter + progress hint |
  * | 7 | `Failed` + `cooldownActive` | warning chip + `{cooldownUntil}` expanded via {@link formatApplicantDate} + DISABLED re-apply CTA; `eligibleToReapply` deliberately suppressed — the truthful message is WHEN re-application unlocks |
- * | 8 | `Failed` + `canPurchaseVerification` | success affordance + ENABLED re-apply CTA (intentional no-op until the purchase route ships) |
+ * | 8 | `Failed` + `canPurchaseVerification` | success affordance + ENABLED re-apply CTA (opens the dialog) |
  * | 9 | `Passed` (explicit truthfulness branch) | passed chip + certified-summary narrative |
  * | — | unknown status value (defensive; server fails closed) | inline `Alert` carrying `errors.applicantStatusCorrupt` — never crashes |
  *
- * The enabled re-apply CTA is an informational AFFORDANCE only: it renders
- * truthful localized copy with a ≥44px hit area but navigates nowhere until
- * the verification purchase surface exists; no branch claims an action the
- * product cannot perform yet.
+ * The two purchase entry points — the pending prompt's purchase CTA and the
+ * enabled re-apply CTA — open the verification-purchase confirmation dialog
+ * hosted at this card's root; the dialog's write path refetches
+ * `myApplicantProfileQueryDocument` on success, so the card re-renders
+ * `in_evaluation`, and the transient purchase notices ride the card-level
+ * `NoticeSnackbar` slot (the notice must survive the dialog unmounting on
+ * success). The failed+active-cooldown branch keeps its DISABLED CTA
+ * unchanged.
  *
  * MUI v9 discipline: `sx`-only styling (no direct style props), colors
  * exclusively through `theme.palette.*` callbacks, `*Outlined` icons only,
@@ -63,6 +70,23 @@ export function ApplicantStatusCard(): ReactNode {
   const te = useAppTranslation(Errors);
   const locale = useAppLocale();
   const { data, loading, error } = useQuery(myApplicantProfileQueryDocument);
+
+  // Purchase-dialog open slot + the card-level transient-notice state the
+  // dialog's write path reports into (survives the dialog unmounting).
+  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
+  const [notice, setNotice] = useState<PurchaseNotice | null>(null);
+
+  const openPurchaseDialog = useCallback((): void => {
+    setPurchaseDialogOpen(true);
+  }, []);
+
+  const closePurchaseDialog = useCallback((): void => {
+    setPurchaseDialogOpen(false);
+  }, []);
+
+  const dismissNotice = useCallback((): void => {
+    setNotice(null);
+  }, []);
 
   // Branch 1 — in flight: skeleton placeholder announces busy semantics.
   if (loading) {
@@ -99,16 +123,21 @@ export function ApplicantStatusCard(): ReactNode {
     return <CertifiedBranch t={t} showHint />;
   }
 
-  const resolved = resolveStatusBody(profile.status, profile, t, te, locale);
+  const resolved = resolveStatusBody(profile.status, profile, t, te, locale, openPurchaseDialog);
 
   return (
-    <StatusShell accent={resolved.accent}>
-      <BranchHeaderRow chip={<StatusChip label={resolved.chipLabel} Icon={resolved.chipIcon} tone={resolved.tone} />}>
-        <Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>
-          {t.statusCardTitle}
-        </Typography>
-      </BranchHeaderRow>
-      {resolved.content}
-    </StatusShell>
+    <>
+      <StatusShell accent={resolved.accent}>
+        <BranchHeaderRow chip={<StatusChip label={resolved.chipLabel} Icon={resolved.chipIcon} tone={resolved.tone} />}>
+          <Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>
+            {t.statusCardTitle}
+          </Typography>
+        </BranchHeaderRow>
+        {resolved.content}
+      </StatusShell>
+      {/* Purchase confirmation dialog + the transient-notice slot it reports into. */}
+      <VerificationPurchaseDialog open={purchaseDialogOpen} onClose={closePurchaseDialog} onNotice={setNotice} />
+      <NoticeSnackbar notice={notice} autoHideDuration={4000} onClose={dismissNotice} />
+    </>
   );
 }

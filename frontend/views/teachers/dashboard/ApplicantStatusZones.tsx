@@ -17,15 +17,6 @@ import type { ErrorsLabels } from "@/shared/locale/types/errors";
 /** Shared CTA metrics — comfortable ≥44px touch target. */
 const reapplyButtonSx = { minHeight: 44, px: 3 } as const;
 
-/**
- * Re-apply click intent — INTENTIONAL no-op placeholder. The verification
- * purchase route does not exist yet; until it ships, clicking must not
- * navigate anywhere or claim an action the product cannot perform yet.
- */
-function handleReapplyIntent(): void {
-  // No navigation, no state change — affordance only (purchase route pending).
-}
-
 // ----------------------------------------------------------------------------
 // Zone compositions + branch sub-components
 // ----------------------------------------------------------------------------
@@ -70,18 +61,20 @@ export function CooldownZone({ expiryText, reapplyLabel }: Readonly<CooldownZone
 interface EligibleZoneProps {
   readonly eligibleText: string;
   readonly reapplyLabel: string;
+  /** Opens the verification-purchase confirmation dialog. */
+  readonly onPurchaseIntent: () => void;
 }
 
 /**
  * Failed + eligible body (branch 8): success-tinted explanatory copy plus
- * the ENABLED re-apply CTA whose click stays a documented intentional no-op
- * until the purchase surface ships.
+ * the ENABLED re-apply CTA whose click opens the verification-purchase
+ * confirmation dialog (the card's purchase entry point).
  */
-export function EligibleZone({ eligibleText, reapplyLabel }: Readonly<EligibleZoneProps>): ReactNode {
+export function EligibleZone({ eligibleText, reapplyLabel, onPurchaseIntent }: Readonly<EligibleZoneProps>): ReactNode {
   return (
     <Stack spacing={2} sx={{ alignItems: "flex-start" }}>
       <PromptPanel icon={<CheckCircleIcon fontSize="small" />}>{eligibleText}</PromptPanel>
-      <Button variant="contained" startIcon={<ReapplyIcon />} onClick={handleReapplyIntent} sx={{ ...reapplyButtonSx }}>
+      <Button variant="contained" startIcon={<ReapplyIcon />} onClick={onPurchaseIntent} sx={{ ...reapplyButtonSx }}>
         {reapplyLabel}
       </Button>
     </Stack>
