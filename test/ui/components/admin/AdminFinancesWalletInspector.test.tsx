@@ -37,9 +37,9 @@ import type { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import type { RenderResult } from "@testing-library/react";
 import {
+  type AdminTeachersQuery_adminTeachers_items,
   type AdminTeacherWalletQuery,
   type AdminTeacherWalletQuery_adminTeacherWallet_transactions,
-  type AdminTeachersQuery_adminTeachers_items,
   TransactionStatus,
   TransactionType,
 } from "@/frontend/graphql/generated/gql/graphql";

@@ -289,7 +289,7 @@ describe("AdminFinancesWithdrawalQueue (ar / RTL)", () => {
       [
         withdrawalsMock({
           adminPendingWithdrawals: {
-              items: [QUEUE_ROW],
+            items: [QUEUE_ROW],
             totalCount: 1,
             page: 1,
             pageSize: 25,

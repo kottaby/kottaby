@@ -23,6 +23,7 @@
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { teacherTransaction, wallet } from "@/backend/db/schema/billing";
+import type { transactionStatus, transactionType } from "@/backend/db/schema/enums";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
@@ -35,7 +36,6 @@ import type {
   TeacherTransactionSelectType,
   WithdrawalSettlementProbe,
 } from "@/backend/types";
-import type { transactionStatus, transactionType } from "@/backend/db/schema/enums";
 
 /**
  * The raw pgEnum string-literal unions carried by the `$inferSelect` projection.
@@ -92,7 +92,10 @@ function buildAdminLedgerFilterChain(walletId: number, filters: AdminWalletTrans
  *
  * @returns The probe row, or `null` when the teacher has no wallet.
  */
-export async function findAdminWalletProbe(teacherId: number, tx?: DBTransaction): Promise<AdminTeacherWalletProbe | null> {
+export async function findAdminWalletProbe(
+  teacherId: number,
+  tx?: DBTransaction
+): Promise<AdminTeacherWalletProbe | null> {
   const executor = tx ?? db;
   const rows = await executor
     .select({
@@ -164,7 +167,11 @@ export async function countTransactionsForAdmin(
  *
  * @returns Up to `limit` queue rows starting at `offset`, oldest first.
  */
-export async function listPendingWithdrawals(limit: number, offset: number, tx?: DBTransaction): Promise<AdminWithdrawalQueueRow[]> {
+export async function listPendingWithdrawals(
+  limit: number,
+  offset: number,
+  tx?: DBTransaction
+): Promise<AdminWithdrawalQueueRow[]> {
   const executor = tx ?? db;
   return executor
     .select({
@@ -243,7 +250,10 @@ function toTransactionStatusEnum(status: PgTransactionStatus): TransactionStatus
  *
  * @returns The probe, or `null` when no ledger row has that id.
  */
-export async function findSettlementProbe(transactionId: number, tx?: DBTransaction): Promise<WithdrawalSettlementProbe | null> {
+export async function findSettlementProbe(
+  transactionId: number,
+  tx?: DBTransaction
+): Promise<WithdrawalSettlementProbe | null> {
   const executor = tx ?? db;
   const rows = await executor
     .select({
@@ -313,7 +323,10 @@ export async function settleWithdrawalOnce(
  * additive, so the `wallet_balance_check >= 0` CHECK cannot fire and no
  * lower guard exists.
  */
-export async function restoreWithdrawalDebitOnce(insert: { readonly walletId: number; readonly amount: string }, tx?: DBTransaction): Promise<void> {
+export async function restoreWithdrawalDebitOnce(
+  insert: { readonly walletId: number; readonly amount: string },
+  tx?: DBTransaction
+): Promise<void> {
   const executor = tx ?? db;
   await executor
     .update(wallet)

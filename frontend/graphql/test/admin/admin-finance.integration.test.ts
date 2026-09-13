@@ -135,7 +135,9 @@ function extractSchemaSurfaceInventory(data: unknown): SchemaSurfaceInventory | 
 
   return {
     queryFieldNames: collectIntrospectionFieldNames("queryType" in schemaMeta ? schemaMeta.queryType : undefined),
-    mutationFieldNames: collectIntrospectionFieldNames("mutationType" in schemaMeta ? schemaMeta.mutationType : undefined),
+    mutationFieldNames: collectIntrospectionFieldNames(
+      "mutationType" in schemaMeta ? schemaMeta.mutationType : undefined
+    ),
   };
 }
 
@@ -354,7 +356,9 @@ describeGraphqlSuite("Admin financial-auditing GraphQL integration", () => {
       await withAuditDeleteTriggersSuspended(async () => {
         await Promise.all(
           [...createdLedgerTxnIds].map(txnId =>
-            db.delete(auditLogs).where(sql`${auditLogs.entityType} = 'teacher_transaction' AND ${auditLogs.entityId} = ${txnId}`)
+            db
+              .delete(auditLogs)
+              .where(sql`${auditLogs.entityType} = 'teacher_transaction' AND ${auditLogs.entityId} = ${txnId}`)
           )
         );
       });
@@ -540,8 +544,7 @@ describeGraphqlSuite("Admin financial-auditing GraphQL integration", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query:
-            "{ schemaMeta: __schema { queryType { fields { name } } mutationType { fields { name } } } }",
+          query: "{ schemaMeta: __schema { queryType { fields { name } } mutationType { fields { name } } } }",
         }),
       });
       expect(response.ok).toBe(true);

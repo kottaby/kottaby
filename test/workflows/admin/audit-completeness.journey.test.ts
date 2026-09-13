@@ -148,6 +148,14 @@ const FINANCE_REJECT_REASON = `${runPrefix} insufficient documentation`;
 const FINANCE_ADJUST_REASON = `${runPrefix} goodwill credit`;
 
 /**
+ * Widened enum members — the ledger rows' `type`/`status` columns are pgEnum
+ * string-literal unions, so the pending-withdrawal lookups compare
+ * primitive-to-primitive (annotated `string` consts, no enum-type friction).
+ */
+const WITHDRAWAL_TYPE: string = TransactionType.Withdrawal;
+const PENDING_STATUS: string = TransactionStatus.Pending;
+
+/**
  * The reschedule fixture's ORIGINAL timing pair (whole-second UTC instants —
  * the audit `from` comparison is exact, so the stored-vs-read-back
  * millisecond round trip must be lossless, which whole-second values
@@ -311,7 +319,7 @@ let joinSessionId = 0;
 /** Row-count oracles — captured after the cast commit, restored by teardown. */
 let auditBaseline = 0;
 /** Pre-existing trail rows' verb + entity-type counts (the seeded plan-catalog rows). */
-let baselineVerbCounts = new Map<AuditActionType, number>();
+let baselineVerbCounts = new Map<string, number>();
 let baselineTypeCounts = new Map<string, number>();
 let notificationBaseline = 0;
 
@@ -628,9 +636,7 @@ const censusRunners: Record<string, CensusRunner> = {
     // row settles `completed`. Exactly ONE Override row reconstructs the
     // decision on the `teacher_transaction` anchor.
     const requested = await WalletService.requestWithdrawal(financeTeacherId, FINANCE_PAYOUT_PRIMARY, LOCALE);
-    const pending = requested.transactions.find(
-      txn => txn.type === TransactionType.Withdrawal && txn.status === TransactionStatus.Pending
-    );
+    const pending = requested.transactions.find(txn => txn.type === WITHDRAWAL_TYPE && txn.status === PENDING_STATUS);
     if (!pending) {
       throw new Error("finance leg: expected the fresh ledger page to carry the pending withdrawal row");
     }
@@ -653,9 +659,7 @@ const censusRunners: Record<string, CensusRunner> = {
     // restored. Exactly ONE Override row reconstructs the decision (the
     // raw reason text never enters the trail — only its presence).
     const requested = await WalletService.requestWithdrawal(financeTeacherId, FINANCE_PAYOUT_REJECTED, LOCALE);
-    const pending = requested.transactions.find(
-      txn => txn.type === TransactionType.Withdrawal && txn.status === TransactionStatus.Pending
-    );
+    const pending = requested.transactions.find(txn => txn.type === WITHDRAWAL_TYPE && txn.status === PENDING_STATUS);
     if (!pending) {
       throw new Error("finance leg: expected the fresh ledger page to carry the pending withdrawal row");
     }
@@ -871,11 +875,10 @@ describe("Audit-trail completeness journey — execute every admin action, prove
     const preExistingRows = await db
       .select({ actionType: auditLogs.actionType, entityType: auditLogs.entityType })
       .from(auditLogs);
-    baselineVerbCounts = new Map<AuditActionType, number>();
+    baselineVerbCounts = new Map<string, number>();
     baselineTypeCounts = new Map<string, number>();
     for (const row of preExistingRows) {
-      const verb = row.actionType as AuditActionType;
-      baselineVerbCounts.set(verb, (baselineVerbCounts.get(verb) ?? 0) + 1);
+      baselineVerbCounts.set(row.actionType, (baselineVerbCounts.get(row.actionType) ?? 0) + 1);
       baselineTypeCounts.set(row.entityType, (baselineTypeCounts.get(row.entityType) ?? 0) + 1);
     }
   });
@@ -1325,7 +1328,7 @@ describe("Audit-trail completeness journey — execute every admin action, prove
 
     // Action-type axis: every enum value's subset, counted from the
     // execution log plus the fixture lane plus the pre-existing baseline.
-    const expectedVerbCounts = new Map<AuditActionType, number>(baselineVerbCounts);
+    const expectedVerbCounts = new Map<string, number>(baselineVerbCounts);
     for (const action of executedActions) {
       expectedVerbCounts.set(action.actionType, (expectedVerbCounts.get(action.actionType) ?? 0) + 1);
     }

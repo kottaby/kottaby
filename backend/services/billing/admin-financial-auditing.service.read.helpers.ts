@@ -25,6 +25,7 @@ import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { NotFoundError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { assertActorAdmin } from "@/backend/services/admin/admin-gate.helpers";
+import { resolvePageBounds } from "@/backend/services/admin/user-management.helpers";
 import { ADMIN_WALLET_CURRENCY_LABEL } from "@/backend/services/billing/admin-financial-auditing.service.helpers";
 import type {
   AdminStudentPaymentPageReturnType,
@@ -39,7 +40,6 @@ import type {
   WalletSelectType,
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
-import { resolvePageBounds } from "@/backend/services/admin/user-management.helpers";
 
 /** Localized-error bundle type (the errorsTranslations namespace). */
 type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
@@ -59,7 +59,10 @@ type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTransl
  * re-asserts its predicate in SQL; the probes exist for human-readable
  * error disambiguation only).
  */
-async function readInSnapshot<T>(outerTx: DBTransaction | undefined, fn: (tx: DBTransaction) => Promise<T>): Promise<T> {
+async function readInSnapshot<T>(
+  outerTx: DBTransaction | undefined,
+  fn: (tx: DBTransaction) => Promise<T>
+): Promise<T> {
   if (outerTx) {
     return outerTx.transaction(fn);
   }
@@ -276,10 +279,8 @@ export async function listPendingWithdrawalsForAdmin(
 
 // Re-exported for the namespace file's shared use below (the read helpers
 // `readWalletById` / `resolveTeacherName` stay module-private here).
-export { readInSnapshot };
-
 /**
  * The wallet ownership read for the audit contract — the namespace file's
  * mutation paths reuse this module-private helper through this re-export.
  */
-export { readWalletById };
+export { readInSnapshot, readWalletById };

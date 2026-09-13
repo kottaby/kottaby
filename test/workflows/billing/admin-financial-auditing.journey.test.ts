@@ -344,9 +344,11 @@ async function readStudentPaymentRows(studentId: number): Promise<StudentPayment
 
 /** The pending withdrawal row of a fresh ledger page (the reserved request). */
 function newestPendingWithdrawal(transactions: readonly TeacherTransactionSelectType[]): TeacherTransactionSelectType {
-  const row = transactions.find(
-    entry => entry.type === TransactionType.Withdrawal && entry.status === TransactionStatus.Pending
-  );
+  // pgEnum columns carry raw string-literal unions; widen the enum members to
+  // string so the comparison stays type-safe without a lossy conversion.
+  const withdrawalType: string = TransactionType.Withdrawal;
+  const pendingStatus: string = TransactionStatus.Pending;
+  const row = transactions.find(entry => entry.type === withdrawalType && entry.status === pendingStatus);
   if (!row) {
     throw new Error("journey: expected the fresh ledger page to carry the pending withdrawal row");
   }
