@@ -45,6 +45,12 @@ export interface TeacherSessionsBodyProps {
    * to the pre-completion path only.
    */
   readonly role: SessionRowRole;
+  /**
+   * Case-detail intent — opens the teacher dispute case dialog for the
+   * session (rows with dispute history render the affordance; the row
+   * itself scopes it via `disputeReason`).
+   */
+  readonly onCaseIntent: (sessionId: string) => void;
   readonly t: SessionsLabels;
 }
 
@@ -67,6 +73,7 @@ export function TeacherSessionsBody({
   onStart,
   onComplete,
   role,
+  onCaseIntent,
   t,
 }: Readonly<TeacherSessionsBodyProps>): ReactNode {
   if (loading && data === undefined) {
@@ -115,6 +122,7 @@ export function TeacherSessionsBody({
       disputeInFlightSlots={disputeInFlightSlots}
       role={role}
       actionsFor={session => teacherActionsForSession(session, { t, inFlightSlots, onStart, onComplete })}
+      onCaseIntent={onCaseIntent}
     />
   );
 }

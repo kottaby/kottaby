@@ -1,6 +1,7 @@
 "use client";
 
-import { Alert, Stack } from "@mui/material";
+import { FindInPageOutlined as CaseIcon } from "@mui/icons-material";
+import { Alert, Button, Stack, Tooltip } from "@mui/material";
 import type { ReactNode } from "react";
 import { SessionRowCardShell } from "@/frontend/components/ui/sessionList";
 import type { MyStudentSessionsQuery_myStudentSessions_items } from "@/frontend/graphql/generated/gql/graphql";
@@ -123,6 +124,16 @@ interface SessionRowProps {
   readonly role: SessionRowRole;
   /** Extra lifecycle CTAs (teacher Start/Complete); the student path omits it. */
   readonly actions?: ReadonlyArray<SessionRowAction>;
+  /**
+   * Case-detail intent — the container owns the case-dialog slot. When
+   * supplied AND the row carries dispute history (`disputeReason` set —
+   * open OR already-arbitrated, the claimed reason stays part of the case
+   * story), the row renders the "Case details" read affordance beside the
+   * dispute evidence lines. The student surface omits the prop entirely
+   * (its dispute story lives on the row lines); the teacher surface passes
+   * it so its rows open the participant-side case dialog.
+   */
+  readonly onCaseIntent?: (sessionId: string) => void;
 }
 
 /** One session list card: status chip + intent title + fee/deadline/created meta. */
@@ -134,6 +145,7 @@ export function SessionRow({
   disputeDisabled = false,
   role,
   actions,
+  onCaseIntent,
 }: Readonly<SessionRowProps>): ReactNode {
   const t = useAppTranslation(Sessions);
   const locale = useAppLocale();
@@ -184,6 +196,26 @@ export function SessionRow({
         ) : null}
         {session.cancelReason !== null ? (
           <SessionRowCancelReason sessionId={session.id} reason={session.cancelReason} />
+        ) : null}
+        {onCaseIntent !== undefined && session.disputeReason !== null ? (
+          <Tooltip title={t.teacherCaseTitle} placement="top">
+            <Button
+              variant="text"
+              color="primary"
+              size="small"
+              startIcon={<CaseIcon fontSize="small" />}
+              onClick={() => onCaseIntent(session.id)}
+              data-testid={`session-case-action-${session.id}`}
+              sx={{
+                minHeight: { xs: 44, sm: 36 },
+                px: 2,
+                alignSelf: { xs: "stretch", sm: "auto" },
+                justifyContent: { xs: "center", sm: "flex-end" },
+              }}
+            >
+              {t.teacherCaseCta}
+            </Button>
+          </Tooltip>
         ) : null}
         <SessionRowActions actions={actions} sessionId={session.id} />
         <SessionRowLifecycleCtas

@@ -226,6 +226,22 @@ export interface SessionsLabels {
   readonly caseReviewEmptyRecitation: string;
   /** Case-review empty state — the session-scoped audit trail is empty. */
   readonly caseReviewEmptyAudit: string;
+  /** Teacher row action — open the dispute case dialog for one of the teacher's own sessions. */
+  readonly teacherCaseCta: string;
+  /** Teacher case dialog title. */
+  readonly teacherCaseTitle: string;
+  /** Teacher case dialog meta label — the student on the other side of the case. */
+  readonly teacherCaseStudentLabel: string;
+  /** Teacher case dialog section heading — the arbitration decision block. */
+  readonly teacherCaseResolutionTitle: string;
+  /** Teacher case dialog pending state — the dispute is open and not yet arbitrated. */
+  readonly teacherCasePendingLine: string;
+  /** Teacher case dialog section heading — the teacher's own session report. */
+  readonly teacherCaseReportTitle: string;
+  /** Teacher case dialog meta label — the teacher's own rating of the student. */
+  readonly teacherCaseRatingLabel: string;
+  /** Teacher case dialog meta label — the moment the arbitration decision was issued. */
+  readonly teacherCaseResolvedAtLabel: string;
   /** Analytics card title — the aggregate dispute snapshot on the admin queue. */
   readonly adminDisputeAnalyticsTitle: string;
   /** Analytics stat label — the currently open (queued) dispute count. */

@@ -103,6 +103,7 @@ import { SessionStatusFilterChips } from "@/frontend/views/student/sessions/Sess
 import { StudentSessionsDialogs } from "@/frontend/views/student/sessions/StudentSessionsDialogs";
 import { OPEN_SESSION_DISPUTE_MUTATION } from "@/frontend/views/student/sessions/sessionDisputeMutations";
 import type { SessionRowRole } from "@/frontend/views/student/sessions/sessionRowPresentation";
+import { TeacherDisputeCaseDialog } from "@/frontend/views/teacher/disputes/TeacherDisputeCaseDialog";
 import { TeacherSessionsBody } from "@/frontend/views/teacher/sessions/TeacherSessionsBody";
 import { type ContainerNotice, SNACKBAR_AUTOHIDE_MS } from "@/frontend/views/teacher/sessions/teacherSessionSlots";
 import { useTeacherCancelDialogArms } from "@/frontend/views/teacher/sessions/useTeacherCancelDialogArms";
@@ -115,7 +116,9 @@ import { Sessions, useAppTranslation } from "@/shared/locale";
  * The teacher sessions view: ALWAYS-ON chrome (title + sticky filter chips)
  * over a swapping body — skeleton / permission fallback / error notice /
  * empty (generic or filtered) / rows with lifecycle CTAs — plus the cancel
- * dialog and the snackbar chrome.
+ * dialog, the dispute case dialog (the session's own teacher's read —
+ * rows with dispute history carry the "Case details" affordance) and the
+ * snackbar chrome.
  */
 export function TeacherSessionsContainer(): ReactNode {
   const t = useAppTranslation(Sessions);
@@ -130,6 +133,19 @@ export function TeacherSessionsContainer(): ReactNode {
 
   // Single transient notice slot (success / info / error snackbar).
   const [notice, setNotice] = useState<ContainerNotice | null>(null);
+
+  // Case-dialog slot — the session id whose dispute case is on view, or
+  // `null` when the dialog is closed. The dialog is stateless per session:
+  // it owns its own case query, so the container keeps ONLY the id.
+  const [caseDialogSessionId, setCaseDialogSessionId] = useState<string | null>(null);
+
+  const openCaseDialog = useCallback((sessionId: string): void => {
+    setCaseDialogSessionId(sessionId);
+  }, []);
+
+  const closeCaseDialog = useCallback((): void => {
+    setCaseDialogSessionId(null);
+  }, []);
 
   const dismissNotice = useCallback((): void => {
     setNotice(null);
@@ -196,6 +212,7 @@ export function TeacherSessionsContainer(): ReactNode {
         onStart={mutations.handleStart}
         onComplete={mutations.handleComplete}
         role={rowRole}
+        onCaseIntent={openCaseDialog}
         t={t}
       />
       <StudentSessionsDialogs
@@ -214,6 +231,9 @@ export function TeacherSessionsContainer(): ReactNode {
         onDisputeInvalidTransition={disputeArms.handleDisputeInvalidTransition}
         onDisputeFailure={disputeArms.handleDisputeFailure}
       />
+      {caseDialogSessionId !== null ? (
+        <TeacherDisputeCaseDialog sessionId={caseDialogSessionId} open onClose={closeCaseDialog} />
+      ) : null}
       <NoticeSnackbar notice={notice} autoHideDuration={SNACKBAR_AUTOHIDE_MS} onClose={dismissNotice} />
     </Stack>
   );

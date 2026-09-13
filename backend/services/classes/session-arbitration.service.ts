@@ -123,6 +123,7 @@ import type {
   DBTransaction,
   SessionListFilterInput,
   SessionReturnType,
+  TeacherDisputeCaseReturnType,
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
@@ -515,6 +516,89 @@ export namespace SessionArbitrationService {
       auditTrail: auditTrailPage.items,
       studentName: studentUser?.fullName ?? null,
       teacherName: teacherUser?.fullName ?? null,
+    };
+  }
+
+  /**
+   * Reads the dispute case for one session, as the session's OWN TEACHER —
+   * the teacher-side transparency bundle behind the arbitration story.
+   *
+   * The participant predicate is the security boundary: the session row is
+   * read first and a missing row OR a row owned by a different teacher
+   * surfaces as the SAME localized not-found denial — non-participants and
+   * nonexistent ids are indistinguishable (the dispute family's oracle-safe
+   * collapse; no existence leak to a non-party). The scope gate already
+   * pinned the caller to the Teacher role; this predicate narrows it to THE
+   * teacher of THIS session. The remaining artifacts are composed as
+   * concurrent independent reads on the caller's transaction: the session
+   * report, the homework row and the recitation record (all
+   * participant-owned artifacts the teacher authored or owns), plus the
+   * student display name. The session-scoped audit trail is deliberately
+   * NOT part of this bundle — the trail read asserts an ADMIN actor, and
+   * widening it for participants would change the governance surface's
+   * authorization story; the teacher's transparency comes from the dispute
+   * evidence itself. Artifacts that were never produced surface as honest
+   * `null`s — never fabricated placeholders. The read performs ZERO writes
+   * of any kind.
+   *
+   * @param teacherId  The acting teacher's id (never client input).
+   * @param sessionId  The target session id.
+   * @param locale  Active request locale (for the localized error messages).
+   * @param tx  Optional transaction — propagated to every read so a
+   *     caller-owned atomic flow stays atomic.
+   * @returns The case bundle: the session detail plus each participant-owned
+   *     artifact (or an honest `null`) and the student display name.
+   */
+  export async function getTeacherDisputeCase(
+    teacherId: number,
+    sessionId: number,
+    locale: string,
+    tx?: DBTransaction
+  ): Promise<TeacherDisputeCaseReturnType> {
+    const t = getServerTranslations(locale).errorsTranslations;
+
+    // The wire-shape guard FIRST: a malformed `ID` arrives as a non-finite
+    // number (the shared decimal-coercion at the resolver), and feeding it
+    // to the driver would surface as a masked transport error instead of
+    // the documented denial. It collapses into the SAME oracle-safe
+    // not-found as a non-participant hit — no DB round-trip spent.
+    if (!Number.isSafeInteger(sessionId) || sessionId <= 0) {
+      logger.logDomainError("Teacher dispute case denied: malformed session id", {
+        code: "SESSION_NOT_FOUND",
+        entity: "session",
+        entityId: sessionId,
+      });
+      throw new NotFoundError("SESSION", t.sessionNotFound);
+    }
+
+    // The session row next — it is BOTH the existence check and the
+    // participant predicate.
+    const session = await SessionRepository.findById(sessionId, tx);
+    if (session === null || session.teacherId !== teacherId) {
+      logger.logDomainError("Teacher dispute case denied: session not found or not owned", {
+        code: "SESSION_NOT_FOUND",
+        entity: "session",
+        entityId: sessionId,
+      });
+      throw new NotFoundError("SESSION", t.sessionNotFound);
+    }
+
+    // Concurrent independent reads — the artifacts share no write path and
+    // no ordering requirement; the executor serializes them on the
+    // caller's connection. The student display name rides the same batch.
+    const [report, homework, recitation, studentUser] = await Promise.all([
+      ReportRepository.findBySessionId(sessionId, tx),
+      HomeWorkRepository.findBySessionId(sessionId, tx),
+      RecitationRepository.findBySessionId(sessionId, tx),
+      UserRepository.findById(session.studentId, tx),
+    ]);
+
+    return {
+      session,
+      report,
+      homework,
+      recitation,
+      studentName: studentUser?.fullName ?? null,
     };
   }
 

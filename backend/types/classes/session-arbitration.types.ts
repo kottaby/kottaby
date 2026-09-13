@@ -78,6 +78,31 @@ export interface AdminDisputeCaseReturnType {
 }
 
 /**
+ * Teacher case-detail read: the dispute case bundle a session's OWN
+ * teacher sees — the full session row (dispute reason, stamps, fee, hold
+ * marker, provenance lane), the session report, the homework row and the
+ * recitation record (all participant-owned artifacts), plus the
+ * server-resolved student display name. The session-scoped audit trail is
+ * deliberately ABSENT from this bundle: the trail is the admin governance
+ * surface (`AuditTrailService` asserts an admin actor), so the teacher's
+ * transparency comes from the dispute evidence itself, never from the
+ * admin-only trail.
+ *
+ * Absent artifacts are honest `null`s — a session with no submitted
+ * report, homework, or recitation renders no fabricated placeholder. The
+ * student display name resolves server-side; an unreachable user row
+ * surfaces as an honest `null` the view replaces with the numeric
+ * identity.
+ */
+export interface TeacherDisputeCaseReturnType {
+  readonly session: SessionReturnType;
+  readonly report: ReportReturnType | null;
+  readonly homework: HomeWorkReturnType | null;
+  readonly recitation: RecitationReturnType | null;
+  readonly studentName: string | null;
+}
+
+/**
  * One admin arbitration queue row: the disputed session's full row wrapped
  * with the server-resolved participant display names, so the queue renders
  * identities without per-row user probes.

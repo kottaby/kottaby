@@ -995,6 +995,11 @@ type Query {
   sessionHomework(sessionId: ID!): SessionHomeWork
   sessionRecitation(sessionId: ID!): SessionRecitation
   sessionReport(sessionId: ID!): SessionReport
+
+  """
+  Read the dispute case for one session as its own teacher (teacher-only): the session row plus the participant-owned artifacts (report, homework, recitation — honest nulls when absent) and the student display name. Non-participants and unknown or malformed ids are indistinguishable localized not-found denials.
+  """
+  teacherDisputeCase(id: ID!): TeacherDisputeCase!
 }
 
 enum RecitationReading {
@@ -1261,6 +1266,14 @@ enum SurahJuzRef {
   SurahAlFatihah
   SurahAlMaidah
   SurahAnNisa
+}
+
+type TeacherDisputeCase {
+  homework: SessionHomeWork
+  recitation: SessionRecitation
+  report: SessionReport
+  session: Session!
+  studentName: String
 }
 
 type TeacherTransaction {

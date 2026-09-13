@@ -220,12 +220,15 @@ const DISPUTE_MUTATION_FIELDS = ["openSessionDispute", "resolveSessionDispute"] 
 const ARBITRATION_MUTATION_FIELDS = ["openPostConfirmationDispute"] as const;
 /** admin case-review read — the dispute evidence bundle query. */
 const ARBITRATION_QUERY_FIELDS = ["adminDisputeCase", "adminDisputeAnalytics"] as const;
+/** teacher case read — the own-teacher participant bundle query. */
+const TEACHER_CASE_QUERY_FIELDS = ["teacherDisputeCase"] as const;
 /** the case-review envelope object (reuses the canonical entity objects). */
 const ARBITRATION_TYPE_NAMES = [
   "AdminDisputeCase",
   "AdminDisputedSessionRow",
   "AdminDisputedSessionPage",
   "AdminDisputeAnalytics",
+  "TeacherDisputeCase",
 ] as const;
 /** dual-confirmation mutation (R-201/R-202). */
 const DUAL_CONFIRMATION_MUTATION_FIELDS = ["confirmSessionCompletion"] as const;
@@ -647,6 +650,7 @@ describe("Query._health — retyped probe surface", () => {
         ...SESSION_LIFECYCLE_QUERY_FIELDS,
         ...DISPUTE_QUERY_FIELDS,
         ...ARBITRATION_QUERY_FIELDS,
+        ...TEACHER_CASE_QUERY_FIELDS,
         ...SESSION_REPORT_QUERY_FIELDS,
         ...WALLET_QUERY_FIELDS,
         ...ADMIN_USER_USER_QUERY_FIELDS,
@@ -1055,6 +1059,45 @@ describe("Post-confirmation dispute arbitration surface — SDL pins", () => {
     for (const field of Object.values(fields)) {
       expect(field.type.toString()).toBe("Int!");
     }
+  });
+
+  test("`teacherDisputeCase` is the teacher-role-gated case read returning the non-null envelope", () => {
+    const field = queryField("teacherDisputeCase");
+    expect(getNamedType(field.type).name).toBe("TeacherDisputeCase");
+    expect(field.type.toString()).toBe("TeacherDisputeCase!");
+    expect(field.args.map(arg => arg.name)).toEqual(["id"]);
+    expect(argShapeOf(field, "id")).toBe("ID!");
+    // The scope pins the Teacher ROLE; the service predicate narrows it to
+    // THE teacher of THIS session (the same two-layer shape as the admin
+    // case read).
+    expect(authScopesSnapshot(field)).toEqual({
+      $all: { authenticated: true, role: [UserRole.Teacher] },
+    });
+  });
+
+  test("`TeacherDisputeCase` discloses EXACTLY the participant bundle — NO audit trail, NO teacherName", () => {
+    const caseType = graphQLSchema.getType("TeacherDisputeCase");
+
+    if (!(caseType instanceof GraphQLObjectType)) {
+      throw new Error("TeacherDisputeCase must be registered as a GraphQL object type");
+    }
+    const fields = caseType.getFields();
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "homework",
+      "recitation",
+      "report",
+      "session",
+      "studentName",
+    ]);
+    // The disputed row through the canonical Session object; the artifacts
+    // nullable (never fabricated). The audit trail is deliberately ABSENT
+    // (the admin governance surface) and the caller's own name (teacherName)
+    // is equally absent — the teacher knows who they are.
+    expect(fields.session?.type.toString()).toBe("Session!");
+    expect(fields.report?.type.toString()).toBe("SessionReport");
+    expect(fields.homework?.type.toString()).toBe("SessionHomeWork");
+    expect(fields.recitation?.type.toString()).toBe("SessionRecitation");
+    expect(fields.studentName?.type.toString()).toBe("String");
   });
 });
 
