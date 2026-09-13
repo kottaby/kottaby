@@ -31,7 +31,11 @@ import { SessionHomeWorkPothosObject } from "@/backend/graphql/pothos/classes/ho
 import { SessionRecitationPothosObject } from "@/backend/graphql/pothos/classes/recitation.pothos";
 import { SessionReportPothosObject } from "@/backend/graphql/pothos/classes/report.pothos";
 import { SessionPothosObject } from "@/backend/graphql/pothos/classes/session.pothos";
-import type { AdminDisputeCaseReturnType } from "@/backend/types";
+import type {
+  AdminDisputeCaseReturnType,
+  AdminDisputedSessionPageReturnType,
+  AdminDisputedSessionRowReturnType,
+} from "@/backend/types";
 
 /**
  * The canonical `AdminDisputeCase` GraphQL object. The producer is
@@ -90,5 +94,51 @@ export const AdminDisputeCasePothosObject = gqlSchemaBuilder
         nullable: true,
         resolve: parent => parent.teacherName,
       }),
+    }),
+  });
+
+/**
+ * The admin arbitration queue row: the disputed session wrapped with the
+ * server-resolved participant display names (honest `null`s fall back to
+ * the numeric identity in the view).
+ */
+export const AdminDisputedSessionRowPothosObject = gqlSchemaBuilder
+  .objectRef<AdminDisputedSessionRowReturnType>("AdminDisputedSessionRow")
+  .implement({
+    fields: t => ({
+      // The disputed session's full row through the canonical `Session`
+      // object — `Session!`.
+      session: t.field({
+        type: SessionPothosObject,
+        resolve: parent => parent.session,
+      }),
+      studentName: t.field({
+        type: "String",
+        nullable: true,
+        resolve: parent => parent.studentName,
+      }),
+      teacherName: t.field({
+        type: "String",
+        nullable: true,
+        resolve: parent => parent.teacherName,
+      }),
+    }),
+  });
+
+/**
+ * The admin arbitration queue page: one page of
+ * `AdminDisputedSessionRow` entries plus the honest pagination tail.
+ */
+export const AdminDisputedSessionPagePothosObject = gqlSchemaBuilder
+  .objectRef<AdminDisputedSessionPageReturnType>("AdminDisputedSessionPage")
+  .implement({
+    fields: t => ({
+      items: t.field({
+        type: [AdminDisputedSessionRowPothosObject],
+        resolve: parent => [...parent.items],
+      }),
+      totalCount: t.exposeInt("totalCount"),
+      page: t.exposeInt("page"),
+      pageSize: t.exposeInt("pageSize"),
     }),
   });

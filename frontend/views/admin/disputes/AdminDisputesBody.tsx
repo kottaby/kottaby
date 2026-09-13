@@ -91,8 +91,8 @@ export function AdminDisputesBody({
   if (!data) {
     return <SessionListLoadingSkeleton testId="admin-disputes-loading" />;
   }
-  const sessions: readonly AdminDisputedSessionsQuery_adminDisputedSessions_items[] = data.adminDisputedSessions.items;
-  if (sessions.length === 0) {
+  const rows: readonly AdminDisputedSessionsQuery_adminDisputedSessions_items[] = data.adminDisputedSessions.items;
+  if (rows.length === 0) {
     // Branch 4 — the queue drained: the shared icon-circle empty state with
     // the arbitration copy (single pinned status — NO filtered variant).
     return (
@@ -108,10 +108,12 @@ export function AdminDisputesBody({
   // spans more than one page).
   return (
     <Stack sx={{ gap: 2 }}>
-      {sessions.map(session => (
+      {rows.map(({ session, studentName, teacherName }) => (
         <AdminDisputeRow
           key={session.id}
           session={session}
+          studentName={studentName}
+          teacherName={teacherName}
           t={t}
           onResolveIntent={onResolveIntent}
           resolveDisabled={resolveDialogSessionId === session.id}

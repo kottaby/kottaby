@@ -3,7 +3,7 @@
 import { Button, Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { SessionMetaCell, SessionRowCardShell } from "@/frontend/components/ui/sessionList";
-import type { AdminDisputedSessionsQuery_adminDisputedSessions_items } from "@/frontend/graphql/generated/gql/graphql";
+import type { AdminDisputedSessionsQuery_adminDisputedSessions_items_session } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { AdminDisputeEscrowChip } from "@/frontend/views/admin/disputes/AdminDisputeEscrowChip";
 import { AdminDisputeRowReason } from "@/frontend/views/admin/disputes/AdminDisputeRowReason";
@@ -49,7 +49,11 @@ const NO_VALUE_PLACEHOLDER = "—";
 
 interface AdminDisputeRowProps {
   /** The disputed session payload row (normalized `Session` entity). */
-  readonly session: AdminDisputedSessionsQuery_adminDisputedSessions_items;
+  readonly session: AdminDisputedSessionsQuery_adminDisputedSessions_items_session;
+  /** Server-resolved student display name; `null` falls back to the numeric identity. */
+  readonly studentName: string | null;
+  /** Server-resolved teacher display name; `null` falls back to the numeric identity. */
+  readonly teacherName: string | null;
   /** Localized sessions-namespace labels (the arbitration vocabulary). */
   readonly t: SessionsLabels;
   /** Resolve-CTA intent — the container owns the arbitration dialog state. */
@@ -65,6 +69,8 @@ interface AdminDisputeRowProps {
 /** One arbitration-queue card: intent + escrow chip + fee + dispute reason + meta + actions. */
 export function AdminDisputeRow({
   session,
+  studentName,
+  teacherName,
   t,
   onResolveIntent,
   resolveDisabled = false,
@@ -78,7 +84,9 @@ export function AdminDisputeRow({
   const disputedText =
     session.disputedAt === null ? NO_VALUE_PLACEHOLDER : formatApplicantDate(session.disputedAt, locale);
   const intentText = session.intent ?? NO_VALUE_PLACEHOLDER;
-  const participantsText = `${session.studentId} · ${session.teacherId}`;
+  const studentLabel = studentName ?? `#${session.studentId}`;
+  const teacherLabel = teacherName ?? `#${session.teacherId}`;
+  const participantsText = `${studentLabel} · ${teacherLabel}`;
   // The dispute reason is REQUIRED on the open-dispute seam, but the wire
   // type stays nullable (pre-ticket rows carry null) — the reason block
   // degrades to the em-dash placeholder so the card never renders blank.

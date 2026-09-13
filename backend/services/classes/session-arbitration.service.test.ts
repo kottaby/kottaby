@@ -1086,3 +1086,37 @@ describe("SessionArbitrationService — double-arbitration race (committed fixtu
     }
   );
 });
+
+describe("SessionArbitrationService — the admin dispute queue rows", () => {
+  testOnRealPostgres(
+    "listDisputedSessionRows wraps the disputed page with the batched participant names and the honest tail",
+    async () => {
+      await runInRollback(async tx => {
+        const first = await createArbitrationActors(tx);
+        const second = await createArbitrationActors(tx);
+        const firstRow = await insertArbitrationSessionRow(tx, first);
+        const secondRow = await insertArbitrationSessionRow(tx, second);
+        await disputeConsumedRow(tx, first, firstRow.id);
+        await disputeConsumedRow(tx, second, secondRow.id);
+
+        const page = await SessionArbitrationService.listDisputedSessionRows({}, 25, 0, tx);
+
+        // The queue read is a live scope over the shared table — other
+        // committed disputed rows may coexist; the assertions pin THIS
+        // test's rows exactly and keep the tail honest-relative.
+        expect(page.totalCount).toBeGreaterThanOrEqual(2);
+        expect(page.page).toBe(1);
+        expect(page.pageSize).toBe(25);
+        const mine = page.items.filter(row => row.session.id === firstRow.id || row.session.id === secondRow.id);
+        expect(mine).toHaveLength(2);
+        const ids = mine.map(row => row.session.id).toSorted((a, b) => a - b);
+        expect(ids).toEqual([firstRow.id, secondRow.id].toSorted((a, b) => a - b));
+        for (const row of mine) {
+          const isFirst = row.session.id === firstRow.id;
+          expect(row.studentName).toBe((isFirst ? first : second).studentUser.fullName);
+          expect(row.teacherName).toBe((isFirst ? first : second).teacherUser.fullName);
+        }
+      });
+    }
+  );
+});

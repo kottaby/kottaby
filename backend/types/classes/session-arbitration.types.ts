@@ -67,3 +67,31 @@ export interface AdminDisputeCaseReturnType {
   readonly studentName: string | null;
   readonly teacherName: string | null;
 }
+
+/**
+ * One admin arbitration queue row: the disputed session's full row wrapped
+ * with the server-resolved participant display names, so the queue renders
+ * identities without per-row user probes.
+ *
+ * Absent user rows surface as honest `null`s the view replaces with the
+ * numeric identity.
+ */
+export interface AdminDisputedSessionRowReturnType {
+  readonly session: SessionReturnType;
+  readonly studentName: string | null;
+  readonly teacherName: string | null;
+}
+
+/**
+ * The admin arbitration queue page: one page of
+ * `AdminDisputedSessionRowReturnType` entries plus the honest pagination
+ * tail (the same envelope the shared session pages carry). The pinned
+ * `disputed` scope lives in the query's service; this shape adds ONLY the
+ * display names.
+ */
+export interface AdminDisputedSessionPageReturnType {
+  readonly items: readonly AdminDisputedSessionRowReturnType[];
+  readonly totalCount: number;
+  readonly page: number;
+  readonly pageSize: number;
+}

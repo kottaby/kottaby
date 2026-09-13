@@ -163,10 +163,13 @@ export const resolveSessionDisputeMutationDocument: TypedDocumentNode<
 
 /**
  * `adminDisputedSessions(filter, limit, offset)` — the ADMIN read of the
- * arbitration queue (`SessionPage!`): every `Disputed` session, newest
- * first, honest `totalCount` under the same status-first predicate.
- * `limit` clamps 1..50 (default 25) server-side; the page clamps offset ≥ 0.
- * Admin-only scope lives server-side (`$all{authenticated, role:[Admin]}`).
+ * arbitration queue (`AdminDisputedSessionPage!`): every `Disputed`
+ * session, newest first, honest `totalCount` under the same status-first
+ * predicate. Each row wraps the family `Session` selection with the
+ * server-resolved participant display names (honest `null`s — the view
+ * falls back to the numeric identity). `limit` clamps 1..50 (default 25)
+ * server-side; the page clamps offset ≥ 0. Admin-only scope lives
+ * server-side (`$all{authenticated, role:[Admin]}`).
  */
 export const adminDisputedSessionsQueryDocument: TypedDocumentNode<
   AdminDisputedSessionsQuery,
@@ -175,26 +178,30 @@ export const adminDisputedSessionsQueryDocument: TypedDocumentNode<
   query AdminDisputedSessions($filter: SessionListFilterInput, $limit: Int, $offset: Int) {
     adminDisputedSessions(filter: $filter, limit: $limit, offset: $offset) {
       items {
-        id
-        status
-        intent
-        sessionType
-        fee
-        feeHeld
-        studentId
-        teacherId
-        startedAt
-        endedAt
-        confirmationDeadline
-        confirmedByStudentAt
-        confirmedByTeacherAt
-        createdAt
-        updatedAt
-        cancelReason
-        disputeReason
-        disputedAt
-        resolutionNote
-        resolvedAt
+        session {
+          id
+          status
+          intent
+          sessionType
+          fee
+          feeHeld
+          studentId
+          teacherId
+          startedAt
+          endedAt
+          confirmationDeadline
+          confirmedByStudentAt
+          confirmedByTeacherAt
+          createdAt
+          updatedAt
+          cancelReason
+          disputeReason
+          disputedAt
+          resolutionNote
+          resolvedAt
+        }
+        studentName
+        teacherName
       }
       page
       pageSize

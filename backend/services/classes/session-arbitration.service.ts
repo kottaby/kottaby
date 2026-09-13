@@ -114,8 +114,15 @@ import {
   normalizeRequiredReasonText,
   SESSION_DISPUTED_STATUS,
 } from "@/backend/services/classes/session-lifecycle.guards";
+import { SessionLifecycleQueries } from "@/backend/services/classes/session-lifecycle.queries";
 import { NotificationEngine } from "@/backend/services/notifications";
-import type { AdminDisputeCaseReturnType, DBTransaction, SessionReturnType } from "@/backend/types";
+import type {
+  AdminDisputeCaseReturnType,
+  AdminDisputedSessionPageReturnType,
+  DBTransaction,
+  SessionListFilterInput,
+  SessionReturnType,
+} from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** The audit-trail read's entity label (the short lowercase entity label). */
@@ -507,6 +514,35 @@ export namespace SessionArbitrationService {
       auditTrail: auditTrailPage.items,
       studentName: studentUser?.fullName ?? null,
       teacherName: teacherUser?.fullName ?? null,
+    };
+  }
+
+  /**
+   * The admin arbitration queue: one page of the pinned `disputed` scope
+   * with the participant display names resolved in a single batched read
+   * over the page's ids — the queue renders identities without per-row
+   * user probes. The pagination tail echoes the wrapped query's own
+   * values; the read is strictly side-effect free. When a caller
+   * transaction is supplied, every read rides it.
+   */
+  export async function listDisputedSessionRows(
+    filter: SessionListFilterInput,
+    limit: number,
+    offset: number,
+    tx?: DBTransaction
+  ): Promise<AdminDisputedSessionPageReturnType> {
+    const page = await SessionLifecycleQueries.listAdminDisputedSessions(filter, limit, offset, tx);
+    const participantIds = [...new Set(page.items.flatMap(row => [row.studentId, row.teacherId]))];
+    const names = await UserRepository.findNamesByIds(participantIds, tx);
+    return {
+      items: page.items.map(session => ({
+        session,
+        studentName: names.get(session.studentId) ?? null,
+        teacherName: names.get(session.teacherId) ?? null,
+      })),
+      totalCount: page.totalCount,
+      page: page.page,
+      pageSize: page.pageSize,
     };
   }
 }

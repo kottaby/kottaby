@@ -71,6 +71,16 @@ function removeSessionFromAdminQueue(
     if ("__ref" in item) {
       return removedEntityId === undefined || referenceIdOf(item) !== removedEntityId;
     }
+    // Queue-row storage: each item wraps its session member — match the
+    // wrapped row's identity (Reference or raw payload alike).
+    if ("session" in item && typeof item.session === "object" && item.session !== null) {
+      const wrapped: Record<string, unknown> = item.session;
+      if ("__ref" in wrapped) {
+        return removedEntityId === undefined || referenceIdOf(wrapped) !== removedEntityId;
+      }
+      if ("id" in wrapped) return wrapped.id !== sessionId;
+      return true;
+    }
     // Non-normalized storage (defensive): raw payloads carry `id`.
     if ("id" in item) return item.id !== sessionId;
     return true;

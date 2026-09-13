@@ -28,7 +28,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { cleanup, fireEvent, within } from "@testing-library/react";
 import {
-  type AdminDisputedSessionsQuery_adminDisputedSessions_items,
+  type AdminDisputedSessionsQuery_adminDisputedSessions_items_session,
   SessionIntent,
   SessionStatus,
   SessionType,
@@ -44,7 +44,7 @@ import { componentSuiteLocales, liveScreen, renderWithMocks, sessionSuiteLabels 
 // Fixtures (DATA — never locale copy)
 
 /** All-fields wire row (`__typename` mirrors what Apollo Server puts on the wire). */
-interface RowFixture extends AdminDisputedSessionsQuery_adminDisputedSessions_items {
+interface RowFixture extends AdminDisputedSessionsQuery_adminDisputedSessions_items_session {
   readonly __typename: "Session";
 }
 
@@ -60,7 +60,7 @@ const DISPUTED_ISO = "2099-01-14T13:20:00.000Z";
 const FILED_DISPUTE_REASON = "Teacher never joined the session.";
 
 /** Deterministic payload builder mirroring the closed 20-field wire shape. */
-function rowFixture(overrides?: Partial<AdminDisputedSessionsQuery_adminDisputedSessions_items>): RowFixture {
+function rowFixture(overrides?: Partial<AdminDisputedSessionsQuery_adminDisputedSessions_items_session>): RowFixture {
   return {
     __typename: "Session",
     id: HELD_ROW_ID,
@@ -103,8 +103,13 @@ function makeRowSpies(): RowCallbackSpies {
 }
 
 /** Renders one arbitration-queue card with recording intent callbacks. */
+/** Server-resolved display names shared by every rendered fixture row (DATA). */
+const ROW_STUDENT_NAME = "Chip Fixture Student";
+const ROW_TEACHER_NAME = "Chip Fixture Teacher";
+
+/** Renders one arbitration-queue card with recording intent callbacks. */
 function renderRow(
-  session: AdminDisputedSessionsQuery_adminDisputedSessions_items,
+  session: AdminDisputedSessionsQuery_adminDisputedSessions_items_session,
   t: SessionsLabels,
   spies: RowCallbackSpies,
   locale: AppLocale,
@@ -113,6 +118,8 @@ function renderRow(
   renderWithMocks(
     <AdminDisputeRow
       session={session}
+      studentName={ROW_STUDENT_NAME}
+      teacherName={ROW_TEACHER_NAME}
       t={t}
       onResolveIntent={sessionId => {
         spies.resolveIntentIds.push(sessionId);

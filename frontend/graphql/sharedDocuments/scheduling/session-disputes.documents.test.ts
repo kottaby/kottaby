@@ -247,9 +247,17 @@ const DISPUTE_CASE_AUDIT_TRAIL_ROW: readonly string[] = [
   "entityType",
 ];
 
-/** The closed case envelope — exactly the five members the evidence dialog
- * renders, in source order. */
-const DISPUTE_CASE_ENVELOPE: readonly string[] = ["session", "report", "homework", "recitation", "auditTrail"];
+/** The closed case envelope — exactly the members the evidence dialog
+ * renders, in source order (the evidence five + the participant names). */
+const DISPUTE_CASE_ENVELOPE: readonly string[] = [
+  "session",
+  "report",
+  "homework",
+  "recitation",
+  "auditTrail",
+  "studentName",
+  "teacherName",
+];
 
 interface SessionDisputeDocumentRow {
   readonly document: DocumentNode;
@@ -301,7 +309,7 @@ const SESSION_DISPUTE_DOCUMENT_TABLE: readonly SessionDisputeDocumentRow[] = [
     variables: ["filter", "limit", "offset"],
     variableTypes: ["SessionListFilterInput", "Int", "Int"],
     rootField: "adminDisputedSessions",
-    sessionPayloadPath: "adminDisputedSessions.items",
+    sessionPayloadPath: "adminDisputedSessions.items.session",
   },
   {
     document: adminDisputeCaseQueryDocument,
@@ -379,7 +387,7 @@ describe("session-disputes documents — one family Session field shape (id FIRS
 });
 
 describe("session-disputes documents — closed adminDisputeCase envelope", () => {
-  test("the case envelope selects exactly its five members (session + report + homework + recitation + auditTrail)", () => {
+  test("the case envelope selects exactly its seven members (session + evidence + participant names)", () => {
     const operation = operationOrThrow(adminDisputeCaseQueryDocument);
     const envelope = selectionPath(operation, "adminDisputeCase");
     expect(fieldNames(envelope)).toEqual([...DISPUTE_CASE_ENVELOPE]);

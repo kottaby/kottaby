@@ -39,7 +39,7 @@ import { MockedProvider } from "@apollo/client/testing/react";
 import { cleanup, fireEvent, type RenderResult, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import {
-  type AdminDisputedSessionsQuery_adminDisputedSessions_items,
+  type AdminDisputedSessionsQuery_adminDisputedSessions_items_session,
   DisputeResolution,
   SessionIntent,
   SessionStatus,
@@ -54,7 +54,7 @@ import { componentSuiteLocales, liveScreen, renderWithMocks, sessionSuiteLabels 
 // Fixtures (DATA — never locale copy)
 
 /** All-fields wire row (`__typename` mirrors what Apollo Server puts on the wire). */
-interface DialogRowFixture extends AdminDisputedSessionsQuery_adminDisputedSessions_items {
+interface DialogRowFixture extends AdminDisputedSessionsQuery_adminDisputedSessions_items_session {
   readonly __typename: "Session";
 }
 
@@ -69,7 +69,7 @@ const RESOLVED_ISO = "2099-01-10T15:05:00.000Z";
 
 /** Deterministic payload builder mirroring the closed 20-field wire shape. */
 function dialogRowFixture(
-  overrides?: Partial<AdminDisputedSessionsQuery_adminDisputedSessions_items>
+  overrides?: Partial<AdminDisputedSessionsQuery_adminDisputedSessions_items_session>
 ): DialogRowFixture {
   return {
     __typename: "Session",

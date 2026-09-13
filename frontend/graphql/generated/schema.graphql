@@ -94,6 +94,19 @@ type AdminDisputeCase {
   teacherName: String
 }
 
+type AdminDisputedSessionPage {
+  items: [AdminDisputedSessionRow!]!
+  page: Int!
+  pageSize: Int!
+  totalCount: Int!
+}
+
+type AdminDisputedSessionRow {
+  session: Session!
+  studentName: String
+  teacherName: String
+}
+
 type AdminParentSnapshot {
   linkedChildrenCount: Int!
 }
@@ -883,7 +896,7 @@ type Query {
   Read the full dispute case for one session (admin-only): the session row, its report, homework, and recitation records (honest nulls when absent), and the session-scoped audit trail. Unknown or malformed ids are localized not-found denials.
   """
   adminDisputeCase(id: ID!): AdminDisputeCase!
-  adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): SessionPage!
+  adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): AdminDisputedSessionPage!
 
   """Admin-only query to list plans, optionally including inactive plans."""
   adminPlans(

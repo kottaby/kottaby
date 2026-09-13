@@ -120,7 +120,7 @@ export function AdminDisputesContainer(): ReactNode {
   const resolveDialogSession =
     resolveDialogSessionId === null
       ? null
-      : (data?.adminDisputedSessions.items.find(item => item.id === resolveDialogSessionId) ?? null);
+      : (data?.adminDisputedSessions.items.find(item => item.session.id === resolveDialogSessionId)?.session ?? null);
 
   const handlePageChange = useCallback(
     (nextPage: number): void => {

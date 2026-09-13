@@ -221,7 +221,7 @@ const ARBITRATION_MUTATION_FIELDS = ["openPostConfirmationDispute"] as const;
 /** admin case-review read — the dispute evidence bundle query. */
 const ARBITRATION_QUERY_FIELDS = ["adminDisputeCase"] as const;
 /** the case-review envelope object (reuses the canonical entity objects). */
-const ARBITRATION_TYPE_NAMES = ["AdminDisputeCase"] as const;
+const ARBITRATION_TYPE_NAMES = ["AdminDisputeCase", "AdminDisputedSessionRow", "AdminDisputedSessionPage"] as const;
 /** dual-confirmation mutation (R-201/R-202). */
 const DUAL_CONFIRMATION_MUTATION_FIELDS = ["confirmSessionCompletion"] as const;
 /** wallet read — the teacher-only wallet + ledger surface (R-301). */
@@ -990,6 +990,8 @@ describe("Post-confirmation dispute arbitration surface — SDL pins", () => {
       "recitation",
       "report",
       "session",
+      "studentName",
+      "teacherName",
     ]);
     // The disputed row through the canonical Session object; the artifacts
     // nullable (never fabricated); the trail a non-nullable list of the
@@ -999,6 +1001,10 @@ describe("Post-confirmation dispute arbitration surface — SDL pins", () => {
     expect(fields.homework?.type.toString()).toBe("SessionHomeWork");
     expect(fields.recitation?.type.toString()).toBe("SessionRecitation");
     expect(fields.auditTrail?.type.toString()).toBe("[AdminAuditLogEntry!]!");
+    // The participant display names resolve server-side; an unreachable
+    // user row is the honest null the view replaces with the numeric id.
+    expect(fields.studentName?.type.toString()).toBe("String");
+    expect(fields.teacherName?.type.toString()).toBe("String");
   });
 });
 
@@ -1602,7 +1608,7 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
       "resolveSessionDispute(id: ID!, note: String, partialAmount: String, resolution: DisputeResolution!): Session!"
     );
     expect(committedSdl).toContain(
-      "adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): SessionPage!"
+      "adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): AdminDisputedSessionPage!"
     );
     expect(committedSdl).toContain("enum DisputeResolution {");
     for (const field of DISPUTE_SESSION_FIELDS) {
