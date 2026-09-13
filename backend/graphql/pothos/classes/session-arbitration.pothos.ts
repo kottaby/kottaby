@@ -37,6 +37,7 @@ import type {
   AdminDisputeCaseReturnType,
   AdminDisputedSessionPageReturnType,
   AdminDisputedSessionRowReturnType,
+  StudentDisputeCaseReturnType,
   TeacherDisputeCaseReturnType,
 } from "@/backend/types";
 
@@ -148,6 +149,58 @@ export const TeacherDisputeCasePothosObject = gqlSchemaBuilder
         type: "String",
         nullable: true,
         resolve: parent => parent.studentName,
+      }),
+    }),
+  });
+
+/**
+ * The STUDENT mirror of the teacher case bundle — the filing participant's
+ * own transparency envelope (`studentDisputeCase`). Same producer shape as
+ * the teacher read (`SessionArbitrationService.getStudentDisputeCase`; the
+ * participant predicate lives service-side), same honest-null contract,
+ * same deliberately-absent admin-only audit trail — with the TEACHER
+ * display name resolved server-side instead of the student's. Every
+ * member reuses the canonical entity objects (each still registered
+ * exactly once repo-wide).
+ */
+export const StudentDisputeCasePothosObject = gqlSchemaBuilder
+  .objectRef<StudentDisputeCaseReturnType>("StudentDisputeCase")
+  .implement({
+    fields: t => ({
+      // The session's full row (dispute reason, stamps, fee, hold marker)
+      // through the canonical `Session` object — `Session!`.
+      session: t.field({
+        type: SessionPothosObject,
+        resolve: parent => parent.session,
+      }),
+      // The teacher's authored post-session report — honest `null` when
+      // none was submitted.
+      report: t.field({
+        type: SessionReportPothosObject,
+        nullable: true,
+        resolve: parent => parent.report,
+      }),
+      // The session's homework record — honest `null` when none was
+      // produced.
+      homework: t.field({
+        type: SessionHomeWorkPothosObject,
+        nullable: true,
+        resolve: parent => parent.homework,
+      }),
+      // The session's recitation record — honest `null` when none was
+      // recorded.
+      recitation: t.field({
+        type: SessionRecitationPothosObject,
+        nullable: true,
+        resolve: parent => parent.recitation,
+      }),
+      // The teacher display name resolved server-side — honest `null`
+      // when the user row is unreachable (the view falls back to the
+      // numeric identity).
+      teacherName: t.field({
+        type: "String",
+        nullable: true,
+        resolve: parent => parent.teacherName,
       }),
     }),
   });

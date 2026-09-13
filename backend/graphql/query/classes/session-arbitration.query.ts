@@ -1,8 +1,9 @@
 /**
  * Session arbitration queries — `adminDisputeCase` (the admin's
  * case-review read over one disputed session, the evidence bundle behind
- * the arbitration decision) and `teacherDisputeCase` (the session's own
- * teacher's participant-side transparency bundle).
+ * the arbitration decision), `teacherDisputeCase` (the session's own
+ * teacher's participant-side transparency bundle) and `studentDisputeCase`
+ * (the session's own student's — the filing party's — exact mirror).
  *
  * Contract:
  *  - `adminDisputeCase(id: ID!): AdminDisputeCase!` — the full session row
@@ -45,6 +46,7 @@ import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import {
   AdminDisputeAnalyticsPothosObject,
   AdminDisputeCasePothosObject,
+  StudentDisputeCasePothosObject,
   TeacherDisputeCasePothosObject,
 } from "@/backend/graphql/pothos/classes/session-arbitration.pothos";
 import { adminOnlyAuthScopes, requireAdminUser } from "@/backend/graphql/shared";
@@ -108,6 +110,41 @@ gqlSchemaBuilder.queryField("teacherDisputeCase", t =>
       // belongs to the service boundary, which collapses malformed ids
       // into the same oracle-safe not-found as a non-participant hit).
       return SessionArbitrationService.getTeacherDisputeCase(user.id, coerceDecimalSessionId(args.id), ctx.locale);
+    },
+  })
+);
+
+// Side-effect: register the `studentDisputeCase` query field — the
+// session's OWN student's (the filing participant's) participant-side case
+// bundle, the exact mirror of the teacher read.
+gqlSchemaBuilder.queryField("studentDisputeCase", t =>
+  t.field({
+    type: StudentDisputeCasePothosObject,
+    args: {
+      id: t.arg({ type: "ID", required: true }),
+    },
+    description:
+      "Read the dispute case for one session as its own student (student-only): the session row plus the participant-owned artifacts (report, homework, recitation — honest nulls when absent) and the teacher display name. Non-participants and unknown or malformed ids are indistinguishable localized not-found denials.",
+    authScopes: {
+      // Explicit `$all` conjunction (plain key-map = ANY semantics — the
+      // known-wrong pattern): the scope pins the Student ROLE; the service
+      // predicate narrows it to THE student of THIS session.
+      $all: {
+        authenticated: true,
+        role: [UserRole.Student],
+      },
+    },
+    resolve: async (_root, args, ctx) => {
+      // The `$all` conjunction guarantees a verified student context at
+      // resolution time; `requireVerifiedUser` is the TS-narrowing belt
+      // whose translated throw matches the `authenticated` scope's own
+      // throw (see backend/graphql/shared/resolver-guards.ts).
+      const user = await requireVerifiedUser(ctx);
+      // `ID` arrives as a string on the wire; the service boundary is
+      // numeric (the shared decimal-shape-only parse — the denial shape
+      // belongs to the service boundary, which collapses malformed ids
+      // into the same oracle-safe not-found as a non-participant hit).
+      return SessionArbitrationService.getStudentDisputeCase(user.id, coerceDecimalSessionId(args.id), ctx.locale);
     },
   })
 );

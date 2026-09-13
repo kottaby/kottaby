@@ -5,6 +5,7 @@ import { Stack, Typography } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
 import type { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { myStudentSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
+import { StudentDisputeCaseDialog } from "@/frontend/views/student/disputes/StudentDisputeCaseDialog";
 import { SessionStatusFilterChips } from "@/frontend/views/student/sessions/SessionStatusFilterChips";
 import { StudentSessionsBody } from "@/frontend/views/student/sessions/StudentSessionsBody";
 import { StudentSessionsDialogs } from "@/frontend/views/student/sessions/StudentSessionsDialogs";
@@ -132,7 +133,9 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 /**
  * The student sessions view: ALWAYS-ON chrome (title + sticky filter chips)
  * over a swapping body — skeleton / permission fallback / error notice /
- * empty (generic or filtered) / rows — plus the cancel/dispute dialogs and
+ * empty (generic or filtered) / rows — plus the cancel/dispute dialogs, the
+ * dispute case dialog (the session's own student's — the filing party's —
+ * read; rows with dispute history carry the "Case details" affordance) and
  * the snackbar chrome. State + callbacks only (extracted to sibling hooks);
  * the body resolver (`StudentSessionsBody`) keeps the chrome rendering in
  * EVERY branch (the user never loses the filter row).
@@ -171,6 +174,21 @@ export function StudentSessionsContainer(): ReactNode {
   } = useStudentSessionDialogSlots();
 
   const { rowAlerts, notice, setRowAlerts, setNotice, dismissNotice } = useStudentSessionNotices();
+
+  // Case-dialog slot — the session id whose dispute case is on view, or
+  // `null` when the dialog is closed. The dialog is stateless per session:
+  // it owns its own case query, so the container keeps ONLY the id (the
+  // teacher container's identical slot shape — the filing participant's
+  // mirror of the counterparty read).
+  const [caseDialogSessionId, setCaseDialogSessionId] = useState<string | null>(null);
+
+  const openCaseDialog = useCallback((sessionId: string): void => {
+    setCaseDialogSessionId(sessionId);
+  }, []);
+
+  const closeCaseDialog = useCallback((): void => {
+    setCaseDialogSessionId(null);
+  }, []);
 
   const cancelArms = useStudentSessionCancelArms({
     sessionsCopy: t,
@@ -235,6 +253,7 @@ export function StudentSessionsContainer(): ReactNode {
         inFlightSlots={inFlightSlots}
         onConfirm={handleConfirm}
         role={rowRole}
+        onCaseIntent={openCaseDialog}
         t={t}
       />
       <StudentSessionsDialogs
@@ -253,6 +272,9 @@ export function StudentSessionsContainer(): ReactNode {
         onDisputeInvalidTransition={disputeArms.handleDisputeInvalidTransition}
         onDisputeFailure={disputeArms.handleDisputeFailure}
       />
+      {caseDialogSessionId !== null ? (
+        <StudentDisputeCaseDialog sessionId={caseDialogSessionId} open onClose={closeCaseDialog} />
+      ) : null}
       <StudentSessionsNoticeSnackbar notice={notice} onDismiss={dismissNotice} />
     </Stack>
   );

@@ -220,6 +220,7 @@ const FROZEN_QUERY_FIELDS = [
   "sessionHomework",
   "sessionRecitation",
   "sessionReport",
+  "studentDisputeCase",
   "teacherDisputeCase",
 ] as const;
 
@@ -361,7 +362,7 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
 
-  test("Query root is EXACTLY the refreshed frozen 34-op baseline (zero unsanctioned growth)", () => {
+  test("Query root is EXACTLY the refreshed frozen 39-op baseline (zero unsanctioned growth)", () => {
     const names = fieldSurfaces("Query").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_QUERY_FIELDS]);
   });

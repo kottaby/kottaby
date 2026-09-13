@@ -12,6 +12,8 @@ import type {
   OpenSessionDisputeMutationVariables,
   ResolveSessionDisputeMutation,
   ResolveSessionDisputeMutationVariables,
+  StudentDisputeCaseQuery,
+  StudentDisputeCaseQueryVariables,
   TeacherDisputeCaseQuery,
   TeacherDisputeCaseQueryVariables,
 } from "@/frontend/graphql/generated/gql/graphql";
@@ -27,7 +29,8 @@ import type {
  * mutation (`resolveSessionDispute`), the ADMIN read of the arbitration
  * queue (`adminDisputedSessions`), the ADMIN case-review read
  * (`adminDisputeCase`) and the session's OWN teacher's participant-side
- * case read (`teacherDisputeCase`). Every `Session` payload selects `id` first so
+ * case read (`teacherDisputeCase`) and the session's OWN student's — the filing
+ * party's — exact mirror (`studentDisputeCase`). Every `Session` payload selects `id` first so
  * Apollo Client normalizes returned rows into the cache — consumers converge
  * lists via the returned `Session!` payloads WITHOUT refetch storms (per
  * the `sharedDocuments/AGENTS.md` "id Field Requirement" — cache-normalized
@@ -406,6 +409,86 @@ export const teacherDisputeCaseQueryDocument: TypedDocumentNode<
         updatedAt
       }
       studentName
+    }
+  }
+`;
+
+/**
+ * `studentDisputeCase(id: ID!)` — the session's OWN student's (the filing
+ * participant's) case read, the exact mirror of `teacherDisputeCase`: the
+ * participant-side transparency bundle for one disputed session in a
+ * single response — the session detail (the shared dispute-family `Session`
+ * selection), the participant-owned artifacts (the session report, the
+ * homework row, the recitation record) and the server-resolved TEACHER
+ * display name. The three artifacts are honest `null`s when absent — never
+ * fabricated placeholders. The admin-only audit trail is deliberately NOT
+ * selectable here (it is not part of the participant bundle at all). The
+ * student-participant predicate lives service-side: a student who does not
+ * own the session and a nonexistent id are indistinguishable localized
+ * `SESSION_NOT_FOUND` denials (oracle-safe). Wire scope is
+ * `$all{authenticated, role:[Student]}` — the service predicate narrows it
+ * to THE student of THIS session.
+ */
+export const studentDisputeCaseQueryDocument: TypedDocumentNode<
+  StudentDisputeCaseQuery,
+  StudentDisputeCaseQueryVariables
+> = gql`
+  query StudentDisputeCase($id: ID!) {
+    studentDisputeCase(id: $id) {
+      session {
+        id
+        status
+        intent
+        sessionType
+        fee
+        feeHeld
+        studentId
+        teacherId
+        startedAt
+        endedAt
+        confirmationDeadline
+        confirmedByStudentAt
+        confirmedByTeacherAt
+        createdAt
+        updatedAt
+        cancelReason
+        disputeReason
+        disputedAt
+        resolutionNote
+        resolutionOutcome
+        resolvedAt
+      }
+      report {
+        id
+        sessionId
+        teacherNotes
+        studentRatingByTeacher
+        createdAt
+        updatedAt
+      }
+      homework {
+        id
+        sessionId
+        currentFromAyah
+        currentToAyah
+        currentGrade
+        currentSurahJuz
+        revisionFromAyah
+        revisionToAyah
+        revisionGrade
+        revisionSurahJuz
+        createdAt
+        updatedAt
+      }
+      recitation {
+        id
+        sessionId
+        name
+        description
+        createdAt
+        updatedAt
+      }
+      teacherName
     }
   }
 `;

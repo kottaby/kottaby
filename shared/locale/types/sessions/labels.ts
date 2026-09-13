@@ -242,6 +242,13 @@ export interface SessionsLabels {
   readonly teacherCaseRatingLabel: string;
   /** Teacher case dialog meta label — the moment the arbitration decision was issued. */
   readonly teacherCaseResolvedAtLabel: string;
+
+  /** The student case dialog's counterparty label (the session's teacher). */
+  readonly studentCaseTeacherLabel: string;
+  /** The student case dialog's report-section title (the teacher-authored report). */
+  readonly studentCaseReportTitle: string;
+  /** The student case dialog's rating label (the teacher's rating of the student). */
+  readonly studentCaseRatingLabel: string;
   /** Analytics card title — the aggregate dispute snapshot on the admin queue. */
   readonly adminDisputeAnalyticsTitle: string;
   /** Analytics stat label — the currently open (queued) dispute count. */

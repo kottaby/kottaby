@@ -103,6 +103,27 @@ export interface TeacherDisputeCaseReturnType {
 }
 
 /**
+ * The STUDENT mirror of the teacher case bundle — the filing participant's
+ * own transparency read behind the arbitration story (the student surface's
+ * "Case details" dialog). The producer is
+ * `SessionArbitrationService.getStudentDisputeCase` (the participant
+ * predicate lives service-side; non-participants and unknown ids collapse
+ * into the same oracle-safe not-found denial). The bundle shape is the
+ * teacher's mirrored: the session row, the participant-owned artifacts
+ * (honest `null`s — never fabricated placeholders) and the TEACHER display
+ * name resolved server-side (the caller's own name is equally absent —
+ * the student knows who they are). The admin-only audit trail is
+ * deliberately ABSENT (the trail read asserts an admin actor).
+ */
+export interface StudentDisputeCaseReturnType {
+  readonly session: SessionReturnType;
+  readonly report: ReportReturnType | null;
+  readonly homework: HomeWorkReturnType | null;
+  readonly recitation: RecitationReturnType | null;
+  readonly teacherName: string | null;
+}
+
+/**
  * One admin arbitration queue row: the disputed session's full row wrapped
  * with the server-resolved participant display names, so the queue renders
  * identities without per-row user probes.

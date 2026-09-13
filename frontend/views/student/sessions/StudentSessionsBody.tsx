@@ -37,6 +37,14 @@ interface StudentSessionsBodyProps {
    * student surface constant) — scopes the rows' dispute affordance matrix.
    */
   readonly role: SessionRowRole;
+  /**
+   * Case-detail intent — forwarded to every row (the row renders the
+   * "Case details" affordance only while it carries dispute history).
+   * The student surface supplies it (the filing participant's own case
+   * dialog — `StudentDisputeCaseDialog` lives in the container's slot);
+   * omitted surfaces (none today) simply render no affordance.
+   */
+  readonly onCaseIntent?: (sessionId: string) => void;
   readonly t: SessionsLabels;
 }
 
@@ -59,6 +67,7 @@ export function StudentSessionsBody({
   inFlightSlots,
   onConfirm,
   role,
+  onCaseIntent,
   t,
 }: Readonly<StudentSessionsBodyProps>): ReactNode {
   if (loading && data === undefined) {
@@ -106,6 +115,7 @@ export function StudentSessionsBody({
       disputeInFlightSlots={disputeInFlightSlots}
       role={role}
       actionsFor={session => studentActionsForSession(session, { t, inFlightSlots, onConfirm })}
+      onCaseIntent={onCaseIntent}
     />
   );
 }

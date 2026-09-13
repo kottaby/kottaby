@@ -38,6 +38,14 @@
  *    UNAUTHORIZED byte-identical to the arbitration reference; student /
  *    parent callers answer FORBIDDEN byte-identical (the teacher-role
  *    scope gate).
+ *  - **Student case read** (`studentDisputeCase`) — the filing party's
+ *    exact mirror: the session's OWN student gets the same participant
+ *    bundle with the TEACHER name resolved; the non-participant student
+ *    and a nonexistent id collapse to the SAME oracle-safe
+ *    `SESSION_NOT_FOUND`; anonymous callers answer UNAUTHORIZED
+ *    byte-identical to the arbitration reference; teacher / parent
+ *    callers answer FORBIDDEN byte-identical (the student-role scope
+ *    gate).
  *  - **Outcome-family dispatch** — the single `resolveSessionDispute`
  *    entry routes by the submitted outcome: the held-family values
  *    (`Cancel`/`Complete`) reach the shipped held-escrow service
@@ -270,6 +278,30 @@ const TEACHER_DISPUTE_CASE_DOC = gql`
         disputedAt
       }
       studentName
+      report {
+        id
+      }
+      homework {
+        id
+      }
+      recitation {
+        id
+      }
+    }
+  }
+`;
+
+const STUDENT_DISPUTE_CASE_DOC = gql`
+  query StudentDisputeCase($id: ID!) {
+    studentDisputeCase(id: $id) {
+      session {
+        id
+        status
+        feeHeld
+        disputeReason
+        disputedAt
+      }
+      teacherName
       report {
         id
       }
@@ -717,6 +749,73 @@ describe("teacherDisputeCase — the session's own teacher's case read", () => {
 
   test("unknown id → SESSION_NOT_FOUND (the oracle pair of the non-participant denial)", async () => {
     const result = await teacherT.query({ query: TEACHER_DISPUTE_CASE_DOC, variables: { id: "999999999" } });
+    expectMutationError(result.error, "SESSION_NOT_FOUND");
+  });
+});
+
+// ── Section 4-ter — studentDisputeCase: the own-student participant bundle ──
+
+describe("studentDisputeCase — the session's own student's case read (the filing party's mirror)", () => {
+  test("anonymous caller → UNAUTHORIZED byte-identical to the arbitration reference", async () => {
+    const referenceResult = await testClient.mutate({
+      mutation: RESOLVE_DISPUTE_DOC,
+      variables: { id: "999999999", resolution: "Cancel" },
+    });
+    const reference = fingerprintOf(firstWireItem(referenceResult.error, "UNAUTHORIZED"));
+
+    const caseRead = await testClient.query({
+      query: STUDENT_DISPUTE_CASE_DOC,
+      variables: { id: sessionOracleId },
+    });
+    expectDenialIdenticalToReference(caseRead.error, "UNAUTHORIZED", reference, "studentDisputeCase");
+  });
+
+  test("teacher and parent callers → FORBIDDEN byte-identical to the arbitration reference (student-role scope)", async () => {
+    for (const clientOf of [() => teacherT, () => parent]) {
+      const referenceResult = await clientOf().mutate({
+        mutation: RESOLVE_DISPUTE_DOC,
+        variables: { id: "999999999", resolution: "Cancel" },
+      });
+      const reference = fingerprintOf(firstWireItem(referenceResult.error, "FORBIDDEN"));
+
+      const caseRead = await clientOf().query({
+        query: STUDENT_DISPUTE_CASE_DOC,
+        variables: { id: sessionOracleId },
+      });
+      // The denial rides the studentDisputeCase root field (byte-identity
+      // covers both caller shapes in this one cell).
+      expectDenialIdenticalToReference(caseRead.error, "FORBIDDEN", reference, "studentDisputeCase");
+    }
+  });
+
+  test("the OWN student reads the disputed bundle — evidence + teacher name, honest nulls", async () => {
+    const result = await studentA.query({ query: STUDENT_DISPUTE_CASE_DOC, variables: { id: sessionOracleId } });
+    const payload = payloadOf(result, "studentDisputeCase");
+    const sessionPayload: unknown = payload.session;
+    if (!isRecord(sessionPayload)) {
+      throw new Error("studentDisputeCase must carry the session member");
+    }
+    expect(sessionPayload.id).toBe(sessionOracleId);
+    expect(sessionPayload.status).toBe("Disputed");
+    expect(sessionPayload.feeHeld).toBe(false);
+    expect(sessionPayload.disputeReason).toBeTypeOf("string");
+    // The teacher display name resolves to the committed cast row — the
+    // counterparty the filing party filed against.
+    expect(payload.teacherName).toBe(cast.teacher.user.fullName);
+    // No report/homework/recitation was ever produced for the row — the
+    // read fabricates nothing.
+    expect(payload.report).toBeNull();
+    expect(payload.homework).toBeNull();
+    expect(payload.recitation).toBeNull();
+  });
+
+  test("non-participant student → SESSION_NOT_FOUND (oracle collapse, indistinguishable from a nonexistent id)", async () => {
+    const result = await studentB.query({ query: STUDENT_DISPUTE_CASE_DOC, variables: { id: sessionOracleId } });
+    expectMutationError(result.error, "SESSION_NOT_FOUND");
+  });
+
+  test("unknown id → SESSION_NOT_FOUND (the oracle pair of the non-participant denial)", async () => {
+    const result = await studentA.query({ query: STUDENT_DISPUTE_CASE_DOC, variables: { id: "999999999" } });
     expectMutationError(result.error, "SESSION_NOT_FOUND");
   });
 });

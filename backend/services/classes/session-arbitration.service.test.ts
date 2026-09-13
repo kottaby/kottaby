@@ -1,7 +1,8 @@
 /**
  * SessionArbitrationService tests — the post-confirmation (consumed-escrow)
  * dispute path (`openPostConfirmationDispute`, `arbitrateDispute`,
- * `getAdminDisputeCase`) against the live PostgreSQL instance, on REAL
+ * `getAdminDisputeCase`, the student filing party's mirror
+ * `getStudentDisputeCase`) against the live PostgreSQL instance, on REAL
  * repositories, following the DB-backed service-test rules the sibling
  * session suites apply:
  *  - every transactional case runs inside `runInRollback` with `tx` (or
@@ -1009,6 +1010,85 @@ describe("SessionArbitrationService — arbitration denials + case review (runIn
         SessionArbitrationService.getAdminDisputeCase(actors.studentUserId, row.id, "en", tx)
       );
       expectDomainDenial(studentError, "FORBIDDEN", t().forbidden);
+    });
+  });
+});
+
+// ─── The participant case reads: the student filing party's mirror ───────
+
+describe("SessionArbitrationService — the student case read (the filing party's mirror)", () => {
+  test("getStudentDisputeCase composes the participant bundle: session detail, report, homework, recitation, and the teacher display name", async () => {
+    await runInRollback(async tx => {
+      const actors = await createArbitrationActors(tx);
+      const row = await insertArbitrationSessionRow(tx, actors);
+      await disputeConsumedRow(tx, actors, row.id);
+      await tx
+        .insert(reports)
+        .values({ sessionId: row.id, teacherNotes: "session ran short", studentRatingByTeacher: 3 });
+      await tx.insert(homeWork).values({ sessionId: row.id, currentFromAyah: 1, currentToAyah: 7, currentGrade: 90 });
+      await tx.insert(recitation).values({ sessionId: row.id, name: "Al-Fatiha", description: null });
+
+      const disputeCase = await SessionArbitrationService.getStudentDisputeCase(actors.studentUserId, row.id, "en", tx);
+
+      expect(disputeCase.session.id).toBe(row.id);
+      expect(disputeCase.session.status).toBe(SessionStatus.Disputed);
+      expect(disputeCase.session.disputeReason).toBeTypeOf("string");
+      // The TEACHER display name resolves (the counterparty the filing
+      // party filed against); the caller's own name is equally absent.
+      expect(disputeCase.teacherName).toBe(actors.teacherUser.fullName);
+      expect(disputeCase.report).not.toBeNull();
+      expect(disputeCase.report?.teacherNotes).toBe("session ran short");
+      expect(disputeCase.homework).not.toBeNull();
+      expect(disputeCase.homework?.currentFromAyah).toBe(1);
+      expect(disputeCase.recitation).not.toBeNull();
+      expect(disputeCase.recitation?.name).toBe("Al-Fatiha");
+      // The student envelope has NO studentName member — the type is the
+      // mirror, not a superset (compile-time pinned; re-asserted here for
+      // runtime drift).
+      expect("studentName" in disputeCase).toBe(false);
+    });
+  });
+
+  test("getStudentDisputeCase surfaces honest nulls for absent artifacts", async () => {
+    await runInRollback(async tx => {
+      const actors = await createArbitrationActors(tx);
+      const row = await insertArbitrationSessionRow(tx, actors);
+      await disputeConsumedRow(tx, actors, row.id);
+
+      const disputeCase = await SessionArbitrationService.getStudentDisputeCase(actors.studentUserId, row.id, "en", tx);
+
+      expect(disputeCase.session.id).toBe(row.id);
+      expect(disputeCase.teacherName).toBe(actors.teacherUser.fullName);
+      expect(disputeCase.report).toBeNull();
+      expect(disputeCase.homework).toBeNull();
+      expect(disputeCase.recitation).toBeNull();
+    });
+  });
+
+  test("getStudentDisputeCase denials: unknown, malformed, and non-participant callers collapse into the SAME oracle-safe not-found", async () => {
+    await runInRollback(async tx => {
+      const actors = await createArbitrationActors(tx);
+      const row = await insertArbitrationSessionRow(tx, actors);
+      const missingId = await absentSessionId(tx);
+
+      const unknownError = await expectRepoError(() =>
+        SessionArbitrationService.getStudentDisputeCase(actors.studentUserId, missingId, "en", tx)
+      );
+      expect(unknownError).toBeInstanceOf(NotFoundError);
+      expectDomainDenial(unknownError, "SESSION_NOT_FOUND", t().sessionNotFound);
+
+      const malformedError = await expectRepoError(() =>
+        SessionArbitrationService.getStudentDisputeCase(actors.studentUserId, 0, "en", tx)
+      );
+      expectDomainDenial(malformedError, "SESSION_NOT_FOUND", t().sessionNotFound);
+
+      // A second student (a non-participant) gets the SAME not-found
+      // shape — no existence leak to a non-party.
+      const foreign = await createTestUser(tx, { role: "student" });
+      const foreignError = await expectRepoError(() =>
+        SessionArbitrationService.getStudentDisputeCase(foreign.id, row.id, "en", tx)
+      );
+      expectDomainDenial(foreignError, "SESSION_NOT_FOUND", t().sessionNotFound);
     });
   });
 });
