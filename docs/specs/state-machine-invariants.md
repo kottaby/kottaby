@@ -176,7 +176,7 @@ stateDiagram-v2
 | INV-W2 | `wallet.total_earning` must be >= 0 (check constraint). |
 | INV-W3 | Each teacher has exactly one wallet (`teacher_id` is unique on `wallet`). |
 | INV-W4 | An `earning` transaction is created only upon dual confirmation of session completion. |
-| INV-W5 | A `withdrawal` transaction starts as `pending` and transitions to `completed` (Admin approves) or `failed` (Admin rejects). |
+| INV-W5 | A `withdrawal` transaction starts as `pending` and transitions to `completed` (Admin approves) or `failed` (Admin rejects). **✅ IMPLEMENTED (guarded settlement + trigger amendment):** settlement runs through the single guarded repo UPDATE (`WHERE id = ? AND type = 'withdrawal' AND status = 'pending'` — `WalletRepository.settleWithdrawalOnce`), and the amended `prevent_teacher_transaction_update()` DB guard (migration `custom_5-teacher-transaction-settlement`) permits ONLY that flip with every other column frozen (null-safe `IS NOT DISTINCT FROM`; `updated_at` moves via `$onUpdate`) — approve settles the request-time debit to `completed`, reject settles to `failed` AND restores the reserved balance; re-settling a decided row, any other column/transition, and `DELETE` all raise. Implemented and documented in [`docs/billing/admin-financial-auditing.md`](../billing/admin-financial-auditing.md). |
 | INV-W6 | Financial records (`student_payments`, `teacher_transaction`) are immutable once created. Corrections via new adjustment transactions only. |
 | INV-W7 | An `earning` transaction is linked to a `session_id`; a `withdrawal` or `bonus` transaction may have a null `session_id`. |
 | INV-W8 | `teacher_transaction.amount` must be >= 0 (check constraint). |

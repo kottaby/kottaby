@@ -4,6 +4,12 @@
  * view, the teacher wallet inspection, the pending-withdrawal settlement
  * queue, and the three financial mutations (approve / reject / adjust).
  *
+ * File layout: the read path (the three list surfaces, the consistent-
+ * snapshot wrapper, and the pagination plumbing) lives in the sibling
+ * `admin-financial-auditing.service.read.helpers.ts` module (extracted
+ * verbatim); every list method below is a one-to-one delegation wrapper,
+ * so the public API (names, signatures, behavior) is unchanged.
+ *
  * The three list surfaces are pure paginated reads: the admin gate first,
  * then the paired count + listing inside ONE repeatable-read transaction
  * (the audit-trail precedent) so `totalCount` and `items` can never tear
@@ -41,20 +47,16 @@
  * field-by-field copy. No module-level mutable state; no swallowed catches.
  */
 
-import { db } from "@/backend/db";
-import { StudentPaymentRepository, TeacherRepository, UserRepository, WalletRepository } from "@/backend/db/repo";
+import { TeacherRepository, WalletRepository } from "@/backend/db/repo";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustment-direction.enum";
-import { escapeLikeWildcards } from "@/backend/lib/db/escape-like-wildcards";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ConflictError, NotFoundError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { assertActorAdmin } from "@/backend/services/admin/admin-gate.helpers";
 import { AuditService } from "@/backend/services/admin/audit.service";
-import { resolvePageBounds } from "@/backend/services/admin/user-management.helpers";
 import {
-  ADMIN_WALLET_CURRENCY_LABEL,
   assertValidAdjustmentAmount,
   buildWalletAdjustmentAuditContract,
   buildWithdrawalSettleAuditContract,
@@ -62,104 +64,30 @@ import {
   composeDebitDescription,
   normalizeAdjustmentReason,
 } from "@/backend/services/billing/admin-financial-auditing.service.helpers";
+import {
+  getTeacherWalletForAdmin as getTeacherWalletForAdminImpl,
+  listPendingWithdrawalsForAdmin as listPendingWithdrawalsForAdminImpl,
+  listStudentPaymentsForAdmin as listStudentPaymentsForAdminImpl,
+  readWalletById,
+} from "@/backend/services/billing/admin-financial-auditing.service.read.helpers";
 import type {
   AdminStudentPaymentPageReturnType,
-  AdminStudentPaymentRow,
-  AdminTeacherWalletProbe,
   AdminTeacherWalletReturnType,
   AdminWalletAdjustmentSubmitInput,
   AdminWalletTransactionFilters,
   AdminWithdrawalQueuePageReturnType,
-  AdminWithdrawalQueueRow,
   DBTransaction,
   NormalizedAdminPaymentFilters,
   TeacherTransactionSelectType,
-  WalletSelectType,
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
-
-/** Localized-error bundle type (the errorsTranslations namespace). */
-type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
-
-/**
- * Runs the paired count + page reads inside ONE consistent snapshot. When
- * the caller supplied a transaction, execution joins it as a nested block;
- * otherwise a fresh top-level transaction opens at the `repeatable read`
- * isolation level so the count and the listing observe the same committed
- * state.
- *
- * The guarantee covers the count + page PAIR only. When no outer transaction
- * is supplied, the surrounding identity and probe reads (admin gate, wallet
- * probes, settlement probes) run on a SEPARATE top-level transaction and are
- * therefore best-effort, non-authoritative reads OUTSIDE this snapshot —
- * no write decision ever trusts them (every guarded repo primitive
- * re-asserts its predicate in SQL; the probes exist for human-readable
- * error disambiguation only).
- */
-async function readInSnapshot<T>(
-  outerTx: DBTransaction | undefined,
-  fn: (tx: DBTransaction) => Promise<T>
-): Promise<T> {
-  if (outerTx) {
-    return outerTx.transaction(fn);
-  }
-  return db.transaction(fn, { isolationLevel: "repeatable read" });
-}
-
-/**
- * Reads the wallet row for a known `walletId` on the caller's transaction —
- * the wallet → teacher ownership link for the audit contract. A missing row
- * cannot happen for a ledger row that just settled or adjusted (its FK
- * restricts the wallet), so a null here surfaces as a plain runtime error
- * (masked generic internal) rather than a fabricated identity.
- */
-async function readWalletById(walletId: number, tx: DBTransaction): Promise<WalletSelectType> {
-  const row = await WalletRepository.findById(walletId, tx);
-  if (!row) {
-    throw new Error(`AdminFinancialAuditingService: wallet row ${String(walletId)} vanished mid-transaction`);
-  }
-  return row;
-}
-
-/**
- * Resolves the teacher's display name for a teacher id: the probe carries it
- * when a wallet exists; the fallback covers the wallet-less teacher. The
- * teacher profile row must exist — the wallet FK targets the teacher table,
- * so a missing row is a genuine not-found (the localized teacher not-found
- * family), not an empty-name render.
- */
-async function resolveTeacherName(
-  teacherId: number,
-  probe: AdminTeacherWalletProbe | null,
-  t: ErrorsTranslations,
-  tx: DBTransaction
-): Promise<string> {
-  if (probe) {
-    return probe.teacherName;
-  }
-  const teacherProfile = await TeacherRepository.findById(teacherId, tx);
-  if (!teacherProfile) {
-    logger.logDomainError("Admin wallet inspection denied: teacher not found", {
-      code: "NOT_FOUND",
-      entity: "teacher",
-      entityId: teacherId,
-    });
-    throw new NotFoundError("TEACHER", t.teacherNotFound);
-  }
-  const teacherUser = await UserRepository.findById(teacherId, tx);
-  return teacherUser?.fullName ?? "";
-}
 
 export namespace AdminFinancialAuditingService {
   /**
    * REQ-1 — the student payments ledger audit view: newest-first page over
    * `student_payments` joined with each student's display identity, filtered
-   * by student / name search / status / gateway / date window.
-   *
-   * Pure read: zero writes, zero audit rows, and the happy path logs
-   * nothing. The name-search substring is wildcard-escaped and wrapped as
-   * `%…%` BEFORE the repository call — the repo binds the final pattern
-   * directly to its `ilike` predicate without re-escaping (BO-SI rule).
+   * by student / name search / status / gateway / date window — one-to-one
+   * delegation to the read module (same signature and behavior).
    *
    * @param actorUserId  The acting admin's user id (never client input).
    * @param filters  Filter input copied field-by-field from the resolver
@@ -170,7 +98,7 @@ export namespace AdminFinancialAuditingService {
    * @param outerTx  Optional caller transaction to join for the reads.
    * @returns One honest page of typed payment rows.
    */
-  export async function listStudentPaymentsForAdmin(
+  export function listStudentPaymentsForAdmin(
     actorUserId: number,
     filters: NormalizedAdminPaymentFilters,
     page: number | null,
@@ -178,42 +106,14 @@ export namespace AdminFinancialAuditingService {
     locale: string,
     outerTx?: DBTransaction
   ): Promise<AdminStudentPaymentPageReturnType> {
-    return withTransaction(outerTx, async tx => {
-      await assertActorAdmin(actorUserId, locale, tx);
-
-      const normalized: NormalizedAdminPaymentFilters = {
-        studentId: filters.studentId ?? null,
-        studentNameSearch:
-          filters.studentNameSearch === null ? null : `%${escapeLikeWildcards(filters.studentNameSearch)}%`,
-        status: filters.status ?? null,
-        paymentGateway: filters.paymentGateway ?? null,
-        from: filters.from ?? null,
-        to: filters.to ?? null,
-      };
-      const { resolvedPage, resolvedPageSize, offset } = resolvePageBounds(page ?? 1, pageSize ?? undefined, locale);
-
-      const [pageRows, totalCount] = await readInSnapshot(
-        outerTx,
-        async (snapshotTx): Promise<[AdminStudentPaymentRow[], number]> => {
-          const count = await StudentPaymentRepository.countForAdminAudit(normalized, snapshotTx);
-          const rows = await StudentPaymentRepository.listForAdminAudit(
-            normalized,
-            resolvedPageSize,
-            offset,
-            snapshotTx
-          );
-          return [rows, count];
-        }
-      );
-
-      return { items: pageRows, totalCount, page: resolvedPage, pageSize: resolvedPageSize };
-    });
+    return listStudentPaymentsForAdminImpl(actorUserId, filters, page, pageSize, locale, outerTx);
   }
 
   /**
    * REQ-2 — inspects any teacher's wallet: the wallet row (`balance`,
    * `totalEarning` as decimal strings) plus one newest-first ledger page
-   * with optional type/status/date-window filters.
+   * with optional type/status/date-window filters — one-to-one delegation
+   * to the read module (same signature and behavior).
    *
    * READ-ONLY by contract: creating/ensuring rows on read is forbidden — a
    * teacher without a wallet row renders the honest null-pair empty state
@@ -223,7 +123,7 @@ export namespace AdminFinancialAuditingService {
    * itself is missing is a genuine not-found (the wallet FK targets the
    * teacher table, so no wallet could ever exist for it).
    */
-  export async function getTeacherWalletForAdmin(
+  export function getTeacherWalletForAdmin(
     actorUserId: number,
     teacherId: number,
     txFilters: AdminWalletTransactionFilters,
@@ -232,92 +132,29 @@ export namespace AdminFinancialAuditingService {
     locale: string,
     outerTx?: DBTransaction
   ): Promise<AdminTeacherWalletReturnType> {
-    const t = getServerTranslations(locale).errorsTranslations;
-
-    return withTransaction(outerTx, async tx => {
-      await assertActorAdmin(actorUserId, locale, tx);
-      const { resolvedPage, resolvedPageSize, offset } = resolvePageBounds(page ?? 1, pageSize ?? undefined, locale);
-
-      const probe = await WalletRepository.findAdminWalletProbe(teacherId, tx);
-      const teacherName = await resolveTeacherName(teacherId, probe, t, tx);
-
-      // Honest empty state: no wallet row → null-pair amounts + empty page.
-      if (!probe) {
-        return {
-          balance: null,
-          totalEarning: null,
-          currency: ADMIN_WALLET_CURRENCY_LABEL,
-          teacherId,
-          teacherName,
-          transactions: [],
-          totalCount: 0,
-          page: resolvedPage,
-          pageSize: resolvedPageSize,
-        };
-      }
-
-      const [pageRows, totalCount] = await readInSnapshot(
-        outerTx,
-        async (snapshotTx): Promise<[TeacherTransactionSelectType[], number]> => {
-          const count = await WalletRepository.countTransactionsForAdmin(probe.wallet.id, txFilters, snapshotTx);
-          const rows = await WalletRepository.listTransactionsForAdmin(
-            probe.wallet.id,
-            txFilters,
-            resolvedPageSize,
-            offset,
-            snapshotTx
-          );
-          return [rows, count];
-        }
-      );
-
-      return {
-        balance: probe.wallet.balance,
-        totalEarning: probe.wallet.totalEarning,
-        currency: ADMIN_WALLET_CURRENCY_LABEL,
-        teacherId,
-        teacherName,
-        transactions: pageRows,
-        totalCount,
-        page: resolvedPage,
-        pageSize: resolvedPageSize,
-      };
-    });
+    return getTeacherWalletForAdminImpl(actorUserId, teacherId, txFilters, page, pageSize, locale, outerTx);
   }
 
   /**
    * REQ-3 — the pending-withdrawal settlement queue: every
    * `type=withdrawal ∧ status=pending` ledger row (analytics-counter parity)
    * joined with the teacher's display name and the wallet's current
-   * balance, oldest first (longest-waiting first).
+   * balance, oldest first (longest-waiting first) — one-to-one delegation
+   * to the read module (same signature and behavior).
    *
    * Pure read: zero writes, zero audit rows. The paired count + listing
    * share ONE repeatable-read snapshot (same contract as the other lists);
    * the probe reads around it remain best-effort, non-authoritative reads
-   * outside that snapshot (see `readInSnapshot`).
+   * outside that snapshot (see the read module's `readInSnapshot`).
    */
-  export async function listPendingWithdrawalsForAdmin(
+  export function listPendingWithdrawalsForAdmin(
     actorUserId: number,
     page: number | null,
     pageSize: number | null,
     locale: string,
     outerTx?: DBTransaction
   ): Promise<AdminWithdrawalQueuePageReturnType> {
-    return withTransaction(outerTx, async tx => {
-      await assertActorAdmin(actorUserId, locale, tx);
-      const { resolvedPage, resolvedPageSize, offset } = resolvePageBounds(page ?? 1, pageSize ?? undefined, locale);
-
-      const [pageRows, totalCount] = await readInSnapshot(
-        outerTx,
-        async (snapshotTx): Promise<[AdminWithdrawalQueueRow[], number]> => {
-          const count = await WalletRepository.countPendingWithdrawals(snapshotTx);
-          const rows = await WalletRepository.listPendingWithdrawals(resolvedPageSize, offset, snapshotTx);
-          return [rows, count];
-        }
-      );
-
-      return { items: pageRows, totalCount, page: resolvedPage, pageSize: resolvedPageSize };
-    });
+    return listPendingWithdrawalsForAdminImpl(actorUserId, page, pageSize, locale, outerTx);
   }
 
   /**

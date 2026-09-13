@@ -103,6 +103,42 @@ function uniqueEmail(rolePrefix: string): string {
   return `${rolePrefix}-${Date.now()}-${randomUUID().slice(0, 8)}@test.local`;
 }
 
+/**
+ * Raw introspection result shape (structurally narrowed — the shared
+ * testClient is cache-disabled and errorPolicy "all", so the raw wire
+ * payload is read through a type guard, never a cast). The meta-field is
+ * aliased (`schemaMeta:`) so no dangling-underscore identifier ever appears
+ * on the TS side; the wire field is still plain `__schema` introspection.
+ */
+interface SchemaSurfaceInventory {
+  readonly queryFieldNames: readonly string[];
+  readonly mutationFieldNames: readonly string[];
+}
+
+/** Assertion-free structural guard over one introspection root-type entry. */
+function collectIntrospectionFieldNames(root: unknown): string[] {
+  if (typeof root !== "object" || root === null || !("fields" in root) || !Array.isArray(root.fields)) return [];
+  const names: string[] = [];
+  for (const field of root.fields) {
+    if (typeof field === "object" && field !== null && "name" in field && typeof field.name === "string") {
+      names.push(field.name);
+    }
+  }
+  return names;
+}
+
+/** Assertion-free structural guard down the (aliased) introspection payload. */
+function extractSchemaSurfaceInventory(data: unknown): SchemaSurfaceInventory | undefined {
+  if (typeof data !== "object" || data === null || !("schemaMeta" in data)) return undefined;
+  const schemaMeta: unknown = data.schemaMeta;
+  if (typeof schemaMeta !== "object" || schemaMeta === null) return undefined;
+
+  return {
+    queryFieldNames: collectIntrospectionFieldNames("queryType" in schemaMeta ? schemaMeta.queryType : undefined),
+    mutationFieldNames: collectIntrospectionFieldNames("mutationType" in schemaMeta ? schemaMeta.mutationType : undefined),
+  };
+}
+
 /** Ids of every user this suite creates (any surface) — drained by the
  * top-level `afterAll` hygiene cleanup so the shared dev database stays
  * at its canonical seed state. Explicit ids (not an email sweep) keep
@@ -316,17 +352,15 @@ describeGraphqlSuite("Admin financial-auditing GraphQL integration", () => {
 
     if (createdLedgerTxnIds.size > 0) {
       await withAuditDeleteTriggersSuspended(async () => {
-        for (const txnId of createdLedgerTxnIds) {
-          await db
-            .delete(auditLogs)
-            .where(sql`${auditLogs.entityType} = 'teacher_transaction' AND ${auditLogs.entityId} = ${txnId}`);
-        }
+        await Promise.all(
+          [...createdLedgerTxnIds].map(txnId =>
+            db.delete(auditLogs).where(sql`${auditLogs.entityType} = 'teacher_transaction' AND ${auditLogs.entityId} = ${txnId}`)
+          )
+        );
       });
     }
 
-    for (const walletId of createdWalletIds) {
-      await db.delete(wallet).where(eq(wallet.id, walletId));
-    }
+    await Promise.all([...createdWalletIds].map(walletId => db.delete(wallet).where(eq(wallet.id, walletId))));
 
     const ids = [...createdUserIds];
     if (ids.length === 0) return;
@@ -501,44 +535,22 @@ describeGraphqlSuite("Admin financial-auditing GraphQL integration", () => {
 
   // ─── Tier 3: SDL surface pinning (introspected schema) ─────────────
   describe("Tier 3 — SDL surface pinning", () => {
-    /**
-     * Raw introspection result shape (structurally narrowed — the shared
-     * testClient is cache-disabled and errorPolicy "all", so the raw wire
-     * payload is read through a type guard, never a cast).
-     */
-    interface IntrospectionEnvelope {
-      readonly __schema?: {
-        readonly queryType?: { readonly fields?: ReadonlyArray<{ readonly name?: string }> } | null;
-        readonly mutationType?: { readonly fields?: ReadonlyArray<{ readonly name?: string }> } | null;
-      } | null;
-    }
-
-    function isIntrospectionEnvelope(value: unknown): value is IntrospectionEnvelope {
-      return typeof value === "object" && value !== null;
-    }
-
     test("the three queries + three mutations appear in the introspected schema", async () => {
       const response = await fetch(`http://localhost:${process.env.GRAPHQL_TEST_PORT ?? 3066}/api/graphql`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: "{ __schema { queryType { fields { name } } mutationType { fields { name } } } }",
+          query:
+            "{ schemaMeta: __schema { queryType { fields { name } } mutationType { fields { name } } } }",
         }),
       });
       expect(response.ok).toBe(true);
       const body: unknown = await response.json();
-      if (!isIntrospectionEnvelope(body)) throw new Error("introspection returned an unexpected envelope shape");
-      const data: unknown = (body as { readonly data?: unknown }).data;
-      if (!isIntrospectionEnvelope(data)) throw new Error("introspection returned no data envelope");
+      const inventory = extractSchemaSurfaceInventory(body);
+      if (!inventory) throw new Error("introspection returned an unexpected envelope shape");
 
-      const schema = data.__schema;
-      if (!schema) throw new Error("introspection returned no schema");
-      const queryNames = new Set(
-        (schema.queryType?.fields ?? []).flatMap(field => (typeof field.name === "string" ? [field.name] : []))
-      );
-      const mutationNames = new Set(
-        (schema.mutationType?.fields ?? []).flatMap(field => (typeof field.name === "string" ? [field.name] : []))
-      );
+      const queryNames = new Set(inventory.queryFieldNames);
+      const mutationNames = new Set(inventory.mutationFieldNames);
 
       for (const name of ["adminStudentPayments", "adminTeacherWallet", "adminPendingWithdrawals"]) {
         expect(queryNames.has(name)).toBe(true);
@@ -624,7 +636,7 @@ describeGraphqlSuite("Admin financial-auditing GraphQL integration", () => {
       expect(requestResult.error).toBeUndefined();
       const requestedWallet = requestResult.data?.requestWithdrawal;
       if (!requestedWallet) throw new Error("requestWithdrawal returned no data");
-      const pendingRow = requestedWallet.transactions.find(txn => txn.status === "Pending");
+      const pendingRow = requestedWallet.transactions.find(txn => txn.status === TransactionStatus.Pending);
       if (!pendingRow) throw new Error("requestWithdrawal returned no pending ledger row");
       trackCreatedLedgerTxnId(pendingRow.id);
 
@@ -636,7 +648,7 @@ describeGraphqlSuite("Admin financial-auditing GraphQL integration", () => {
       });
       expect(queuePage.error).toBeUndefined();
       const queueRow = queuePage.data?.adminPendingWithdrawals?.items.find(
-        item => item.transaction.id === String(pendingRow.id)
+        item => item.transaction.id === pendingRow.id
       );
       if (!queueRow) throw new Error("the pending withdrawal did not surface on the admin queue");
       expect(queueRow.transaction.type).toBe(TransactionType.Withdrawal);
@@ -647,13 +659,13 @@ describeGraphqlSuite("Admin financial-auditing GraphQL integration", () => {
       // Approve → the row settles completed.
       const approveResult = await testClient.mutate({
         mutation: approveWithdrawalMutationDocument,
-        variables: { transactionId: String(pendingRow.id) },
+        variables: { transactionId: pendingRow.id },
         context: bearer(adminActor.accessToken),
       });
       expect(approveResult.error).toBeUndefined();
       const settled = approveResult.data?.approveWithdrawal;
       if (!settled) throw new Error("approveWithdrawal returned no data");
-      expect(settled.id).toBe(String(pendingRow.id));
+      expect(settled.id).toBe(pendingRow.id);
       expect(settled.status).toBe(TransactionStatus.Completed);
 
       // The queue drained: the settled row no longer appears.
@@ -663,7 +675,7 @@ describeGraphqlSuite("Admin financial-auditing GraphQL integration", () => {
         context: bearer(adminActor.accessToken),
       });
       const stillQueued = queueAfter.data?.adminPendingWithdrawals?.items.find(
-        item => item.transaction.id === String(pendingRow.id)
+        item => item.transaction.id === pendingRow.id
       );
       expect(stillQueued).toBeUndefined();
     });
@@ -682,19 +694,21 @@ describeGraphqlSuite("Admin financial-auditing GraphQL integration", () => {
         context: bearer(teacherFixture.accessToken),
       });
       expect(requestResult.error).toBeUndefined();
-      const pendingRow = requestResult.data?.requestWithdrawal?.transactions.find(txn => txn.status === "Pending");
+      const pendingRow = requestResult.data?.requestWithdrawal?.transactions.find(
+        txn => txn.status === TransactionStatus.Pending
+      );
       if (!pendingRow) throw new Error("requestWithdrawal returned no pending ledger row");
       trackCreatedLedgerTxnId(pendingRow.id);
 
       const rejectResult = await testClient.mutate({
         mutation: rejectWithdrawalMutationDocument,
-        variables: { transactionId: String(pendingRow.id), reason: "Integration reject probe" },
+        variables: { transactionId: pendingRow.id, reason: "Integration reject probe" },
         context: bearer(adminActor.accessToken),
       });
       expect(rejectResult.error).toBeUndefined();
       const rejected = rejectResult.data?.rejectWithdrawal;
       if (!rejected) throw new Error("rejectWithdrawal returned no data");
-      expect(rejected.id).toBe(String(pendingRow.id));
+      expect(rejected.id).toBe(pendingRow.id);
       expect(rejected.status).toBe(TransactionStatus.Failed);
 
       // The reserved debit was restored: the balance equals its pre-request

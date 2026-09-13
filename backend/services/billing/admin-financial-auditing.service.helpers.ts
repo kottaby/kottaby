@@ -120,7 +120,7 @@ export function serializeAuditDetails(details: Record<string, unknown>): string 
   }
   const keys = Object.keys(details)
     .filter(key => key !== "action")
-    .reverse();
+    .toReversed();
   let candidate: Record<string, unknown> = { ...details };
   for (const key of keys) {
     const { [key]: _dropped, ...rest } = candidate;

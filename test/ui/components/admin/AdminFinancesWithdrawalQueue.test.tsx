@@ -37,6 +37,12 @@ import type { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import type { RenderResult } from "@testing-library/react";
 import {
+  type AdminPendingWithdrawalsQuery,
+  type AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items,
+  TransactionStatus,
+  TransactionType,
+} from "@/frontend/graphql/generated/gql/graphql";
+import {
   adminPendingWithdrawalsQueryDocument,
   approveWithdrawalMutationDocument,
   rejectWithdrawalMutationDocument,
@@ -84,22 +90,30 @@ const REJECT_REASON = "Duplicate payout request";
 const SETTLE_POLL_INTERVAL_MS = 40;
 const SETTLE_POLL_DEADLINE_MS = 3200;
 
-const QUEUE_ROW = {
+/**
+ * All-fields fixture row. `__typename` mirrors what Apollo Server puts on
+ * the wire; it is what makes the row entity normalizable so the queue
+ * panel's cache reads converge without refetch.
+ */
+type QueueRowFixture = AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items & {
+  readonly __typename: "AdminWithdrawalQueueRow";
+};
+
+const QUEUE_ROW: QueueRowFixture = {
   __typename: "AdminWithdrawalQueueRow",
   transaction: {
-    __typename: "TeacherTransaction",
     id: TX_ID,
-    type: "withdrawal",
-    status: "pending",
+    type: TransactionType.Withdrawal,
+    status: TransactionStatus.Pending,
     amount: "300.00",
     description: "Withdrawal request (pending payout)",
     createdAt: FIXED_ISO,
   },
   teacherName: "Teacher One",
   walletBalance: "900.00",
-} as never;
+};
 
-function withdrawalsMock(data: Record<string, unknown>): MockLink.MockedResponse {
+function withdrawalsMock(data: AdminPendingWithdrawalsQuery): MockLink.MockedResponse {
   return {
     request: { query: adminPendingWithdrawalsQueryDocument, variables: { page: 1, pageSize: 25 } },
     result: { data },
@@ -116,10 +130,9 @@ function approveMock(variables: Record<string, unknown>): MockLink.MockedRespons
     result: {
       data: {
         approveWithdrawal: {
-          __typename: "TeacherTransaction",
           id: TX_ID,
-          type: "withdrawal",
-          status: "completed",
+          type: TransactionType.Withdrawal,
+          status: TransactionStatus.Completed,
           amount: "300.00",
           description: "Withdrawal request (pending payout)",
           walletId: "3",
@@ -137,10 +150,9 @@ function rejectMock(variables: Record<string, unknown>): MockLink.MockedResponse
     result: {
       data: {
         rejectWithdrawal: {
-          __typename: "TeacherTransaction",
           id: TX_ID,
-          type: "withdrawal",
-          status: "failed",
+          type: TransactionType.Withdrawal,
+          status: TransactionStatus.Failed,
           amount: "300.00",
           description: "Withdrawal request (pending payout)",
           walletId: "3",
@@ -170,7 +182,6 @@ describe("AdminFinancesWithdrawalQueue (en / LTR)", () => {
     renderQueue([
       withdrawalsMock({
         adminPendingWithdrawals: {
-          __typename: "AdminWithdrawalQueuePage",
           items: [QUEUE_ROW],
           totalCount: 1,
           page: 1,
@@ -195,7 +206,6 @@ describe("AdminFinancesWithdrawalQueue (en / LTR)", () => {
     renderQueue([
       withdrawalsMock({
         adminPendingWithdrawals: {
-          __typename: "AdminWithdrawalQueuePage",
           items: [QUEUE_ROW],
           totalCount: 1,
           page: 1,
@@ -231,7 +241,6 @@ describe("AdminFinancesWithdrawalQueue (en / LTR)", () => {
     renderQueue([
       withdrawalsMock({
         adminPendingWithdrawals: {
-          __typename: "AdminWithdrawalQueuePage",
           items: [QUEUE_ROW],
           totalCount: 1,
           page: 1,
@@ -280,8 +289,7 @@ describe("AdminFinancesWithdrawalQueue (ar / RTL)", () => {
       [
         withdrawalsMock({
           adminPendingWithdrawals: {
-            __typename: "AdminWithdrawalQueuePage",
-            items: [QUEUE_ROW],
+              items: [QUEUE_ROW],
             totalCount: 1,
             page: 1,
             pageSize: 25,

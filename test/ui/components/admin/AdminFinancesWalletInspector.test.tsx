@@ -37,6 +37,13 @@ import type { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import type { RenderResult } from "@testing-library/react";
 import {
+  type AdminTeacherWalletQuery,
+  type AdminTeacherWalletQuery_adminTeacherWallet_transactions,
+  type AdminTeachersQuery_adminTeachers_items,
+  TransactionStatus,
+  TransactionType,
+} from "@/frontend/graphql/generated/gql/graphql";
+import {
   adjustTeacherWalletMutationDocument,
   adminPendingWithdrawalsQueryDocument,
   adminTeachersQueryDocument,
@@ -83,7 +90,16 @@ const TEACHER_ID = 3;
 const SETTLE_POLL_INTERVAL_MS = 40;
 const SETTLE_POLL_DEADLINE_MS = 3200;
 
-const TEACHER_ITEM = {
+/**
+ * All-fields fixture rows. `__typename` mirrors what Apollo Server puts on
+ * the wire; it is what makes the row entities normalizable so the panels'
+ * cache reads converge without refetch.
+ */
+type TeacherItemFixture = AdminTeachersQuery_adminTeachers_items & {
+  readonly __typename: "AdminTeacherItem";
+};
+
+const TEACHER_ITEM: TeacherItemFixture = {
   __typename: "AdminTeacherItem",
   id: TEACHER_ID,
   name: "Teacher One",
@@ -99,7 +115,7 @@ const TEACHER_ITEM = {
   suspended: false,
   isBlocked: false,
   createdAt: FIXED_ISO,
-} as never;
+};
 
 function teachersMock(): MockLink.MockedResponse {
   return {
@@ -107,7 +123,6 @@ function teachersMock(): MockLink.MockedResponse {
     result: {
       data: {
         adminTeachers: {
-          __typename: "AdminTeacherPage",
           total: 1,
           page: 1,
           pageSize: 50,
@@ -119,18 +134,20 @@ function teachersMock(): MockLink.MockedResponse {
   };
 }
 
-const WALLET_TX = {
+const WALLET_TX: AdminTeacherWalletQuery_adminTeacherWallet_transactions & {
+  readonly __typename: "TeacherTransaction";
+} = {
   __typename: "TeacherTransaction",
   id: "902",
-  type: "earning",
-  status: "completed",
+  type: TransactionType.Earning,
+  status: TransactionStatus.Completed,
   amount: "120.50",
   description: "Session payout",
   sessionId: "31",
   createdAt: FIXED_ISO,
-} as never;
+};
 
-function walletMock(data: Record<string, unknown>): MockLink.MockedResponse {
+function walletMock(data: AdminTeacherWalletQuery): MockLink.MockedResponse {
   return {
     request: {
       query: adminTeacherWalletQueryDocument,
@@ -154,10 +171,9 @@ function adjustMock(variables: Record<string, unknown>): MockLink.MockedResponse
     result: {
       data: {
         adjustTeacherWallet: {
-          __typename: "TeacherTransaction",
           id: "910",
-          type: "bonus",
-          status: "completed",
+          type: TransactionType.Bonus,
+          status: TransactionStatus.Completed,
           amount: "50.00",
           description: "Manual adjustment",
           walletId: "3",
@@ -184,9 +200,8 @@ function renderInspector(mocks: ReadonlyArray<MockLink.MockedResponse>, locale: 
 
 afterEach(cleanup);
 
-const POPULATED_WALLET = {
+const POPULATED_WALLET: AdminTeacherWalletQuery = {
   adminTeacherWallet: {
-    __typename: "AdminTeacherWallet",
     balance: "900.00",
     totalEarning: "1240.00",
     currency: "EGP",
@@ -199,9 +214,8 @@ const POPULATED_WALLET = {
   },
 };
 
-const NO_WALLET = {
+const NO_WALLET: AdminTeacherWalletQuery = {
   adminTeacherWallet: {
-    __typename: "AdminTeacherWallet",
     balance: null,
     totalEarning: null,
     currency: "EGP",
@@ -278,7 +292,6 @@ describe("AdminFinancesWalletInspector (en / LTR)", () => {
         result: {
           data: {
             adminPendingWithdrawals: {
-              __typename: "AdminWithdrawalQueuePage",
               items: [],
               totalCount: 0,
               page: 1,

@@ -52,6 +52,9 @@ const TAB_IDS: Readonly<Record<FinancesTab, { tab: string; panel: string }>> = {
   wallet: { tab: "finances-tab-wallet", panel: "finances-panel-wallet" },
 };
 
+/** The tab order of the strip, as a typed guard (no unsafe key cast). */
+const TAB_ORDER: readonly FinancesTab[] = ["payments", "withdrawals", "wallet"];
+
 /**
  * The finances console view: always-on chrome (title + tab strip) over the
  * three kept-mounted panels, plus the container-level snackbar chrome.
@@ -124,7 +127,7 @@ export function AdminFinancesContainer(): ReactNode {
           aria-label={t.title}
           sx={theme => ({ paddingInline: 2, borderBottom: `1px solid ${theme.palette.border.light}` })}
         >
-          {(Object.keys(TAB_IDS) as readonly FinancesTab[]).map(tab => (
+          {TAB_ORDER.map(tab => (
             <Tab
               key={tab}
               value={tab}

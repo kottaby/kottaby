@@ -10,26 +10,27 @@
  * settled outcomes: `onApply` receives the applied filter record, `onReset`
  * restores the unfiltered listing.
  *
+ * The canonical enum-typed option lists live in the co-located
+ * {@link paymentsFilterOptions} module; the date-draft parsing in
+ * {@link paymentFilterDates}.
+ *
  * All copy comes from the `AdminFinance` namespace; MUI v9 `sx`-only
  * discipline, theme-palette colors, ≥44px touch targets.
  */
 
-import { FormControl, InputLabel, MenuItem, Select, Stack, TextField } from "@mui/material";
+import { TextField } from "@mui/material";
 import { type ReactNode, useId, useState } from "react";
-import {
-  type PaymentGateway,
-  PaymentGateway as PaymentGatewayEnum,
-  type PaymentStatus,
-  PaymentStatus as PaymentStatusEnum,
-} from "@/frontend/graphql/generated/gql/graphql";
+import type { PaymentGateway, PaymentStatus } from "@/frontend/graphql/generated/gql/graphql";
+import { parseUtcDayStart } from "@/frontend/views/admin/audit/audit-trail-filters";
 import { FilterActionsRow } from "@/frontend/views/admin/directory-shared/FilterActionsRow";
 import { FilterSectionShell } from "@/frontend/views/admin/directory-shared/FilterSectionShell";
+import { PaymentsFilterDateWindow } from "@/frontend/views/admin/finances/PaymentsFilterDateWindow";
+import { PaymentsGatewaySelect, PaymentsStatusSelect } from "@/frontend/views/admin/finances/PaymentsFilterSelects";
+import { parseUtcDayEndExclusive } from "@/frontend/views/admin/finances/paymentFilterDates";
+import { GATEWAY_OPTIONS, STATUS_OPTIONS } from "@/frontend/views/admin/finances/paymentsFilterOptions";
 import type { AppliedPaymentFilters } from "@/frontend/views/admin/finances/useAdminFinanceQueries";
 import { useAppTranslation } from "@/shared/locale/client";
 import { AdminFinance } from "@/shared/locale/namespaces/adminFinance";
-
-const DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-const DAY_MS = 86_400_000;
 
 /** Filter drafts — raw controlled input shape (`""` = unset). */
 interface PaymentFilterDrafts {
@@ -40,6 +41,16 @@ interface PaymentFilterDrafts {
   readonly to: string;
 }
 
+/** Type guard — narrows a Select wire value onto `PaymentStatus` (fail-closed to `""`). */
+function isPaymentStatus(value: string): value is PaymentStatus {
+  return (STATUS_OPTIONS as readonly string[]).includes(value);
+}
+
+/** Type guard — narrows a Select wire value onto `PaymentGateway` (fail-closed to `""`). */
+function isPaymentGateway(value: string): value is PaymentGateway {
+  return (GATEWAY_OPTIONS as readonly string[]).includes(value);
+}
+
 const EMPTY_DRAFTS: PaymentFilterDrafts = {
   studentName: "",
   status: "",
@@ -47,50 +58,6 @@ const EMPTY_DRAFTS: PaymentFilterDrafts = {
   from: "",
   to: "",
 };
-
-/**
- * Parses a `YYYY-MM-DD` date-input value into UTC midnight. Malformed or
- * impossible calendar values normalize to `null` (the `Date.UTC` rollover
- * guard — an unparseable draft never constrains the query).
- */
-function parseUtcDayStart(value: string): Date | null {
-  const match = DAY_PATTERN.exec(value);
-  if (match === null) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
-    return null;
-  }
-  return date;
-}
-
-/** The exclusive wire boundary for the `to` calendar day (UTC has no DST). */
-function parseUtcDayEndExclusive(value: string): Date | null {
-  const start = parseUtcDayStart(value);
-  return start === null ? null : new Date(start.getTime() + DAY_MS);
-}
-
-/** The canonical payment-status draft options, in display order. */
-const STATUS_OPTIONS: readonly PaymentStatus[] = [
-  PaymentStatusEnum.Pending,
-  PaymentStatusEnum.Paid,
-  PaymentStatusEnum.Failed,
-  PaymentStatusEnum.Refunded,
-];
-
-/** The canonical payment-gateway draft options, in display order. */
-const GATEWAY_OPTIONS: readonly PaymentGateway[] = [
-  PaymentGatewayEnum.Stripe,
-  PaymentGatewayEnum.Paypal,
-  PaymentGatewayEnum.Paymob,
-  PaymentGatewayEnum.Fawry,
-  PaymentGatewayEnum.OfflineCash,
-  PaymentGatewayEnum.BankTransfer,
-  PaymentGatewayEnum.Scholarship,
-  PaymentGatewayEnum.Other,
-];
 
 interface PaymentsFilterBarProps {
   /** Apply intent — receives the applied filter record built from drafts. */
@@ -112,6 +79,14 @@ export function PaymentsFilterBar({ onApply, onReset }: Readonly<PaymentsFilterB
 
   const updateDraft = (patch: Partial<PaymentFilterDrafts>): void => {
     setDrafts(current => ({ ...current, ...patch }));
+  };
+
+  const handleStatusChange = (value: string): void => {
+    updateDraft({ status: isPaymentStatus(value) ? value : "" });
+  };
+
+  const handleGatewayChange = (value: string): void => {
+    updateDraft({ paymentGateway: isPaymentGateway(value) ? value : "" });
   };
 
   const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>): void => {
@@ -151,72 +126,30 @@ export function PaymentsFilterBar({ onApply, onReset }: Readonly<PaymentsFilterB
         slotProps={{ htmlInput: { autoComplete: "off" } }}
       />
 
-      <FormControl>
-        <InputLabel id={STATUS_LABEL_ID}>{t.statusFilterLabel}</InputLabel>
-        <Select
-          labelId={STATUS_LABEL_ID}
-          id={statusSelectId}
-          value={drafts.status}
-          label={t.statusFilterLabel}
-          onChange={event => updateDraft({ status: (event.target.value || "") as PaymentStatus | "" })}
-          data-testid="admin-finances-filter-status"
-        >
-          <MenuItem value="">{t.allStatusesOption}</MenuItem>
-          {STATUS_OPTIONS.map(status => (
-            <MenuItem key={status} value={status}>
-              {status}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
+      <PaymentsStatusSelect
+        value={drafts.status}
+        id={statusSelectId}
+        labelId={STATUS_LABEL_ID}
+        onChange={handleStatusChange}
+      />
 
-      <FormControl>
-        <InputLabel id={GATEWAY_LABEL_ID}>{t.gatewayFilterLabel}</InputLabel>
-        <Select
-          labelId={GATEWAY_LABEL_ID}
-          id={gatewaySelectId}
-          value={drafts.paymentGateway}
-          label={t.gatewayFilterLabel}
-          onChange={event => updateDraft({ paymentGateway: (event.target.value || "") as PaymentGateway | "" })}
-          data-testid="admin-finances-filter-gateway"
-        >
-          <MenuItem value="">{t.allGatewaysOption}</MenuItem>
-          {GATEWAY_OPTIONS.map(gateway => (
-            <MenuItem key={gateway} value={gateway}>
-              {gateway}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
+      <PaymentsGatewaySelect
+        value={drafts.paymentGateway}
+        id={gatewaySelectId}
+        labelId={GATEWAY_LABEL_ID}
+        onChange={handleGatewayChange}
+      />
 
-      <Stack sx={{ flexDirection: { xs: "column", sm: "row" }, gap: 1.5 }}>
-        <TextField
-          fullWidth
-          type="date"
-          label={t.dateFromLabel}
-          value={drafts.from}
-          onChange={event => updateDraft({ from: event.target.value })}
-          data-testid="admin-finances-filter-from"
-          slotProps={{
-            htmlInput: { autoComplete: "off" },
-            // Native date inputs always paint their segments — an un-shrunk
-            // label would overlap them.
-            inputLabel: { shrink: true },
-          }}
-        />
-        <TextField
-          fullWidth
-          type="date"
-          label={t.dateToLabel}
-          value={drafts.to}
-          onChange={event => updateDraft({ to: event.target.value })}
-          data-testid="admin-finances-filter-to"
-          slotProps={{
-            htmlInput: { autoComplete: "off" },
-            inputLabel: { shrink: true },
-          }}
-        />
-      </Stack>
+      <PaymentsFilterDateWindow
+        from={drafts.from}
+        to={drafts.to}
+        onFromChange={value => {
+          updateDraft({ from: value });
+        }}
+        onToChange={value => {
+          updateDraft({ to: value });
+        }}
+      />
 
       <FilterActionsRow
         onReset={handleReset}

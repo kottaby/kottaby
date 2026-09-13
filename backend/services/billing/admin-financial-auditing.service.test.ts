@@ -26,6 +26,9 @@
  *    balance down) directions with their audit vocabulary.
  *  - Validation matrix — malformed amounts / reasons fail pre-DB with
  *    the typed VALIDATION denial and zero side effects.
+ *  - Unicode reason fuzz — Arabic/CJK reasons are accepted and stored
+ *    safely (the ledger description is the sanctioned store; audit
+ *    details carry only the `reasonPresent` BOOLEAN, never raw text).
  *  - Not-found / wrong-state / rollback-integrity / concurrency /
  *    insufficient-funds adversarial probes.
  *
@@ -407,6 +410,76 @@ describe("AdminFinancialAuditingService.rejectWithdrawal (runInRollback)", () =>
       expect(row?.status).toBe(TransactionStatus.Pending);
       expect((await readWallet(tx, teacherId)).balance).toBe("100.00");
       expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+});
+
+// ─── Unicode reason fuzz ─────────────────────────────────────────────────
+
+describe("AdminFinancialAuditingService unicode reason fuzz (runInRollback)", () => {
+  test("Arabic/CJK reasons are accepted and stored safely: the audit trail carries only reasonPresent, never the raw text", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const teacherId = await createTeacher(tx);
+      // Fixture mirrors the real request-debit state: 100.00 pre-request,
+      // the 30.00 reserve debited, so the wallet holds 70.00 available.
+      const walletId = await seedWalletBalance(tx, teacherId, "70.00", "100.00");
+      const pendingId = await seedPendingWithdrawal(tx, walletId, "30.00");
+
+      // Reject with an Arabic reason (leading/trailing whitespace exercises
+      // the normalizer's trim alongside the non-Latin code points).
+      const arabicReason = "  مبلغ السحب غير مطابق للسجلات  ";
+      const rejected = await AdminFinancialAuditingService.rejectWithdrawal(adminId, pendingId, arabicReason, "en", tx);
+      expect(rejected.status).toBe(TransactionStatus.Failed);
+      // The reserve was restored: the pre-request balance (100.00) is back.
+      expect((await readWallet(tx, teacherId)).balance).toBe("100.00");
+
+      // One audit row; the details vocabulary carries the reasonPresent
+      // BOOLEAN — no Arabic code point survives into the audit trail.
+      const rejectAudits = await readAuditsForTransaction(tx, pendingId);
+      expect(rejectAudits).toHaveLength(1);
+      const rejectDetails = rejectAudits[0]?.details ?? "";
+      const rejectMetadata: unknown = JSON.parse(rejectDetails);
+      expect(rejectMetadata).toEqual({
+        action: DETAIL_ACTION_REJECTED,
+        amount: "30.00",
+        walletId,
+        teacherId,
+        reasonPresent: true,
+      });
+      expect(rejectDetails).not.toContain("مبلغ");
+      expect(rejectDetails).not.toContain("للسجلات");
+
+      // Adjust with a CJK reason: accepted; the LEDGER description is the
+      // sanctioned store for the reason text, the audit details still carry
+      // only the reasonPresent boolean.
+      const cjkReason = "  調整の理由：善意のクレジット  ";
+      const adjusted = await AdminFinancialAuditingService.adjustTeacherWallet(
+        adminId,
+        adjustmentInput(teacherId, "5.00", WalletAdjustmentDirection.Credit, cjkReason),
+        "en",
+        tx
+      );
+      expect(adjusted.type).toBe(TransactionType.Bonus);
+      expect(adjusted.status).toBe(TransactionStatus.Completed);
+      expect(adjusted.description).toBe("Manual bonus adjustment: 調整の理由：善意のクレジット");
+      expect((await readWallet(tx, teacherId)).balance).toBe("105.00");
+
+      const adjustAudits = await readAuditsForTransaction(tx, adjusted.id);
+      expect(adjustAudits).toHaveLength(1);
+      const adjustDetails = adjustAudits[0]?.details ?? "";
+      const adjustMetadata: unknown = JSON.parse(adjustDetails);
+      expect(adjustMetadata).toEqual({
+        action: DETAIL_ACTION_ADJUSTMENT,
+        direction: DETAIL_DIRECTION_CREDIT,
+        amount: "5.00",
+        teacherId,
+        walletId,
+        reasonPresent: true,
+        balanceAfter: "105.00",
+      });
+      expect(adjustDetails).not.toContain("調整");
+      expect(adjustDetails).not.toContain("善意");
     });
   });
 });

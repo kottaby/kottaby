@@ -55,16 +55,33 @@ export function RejectWithdrawalDialog({
   const t = useAppTranslation(AdminFinance);
   const te = useAppTranslation(Errors);
 
+  // Fresh open state per dialog instance (the parent re-keys the dialog per
+  // transaction id) — a stale reason never survives a dismissal.
   const [reason, setReason] = useState("");
   const [reasonInvalid, setReasonInvalid] = useState(false);
 
-  // Fresh open state per dialog instance (the parent re-keys the dialog per
-  // transaction id) — a stale reason never survives a dismissal.
+  // Re-open of the SAME dialog instance (the parent can reopen for the same
+  // transaction id without a remount) — reset at EVENT time via the close
+  // gate, never through a synchronous setState-in-effect.
+  const handleClose = (): void => {
+    if (loading) return;
+    onClose();
+  };
+
   useEffect(() => {
-    if (open) {
+    // Reset on the OPEN transition only, deferred a frame so the setState
+    // never runs synchronously inside the effect body (the cascading-render
+    // hazard the react/set-state-in-effect rule guards).
+    if (!open) {
+      return undefined;
+    }
+    const id = requestAnimationFrame(() => {
       setReason("");
       setReasonInvalid(false);
-    }
+    });
+    return () => {
+      cancelAnimationFrame(id);
+    };
   }, [open]);
 
   const handleSubmit = (event: React.SubmitEvent<HTMLFormElement>): void => {
@@ -82,7 +99,7 @@ export function RejectWithdrawalDialog({
   return (
     <GovernanceFormDialog
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       loading={loading}
       onSubmit={handleSubmit}
       titleId={`reject-withdrawal-dialog-title-${transactionId}`}

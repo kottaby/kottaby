@@ -41,6 +41,12 @@
  *      localized not-pending conflict, the balance moves exactly once,
  *      and exactly ONE audit row exists for the settled row (completed,
  *      never failed).
+ *   7. Concurrent settle + new-request race on the SAME wallet — the
+ *      admin approves withdrawal A while the teacher requests a NEW
+ *      withdrawal B on the same connection pool: both land in valid
+ *      states (A completed, B pending with its own reserved debit) and
+ *      the balance arithmetic is exact (final balance = start − A − B,
+ *      no double-debit of A).
  *
  * Layer rules honored (`test/workflows/AGENTS.md`):
  * - fixtures COMMITTED in `beforeAll` inside ONE committing transaction;
@@ -141,6 +147,8 @@ const TXN_ENTITY_TYPE = "teacher_transaction";
 const PAYOUT_PRIMARY = "100.00";
 const PAYOUT_REJECTED = "50.00";
 const PAYOUT_RACED = "20.00";
+/** Concurrent settle + new-request race amounts (step 7). */
+const PAYOUT_NEW_REQUEST = "15.00";
 /** Manual adjustment amounts. */
 const ADJUST_CREDIT = "25.50";
 const ADJUST_DEBIT = "10.00";
@@ -811,5 +819,73 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     // conflict fans nothing out), and the DB agrees.
     expectNoDispatches();
     expect(await countNotificationsForUser(teacherA.userId)).toBe(0);
+  });
+
+  test("step 7 — Concurrent settle + new-request race on the SAME wallet: both land in valid states, the balance arithmetic is exact", async () => {
+    const walletBefore = await readWalletRow(teacherB.userId);
+    // Withdrawal A: filed and reserved BEFORE the race — the admin approves
+    // it concurrently with the teacher's NEW request B.
+    const requestA = await WalletService.requestWithdrawal(teacherB.userId, PAYOUT_RACED, LOCALE);
+    const pendingA = newestPendingWithdrawal(requestA.transactions);
+    ledgerTxnIds.push(pendingA.id);
+    const walletReservedA = await readWalletRow(teacherB.userId);
+    expect(decimalValue(walletReservedA.balance)).toBe(decimalValue(walletBefore.balance) - Number(PAYOUT_RACED));
+
+    // The race: the admin approves A while the teacher requests B on the
+    // SAME wallet — real parallel connections (Promise.allSettled).
+    const outcomes = await Promise.allSettled([
+      AdminFinancialAuditingService.approveWithdrawal(adminActor.userId, pendingA.id, LOCALE),
+      WalletService.requestWithdrawal(teacherB.userId, PAYOUT_NEW_REQUEST, LOCALE),
+    ]);
+
+    // The approval of A must win (the row was pending before the race; the
+    // concurrent request B does not touch A's row).
+    const approveOutcome = outcomes[0];
+    if (approveOutcome?.status !== "fulfilled") {
+      const reason = approveOutcome?.status === "rejected" ? String(approveOutcome.reason) : "unknown";
+      throw new Error(`journey: expected the approve leg to fulfill: ${reason}`);
+    }
+    const settledA = approveOutcome.value;
+    expect(settledA.id).toBe(pendingA.id);
+    expect(settledA.status).toBe(TransactionStatus.Completed);
+
+    // The concurrent request B must also fulfill: it lands as its own
+    // pending withdrawal with its own reserved debit.
+    const requestOutcome = outcomes[1];
+    if (requestOutcome?.status !== "fulfilled") {
+      const reason = requestOutcome?.status === "rejected" ? String(requestOutcome.reason) : "unknown";
+      throw new Error(`journey: expected the new-request leg to fulfill: ${reason}`);
+    }
+    const pendingB = newestPendingWithdrawal(requestOutcome.value.transactions);
+    ledgerTxnIds.push(pendingB.id);
+    expect(pendingB.id).not.toBe(pendingA.id);
+    expect(pendingB.amount).toBe(PAYOUT_NEW_REQUEST);
+    expect(pendingB.status).toBe(TransactionStatus.Pending);
+
+    // The balance arithmetic is exact: start − A − B (A settles WITHOUT a
+    // second debit; B carries its own reserved debit; no double-debit).
+    const walletAfter = await readWalletRow(teacherB.userId);
+    const expectedFinal = decimalValue(walletBefore.balance) - Number(PAYOUT_RACED) - Number(PAYOUT_NEW_REQUEST);
+    expect(decimalValue(walletAfter.balance)).toBe(expectedFinal);
+
+    // Both rows are in valid states on independent reads.
+    const rowA = await readLedgerRow(pendingA.id);
+    expect(rowA.status).toBe(TransactionStatus.Completed);
+    expect(rowA.type).toBe(TransactionType.Withdrawal);
+    expect(rowA.amount).toBe(PAYOUT_RACED);
+    const rowB = await readLedgerRow(pendingB.id);
+    expect(rowB.status).toBe(TransactionStatus.Pending);
+    expect(rowB.type).toBe(TransactionType.Withdrawal);
+    expect(rowB.amount).toBe(PAYOUT_NEW_REQUEST);
+
+    // Exactly ONE audit row for the settled A; B (pending) has none yet.
+    const auditsA = await readAuditsForTransaction(pendingA.id);
+    expect(auditsA).toHaveLength(1);
+    expect(auditsA[0]?.actionType).toBe(AuditActionType.Override);
+    expect(await readAuditsForTransaction(pendingB.id)).toHaveLength(0);
+
+    // The race leg is silent: zero dispatches, and the DB agrees.
+    expectNoDispatches();
+    expect(await countNotificationsForUser(teacherB.userId)).toBe(0);
   });
 });

@@ -11,6 +11,16 @@
  * increment is an EXPLICIT guarded UPDATE inside the same transaction —
  * the ledger row and the balance move commit atomically or not at all.
  *
+ * File layout: the admin-scoped read/write primitives (the admin ledger
+ * page + count, the pending-withdrawal queue + count, the wallet and
+ * settlement probes, the guarded settlement, the debit restore, the bonus
+ * credit, and the manual debit adjustment) live in the sibling
+ * `wallet.repository.admin.helpers.ts` module (extracted verbatim); the
+ * teacher-facing primitives stay in this file, their shared
+ * `debitWithLedgerRow` writer factored into the module-level function.
+ * Every admin method is a one-to-one delegation wrapper, so the public API
+ * (names, signatures, behavior) is unchanged.
+ *
  * Conventions per `backend/db/repo/AGENTS.md` (mirroring
  * `SessionRepository`):
  *  - One `namespace` per repository file; the namespace name is the
@@ -23,22 +33,13 @@
  *    `TransactionStatus` enum members, never string literals.
  */
 
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
+import * as walletRepositoryAdminImpl from "@/backend/db/repo/billing/wallet.repository.admin.helpers";
 import { teacherTransaction, wallet } from "@/backend/db/schema/billing";
-import { teacher } from "@/backend/db/schema/teachers/teacher";
-import { users } from "@/backend/db/schema/users/users";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
-import type {
-  AdminTeacherWalletProbe,
-  AdminWalletTransactionFilters,
-  AdminWithdrawalQueueRow,
-  DBTransaction,
-  TeacherTransactionSelectType,
-  WalletSelectType,
-  WithdrawalSettlementProbe,
-} from "@/backend/types";
+import type { DBTransaction, TeacherTransactionSelectType, WalletSelectType } from "@/backend/types";
 
 export namespace WalletRepository {
   /**
@@ -255,26 +256,34 @@ export namespace WalletRepository {
   }
 
   /**
-   * Builds the ANDed predicate chain from the normalized admin ledger
-   * filters: the wallet scope plus the optional type/status/date-window
-   * members. Absent or null members are skipped; the `and(...)` spread over
-   * the non-empty conditions always yields a defined SQL node.
+   * Newest-first admin-audit page over one wallet's `teacher_transaction`
+   * ledger with optional type/status/date-window filters — one-to-one
+   * delegation to the admin module (same signature and behavior).
+   *
+   * @returns Up to `limit` ledger rows starting at `offset`, newest first.
    */
-  function buildAdminLedgerFilterChain(walletId: number, filters: AdminWalletTransactionFilters) {
-    const conditions = [eq(teacherTransaction.walletId, walletId)];
-    if (filters.type !== null) {
-      conditions.push(eq(teacherTransaction.type, filters.type));
-    }
-    if (filters.status !== null) {
-      conditions.push(eq(teacherTransaction.status, filters.status));
-    }
-    if (filters.from !== null) {
-      conditions.push(gte(teacherTransaction.createdAt, filters.from));
-    }
-    if (filters.to !== null) {
-      conditions.push(lte(teacherTransaction.createdAt, filters.to));
-    }
-    return and(...conditions);
+  export async function listTransactionsForAdmin(
+    walletId: number,
+    filters: Parameters<typeof walletRepositoryAdminImpl.listTransactionsForAdmin>[1],
+    limit: number,
+    offset: number,
+    tx?: DBTransaction
+  ): Promise<TeacherTransactionSelectType[]> {
+    return walletRepositoryAdminImpl.listTransactionsForAdmin(walletId, filters, limit, offset, tx);
+  }
+
+  /**
+   * Count of the admin ledger view — the exact same predicate chain as
+   * `listTransactionsForAdmin`.
+   *
+   * @returns The number of ledger rows the filtered page contains.
+   */
+  export async function countTransactionsForAdmin(
+    walletId: number,
+    filters: Parameters<typeof walletRepositoryAdminImpl.countTransactionsForAdmin>[1],
+    tx?: DBTransaction
+  ): Promise<number> {
+    return walletRepositoryAdminImpl.countTransactionsForAdmin(walletId, filters, tx);
   }
 
   /**
@@ -288,75 +297,15 @@ export namespace WalletRepository {
   export async function findAdminWalletProbe(
     teacherId: number,
     tx?: DBTransaction
-  ): Promise<AdminTeacherWalletProbe | null> {
-    const executor = tx ?? db;
-    const rows = await executor
-      .select({
-        wallet: wallet,
-        teacherName: users.fullName,
-      })
-      .from(wallet)
-      .innerJoin(teacher, eq(teacher.id, wallet.teacherId))
-      .innerJoin(users, eq(users.id, teacher.id))
-      .where(eq(wallet.teacherId, teacherId))
-      .limit(1);
-    return rows[0] ?? null;
-  }
-
-  /**
-   * Newest-first admin-audit page over one wallet's `teacher_transaction`
-   * ledger with optional type/status/date-window filters. A plain Drizzle
-   * select on `tx ?? db` — the service always calls this inside its
-   * transaction.
-   *
-   * @returns Up to `limit` ledger rows starting at `offset`, newest first.
-   */
-  export async function listTransactionsForAdmin(
-    walletId: number,
-    filters: AdminWalletTransactionFilters,
-    limit: number,
-    offset: number,
-    tx?: DBTransaction
-  ): Promise<TeacherTransactionSelectType[]> {
-    const executor = tx ?? db;
-    return executor
-      .select()
-      .from(teacherTransaction)
-      .where(buildAdminLedgerFilterChain(walletId, filters))
-      .orderBy(desc(teacherTransaction.id))
-      .limit(limit)
-      .offset(offset);
-  }
-
-  /**
-   * Count of the admin ledger view — the exact same predicate chain as
-   * `listTransactionsForAdmin`.
-   *
-   * @returns The number of ledger rows the filtered page contains.
-   */
-  export async function countTransactionsForAdmin(
-    walletId: number,
-    filters: AdminWalletTransactionFilters,
-    tx?: DBTransaction
-  ): Promise<number> {
-    const executor = tx ?? db;
-    const rows = await executor
-      .select({ total: sql<number>`count(*)::int` })
-      .from(teacherTransaction)
-      .where(buildAdminLedgerFilterChain(walletId, filters));
-    return rows[0]?.total ?? 0;
+  ): Promise<ReturnType<typeof walletRepositoryAdminImpl.findAdminWalletProbe>> {
+    return walletRepositoryAdminImpl.findAdminWalletProbe(teacherId, tx);
   }
 
   /**
    * The pending-withdrawal settlement queue, oldest first (the
-   * longest-waiting payout heads the queue per the settlement specs):
-   * ordered by `createdAt` ascending with `id` as the stable tie-breaker,
-   * so a backfilled withdrawal with an older `createdAt` cannot be
-   * stranded behind newer insertion-order rows. The
-   * predicate is EXACT parity with the analytics counter
-   * (`type = withdrawal AND status = pending`). Each row carries the
-   * teacher's display name and the wallet's current balance (decimal
-   * string) via the wallet → teacher → users join chain.
+   * longest-waiting payout heads the queue per the settlement specs) —
+   * one-to-one delegation to the admin module (same signature and
+   * behavior).
    *
    * @returns Up to `limit` queue rows starting at `offset`, oldest first.
    */
@@ -364,27 +313,8 @@ export namespace WalletRepository {
     limit: number,
     offset: number,
     tx?: DBTransaction
-  ): Promise<AdminWithdrawalQueueRow[]> {
-    const executor = tx ?? db;
-    return executor
-      .select({
-        transaction: teacherTransaction,
-        teacherName: users.fullName,
-        walletBalance: wallet.balance,
-      })
-      .from(teacherTransaction)
-      .innerJoin(wallet, eq(wallet.id, teacherTransaction.walletId))
-      .innerJoin(teacher, eq(teacher.id, wallet.teacherId))
-      .innerJoin(users, eq(users.id, teacher.id))
-      .where(
-        and(
-          eq(teacherTransaction.type, TransactionType.Withdrawal),
-          eq(teacherTransaction.status, TransactionStatus.Pending)
-        )
-      )
-      .orderBy(teacherTransaction.createdAt, teacherTransaction.id)
-      .limit(limit)
-      .offset(offset);
+  ): Promise<ReturnType<typeof walletRepositoryAdminImpl.listPendingWithdrawals>> {
+    return walletRepositoryAdminImpl.listPendingWithdrawals(limit, offset, tx);
   }
 
   /**
@@ -394,17 +324,7 @@ export namespace WalletRepository {
    * @returns The number of pending withdrawal rows in the queue.
    */
   export async function countPendingWithdrawals(tx?: DBTransaction): Promise<number> {
-    const executor = tx ?? db;
-    const rows = await executor
-      .select({ total: sql<number>`count(*)::int` })
-      .from(teacherTransaction)
-      .where(
-        and(
-          eq(teacherTransaction.type, TransactionType.Withdrawal),
-          eq(teacherTransaction.status, TransactionStatus.Pending)
-        )
-      );
-    return rows[0]?.total ?? 0;
+    return walletRepositoryAdminImpl.countPendingWithdrawals(tx);
   }
 
   /**
@@ -418,97 +338,25 @@ export namespace WalletRepository {
   export async function findSettlementProbe(
     transactionId: number,
     tx?: DBTransaction
-  ): Promise<WithdrawalSettlementProbe | null> {
-    const executor = tx ?? db;
-    const rows = await executor
-      .select({
-        id: teacherTransaction.id,
-        walletId: teacherTransaction.walletId,
-        amount: teacherTransaction.amount,
-        type: teacherTransaction.type,
-        status: teacherTransaction.status,
-      })
-      .from(teacherTransaction)
-      .where(eq(teacherTransaction.id, transactionId))
-      .limit(1);
-    const row = rows[0];
-    if (!row) {
-      return null;
-    }
-    return {
-      id: row.id,
-      walletId: row.walletId,
-      amount: row.amount,
-      type: toTransactionTypeEnum(row.type),
-      status: toTransactionStatusEnum(row.status),
-    };
-  }
-
-  function toTransactionTypeEnum(type: TeacherTransactionSelectType["type"]): TransactionType {
-    if (type === TransactionType.Earning) {
-      return TransactionType.Earning;
-    }
-    if (type === TransactionType.Withdrawal) {
-      return TransactionType.Withdrawal;
-    }
-    if (type === TransactionType.Bonus) {
-      return TransactionType.Bonus;
-    }
-    throw new Error(
-      `WalletRepository: unrecognized teacher_transaction.type value ${JSON.stringify(type)} — the pgEnum constraint makes this unreachable`
-    );
-  }
-
-  function toTransactionStatusEnum(status: TeacherTransactionSelectType["status"]): TransactionStatus {
-    if (status === TransactionStatus.Pending) {
-      return TransactionStatus.Pending;
-    }
-    if (status === TransactionStatus.Completed) {
-      return TransactionStatus.Completed;
-    }
-    if (status === TransactionStatus.Failed) {
-      return TransactionStatus.Failed;
-    }
-    throw new Error(
-      `WalletRepository: unrecognized teacher_transaction.status value ${JSON.stringify(status)} — the pgEnum constraint makes this unreachable`
-    );
+  ): Promise<ReturnType<typeof walletRepositoryAdminImpl.findSettlementProbe>> {
+    return walletRepositoryAdminImpl.findSettlementProbe(transactionId, tx);
   }
 
   /**
    * One guarded settlement — a single `UPDATE … WHERE id = ? AND type =
    * 'withdrawal' AND status = 'pending' … RETURNING` that flips the status
-   * to `completed` or `failed`. The pending predicate is the concurrency
-   * lock: a replayed settlement matches zero rows. Every frozen column is
-   * unchanged (the amended DB trigger independently re-verifies the freeze
-   * and re-raises on any other mutation). `nextStatus` is validated by the
-   * CALLER to be `completed | failed`; the repo also defends: any other
-   * member returns `null` without touching the row (the repo has no i18n
-   * to explain a rejection).
+   * to `completed` or `failed` — one-to-one delegation to the admin module
+   * (same signature and behavior).
    *
    * @returns The settled ledger row, or `null` when the row is missing,
    *     already settled, not a withdrawal, or `nextStatus` is not a
    *     permitted settlement target.
    */
   export async function settleWithdrawalOnce(
-    insert: { readonly transactionId: number; readonly nextStatus: TransactionStatus },
+    insert: Parameters<typeof walletRepositoryAdminImpl.settleWithdrawalOnce>[0],
     tx?: DBTransaction
   ): Promise<TeacherTransactionSelectType | null> {
-    if (insert.nextStatus !== TransactionStatus.Completed && insert.nextStatus !== TransactionStatus.Failed) {
-      return null;
-    }
-    const executor = tx ?? db;
-    const rows = await executor
-      .update(teacherTransaction)
-      .set({ status: insert.nextStatus, updatedAt: new Date() })
-      .where(
-        and(
-          eq(teacherTransaction.id, insert.transactionId),
-          eq(teacherTransaction.type, TransactionType.Withdrawal),
-          eq(teacherTransaction.status, TransactionStatus.Pending)
-        )
-      )
-      .returning();
-    return rows[0] ?? null;
+    return walletRepositoryAdminImpl.settleWithdrawalOnce(insert, tx);
   }
 
   /**
@@ -519,23 +367,17 @@ export namespace WalletRepository {
    * lower guard exists.
    */
   export async function restoreWithdrawalDebitOnce(
-    insert: { readonly walletId: number; readonly amount: string },
+    insert: Parameters<typeof walletRepositoryAdminImpl.restoreWithdrawalDebitOnce>[0],
     tx?: DBTransaction
   ): Promise<void> {
-    const executor = tx ?? db;
-    await executor
-      .update(wallet)
-      .set({ balance: sql`${wallet.balance} + ${insert.amount}`, updatedAt: new Date() })
-      .where(eq(wallet.id, insert.walletId));
+    return walletRepositoryAdminImpl.restoreWithdrawalDebitOnce(insert, tx);
   }
 
   /**
    * Credits a bonus to the wallet — the bonus slice, on the caller's
    * transaction: inserts ONE `bonus/completed` ledger row, then increments
-   * the wallet's `balance` by the amount. `total_earning` is deliberately
-   * untouched (a bonus is not lifetime teaching earnings — the same
-   * discipline as the withdrawal debit). The increment is strictly
-   * additive, so the `>= 0` CHECK constraints hold.
+   * the wallet's `balance` by the amount — one-to-one delegation to the
+   * admin module (same signature and behavior).
    *
    * @returns The inserted ledger row.
    * @throws Error when the ledger INSERT somehow returns zero rows — the
@@ -543,37 +385,10 @@ export namespace WalletRepository {
    *     broken driver contract (same contract as `creditEarningOnce`).
    */
   export async function creditBonusOnce(
-    insert: {
-      readonly walletId: number;
-      readonly amount: string;
-      readonly description: string;
-    },
+    insert: Parameters<typeof walletRepositoryAdminImpl.creditBonusOnce>[0],
     tx?: DBTransaction
   ): Promise<TeacherTransactionSelectType> {
-    const executor = tx ?? db;
-    const ledgerRows = await executor
-      .insert(teacherTransaction)
-      .values({
-        walletId: insert.walletId,
-        sessionId: null,
-        description: insert.description,
-        amount: insert.amount,
-        type: TransactionType.Bonus,
-        status: TransactionStatus.Completed,
-      })
-      .returning();
-    const ledger = ledgerRows[0];
-    if (!ledger) {
-      throw new Error("WalletRepository.creditBonusOnce: ledger INSERT returned zero rows");
-    }
-    await executor
-      .update(wallet)
-      .set({
-        balance: sql`${wallet.balance} + ${insert.amount}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(wallet.id, insert.walletId));
-    return ledger;
+    return walletRepositoryAdminImpl.creditBonusOnce(insert, tx);
   }
 
   /**
@@ -582,23 +397,16 @@ export namespace WalletRepository {
    * description carries the machine-distinguishable manual-adjustment
    * marker composed by the SERVICE), then debits the wallet `balance` via
    * ONE guarded UPDATE (`balance >= amount` in the predicate — the funds
-   * guard, mirroring `debitForWithdrawalOnce`). Unlike the withdrawal debit
-   * the ledger row lands FIRST at `completed` status: if the guarded debit
-   * misses, the `null` return makes the caller classify the miss, and the
-   * caller's transaction rollback removes the ledger row (everything
-   * composes inside one tx).
+   * guard, mirroring `debitForWithdrawalOnce`) — one-to-one delegation to
+   * the admin module (same signature and behavior).
    *
    * @returns The inserted ledger row, or `null` when the guarded debit
    *     matched zero rows (insufficient funds — the caller classifies).
    */
   export async function debitAdjustmentOnce(
-    insert: {
-      readonly walletId: number;
-      readonly amount: string;
-      readonly description: string;
-    },
+    insert: Parameters<typeof walletRepositoryAdminImpl.debitAdjustmentOnce>[0],
     tx?: DBTransaction
   ): Promise<TeacherTransactionSelectType | null> {
-    return debitWithLedgerRow(insert, TransactionStatus.Completed, "WalletRepository.debitAdjustmentOnce", tx);
+    return walletRepositoryAdminImpl.debitAdjustmentOnce(insert, tx);
   }
 }

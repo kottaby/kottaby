@@ -35,6 +35,12 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import type { RenderResult } from "@testing-library/react";
+import {
+  type AdminStudentPaymentsQuery,
+  type AdminStudentPaymentsQuery_adminStudentPayments_items,
+  PaymentGateway,
+  PaymentStatus,
+} from "@/frontend/graphql/generated/gql/graphql";
 import { adminStudentPaymentsQueryDocument } from "@/frontend/graphql/sharedDocuments/admin";
 import { PaymentsAuditPanel } from "@/frontend/views/admin/finances/PaymentsAuditPanel";
 import { arMessages } from "@/shared/locale/ar/messages";
@@ -56,7 +62,16 @@ const tar = AdminFinance.getLabels(getTranslations("ar"));
 
 const FIXED_ISO = "2026-08-29T12:00:00.000Z";
 
-const PAYMENT_ROW = {
+/**
+ * All-fields fixture row. `__typename` mirrors what Apollo Server puts on
+ * the wire; it is what makes the row entity normalizable so the audit
+ * table's cache reads converge without refetch.
+ */
+type PaymentRowFixture = AdminStudentPaymentsQuery_adminStudentPayments_items & {
+  readonly __typename: "AdminStudentPayment";
+};
+
+const PAYMENT_ROW: PaymentRowFixture = {
   __typename: "AdminStudentPayment",
   id: "501",
   studentId: "12",
@@ -64,12 +79,12 @@ const PAYMENT_ROW = {
   subscriptionId: "7",
   amount: "250.00",
   currency: "EGP",
-  paymentGateway: "Stripe",
-  status: "Paid",
+  paymentGateway: PaymentGateway.Stripe,
+  status: PaymentStatus.Paid,
   createdAt: FIXED_ISO,
-} as never;
+};
 
-function paymentsMock(data: Record<string, unknown>): MockLink.MockedResponse {
+function paymentsMock(data: AdminStudentPaymentsQuery): MockLink.MockedResponse {
   return {
     request: {
       query: adminStudentPaymentsQueryDocument,
@@ -107,7 +122,6 @@ describe("AdminFinancesPaymentsAudit (en / LTR)", () => {
     renderPayments([
       paymentsMock({
         adminStudentPayments: {
-          __typename: "AdminStudentPaymentPage",
           items: [PAYMENT_ROW],
           totalCount: 1,
           page: 1,
@@ -137,7 +151,6 @@ describe("AdminFinancesPaymentsAudit (en / LTR)", () => {
     renderPayments([
       paymentsMock({
         adminStudentPayments: {
-          __typename: "AdminStudentPaymentPage",
           items: [],
           totalCount: 0,
           page: 1,
@@ -163,7 +176,6 @@ describe("AdminFinancesPaymentsAudit (en / LTR)", () => {
     renderPayments([
       paymentsMock({
         adminStudentPayments: {
-          __typename: "AdminStudentPaymentPage",
           items: [],
           totalCount: 0,
           page: 1,
@@ -187,7 +199,6 @@ describe("AdminFinancesPaymentsAudit (ar / RTL)", () => {
       [
         paymentsMock({
           adminStudentPayments: {
-            __typename: "AdminStudentPaymentPage",
             items: [PAYMENT_ROW],
             totalCount: 1,
             page: 1,

@@ -244,13 +244,13 @@ describe("WalletRepository.listTransactionsForAdmin + countTransactionsForAdmin"
   test("limit/offset slice the page; an offset beyond the range is an honest empty page", async () => {
     await runInRollback(async tx => {
       const { walletId } = await createTeacherWithWallet(tx);
-      const ids = [];
-      for (let index = 0; index < 3; index += 1) {
-        const row = await createTestTeacherTransaction(tx, walletId, null, {
-          createdAt: new Date(now.getTime() + index * 1_000),
-        });
-        ids.push(row.id);
-      }
+      const ids = await Promise.all(
+        Array.from({ length: 3 }, (_, index) =>
+          createTestTeacherTransaction(tx, walletId, null, {
+            createdAt: new Date(now.getTime() + index * 1_000),
+          })
+        )
+      ).then(rows => rows.map(row => row.id));
 
       const page1 = await WalletRepository.listTransactionsForAdmin(walletId, noLedgerFilters(), 2, 0, tx);
       const page2 = await WalletRepository.listTransactionsForAdmin(walletId, noLedgerFilters(), 2, 2, tx);

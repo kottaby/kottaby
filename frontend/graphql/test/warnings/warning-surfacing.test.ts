@@ -322,8 +322,14 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * resolves to the canonical `SessionRecitation` payload with every denial
  * (`RECITATION_ALREADY_EXISTS`, `SESSION_NOT_FOUND`) riding `errors[]`, so it
  * is warning-incapable like the session-family mutations enumerated above.
+ *
+ * Refreshed for the admin financial auditing workflow: `approveWithdrawal`,
+ * `rejectWithdrawal` and `adjustTeacherWallet` each resolve to the canonical
+ * `TeacherTransaction` payload with every denial riding `errors[]`, so they
+ * are warning-incapable like the drift-guard entries enumerated above.
  */
 const KNOWN_LIVE_MUTATION_FIELDS = [
+  "adjustTeacherWallet",
   "adminBroadcastNotification",
   "adminCancelSession",
   "adminCertifyTeacherColdStart",
@@ -335,6 +341,7 @@ const KNOWN_LIVE_MUTATION_FIELDS = [
   "adminSetUserDeleted",
   "adminSetUserSuspended",
   "adminUpdateUser",
+  "approveWithdrawal",
   "cancelParentLinkRequest",
   "cancelSession",
   "completeSession",
@@ -349,6 +356,7 @@ const KNOWN_LIVE_MUTATION_FIELDS = [
   "purchaseSubscription",
   "refreshToken",
   "registerUser",
+  "rejectWithdrawal",
   "requestParentChildLink",
   "requestWithdrawal",
   "resolveSessionDispute",

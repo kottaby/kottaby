@@ -32,7 +32,16 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import type { RenderResult } from "@testing-library/react";
-import type { AdminPendingWithdrawalsQuery, AdminStudentPaymentsQuery } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  type AdminPendingWithdrawalsQuery,
+  type AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items,
+  type AdminStudentPaymentsQuery,
+  type AdminStudentPaymentsQuery_adminStudentPayments_items,
+  PaymentGateway,
+  PaymentStatus,
+  TransactionStatus,
+  TransactionType,
+} from "@/frontend/graphql/generated/gql/graphql";
 import {
   adminPendingWithdrawalsQueryDocument,
   adminStudentPaymentsQueryDocument,
@@ -61,8 +70,17 @@ const tar = AdminFinance.getLabels(getTranslations("ar"));
 
 const FIXED_ISO = "2026-08-29T12:00:00.000Z";
 
-type PaymentRowFixture = AdminStudentPaymentsQuery["adminStudentPayments"]["items"][number];
-type WithdrawalRowFixture = AdminPendingWithdrawalsQuery["adminPendingWithdrawals"]["items"][number];
+/**
+ * All-fields fixture rows. `__typename` mirrors what Apollo Server puts on
+ * the wire; it is what makes the row entities normalizable so the panels'
+ * cache reads converge without refetch.
+ */
+type PaymentRowFixture = AdminStudentPaymentsQuery_adminStudentPayments_items & {
+  readonly __typename: "AdminStudentPayment";
+};
+type WithdrawalRowFixture = AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items & {
+  readonly __typename: "AdminWithdrawalQueueRow";
+};
 
 const PAYMENT_ROW: PaymentRowFixture = {
   __typename: "AdminStudentPayment",
@@ -72,48 +90,45 @@ const PAYMENT_ROW: PaymentRowFixture = {
   subscriptionId: "7",
   amount: "250.00",
   currency: "EGP",
-  paymentGateway: "Stripe",
-  status: "Paid",
+  paymentGateway: PaymentGateway.Stripe,
+  status: PaymentStatus.Paid,
   createdAt: FIXED_ISO,
-} as unknown as PaymentRowFixture;
+};
 
 const WITHDRAWAL_ROW: WithdrawalRowFixture = {
   __typename: "AdminWithdrawalQueueRow",
   transaction: {
-    __typename: "TeacherTransaction",
     id: "901",
-    type: "withdrawal",
-    status: "pending",
+    type: TransactionType.Withdrawal,
+    status: TransactionStatus.Pending,
     amount: "300.00",
     description: "Withdrawal request (pending payout)",
     createdAt: FIXED_ISO,
   },
   teacherName: "Teacher One",
   walletBalance: "900.00",
-} as unknown as WithdrawalRowFixture;
+};
 
 function paymentsPage(rows: readonly PaymentRowFixture[], totalCount = rows.length): AdminStudentPaymentsQuery {
   return {
     adminStudentPayments: {
-      __typename: "AdminStudentPaymentPage",
       items: [...rows],
       totalCount,
       page: 1,
       pageSize: 10,
     },
-  } as AdminStudentPaymentsQuery;
+  };
 }
 
 function withdrawalsPage(rows: readonly WithdrawalRowFixture[]): AdminPendingWithdrawalsQuery {
   return {
     adminPendingWithdrawals: {
-      __typename: "AdminWithdrawalQueuePage",
       items: [...rows],
       totalCount: rows.length,
       page: 1,
       pageSize: 25,
     },
-  } as AdminPendingWithdrawalsQuery;
+  };
 }
 
 function paymentsMock(data: AdminStudentPaymentsQuery): MockLink.MockedResponse {

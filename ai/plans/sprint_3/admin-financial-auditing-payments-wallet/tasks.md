@@ -85,14 +85,14 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
   - Outcome: `outcome/2.4-journey-test-first-outcome.md`
   - _Requirements: REQ-1 … REQ-9 (the journey is the acceptance harness)_
 
-- [ ] 2.5 `AdminFinancialAuditingService`
+- [x] 2.5 `AdminFinancialAuditingService`
   - New `backend/services/billing/admin-financial-auditing.service.ts` (+ `.helpers.ts`): the six methods from plan.md Component 2; `assertActorAdmin` first inside `withTransaction`; pagination via `resolvePageBounds`; wallet-absent teacher inspection resolves identity via a teacher→user fallback lookup (never fabricates a wallet row); audit contract builders mapping D-4 vocabulary; writes via `AuditService.createAuditLog(contract, tx)` only
   - Service tests (`backend/services/billing/admin-financial-auditing.service.test.ts`): gate matrix, settle/reject/adjust success + audit-row assertions (actionType, entityType/entityId, details vocabulary), validation matrix, rollback integrity, `Promise.allSettled` double-approve race
-  - [ ] 2.5.QL exit 0 · [ ] 2.5.TE Tiers 1-4 · [ ] 2.5.SEC BFLA belt, BOPLA strict DTOs, wildcard escaping path · [ ] 2.5.SR single-tx atomicity; audit shares commit fate; env-config N/A · [ ] 2.5.IV read printed rule files
+  - [x] 2.5.QL exit 0 · [x] 2.5.TE Tiers 1-4 · [x] 2.5.SEC BFLA belt, BOPLA strict DTOs, wildcard escaping path · [x] 2.5.SR single-tx atomicity; audit shares commit fate; env-config N/A · [x] 2.5.IV read printed rule files
   - Outcome: `outcome/2.5-service-outcome.md`
   - _Requirements: REQ-1 … REQ-9_
 
-- [ ] 2.6 Mid-Point Review Gate (backend-only)
+- [x] 2.6 Mid-Point Review Gate (backend-only)
   - Dispatch review-backend / review-types / review-config subagents over the Task 2.1–2.5 diff; fix findings; re-review until zero backend-specific findings; run the affected suites via run-test
   - Outcome: `outcome/midpoint-review-R1.md`
   - _Requirements: REQ-0_
@@ -101,14 +101,14 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
 
 ### Phase 3: GraphQL Surface
 
-- [ ] 3.1 Pothos types/inputs/enum registration + queries + mutations + codegen
+- [x] 3.1 Pothos types/inputs/enum registration + queries + mutations + codegen
   - Pothos objects/inputs (`backend/graphql/pothos/billing/` + `pothos/admin/` per placement convention): `AdminStudentPayment`, `AdminStudentPaymentPage`, `AdminTeacherWallet`, `AdminWithdrawalQueueRow/Page`, filter inputs, `AdjustTeacherWalletInput`; register `WalletAdjustmentDirectionPothosEnum` in `pothos/shared/enum.pothos.ts`; REUSE `TeacherTransactionPothosObject`/`WalletPothosObject` for payloads
   - New `backend/graphql/query/admin/admin-finance.query.ts` (3 query fields) + `backend/graphql/mutation/admin/admin-finance.mutation.ts` (3 mutations): `adminOnlyAuthScopes` + `requireAdminUser`, closed-input whitelist copies (never spread wire args), `ctx.locale` propagation
   - Barrel side-effect imports added; `bun run generate:gqlSchema && bun codegen`
   - `TeacherTransactionPothosObject` is module-private (`pothos/billing/wallet.pothos.ts:86`) — add the one-line `export` (barrel untouched: wallet objects register resolver-transitively)
   - CI-pinned registries updated: `backend/graphql/test/schema-surface.test.ts` frozen inventory (+3 queries, +3 mutations, +1 enum, +new object/input types); `test/workflows/admin/audit-completeness.catalog.ts` — replace deferred row D-002 with three `wired` rows (approve/reject → `override`, adjust → `adjust`), flip `ACTION_TYPE_COVERAGE.Adjust` to `wired`, add producer lanes in `test/workflows/admin/audit-completeness.journey.test.ts` (guard: `backend/db/test/logic/audit/audit-census-drift.test.ts`)
   - GraphQL tests: `frontend/graphql/test/admin/admin-finance.integration.test.ts` via `setupTestServerLifecycle` + `testClient` — anon/non-admin denial bytes per field, SDL surface pinning, settle/adjust happy paths, explicit-id cleanup in `afterAll`
-  - [ ] 3.1.QL exit 0 · [ ] 3.1.TE denial/surface matrix · [ ] 3.1.SEC scopes on every field; no public-allowlist additions · [ ] 3.1.SR single canonical object types; no local typedefs in pothos files · [ ] 3.1.IV read printed rule files
+  - [x] 3.1.QL exit 0 · [x] 3.1.TE denial/surface matrix · [x] 3.1.SEC scopes on every field; no public-allowlist additions · [x] 3.1.SR single canonical object types; no local typedefs in pothos files · [x] 3.1.IV read printed rule files
   - Outcome: `outcome/3.1-graphql-outcome.md`
   - _Requirements: REQ-1 … REQ-9_
 
@@ -116,10 +116,10 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
 
 ### Phase 4: Frontend Surfaces
 
-- [ ] 4.1 GraphQL documents (+ codegen outputs committed)
+- [x] 4.1 GraphQL documents (+ codegen outputs committed)
   - New `frontend/graphql/sharedDocuments/admin/admin-finance.documents.ts`: `adminStudentPaymentsQueryDocument`, `adminTeacherWalletQueryDocument`, `adminPendingWithdrawalsQueryDocument`, `approveWithdrawalMutationDocument`, `rejectWithdrawalMutationDocument`, `adjustTeacherWalletMutationDocument` — `id` first on every object; hooks import from `@apollo/client/react`, `useQuery` only (no `useLazyQuery`); export via the admin barrel; add `.documents.test.ts` sibling
   - Register `keyFields: false` typePolicies for the id-less wrappers (`AdminStudentPaymentPage`, `AdminTeacherWallet`, `AdminWithdrawalQueueRow`, `AdminWithdrawalQueuePage`) in `frontend/providers/apollo/apolloCache.ts` (precedent: `AdminAuditLogPage`)
-  - [ ] 4.1.QL exit 0 · [ ] 4.1.TE document-shape snapshot via generated types · [ ] 4.1.SEC no over-selection of sensitive fields · [ ] 4.1.SR naming/ barrel conventions · [ ] 4.1.IV read printed rule files
+  - [x] 4.1.QL exit 0 · [x] 4.1.TE document-shape snapshot via generated types · [x] 4.1.SEC no over-selection of sensitive fields · [x] 4.1.SR naming/ barrel conventions · [x] 4.1.IV read printed rule files
   - Outcome: `outcome/4.1-documents-outcome.md`
   - _Requirements: REQ-1, REQ-2, REQ-3, REQ-0.5_
 
@@ -130,12 +130,12 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
   - Outcome: `outcome/4.2-locale-outcome.md`
   - _Requirements: REQ-0.5, REQ-10_
 
-- [ ] 4.3 Admin finances console UI + nav
+- [x] 4.3 Admin finances console UI + nav
   - `app/(dashboard)/admin/finances/page.tsx` — `withPageAuth({ roles: [UserRole.Admin] })` + metadata from `getTranslations(locale).adminFinanceTranslations`
   - `frontend/views/admin/finances/`: `AdminFinancesContainer` (tab state from `?tab=`), `PaymentsAuditPanel` + filter bar (MUI-table/directory-scaffold pattern), `WithdrawalQueuePanel` + approve/reject dialogs (reason field on reject), `WalletInspectorPanel` (teacher picker via shipped admin-teachers query + deep-link `?teacherId=`, summary cards, transactions table), Apollo `useQuery`/mutation hooks with cache-refresh on settle/adjust
   - Nav item `finances` in `NAV_ITEMS_BY_ROLE[UserRole.Admin]` (`frontend/views/dashboard/nav/navItems.ts:140-164`)
   - UI tests FLAT under `test/ui/components/admin/AdminFinances*.test.tsx` mirroring `PlatformAnalyticsContainer.test.tsx` (Happy DOM, both locales, loading/403/error/empty/populated, dialog mutation-variable assertions)
-  - [ ] 4.3.QL exit 0 · [ ] 4.3.TE component matrix both locales · [ ] 4.3.SEC no client-side role trust · [ ] 4.3.SR MUI-v9 `sx`-only styling, theme colors, value-import enums · [ ] 4.3.IV read printed rule files
+  - [x] 4.3.QL exit 0 · [x] 4.3.TE component matrix both locales · [x] 4.3.SEC no client-side role trust · [x] 4.3.SR MUI-v9 `sx`-only styling, theme colors, value-import enums · [x] 4.3.IV read printed rule files
   - Outcome: `outcome/4.3-admin-finances-ui-outcome.md`
   - _Requirements: REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-10_
 
@@ -143,10 +143,10 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
 
 ### Phase 5: Hardening & Penetration
 
-- [ ] 5.1 Journey green + adversarial wave
+- [x] 5.1 Journey green + adversarial wave
   - `bun run test/scripts/run-test.ts test/workflows/billing/admin-financial-auditing.journey.test.ts` until green, then the full workflow slice
   - Pen probes: teacher→approve (403), student→adjust (403), anon→all (401), settle non-pending/unknown ids, amount fuzz (negative/zero/over-precision/overflow), reason fuzz (empty/oversize/unicode), wildcard search injection (`%`, `_`, `\`), concurrent settle+request same wallet
-  - [ ] 5.1.QL / 5.1.TE / 5.1.SEC / 5.1.SR / 5.1.IV
+  - [x] 5.1.QL / 5.1.TE / 5.1.SEC / 5.1.SR / 5.1.IV
   - Outcome: `outcome/5.1-hardening-outcome.md`
   - _Requirements: REQ-4, REQ-5, REQ-6, REQ-8, REQ-9_
 
@@ -160,7 +160,7 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
   - Outcome: `outcome/6.1-final-gate-outcome.md`
   - _Requirements: REQ-0, REQ-9_
 
-- [ ] 6.2 Knowledge propagation
+- [x] 6.2 Knowledge propagation
   - Create `docs/billing/admin-financial-auditing.md` (settlement model D-1, trigger amendment pattern D-2, adjustment vocabulary D-3, audit mapping D-4, admin pagination contract D-5, trigger-freeze guarantees)
   - Update ONLY touched docs domains (e.g. `docs/specs/state-machine-invariants.md` INV-W5 implementation note) — AGENTS.md / instructions stay untouched
   - Outcome: `outcome/6.2-knowledge-propagation-outcome.md`

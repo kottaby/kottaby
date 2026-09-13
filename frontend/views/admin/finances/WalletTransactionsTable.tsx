@@ -2,106 +2,33 @@
 
 /**
  * WalletTransactionsTable — the picked teacher's paginated transaction
- * ledger (desktop table + mobile cards): type, status, amount (exact
- * decimal string, grouped for display only), description, date. Loading
- * renders stable-key skeleton rows/cards; a zero page renders the
- * inspector's empty state; rows render from the wire only.
+ * ledger (desktop table + mobile cards), extracted from the original
+ * monolithic table as a focused composition component: the desktop table
+ * card ({@link WalletLedgerTableCard}) over the mobile (<`md`)
+ * per-transaction card stack. Loading renders stable-key skeleton
+ * rows/cards; a zero page renders the inspector's empty state; rows render
+ * from the wire only.
  *
  * All copy comes from the `AdminFinance` namespace; MUI v9 `sx`-only
  * discipline, theme-palette colors.
  */
 
-import {
-  Box,
-  Card,
-  Skeleton,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  Typography,
-} from "@mui/material";
+import { Box, Card, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { AdminTeacherWalletQuery_adminTeacherWallet_transactions } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { formatMoneyAmount } from "@/frontend/views/admin/analytics/platform-analytics-display";
-import { DirectoryHeaderCell } from "@/frontend/views/admin/directory-shared/DirectoryHeaderCell";
-import { AdminFinancePaginationBar } from "@/frontend/views/admin/finances/AdminFinancePaginationBar";
+import { directoryPanelCardSx, directorySkeletonCardSx } from "@/frontend/views/admin/directory-shared/directory-skins";
+import { WalletLedgerSkeletonKeys } from "@/frontend/views/admin/finances/adminFinanceSkeletonKeys";
+import { WalletLedgerTableCard } from "@/frontend/views/admin/finances/WalletLedgerTableCard";
+import {
+  ledgerStatusLabel,
+  ledgerStatusTone,
+  ledgerTypeLabel,
+  ledgerTypeTone,
+} from "@/frontend/views/admin/finances/walletLedgerDisplay";
 import { TonalChip } from "@/frontend/views/admin/users/ui";
-import type { DirectoryTone } from "@/frontend/views/admin/users/utils";
 import type { AdminFinanceLabels } from "@/shared/locale/types/adminFinance";
-
-/** The stable skeleton row keys of the ledger's loading state. */
-const LEDGER_SKELETON_KEYS = [
-  "wallet-ledger-skeleton-1",
-  "wallet-ledger-skeleton-2",
-  "wallet-ledger-skeleton-3",
-  "wallet-ledger-skeleton-4",
-  "wallet-ledger-skeleton-5",
-  "wallet-ledger-skeleton-6",
-] as const;
-
-/** Ledger entry type → tonal lane (withdrawal = warning, bonus = success, earning = primary). */
-function ledgerTypeTone(type: string): DirectoryTone {
-  switch (type) {
-    case "withdrawal":
-      return "warning";
-    case "bonus":
-      return "success";
-    default:
-      return "primary";
-  }
-}
-
-/**
- * Localized ledger entry-type label — mapped lookup over the canonical
- * `TransactionType` wire values; any unknown wire value renders VERBATIM
- * (honest fallback — the ledger is a display projection, never a lifecycle
- * authority).
- */
-function ledgerTypeLabel(type: string, labels: AdminFinanceLabels): string {
-  switch (type) {
-    case "earning":
-      return labels.typeEarning;
-    case "bonus":
-      return labels.typeBonus;
-    case "withdrawal":
-      return labels.typeWithdrawal;
-    default:
-      return type;
-  }
-}
-
-/** Ledger entry status → tonal lane (pending = warning, completed = success, failed = error). */
-function ledgerStatusTone(status: string): DirectoryTone {
-  switch (status) {
-    case "pending":
-      return "warning";
-    case "completed":
-      return "success";
-    default:
-      return "error";
-  }
-}
-
-/**
- * Localized ledger entry-status label — mapped lookup over the canonical
- * `TransactionStatus` wire values; any unknown wire value renders VERBATIM.
- */
-function ledgerStatusLabel(status: string, labels: AdminFinanceLabels): string {
-  switch (status) {
-    case "pending":
-      return labels.statusPending;
-    case "completed":
-      return labels.statusCompleted;
-    case "failed":
-      return labels.statusFailed;
-    default:
-      return status;
-  }
-}
 
 interface WalletTransactionsTableProps {
   readonly transactions: readonly AdminTeacherWalletQuery_adminTeacherWallet_transactions[];
@@ -141,136 +68,26 @@ export function WalletTransactionsTable({
     <>
       {/* Desktop (≥md): the hand-rolled ledger table card. */}
       <Box sx={{ display: { xs: "none", md: "block" } }}>
-        <Card
-          sx={theme => ({
-            borderRadius: "12px",
-            border: `1px solid ${theme.palette.border.light}`,
-            boxShadow: theme.palette.shadow.card,
-            overflow: "hidden",
-          })}
-        >
-          <Table sx={{ tableLayout: "fixed" }} aria-label={labels.typeHeader}>
-            <TableHead>
-              <TableRow sx={theme => ({ bgcolor: theme.palette.surfaceContainerHigh })}>
-                <DirectoryHeaderCell width="14%">{labels.typeHeader}</DirectoryHeaderCell>
-                <DirectoryHeaderCell width="14%">{labels.statusHeader}</DirectoryHeaderCell>
-                <DirectoryHeaderCell width="16%">{labels.amountHeader}</DirectoryHeaderCell>
-                <DirectoryHeaderCell width="34%">{labels.descriptionHeader}</DirectoryHeaderCell>
-                <DirectoryHeaderCell width="22%">{labels.dateHeader}</DirectoryHeaderCell>
-              </TableRow>
-            </TableHead>
-            <TableBody aria-label={loading && transactions.length === 0 ? labels.loadingLabel : undefined}>
-              {" "}
-              {loading && transactions.length === 0
-                ? LEDGER_SKELETON_KEYS.map(rowKey => (
-                    <TableRow key={rowKey}>
-                      <TableCell
-                        colSpan={5}
-                        sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}
-                      >
-                        <Skeleton variant="text" />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                : null}
-              {!loading && transactions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} sx={{ borderBottom: 0 }}>
-                    {empty}
-                  </TableCell>
-                </TableRow>
-              ) : null}
-              {transactions.map((tx, index) => (
-                <TableRow
-                  key={tx.id}
-                  sx={theme => ({
-                    ...(index % 2 === 1 && { backgroundColor: theme.palette.action.hover }),
-                    "&:hover": { backgroundColor: theme.palette.action.selected },
-                  })}
-                >
-                  <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-                    <TonalChip tone={ledgerTypeTone(tx.type)} label={ledgerTypeLabel(tx.type, labels)} />
-                  </TableCell>
-                  <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-                    <TonalChip tone={ledgerStatusTone(tx.status)} label={ledgerStatusLabel(tx.status, labels)} />
-                  </TableCell>
-                  <TableCell
-                    sx={theme => ({
-                      borderBottom: `1px solid ${theme.palette.border.light}`,
-                      fontVariantNumeric: "tabular-nums",
-                    })}
-                  >
-                    <Typography variant="body2">{formatMoneyAmount(tx.amount)}</Typography>
-                  </TableCell>
-                  <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-                    <Typography variant="body2">{tx.description}</Typography>
-                  </TableCell>
-                  <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-                    <Typography variant="body2">{formatApplicantDate(tx.createdAt, locale)}</Typography>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <Stack
-            direction="row"
-            sx={theme => ({
-              alignItems: "center",
-              justifyContent: "flex-end",
-              gap: 2,
-              flexWrap: "wrap",
-              py: 2,
-              px: 2.5,
-              borderTop: `1px solid ${theme.palette.border.light}`,
-            })}
-          >
-            <AdminFinancePaginationBar
-              page={page}
-              pageSize={pageSize}
-              totalCount={totalCount}
-              onPageChange={onPageChange}
-            />
-          </Stack>
-        </Card>
+        <WalletLedgerTableCard
+          transactions={transactions}
+          loading={loading}
+          locale={locale}
+          labels={labels}
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          onPageChange={onPageChange}
+        />
       </Box>
       {/* Mobile (<md): per-transaction cards. */}
       <Box sx={{ display: { xs: "block", md: "none" } }}>
         <Stack spacing={2}>
           {loading && transactions.length === 0
-            ? LEDGER_SKELETON_KEYS.slice(0, 4).map(rowKey => (
-                <Card
-                  key={rowKey}
-                  sx={theme => ({
-                    borderRadius: "12px",
-                    border: `1px solid ${theme.palette.border.light}`,
-                    boxShadow: theme.palette.shadow.card,
-                    p: 2,
-                    height: 132,
-                  })}
-                />
-              ))
+            ? WalletLedgerSkeletonKeys.slice(0, 4).map(rowKey => <Card key={rowKey} sx={directorySkeletonCardSx()} />)
             : null}
-          {!loading && transactions.length === 0 ? (
-            <Card
-              sx={theme => ({
-                borderRadius: "12px",
-                border: `1px solid ${theme.palette.border.light}`,
-                boxShadow: theme.palette.shadow.card,
-              })}
-            >
-              {empty}
-            </Card>
-          ) : null}
+          {!loading && transactions.length === 0 ? <Card sx={directoryPanelCardSx()}>{empty}</Card> : null}
           {transactions.map(tx => (
-            <Card
-              key={tx.id}
-              sx={theme => ({
-                borderRadius: "12px",
-                border: `1px solid ${theme.palette.border.light}`,
-                boxShadow: theme.palette.shadow.card,
-                p: 2,
-              })}
-            >
+            <Card key={tx.id} sx={directoryPanelCardSx()}>
               <Stack spacing={1}>
                 <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 2 }}>
                   <TonalChip tone={ledgerTypeTone(tx.type)} label={ledgerTypeLabel(tx.type, labels)} />
