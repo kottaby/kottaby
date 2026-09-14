@@ -98,7 +98,6 @@ export function createApolloCache(): InMemoryCache {
       },
       // See `adminFinanceTypePolicies` above.
       ...adminFinanceTypePolicies,
-      // Parent monitoring portal — six no-id wrapper/position types.
       ParentAttendancePage: { keyFields: false },
       ParentReportPage: { keyFields: false },
       ParentHomeworkPage: { keyFields: false },
