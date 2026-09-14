@@ -35,7 +35,8 @@
  *      ledger rows stay byte-identical through the admin reads.
  *   5. Denial matrix — teacher and student callers hit the real admin
  *      gate (FORBIDDEN) on reads and mutations, the anonymous caller is
- *      UNAUTHORIZED, and every denial writes zero audit rows.
+ *      UNAUTHORIZED, a suspended admin fails the strict governance gate
+ *      (FORBIDDEN, fail-closed), and every denial writes zero audit rows.
  *   6. Concurrent double-settlement race — two approve calls race the
  *      SAME pending transaction: exactly one fulfills, the loser is the
  *      localized not-pending conflict, the balance moves exactly once,
@@ -157,6 +158,7 @@ const ADJUST_OVER_BALANCE = "9999999.00";
 const tracked = new TrackedFixtures();
 
 let adminActor: JourneyActor;
+let suspendedAdminActor: JourneyActor;
 let teacherA: JourneyActor;
 let teacherB: JourneyActor;
 let studentActor: JourneyActor;
@@ -370,6 +372,11 @@ beforeAll(async () => {
   // ONE committing transaction: commit-or-nothing fixture provisioning.
   await db.transaction(async tx => {
     adminActor = await provisionAdminActor(tx, { tracked });
+    suspendedAdminActor = await provisionAdminActor(tx, { tracked });
+    // Governance fixture: the suspended flag flips AFTER provisioning, so
+    // the actor passes the role gate and the strict governance gate fails
+    // closed (FORBIDDEN) — the fail-closed denial-matrix arm in step 5.
+    await tx.update(users).set({ suspended: true }).where(eq(users.id, suspendedAdminActor.userId));
     teacherA = await provisionCertifiedTeacherActor(tx, { tracked });
     teacherB = await provisionCertifiedTeacherActor(tx, { tracked });
     studentActor = await provisionStudentActor(tx, { tracked });
@@ -709,7 +716,7 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     expect(await countNotificationsForUser(studentActor.userId)).toBe(0);
   });
 
-  test("step 5 — Denials: non-admin callers are forbidden through the real admin gate, anonymous is unauthorized, zero audit rows", async () => {
+  test("step 5 — Denials: non-admin callers are forbidden through the real admin gate, anonymous is unauthorized, a suspended admin fails the governance gate, zero audit rows", async () => {
     const adminAuditsBefore = await countAuditLogsForActor(adminActor.userId);
     const teacherAuditsBefore = await countAuditLogsForActor(teacherA.userId);
     const settlementTxnId: number | undefined = ledgerTxnIds.at(0);
@@ -755,6 +762,22 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
       ForbiddenError,
       ERRORS_EN.forbidden
     );
+
+    // Governance denial: a suspended admin passes the role gate but the
+    // strict governance gate fails closed (FORBIDDEN) on reads and
+    // mutations, and the denial writes zero audit rows.
+    const suspendedAuditsBefore = await countAuditLogsForActor(suspendedAdminActor.userId);
+    await expectDenial(
+      () => AdminFinancialAuditingService.listPendingWithdrawalsForAdmin(suspendedAdminActor.userId, 1, 50, LOCALE),
+      ForbiddenError,
+      ERRORS_EN.accountSuspended
+    );
+    await expectDenial(
+      () => AdminFinancialAuditingService.approveWithdrawal(suspendedAdminActor.userId, settlementTxnId, LOCALE),
+      ForbiddenError,
+      ERRORS_EN.accountSuspended
+    );
+    expect(await countAuditLogsForActor(suspendedAdminActor.userId)).toBe(suspendedAuditsBefore);
 
     // Anonymous callers: unauthorized.
     await expectDenial(

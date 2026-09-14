@@ -131,6 +131,7 @@ export function useAdminTeacherWallet(
     appliedFilters,
     loading: loading && teacherId !== null,
     hasError,
+    error,
     refetch,
   };
 }

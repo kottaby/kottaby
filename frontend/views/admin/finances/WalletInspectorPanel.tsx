@@ -4,9 +4,11 @@
  * WalletInspectorPanel — the teacher wallet inspector tab of the admin
  * financial auditing console (`/admin/finances`): the picked teacher's
  * wallet surface, extracted from the original monolithic panel into the
- * focused siblings {@link WalletPickerHeader} (picker + adjust trigger),
- * {@link WalletDeniedNotice} / {@link WalletEmptyState} (the FORBIDDEN /
- * unpicked states), and {@link WalletLedger} (summary cards + ledger).
+ * focused siblings {@link WalletPickerHeader} (picker + adjust trigger) and
+ * {@link WalletInspectorBody} (the body switch: the FORBIDDEN denied notice,
+ * the shared retryable-error alert on any other wallet read failure — the
+ * real `extensions.code`, never fabricated — the unpicked empty state, and
+ * the summary cards + ledger).
  *
  * Deep-link + picker sync: the container hands down the CURRENT picked
  * teacher id (`?teacherId=` seed on mount, then the picker's own
@@ -29,14 +31,16 @@
  */
 
 import { useQuery } from "@apollo/client/react";
-import { Stack } from "@mui/material";
+import { Stack, Typography } from "@mui/material";
 import { type ReactNode, useEffect, useState } from "react";
+import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
 import { NoticeSnackbar } from "@/frontend/components/ui/NoticeSnackbar";
 import {
   type AdminTeachersQuery_adminTeachers_items,
   WalletAdjustmentDirection,
 } from "@/frontend/graphql/generated/gql/graphql";
 import { adminTeachersQueryDocument } from "@/frontend/graphql/sharedDocuments/admin";
+import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { AdjustWalletDialog } from "@/frontend/views/admin/finances/AdjustWalletDialog";
 import { useAdjustTeacherWallet, useAdminTeacherWallet } from "@/frontend/views/admin/finances/useAdminFinanceQueries";
@@ -44,6 +48,8 @@ import { useWalletOutcomeCallbacks } from "@/frontend/views/admin/finances/useWa
 import { WalletDeniedNotice, WalletEmptyState } from "@/frontend/views/admin/finances/WalletInspectorStates";
 import { WalletLedger } from "@/frontend/views/admin/finances/WalletLedger";
 import { WalletPickerHeader } from "@/frontend/views/admin/finances/WalletPickerHeader";
+import { Common, useAppTranslation } from "@/shared/locale";
+import { AdminFinance } from "@/shared/locale/namespaces/adminFinance";
 
 /** Snackbar autohide — the shared container-notice cadence. */
 const NOTICE_AUTOHIDE_MS = 4000;
@@ -55,6 +61,61 @@ const NOTICE_AUTOHIDE_MS = 4000;
  */
 function toWireDirection(option: "credit" | "debit"): WalletAdjustmentDirection {
   return option === "debit" ? WalletAdjustmentDirection.Debit : WalletAdjustmentDirection.Credit;
+}
+
+/** The wallet inspector body: denial / retryable error / empty / ledger. */
+function WalletInspectorBody({
+  inspector,
+  onLedgerPageChange,
+}: Readonly<{
+  /** The wallet inspector read — the hook's state, the raw error + refetch included. */
+  readonly inspector: ReturnType<typeof useAdminTeacherWallet>;
+  /** Ledger pagination intent — pushed into the wallet read's page state. */
+  readonly onLedgerPageChange: (nextPage: number) => void;
+}>): ReactNode {
+  const t = useAppTranslation(AdminFinance);
+  const tc = useAppTranslation(Common);
+
+  // Query-context denial classification — the REAL `extensions.code` off the
+  // wallet read's error (never a fabricated literal): FORBIDDEN (a non-admin
+  // caller fails the admin role leg) maps to the shared denied notice; every
+  // other failure falls to the shared retry alert so real outages surface.
+  const errorCode = inspector.error ? extractErrorCode(inspector.error) : null;
+  const denied =
+    errorCode !== null &&
+    mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
+
+  if (denied) {
+    return <WalletDeniedNotice />;
+  }
+  if (inspector.hasError) {
+    return (
+      <ErrorRetryAlert
+        title={t.errorTitle}
+        retryLabel={tc.retry}
+        retryPending={inspector.loading}
+        onRetry={() => {
+          void inspector.refetch();
+        }}
+      >
+        <Typography variant="body2" component="p">
+          {errorCode === null ? "" : `(${errorCode})`}
+        </Typography>
+      </ErrorRetryAlert>
+    );
+  }
+  if (inspector.teacherId === null) {
+    return <WalletEmptyState />;
+  }
+  return (
+    <WalletLedger
+      wallet={inspector.wallet}
+      loading={inspector.loading}
+      page={inspector.page}
+      pageSize={inspector.pageSize}
+      onPageChange={onLedgerPageChange}
+    />
+  );
 }
 
 /** The wallet inspector panel: picker + states + ledger + adjust dialog. */
@@ -98,13 +159,6 @@ export function WalletInspectorPanel({
   const outcomeCallbacks = useWalletOutcomeCallbacks(setNotice, closeAdjustDialog);
   const adjust = useAdjustTeacherWallet(outcomeCallbacks);
 
-  // Denial classification for the wallet read (a non-admin caller fails the
-  // admin role leg into FORBIDDEN).
-  const errorCode = inspector.hasError ? "FORBIDDEN" : null;
-  const denied =
-    errorCode !== null &&
-    mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
-
   const pickedTeacher =
     teacherOptions.find(
       option => String(option.id) === (inspector.teacherId === null ? "" : String(inspector.teacherId))
@@ -140,23 +194,7 @@ export function WalletInspectorPanel({
         }}
       />
 
-      {(() => {
-        if (denied) {
-          return <WalletDeniedNotice />;
-        }
-        if (inspector.teacherId === null) {
-          return <WalletEmptyState />;
-        }
-        return (
-          <WalletLedger
-            wallet={inspector.wallet}
-            loading={inspector.loading}
-            page={inspector.page}
-            pageSize={inspector.pageSize}
-            onPageChange={handleLedgerPageChange}
-          />
-        );
-      })()}
+      <WalletInspectorBody inspector={inspector} onLedgerPageChange={handleLedgerPageChange} />
 
       {adjustOpen && inspector.wallet !== null ? (
         <AdjustWalletDialog

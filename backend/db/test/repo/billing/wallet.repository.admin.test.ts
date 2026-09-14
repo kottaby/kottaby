@@ -31,7 +31,7 @@
  *  - creditBonusOnce: bonus/completed ledger row + balance increment with
  *    totalEarning untouched.
  *  - debitAdjustmentOnce: withdrawal/completed ledger row + guarded debit;
- *    null on insufficient funds (ledger row removed by the rollback).
+ *    null on insufficient funds (zero writes — no ledger row inserted).
  *  - Trigger-freeze proofs: a raw amount rewrite on a pending withdrawal
  *    RAISES; a raw settlement with a changed amount RAISES.
  */
@@ -561,10 +561,11 @@ describe("WalletRepository.debitAdjustmentOnce", () => {
       // The wallet balance is unchanged — the guard held.
       const [after] = await tx.select().from(wallet).where(eq(wallet.id, walletId)).limit(1);
       expect(after?.balance).toBe("10.00");
-      // The ledger row EXISTS inside this transaction (the caller's rollback
-      // removes it — the composition contract).
+      // NO ledger row exists inside this transaction: the guarded UPDATE
+      // misses BEFORE any INSERT, so the miss path performs zero writes
+      // (no orphan row is ever live for the caller to roll back).
       const orphanRows = await tx.select().from(teacherTransaction).where(eq(teacherTransaction.walletId, walletId));
-      expect(orphanRows).toHaveLength(1);
+      expect(orphanRows).toHaveLength(0);
     });
   });
 });

@@ -137,7 +137,7 @@ payout-request wording `"Withdrawal request (pending payout)"`):
 The ledger row is the ONLY place the reason text is stored (write-once at adjustment time). The
 amount must match the decimal grammar `^\d{1,7}(\.\d{1,2})?$` and be strictly positive (nonzero
 digit string check — no numeric parse ever touches a money value); the reason is normalized
-(trim, ≤ 500 chars) before any database work. A wallet-less teacher lazily `ensureWalletOnce`s
+(trim, ≤ 229 chars — 255 minus the composed-description prefix) before any database work. A wallet-less teacher lazily `ensureWalletOnce`s
 (idempotent `INSERT … ON CONFLICT DO NOTHING`) — a wallet-less teacher CAN receive a bonus.
 
 Manual debits never pollute the pending-withdrawal queue or the analytics backlog counter: those

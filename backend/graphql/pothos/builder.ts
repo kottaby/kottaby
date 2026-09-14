@@ -28,7 +28,9 @@
  *  - `authenticated: true` — caller has a verified `ctx.user` (401 otherwise).
  *  - `role: [UserRole.Admin, ...]` — OR semantics over the role set (403
  *    otherwise). The role comes exclusively from `ctx.role` (sourced from
- *    the DB during session/token resolution).
+ *    the verified access token's `payload.role` JWT claim — the fresh DB
+ *    row's role is never consulted by this scope; demotion is mitigated at
+ *    the service-layer gate).
  *  - `permission: ["PERM.X"]` — permission scope. Currently passes
  *    unconditionally; wired to `PermissionsService.getUserContext` once the
  *    permission layer lands.

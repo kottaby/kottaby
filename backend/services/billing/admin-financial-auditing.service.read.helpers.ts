@@ -11,10 +11,12 @@
  * of the public API.
  *
  * Conventions carried over unchanged (per `backend/services/AGENTS.md`,
- * mirroring `WalletService`): the admin gate (`assertActorAdmin`) runs
- * FIRST inside the caller's transaction; the paired count + page reads
- * share ONE repeatable-read snapshot; every localized message resolves
- * through the `errorsTranslations` bundle; expected rejections log via
+ * mirroring `WalletService`): the strict governance admin gate
+ * (`assertActorAdminActive`, not the role-only gate) runs FIRST inside the
+ * caller's transaction — role, then deleted → blocked → suspended, failing
+ * closed on governed admins; the paired count + page reads share ONE
+ * repeatable-read snapshot; every localized message resolves through the
+ * `errorsTranslations` bundle; expected rejections log via
  * `logger.logDomainError` with bounded context only.
  */
 
@@ -24,7 +26,7 @@ import { escapeLikeWildcards } from "@/backend/lib/db/escape-like-wildcards";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { NotFoundError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import { assertActorAdmin } from "@/backend/services/admin/admin-gate.helpers";
+import { assertActorAdminActive } from "@/backend/services/admin/admin-gate.helpers";
 import { resolvePageBounds } from "@/backend/services/admin/user-management.helpers";
 import { ADMIN_WALLET_CURRENCY_LABEL } from "@/backend/services/billing/admin-financial-auditing.service.helpers";
 import type {
@@ -36,7 +38,6 @@ import type {
   AdminWithdrawalQueueRow,
   DBTransaction,
   NormalizedAdminPaymentFilters,
-  TeacherTransactionSelectType,
   WalletSelectType,
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
@@ -51,13 +52,16 @@ type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTransl
  * isolation level so the count and the listing observe the same committed
  * state.
  *
- * The guarantee covers the count + page PAIR only. When no outer transaction
- * is supplied, the surrounding identity and probe reads (admin gate, wallet
- * probes, settlement probes) run on a SEPARATE top-level transaction and are
- * therefore best-effort, non-authoritative reads OUTSIDE this snapshot —
- * no write decision ever trusts them (every guarded repo primitive
- * re-asserts its predicate in SQL; the probes exist for human-readable
- * error disambiguation only).
+ * The guarantee covers the count + page PAIR — plus whatever the callback
+ * reads before them (the wallet inspection's wallet probe and its
+ * teacher-name resolution share the same snapshot, so the rendered balance
+ * can never be older than the ledger rows beside it). The admin gate and
+ * the mutation-path settlement probes are NOT part of this snapshot: the
+ * gate runs first on the caller's transaction, and the settlement probes
+ * run on a SEPARATE top-level transaction when no outer transaction is
+ * supplied — best-effort, non-authoritative reads that no write decision
+ * ever trusts (every guarded repo primitive re-asserts its predicate in
+ * SQL; the probes exist for human-readable error disambiguation only).
  */
 async function readInSnapshot<T>(
   outerTx: DBTransaction | undefined,
@@ -141,7 +145,7 @@ export async function listStudentPaymentsForAdmin(
   outerTx?: DBTransaction
 ): Promise<AdminStudentPaymentPageReturnType> {
   return withTransaction(outerTx, async tx => {
-    await assertActorAdmin(actorUserId, locale, tx);
+    await assertActorAdminActive(actorUserId, locale, tx);
 
     const normalized: NormalizedAdminPaymentFilters = {
       studentId: filters.studentId ?? null,
@@ -178,7 +182,10 @@ export async function listStudentPaymentsForAdmin(
  * teacher identity resolves from the wallet probe when a wallet exists,
  * else via a teacher → user fallback lookup; a teacher whose profile row
  * itself is missing is a genuine not-found (the wallet FK targets the
- * teacher table, so no wallet could ever exist for it).
+ * teacher table, so no wallet could ever exist for it). Snapshot
+ * consistency: the wallet probe, the teacher-name resolution, and the
+ * count + page pair share ONE consistent snapshot (`readInSnapshot`) — the
+ * rendered `balance` can never be older than the ledger rows beside it.
  */
 export async function getTeacherWalletForAdmin(
   actorUserId: number,
@@ -192,53 +199,52 @@ export async function getTeacherWalletForAdmin(
   const t = getServerTranslations(locale).errorsTranslations;
 
   return withTransaction(outerTx, async tx => {
-    await assertActorAdmin(actorUserId, locale, tx);
+    await assertActorAdminActive(actorUserId, locale, tx);
     const { resolvedPage, resolvedPageSize, offset } = resolvePageBounds(page ?? 1, pageSize ?? undefined, locale);
 
-    const probe = await WalletRepository.findAdminWalletProbe(teacherId, tx);
-    const teacherName = await resolveTeacherName(teacherId, probe, t, tx);
+    // Snapshot consistency: the wallet probe, the teacher-name resolution,
+    // and the count + page pair share ONE consistent snapshot, so the
+    // rendered balance can never be older than the ledger rows beside it.
+    return readInSnapshot(outerTx, async (snapshotTx): Promise<AdminTeacherWalletReturnType> => {
+      const probe = await WalletRepository.findAdminWalletProbe(teacherId, snapshotTx);
+      const teacherName = await resolveTeacherName(teacherId, probe, t, snapshotTx);
 
-    // Honest empty state: no wallet row → null-pair amounts + empty page.
-    if (!probe) {
+      // Honest empty state: no wallet row → null-pair amounts + empty page.
+      if (!probe) {
+        return {
+          balance: null,
+          totalEarning: null,
+          currency: ADMIN_WALLET_CURRENCY_LABEL,
+          teacherId,
+          teacherName,
+          transactions: [],
+          totalCount: 0,
+          page: resolvedPage,
+          pageSize: resolvedPageSize,
+        };
+      }
+
+      const count = await WalletRepository.countTransactionsForAdmin(probe.wallet.id, txFilters, snapshotTx);
+      const rows = await WalletRepository.listTransactionsForAdmin(
+        probe.wallet.id,
+        txFilters,
+        resolvedPageSize,
+        offset,
+        snapshotTx
+      );
+
       return {
-        balance: null,
-        totalEarning: null,
+        balance: probe.wallet.balance,
+        totalEarning: probe.wallet.totalEarning,
         currency: ADMIN_WALLET_CURRENCY_LABEL,
         teacherId,
         teacherName,
-        transactions: [],
-        totalCount: 0,
+        transactions: rows,
+        totalCount: count,
         page: resolvedPage,
         pageSize: resolvedPageSize,
       };
-    }
-
-    const [pageRows, totalCount] = await readInSnapshot(
-      outerTx,
-      async (snapshotTx): Promise<[TeacherTransactionSelectType[], number]> => {
-        const count = await WalletRepository.countTransactionsForAdmin(probe.wallet.id, txFilters, snapshotTx);
-        const rows = await WalletRepository.listTransactionsForAdmin(
-          probe.wallet.id,
-          txFilters,
-          resolvedPageSize,
-          offset,
-          snapshotTx
-        );
-        return [rows, count];
-      }
-    );
-
-    return {
-      balance: probe.wallet.balance,
-      totalEarning: probe.wallet.totalEarning,
-      currency: ADMIN_WALLET_CURRENCY_LABEL,
-      teacherId,
-      teacherName,
-      transactions: pageRows,
-      totalCount,
-      page: resolvedPage,
-      pageSize: resolvedPageSize,
-    };
+    });
   });
 }
 
@@ -261,7 +267,7 @@ export async function listPendingWithdrawalsForAdmin(
   outerTx?: DBTransaction
 ): Promise<AdminWithdrawalQueuePageReturnType> {
   return withTransaction(outerTx, async tx => {
-    await assertActorAdmin(actorUserId, locale, tx);
+    await assertActorAdminActive(actorUserId, locale, tx);
     const { resolvedPage, resolvedPageSize, offset } = resolvePageBounds(page ?? 1, pageSize ?? undefined, locale);
 
     const [pageRows, totalCount] = await readInSnapshot(
