@@ -38,9 +38,10 @@
  *    purchase commits; the provider-transaction-reference wiring — a
  *    carried reference is recorded on the guarded decision (both
  *    outcomes) and keys the notification `payment:<ref>:confirmation`.
- *  - Purchaser-owner credit decision (the students-first probe): the
- *    applicant-owned confirmation skips the lane credit without an abort
- *    and still commits active + paid + the receipt published to the
+ *  - Purchaser-owner credit decision (classified by the PERSISTED ledger
+ *    owner — the row's `student_id` column, not a row-existence probe): the
+ *    applicant-owned confirmation (NULL owner) skips the lane credit without
+ *    an abort and still commits active + paid + the receipt published to the
  *    purchaser (the students surface stays ABSENT); the student-owner
  *    routing pin (the credit primitive invoked with the plan's lane +
  *    session count); the corrupt purchaser (neither owner row) fails
@@ -687,7 +688,7 @@ describe("SubscriptionActivationService — confirmed path (Tier 1: branches)", 
   });
 });
 
-describe("SubscriptionActivationService — purchaser-owner credit decision (students-first probe)", () => {
+describe("SubscriptionActivationService — purchaser-owner credit decision (the persisted ledger owner)", () => {
   test("applicant-owned confirmation: the credit is skipped without an abort — active + paid + the receipt published to the purchaser", async () => {
     await runInRollback(async tx => {
       const { user, plan, subscription, payment } = await provisionApplicantOwnedPair(tx);
@@ -717,8 +718,9 @@ describe("SubscriptionActivationService — purchaser-owner credit decision (stu
       expect(errorSpy).not.toHaveBeenCalled();
       expect(domainLogSpy).not.toHaveBeenCalled();
 
-      // The probe fell through the absent students row to the applicants
-      // read (the verification case) — the original reads still ran.
+      // The NULL persisted owner routed the classification to the
+      // verification case — the applicants corruption-detector read ran
+      // exactly once, the credit primitive was never reached.
       expect(applicantProbeSpy).toHaveBeenCalledTimes(1);
 
       // The activation completed: active with the full window, decided paid.
@@ -768,7 +770,7 @@ describe("SubscriptionActivationService — purchaser-owner credit decision (stu
       );
       expect(outcome).toEqual({ processed: true });
 
-      // The students-first probe routed the student owner into the credit
+      // The persisted owner id routed the student purchase into the credit
       // primitive — the plan's designated lane, the full session count.
       expect(creditSpy).toHaveBeenCalledTimes(1);
       expect(creditSpy.mock.calls[0]?.slice(0, 3)).toEqual([

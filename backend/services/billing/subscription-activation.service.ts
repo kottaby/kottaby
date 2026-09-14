@@ -407,10 +407,11 @@ async function settleConfirmedDelivery(
     });
   }
 
-  // The purchaser-owner credit decision — the helper probes the students
-  // row first and credits, skips (verification purchase), or fails closed
-  // (neither owner row).
-  await applyActivationCredit(subscription, plan, event.reference, tx);
+  // The purchaser-owner credit decision — classified by the PERSISTED
+  // payment owner (the ledger row's student_id): the student owner is
+  // credited, the verification purchase (NULL owner) skips the credit, and
+  // a corrupted pair fails closed.
+  await applyActivationCredit(subscription, payment, plan, event.reference, tx);
 
   // Persist-first notification — the row commits with the activation; the
   // copy is the confirmed pair composed in the recipient's locale.

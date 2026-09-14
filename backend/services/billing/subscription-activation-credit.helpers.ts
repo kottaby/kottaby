@@ -18,7 +18,7 @@ import { ApplicantRepository, StudentRepository } from "@/backend/db/repo";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { ConflictError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import type { DBTransaction, PlanSelectType, SubscriptionSelectType } from "@/backend/types";
+import type { DBTransaction, PlanSelectType, StudentPaymentSelectType, SubscriptionSelectType } from "@/backend/types";
 
 /**
  * The client-safe conflict copy for an internal row-mapping breach — the
@@ -75,23 +75,32 @@ function subscriptionCreditLaneOf(
 }
 
 /**
- * The purchaser-owner credit decision, probed STUDENTS-FIRST inside the
- * caller's transaction (the same transaction the credit writes on):
+ * The purchaser-owner credit decision, classified by the PERSISTED payment
+ * owner inside the caller's transaction (the same transaction the credit
+ * writes on):
  *
- *  - a `students` row is credited the full session count on the plan's
- *    designated lane (relative accumulation); zero rows on that write ⇒
- *    the student row vanished (unreachable through the FK restrict) —
- *    fail closed;
- *  - its absence with an `applicants` row present is the verification
- *    purchase — the lane credit is intentionally skipped, the purchased
- *    session grant being enforced by the booking flow off the active
- *    subscription;
- *  - neither row is a corrupted purchaser — the unit fails closed with the
+ *  - `payment.studentId != null` is the student purchase — the full session
+ *    count is credited to the plan's designated lane on the persisted owner
+ *    (relative accumulation); zero rows on that write ⇒ the student row
+ *    vanished (unreachable through the FK restrict) — fail closed;
+ *  - `payment.studentId === null` is the verification purchase — the lane
+ *    credit is intentionally skipped, the purchased session grant being
+ *    enforced by the booking flow off the active subscription; the
+ *    `applicants` row is probed once as the corruption detector — a missing
+ *    row (neither owner row exists) fails the unit closed with the
  *    vanished-row posture (the same client-safe conflict the student path
  *    raises).
+ *
+ * The ledger column — not a row-existence probe — is the classifier: the
+ * purchasing flow writes the owner id (or NULL for a verification purchase)
+ * at insert time, so the classification stays correct even for a user that
+ * somehow owns BOTH a students and an applicants row (the schemas do not
+ * prevent that coexistence), and a verification payment can never receive
+ * lane credit.
  */
 export async function applyActivationCredit(
   subscription: SubscriptionSelectType,
+  payment: StudentPaymentSelectType,
   plan: PlanSelectType & { balanceLane: Exclude<PlanSelectType["balanceLane"], null> },
   reference: string,
   tx: DBTransaction
@@ -102,12 +111,12 @@ export async function applyActivationCredit(
       subscriptionId: subscription.id,
       studentId: subscription.userId,
     });
-  const purchaserStudent = await StudentRepository.findById(subscription.userId, tx);
-  if (purchaserStudent === null) {
-    if ((await ApplicantRepository.findByUserId(subscription.userId, tx)) === null) vanish();
+  if (payment.studentId === null) {
     // The verification purchase — no lane credit; nothing else changes (the
     // purchased session grant is enforced by the booking flow off the
-    // active subscription).
+    // active subscription). The applicants probe is the corruption
+    // detector: neither owner row is a broken purchaser — fail closed.
+    if ((await ApplicantRepository.findByUserId(subscription.userId, tx)) === null) vanish();
     return;
   }
   // Fail-closed lane resolution — an unknown stored lane aborts the unit
@@ -119,5 +128,5 @@ export async function applyActivationCredit(
     subscriptionId: subscription.id,
     planId: plan.id,
   });
-  if ((await StudentRepository.creditLaneBalance(subscription.userId, lane, plan.sessionCount, tx)) === null) vanish();
+  if ((await StudentRepository.creditLaneBalance(payment.studentId, lane, plan.sessionCount, tx)) === null) vanish();
 }
