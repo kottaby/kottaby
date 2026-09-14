@@ -671,6 +671,34 @@ describe("VerificationPurchaseService — purchase (in-transaction re-validation
     });
   });
 
+  test("a same-price, same-currency contract drift during checkout → the client-safe conflict, zero writes", async () => {
+    await runInRollback(async tx => {
+      const { user } = await createApplicantFixture(tx);
+      const plan = await ensureVerificationPlanRow(tx);
+
+      // The charged pair is untouched — the shared checkout guard passes —
+      // but the product contract drifted: the fresh in-transaction row no
+      // longer carries the canonical session count, so storing its id as
+      // the subscription's terms would activate a mis-termed product.
+      // Only the in-transaction canonical re-assertion can catch it.
+      const err = await attemptDuringCheckoutWindow(
+        async () => {
+          await PlanRepository.updatePlanFields(plan.id, { sessionCount: 3 }, tx);
+        },
+        () => expectRepoError(() => VerificationPurchaseService.purchase(user.id, purchaseKey(), "en", tx))
+      );
+
+      // The catalog misconfiguration is the internal-invariant breach: the
+      // client-safe conflict copy (the exact divergent field never
+      // surfaces), thrown before any write.
+      expectDomainDenial(err, "CONFLICT", "Payment could not be processed.");
+
+      // The drifted contract stored nothing: no pair, no claim.
+      const counts = await ledgerCounts(tx, user.id);
+      expect(counts).toEqual({ subs: 0, payments: 0, claims: 0 });
+    });
+  });
+
   test("a caller suspended during checkout → forbidden denial, zero writes", async () => {
     await runInRollback(async tx => {
       const { user } = await createApplicantFixture(tx);

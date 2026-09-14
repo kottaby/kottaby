@@ -228,13 +228,16 @@ async function insertPendingSubscription(
  * The canonical member must carry the FULL seeded product contract — a
  * title match alone would let a mis-priced or mis-termed catalog row be
  * charged verbatim by the gateway and referenced as the subscription's
- * terms. The mismatch is the same catalog-misconfiguration conflict:
- * denied with the client-safe copy before the gateway call and any write
- * (the exact divergent field belongs to the adjacent correlated log line,
- * never to the wire message).
+ * terms, and a price/currency match alone would let a re-titled or
+ * re-termed row drift while the shared checkout guard still passes. The
+ * mismatch is the same catalog-misconfiguration conflict: denied with the
+ * client-safe copy before the gateway call and any write (the exact
+ * divergent field belongs to the adjacent correlated log line, never to
+ * the wire message).
  */
 function assertCanonicalPlanContract(plan: PlanSelectType): void {
   if (
+    plan.title === VERIFICATION_PLAN_TITLE &&
     plan.price === VERIFICATION_PLAN_PRICE &&
     plan.currency === VERIFICATION_PLAN_CURRENCY &&
     plan.sessionCount === VERIFICATION_PLAN_SESSION_COUNT &&
@@ -290,6 +293,15 @@ async function purchaseVerificationInTx(
   // ANY row write — the rollback discards the checkout session with zero
   // rows written (see the shared guard's docblock on session compensation).
   assertPlanUnchangedSinceCheckout("Verification purchase", activePlan, checkoutAmount, checkoutCurrency, t);
+
+  // The shared guard above compares ONLY the charged pair (price/currency);
+  // a same-price, same-currency admin edit to any other contract field
+  // (title, session count, term, lane) during the gateway round-trip would
+  // otherwise ride through and be stored as the subscription's plan terms.
+  // The full canonical contract is therefore re-asserted on this fresh row
+  // — still before ANY write (the gateway input was validated pre-checkout;
+  // the row that gets STORED is validated here, on the authoritative read).
+  assertCanonicalPlanContract(activePlan);
 
   // Governance re-assertion INSIDE the transaction: the pre-checkout check
   // read the actor before the gateway round-trip, so a caller deleted,
