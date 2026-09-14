@@ -362,12 +362,23 @@ describe("PaymobPaymentGateway.createCheckout", () => {
       NGROK_AUTHTOKEN: "adapter-test-tunnel-token",
       NGROK_DOMAIN: "adapter-test-tunnel.ngrok.app",
     });
+    // The readiness sequence: the FIRST public probe fails (no agent yet),
+    // which is what starts the agent; the later probes answer 200 once the
+    // (stubbed) agent is up. An already-answering tunnel is ADOPTED without
+    // a spawn — a passing first probe would never start one.
+    let probeCount = 0;
     configureCallbackChannelTestDelivery({
       spawnAgent: ({ command }) => {
         capturedSpawnCommand = [...command];
         return { kill: () => {} };
       },
-      fetch: async () => new Response(null, { status: 200 }),
+      fetch: async () => {
+        probeCount += 1;
+        if (probeCount === 1) {
+          throw new Error("tunnel agent not established yet");
+        }
+        return new Response(null, { status: 200 });
+      },
     });
     const { adapter, calls } = adapterServing(new Response(JSON.stringify(INTENTION_RESPONSE), { status: 201 }));
 
