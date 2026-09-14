@@ -16,7 +16,7 @@ outcome lanes), CTA wiring on the applicant status card zones, and the six
 - `frontend/graphql/sharedDocuments/billing/verification-purchase.documents.ts` — `purchaseVerificationPlanMutationDocument` (minimal read-back of the pending pair + checkout; `id` on every object; zero variables).
 - `frontend/views/teachers/dashboard/useVerificationPurchase.ts` — write path hook: catalog title-match on `VERIFICATION_PLAN_TITLE`, per-attempt `x-idempotency-key` (rotated on success, kept across domain rejections), outcome lanes per plan §6 (success → refetch + success notice + close; `APPLICANT_COOLDOWN_ACTIVE` → server-localized message + refetch + close; `DUPLICATE_REQUEST` → calm info lane + close; everything else → generic localized notice, dialog stays open, same key replayed).
 - `frontend/views/teachers/dashboard/VerificationPurchaseDialog.tsx` — MUI v9 `sx`-only confirm gate; theme-palette callbacks only; RTL-safe; missing-plan → disabled confirm + localized error posture; unmount-on-close convention (see Fixes).
-- `test/ui/components/teachers/VerificationPurchaseDialog.test.tsx` — 12-test component suite (RTL/arabic + LTR/english), recording-link wire proofs (operation order + captured `x-idempotency-key` headers), AR snapshot of the expanded plan line, key-rotation + same-key-replay proofs.
+- `test/ui/components/teachers/VerificationPurchaseDialog.test.tsx` — 14-test component suite (7 per locale: RTL/arabic + LTR/english), recording-link wire proofs (operation order + captured `x-idempotency-key` headers), AR snapshot of the expanded plan line, key-rotation + same-key-replay proofs.
 
 ## Files modified
 
@@ -46,7 +46,7 @@ outcome lanes), CTA wiring on the applicant status card zones, and the six
 
 ## Environment caveat (pre-existing, not caused by this plan)
 
-- The whole-directory runner `bun run test:ui:components` fails in this sandbox identically on the CLEAN tree (verified via `git stash -u`: the run stops after `admin-session-governance/*` with exit 1 and no further files). Per-directory executions (the repo's `KOTTABY_TEST_RUNNER_OK=1` sanctioned bypass) are green everywhere. Additionally, the dialog suite leaves a background allocation loop in the worker process AFTER its assertions complete (post-suite RSS growth → eventual OOM kill of that worker). All functional assertions pass; the leak is a Happy-DOM/MUI interplay in this environment, tracked as **deferred-item D10** for CI (GitHub-hosted runners) to confirm green behavior. Recorded in `deferred-items.md`.
+- The whole-directory runner `bun run test:ui:components` fails in this sandbox identically on the CLEAN tree (verified via `git stash -u`: the run stops after `admin-session-governance/*` with exit 1 and no further files). Per-directory executions (the repo's `KOTTABY_TEST_RUNNER_OK=1` sanctioned bypass) are green everywhere. Additionally, the dialog suite leaves a background allocation loop in the worker process AFTER its assertions complete (post-suite RSS growth → eventual OOM kill of that worker). All functional assertions pass (14/14); the leak is a Happy-DOM/MUI interplay in this environment, tracked as **deferred-item D10** for CI (GitHub-hosted runners) to confirm green behavior. Recorded in `deferred-items.md`.
 
 ## Prototype parity
 
