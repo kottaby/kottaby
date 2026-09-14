@@ -19,9 +19,9 @@
  *  - Tier 1 (branch/stmt): every method's hit branch returns the row or
  *    projection; the cold-path miss (`findByTeacherId` for an absent
  *    teacher) returns null; the guarded withdrawal debit's miss (zero rows
- *    matched) returns null and — verified through a rolled-back savepoint
- *    probe — commits ZERO writes (the pending ledger row the call inserted
- *    dies with the transaction).
+ *    matched) returns null and commits ZERO writes — the guarded UPDATE
+ *    runs before the ledger INSERT, so no pending withdrawal row is ever
+ *    live inside the caller's transaction.
  *  - Tier 2 (boundaries): `ensureWalletOnce` idempotent re-enter (exactly
  *    one wallet row per teacher); additive credit increments with verbatim
  *    decimal-string fidelity ("25.00" + "12.50" → "37.50"); the exact
@@ -185,16 +185,25 @@ function isZeroRowInsertStub(value: unknown): value is DBTransaction {
 
 /**
  * Typed executor stub whose `insert(...).values(...).returning()` resolves
- * to zero rows. A live PostgreSQL INSERT ... RETURNING always yields one
- * row per inserted tuple, so the repositories' defensive zero-row guards
- * cannot be reached through the database — the stub exercises those guards
- * without touching a connection (no rollback wrap is needed).
+ * to zero rows (and whose guarded debit UPDATE succeeds with one returned
+ * row, so the debit writer's UPDATE-first flow reaches the ledger INSERT).
+ * A live PostgreSQL INSERT ... RETURNING always yields one row per inserted
+ * tuple, so the repositories' defensive zero-row guards cannot be reached
+ * through the database — the stub exercises those guards without touching a
+ * connection (no rollback wrap is needed).
  */
 function zeroReturningExecutor(): DBTransaction {
   const stub = {
     insert: () => ({
       values: () => ({
         returning: async (): Promise<TeacherTransactionSelectType[]> => [],
+      }),
+    }),
+    update: () => ({
+      set: () => ({
+        where: () => ({
+          returning: async (): Promise<{ id: number }[]> => [{ id: 1 }],
+        }),
       }),
     }),
   };
@@ -385,7 +394,7 @@ describe("WalletRepository — transactional paths (runInRollback)", () => {
     });
   });
 
-  test("insufficient funds: the guarded debit returns null, the wallet is untouched, and the pending row rolls back with the transaction", async () => {
+  test("insufficient funds: the guarded debit returns null and commits ZERO writes (no orphan ledger row is live)", async () => {
     await runInRollback(async tx => {
       const teacherUserId = await createTeacherFixture(tx);
       const fixtureWallet = await createTestWallet(tx, teacherUserId, {
@@ -393,37 +402,18 @@ describe("WalletRepository — transactional paths (runInRollback)", () => {
         totalEarning: "10.00",
       });
 
-      // The debit runs inside a nested transaction (a savepoint on the
-      // outer rollback harness): the call itself inserts the pending
-      // withdrawal row BEFORE the guarded UPDATE matches zero rows, so the
-      // probe throws at the end to roll that row back and prove the
-      // insufficient-funds path commits ZERO writes.
-      const probeError = await expectRepoError(() =>
-        tx.transaction(async probe => {
-          const debited = await WalletRepository.debitForWithdrawalOnce(
-            { walletId: fixtureWallet.id, amount: "25.00", description: "over-budget payout" },
-            probe
-          );
-          expect(debited).toBeNull();
-
-          const untouched = await readWallet(probe, fixtureWallet.id);
-          expect(untouched.balance).toBe("10.00");
-          expect(untouched.totalEarning).toBe("10.00");
-
-          // The pending row this call inserted is visible inside the probe
-          // transaction — and dies with the rollback below.
-          expect(await countLedgerRows(probe, fixtureWallet.id)).toBe(1);
-
-          throw new Error("probe-rollback");
-        })
+      // The guarded UPDATE runs BEFORE the ledger INSERT, so a funds miss
+      // returns null with zero writes performed — no pending withdrawal row
+      // is ever live inside the caller's transaction (no rollback needed).
+      const debited = await WalletRepository.debitForWithdrawalOnce(
+        { walletId: fixtureWallet.id, amount: "25.00", description: "over-budget payout" },
+        tx
       );
-      expect(probeError.message).toBe("probe-rollback");
+      expect(debited).toBeNull();
 
-      // After the savepoint rollback: the wallet is unchanged and the
-      // pending ledger row is gone — zero writes survive.
-      const after = await readWallet(tx, fixtureWallet.id);
-      expect(after.balance).toBe("10.00");
-      expect(after.totalEarning).toBe("10.00");
+      const untouched = await readWallet(tx, fixtureWallet.id);
+      expect(untouched.balance).toBe("10.00");
+      expect(untouched.totalEarning).toBe("10.00");
       expect(await countLedgerRows(tx, fixtureWallet.id)).toBe(0);
     });
   });

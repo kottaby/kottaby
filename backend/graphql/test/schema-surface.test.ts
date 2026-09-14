@@ -67,7 +67,12 @@
  *    (`approveWithdrawal` < `adjustTeacherWallet` < `rejectWithdrawal` on
  *    the mutation root; `adminPendingWithdrawals` < `adminStudentPayments`
  *    < `adminTeacherWallet` on the query root); the adjustment-direction
- *    enum exposes exactly the `Credit`/`Debit` wire vocabulary.
+ *    enum exposes exactly the `Credit`/`Debit` wire vocabulary; and the
+ *    three row objects (`AdminStudentPayment`, `AdminTeacherWallet`,
+ *    `AdminWithdrawalQueueRow`) plus their page wrappers
+ *    (`AdminStudentPaymentPage`, `AdminWithdrawalQueuePage`) disclose
+ *    EXACTLY their pinned field sets with per-field types (the wrappers
+ *    carry no `id` — embedded value objects).
  *  - **Allowlist agreement** — the scopeless `_health` field is present in
  *    the closed `PUBLIC_OPERATION_NAMES` tuple / `PUBLIC_OPERATIONS` set
  *    1:1 (schema↔allowlist agreement enforced as code).
@@ -1638,6 +1643,174 @@ describe("admin financial-auditing surface — exact arg shapes + `$all` scope p
     );
     expect(smuggledWalletFilters).toHaveLength(1);
     expect(smuggledWalletFilters[0]?.message).toContain('unknown field "userId"');
+  });
+});
+
+describe("Admin financial row/page object shapes — exact field sets + per-field types", () => {
+  test("AdminStudentPayment row exposes `id` and EXACTLY the nine audit fields (structurally NO `userId`)", () => {
+    const rowType = graphQLSchema.getType("AdminStudentPayment");
+
+    if (!(rowType instanceof GraphQLObjectType)) {
+      throw new Error("AdminStudentPayment must be registered as a GraphQL object type");
+    }
+
+    const fields = rowType.getFields();
+    const field = (name: string) => {
+      const candidate = fields[name];
+      if (!candidate) {
+        throw new Error(`AdminStudentPayment must register the \`${name}\` field`);
+      }
+      return candidate;
+    };
+
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "amount",
+      "createdAt",
+      "currency",
+      "id",
+      "paymentGateway",
+      "status",
+      "studentId",
+      "studentName",
+      "subscriptionId",
+    ]);
+    // Exact field types per the contract (the audit row keeps the `DateTime`
+    // scalar for the payment instant and the settlement enums for the
+    // gateway/status vocabulary; the money amount/currency stay strings).
+    expect(field("id").type.toString()).toBe("ID!");
+    expect(field("amount").type.toString()).toBe("String!");
+    expect(field("currency").type.toString()).toBe("String!");
+    expect(field("paymentGateway").type.toString()).toBe("PaymentGateway!");
+    expect(field("status").type.toString()).toBe("PaymentStatus!");
+    expect(field("studentId").type.toString()).toBe("ID!");
+    expect(field("studentName").type.toString()).toBe("String!");
+    expect(field("subscriptionId").type.toString()).toBe("ID");
+    expect(field("createdAt").type.toString()).toBe("DateTime!");
+    // SEC: no owner-envelope field on the row — the audited student is
+    // disclosed via `studentId` only (no `userId`/`user` bypass field).
+    expect(Object.hasOwn(fields, "userId")).toBe(false);
+  });
+
+  test("AdminTeacherWallet inspector exposes `teacherId` and EXACTLY the nine wallet fields (structurally NO `userId`)", () => {
+    const walletType = graphQLSchema.getType("AdminTeacherWallet");
+
+    if (!(walletType instanceof GraphQLObjectType)) {
+      throw new Error("AdminTeacherWallet must be registered as a GraphQL object type");
+    }
+
+    const fields = walletType.getFields();
+    const field = (name: string) => {
+      const candidate = fields[name];
+      if (!candidate) {
+        throw new Error(`AdminTeacherWallet must register the \`${name}\` field`);
+      }
+      return candidate;
+    };
+
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "balance",
+      "currency",
+      "page",
+      "pageSize",
+      "teacherId",
+      "teacherName",
+      "totalCount",
+      "totalEarning",
+      "transactions",
+    ]);
+    // Exact field types per the contract (the money aggregates are nullable
+    // strings; the ledger page reuses the canonical `TeacherTransaction`
+    // object — single canonical object rule).
+    expect(field("teacherId").type.toString()).toBe("ID!");
+    expect(field("teacherName").type.toString()).toBe("String!");
+    expect(field("currency").type.toString()).toBe("String!");
+    expect(field("balance").type.toString()).toBe("String");
+    expect(field("totalEarning").type.toString()).toBe("String");
+    expect(field("page").type.toString()).toBe("Int!");
+    expect(field("pageSize").type.toString()).toBe("Int!");
+    expect(field("totalCount").type.toString()).toBe("Int!");
+    expect(field("transactions").type.toString()).toBe("[TeacherTransaction!]!");
+    // SEC: no owner-envelope field — the inspected teacher is disclosed via
+    // `teacherId` only (no `userId`/`user` bypass field).
+    expect(Object.hasOwn(fields, "userId")).toBe(false);
+  });
+
+  test("AdminWithdrawalQueueRow exposes EXACTLY the three queue fields (structurally NO `userId`)", () => {
+    const rowType = graphQLSchema.getType("AdminWithdrawalQueueRow");
+
+    if (!(rowType instanceof GraphQLObjectType)) {
+      throw new Error("AdminWithdrawalQueueRow must be registered as a GraphQL object type");
+    }
+
+    const fields = rowType.getFields();
+    const field = (name: string) => {
+      const candidate = fields[name];
+      if (!candidate) {
+        throw new Error(`AdminWithdrawalQueueRow must register the \`${name}\` field`);
+      }
+      return candidate;
+    };
+
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "teacherName",
+      "transaction",
+      "walletBalance",
+    ]);
+    // Exact field types per the contract (the queue row reuses the canonical
+    // `TeacherTransaction` object for the pending transaction; the balance
+    // snapshot is a NON-nullable string).
+    expect(field("teacherName").type.toString()).toBe("String!");
+    expect(field("transaction").type.toString()).toBe("TeacherTransaction!");
+    expect(field("walletBalance").type.toString()).toBe("String!");
+    // SEC: no owner-envelope field — the queue row discloses the teacher via
+    // `teacherName` only (no `userId`/`user` bypass field).
+    expect(Object.hasOwn(fields, "userId")).toBe(false);
+  });
+
+  test("AdminStudentPaymentPage wrapper exposes EXACTLY items/page/pageSize/totalCount", () => {
+    const pageType = graphQLSchema.getType("AdminStudentPaymentPage");
+
+    if (!(pageType instanceof GraphQLObjectType)) {
+      throw new Error("AdminStudentPaymentPage must be registered as a GraphQL object type");
+    }
+
+    const fields = pageType.getFields();
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "items",
+      "page",
+      "pageSize",
+      "totalCount",
+    ]);
+    expect(fields.items?.type.toString()).toBe("[AdminStudentPayment!]!");
+    expect(fields.page?.type.toString()).toBe("Int!");
+    expect(fields.pageSize?.type.toString()).toBe("Int!");
+    expect(fields.totalCount?.type.toString()).toBe("Int!");
+    // Wrapper is an embedded value object — no `id` (rows inside `items`
+    // are the normalizable entities).
+    expect(Object.hasOwn(fields, "id")).toBe(false);
+  });
+
+  test("AdminWithdrawalQueuePage wrapper exposes EXACTLY items/page/pageSize/totalCount", () => {
+    const pageType = graphQLSchema.getType("AdminWithdrawalQueuePage");
+
+    if (!(pageType instanceof GraphQLObjectType)) {
+      throw new Error("AdminWithdrawalQueuePage must be registered as a GraphQL object type");
+    }
+
+    const fields = pageType.getFields();
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "items",
+      "page",
+      "pageSize",
+      "totalCount",
+    ]);
+    expect(fields.items?.type.toString()).toBe("[AdminWithdrawalQueueRow!]!");
+    expect(fields.page?.type.toString()).toBe("Int!");
+    expect(fields.pageSize?.type.toString()).toBe("Int!");
+    expect(fields.totalCount?.type.toString()).toBe("Int!");
+    // Wrapper is an embedded value object — no `id` (rows inside `items`
+    // are the normalizable entities).
+    expect(Object.hasOwn(fields, "id")).toBe(false);
   });
 });
 

@@ -16,6 +16,10 @@
  *    → 401 for ANY presented bearer (never open);
  *  - EMPTY SECRET fails closed: gates open + `CRON_SECRET` configured as
  *    the empty string → 401 (an unconfigured secret must never authenticate);
+ *  - WHITESPACE-ONLY SECRET fails closed: gates open + `CRON_SECRET`
+ *    configured as whitespace-only → 401 — behaves EXACTLY like an unset
+ *    secret (the factory trims the configured value once, so a whitespace
+ *    config is treated as unconfigured by design, not by accident);
  *  - WRONG BEARER → 401 (`UNAUTHORIZED` envelope);
  *  - MISSING BEARER → 401;
  *  - QUERY-STRING SECRET is never accepted — only the `Authorization`
@@ -28,10 +32,23 @@
  *    call (the route owns no sweep logic of its own);
  *  - a service THROWN failure propagates through the shared error envelope
  *    machinery (masked per the lib-level taxonomy — the route adds no
- *    bespoke try/catch of its own).
+ *    bespoke try/catch of its own);
+ *  - RATE LIMITER: the dedicated `cron-sweep` namespace keyed on client IP
+ *    runs AFTER the mode gates and BEFORE the credential compare —
+ *    failed-auth attempts past the quota answer 429 `RATE_LIMIT_EXCEEDED`
+ *    through the shared envelope, and a correct bearer cannot bypass a
+ *    spent quota (the throttle sits before the secret compare);
+ *  - the quota is keyed on the client IP (a second IP gets a fresh window).
  *
  * Env stubbing works because `getEnv` reads `process.env` live (no cache —
  * see `backend/lib/env.ts`); every test restores the three keys it touched.
+ * The rate limiter (`@/backend/lib/ratelimit`) is swapped for an
+ * INSTRUMENTED FAKE via Bun's module mock registry BEFORE the route module
+ * loads (the graphql suite's exact mechanism): a fixed-window per-identifier
+ * counter honoring the real limiter's contract, whose counters reset per
+ * test. Today the real limiter is a fail-open stub (`checkRateLimit` always
+ * returns success) — the fake proves the route's 429 path against the
+ * behavior the real limiter will land with.
  *
  * Runs via `bun run test/scripts/run-test.ts
  * app/api/cron/expire-subscriptions/test/expire-subscriptions-route.test.ts`.
@@ -42,6 +59,9 @@ import { afterEach, describe, expect, mock, test } from "bun:test";
 // type-only form detonates at runtime (`ReferenceError`), exactly as the
 // set-locale route test documents.
 import { NextRequest } from "next/server";
+// Type-only import: erased at compile time, so it never touches the mock
+// registry that shadows `@/backend/lib/ratelimit` below.
+import type { RateLimiterConfig, RateLimitResult } from "@/backend/lib/ratelimit";
 
 // Module-boundary mock: the route must exercise ONLY its own gate/envelope
 // logic here; the service's DB semantics belong to the service suite.
@@ -60,6 +80,58 @@ void mock.module("@/backend/services/billing", () => ({
     },
   },
 }));
+
+// Module-boundary mock #2 — the rate limiter: the lib's Redis semantics
+// belong to the lib (today `checkRateLimit` is a fail-open stub). This
+// instrumented fake honors the REAL limiter contract — a fixed-window
+// per-identifier counter that flips to success:false the moment the quota
+// is crossed — so the route's 429 path is proven against the exact behavior
+// the real limiter will land with. `getClientIdentifier` mirrors the real
+// extractor (the constructed NextRequests carry no IP headers, so every
+// call shares the "local" identifier); `graphqlRateLimiter` re-provided to
+// keep the module shape complete.
+const rateLimitCounters = new Map<string, { count: number; windowStart: number }>();
+let capturedLimiter: RateLimiterConfig | null = null;
+
+void mock.module("@/backend/lib/ratelimit", () => ({
+  checkRateLimit: async (identifier: string, limiter: RateLimiterConfig): Promise<RateLimitResult> => {
+    capturedLimiter = limiter;
+    const now = Date.now();
+    const entry = rateLimitCounters.get(identifier);
+    if (entry === undefined || now - entry.windowStart >= limiter.windowMs) {
+      rateLimitCounters.set(identifier, { count: 1, windowStart: now });
+      return { success: true, limit: limiter.limit, remaining: limiter.limit - 1, reset: now + limiter.windowMs };
+    }
+    entry.count += 1;
+    if (entry.count > limiter.limit) {
+      return { success: false, limit: limiter.limit, remaining: 0, reset: entry.windowStart + limiter.windowMs };
+    }
+    return {
+      success: true,
+      limit: limiter.limit,
+      remaining: limiter.limit - entry.count,
+      reset: entry.windowStart + limiter.windowMs,
+    };
+  },
+  getClientIdentifier: (request: Request): string => {
+    const xff = request.headers.get("x-forwarded-for");
+    if (xff) {
+      return xff.split(",")[0]?.trim() ?? "local";
+    }
+    const realIp = request.headers.get("x-real-ip");
+    if (realIp) {
+      return realIp.trim();
+    }
+    return "local";
+  },
+  graphqlRateLimiter: { name: "graphql-public", limit: 100, windowMs: 60_000 },
+}));
+
+/** The reset mechanism: counters (and the captured limiter) clear per test. */
+function resetRateLimiter(): void {
+  rateLimitCounters.clear();
+  capturedLimiter = null;
+}
 
 // The route import MUST trail its mock.module registration (bun evaluates
 // the module registry in import order; the eslint import-order exemption is
@@ -94,6 +166,17 @@ function requestWithQueryStringSecret(): NextRequest {
   return new NextRequest(`${BASE_URL}?secret=correct-secret&token=correct-secret`, { headers: new Headers() });
 }
 
+function requestFromIp(bearer: string | null, ip: string): NextRequest {
+  // The limiter keys on the client IP (x-forwarded-for first entry), so a
+  // second IP must get a fresh window — this helper pins that keying.
+  const headers = new Headers();
+  if (bearer !== null) {
+    headers.set("authorization", `Bearer ${bearer}`);
+  }
+  headers.set("x-forwarded-for", ip);
+  return new NextRequest(BASE_URL, { headers });
+}
+
 // ─── Assertion-free payload narrowing (set-locale precedent) ────────────────
 
 function isPlainJsonObject(value: unknown): value is Record<string, unknown> {
@@ -112,6 +195,7 @@ afterEach(() => {
   expireCalls.length = 0;
   expireResult = { expired: 0, lanesZeroed: 0 };
   expireThrowable = null;
+  resetRateLimiter();
   for (const key of ENV_KEYS) {
     const saved = savedEnv[key];
     if (saved === undefined) {
@@ -179,6 +263,27 @@ describe("expire-subscriptions cron route — bearer gate", () => {
     const response = await GET(requestWithBearer(""));
     expect(response.status).toBe(401);
     const body = await readJson(response);
+    const error = body.error;
+    if (!isPlainJsonObject(error)) {
+      throw new Error("expected an error envelope");
+    }
+    expect(error.code).toBe("UNAUTHORIZED");
+    expect(expireCalls).toHaveLength(0);
+  });
+
+  test("gates open + WHITESPACE-only CRON_SECRET fails closed to 401 (behaves exactly like an unset secret)", async () => {
+    setGatesOpen();
+    // A whitespace-only config must authenticate NOTHING: neither the
+    // whitespace bearer the Bearer stripper would strip away anyway, nor a
+    // plausible non-whitespace bearer. The factory trims the configured
+    // secret once at read time, so this lands 401 by DESIGN (unconfigured),
+    // not by the accidental stripper quirk.
+    process.env.CRON_SECRET = "   ";
+    const whitespaceBearerResponse = await GET(requestWithBearer("   "));
+    expect(whitespaceBearerResponse.status).toBe(401);
+    const plausibleBearerResponse = await GET(requestWithBearer("anything"));
+    expect(plausibleBearerResponse.status).toBe(401);
+    const body = await readJson(plausibleBearerResponse);
     const error = body.error;
     if (!isPlainJsonObject(error)) {
       throw new Error("expected an error envelope");
@@ -283,5 +388,34 @@ describe("expire-subscriptions cron route — authenticated sweep", () => {
     }
     expect(message).not.toContain("simulated driver failure");
     expect(expireCalls).toHaveLength(1);
+  });
+
+  test("exceeding the limiter quota answers 429 RATE_LIMIT_EXCEEDED; a second IP gets a fresh window", async () => {
+    setGatesOpen();
+    process.env.CRON_SECRET = "correct-secret";
+    // The route must call the DEDICATED cron-sweep limiter (never the
+    // graphql one) — the instrumented fake captures every limiter config.
+    // The fake's counter body runs synchronously per invocation, so the
+    // concurrent burst still lands in one fixed window (count 1..100).
+    const exhausted = await Promise.all(
+      Array.from({ length: 100 }, () => GET(requestFromIp("correct-secret", "203.0.113.10")))
+    );
+    expect(exhausted.every(response => response.status === 200)).toBe(true);
+    expect(expireCalls).toHaveLength(100);
+    // The 101st request from the SAME IP crosses the fixed-window quota:
+    // 429 through the shared envelope, and the sweep does NOT run.
+    const throttled = await GET(requestFromIp("correct-secret", "203.0.113.10"));
+    expect(throttled.status).toBe(429);
+    const throttledBody = await readJson(throttled);
+    if (!isPlainJsonObject(throttledBody.error)) {
+      throw new Error("expected an error envelope");
+    }
+    expect(throttledBody.error.code).toBe("RATE_LIMIT_EXCEEDED");
+    expect(expireCalls).toHaveLength(100);
+    // A DIFFERENT IP gets a fresh window — the limiter keys on client IP.
+    const freshIp = await GET(requestFromIp("correct-secret", "203.0.113.20"));
+    expect(freshIp.status).toBe(200);
+    expect(capturedLimiter?.name).toBe("cron-sweep");
+    expect(expireCalls).toHaveLength(101);
   });
 });

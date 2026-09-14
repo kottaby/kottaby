@@ -15,7 +15,7 @@ import { students } from "@/backend/db/schema/students/students";
  * `subscription_id` change). The nullable column + `set null` FK action are
  * therefore schema metadata only, unreachable for ledger rows; the payment
  * history never loses its subscription pointer. `amount` must be
- * non-negative (CHECK). `payment_gateway` records the channel;
+ * positive (CHECK). `payment_gateway` records the channel;
  * `status` is the payment lifecycle (pending → paid → failed → refunded).
  *
  * IMMUTABLE LEDGER: DELETE is blocked entirely by a trigger, so corrections
@@ -52,7 +52,7 @@ export const studentPayments = pgTable(
       .$onUpdate(() => new Date()),
   },
   t => [
-    check("student_payments_amount_check", sql`${t.amount} >= 0`),
+    check("student_payments_amount_check", sql`${t.amount} > 0`),
     index("student_payments_student_id_idx").on(t.studentId),
     index("student_payments_subscription_id_idx").on(t.subscriptionId),
   ]

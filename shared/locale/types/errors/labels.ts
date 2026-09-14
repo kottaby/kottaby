@@ -225,6 +225,8 @@ export interface ErrorsLabels {
   readonly invalidAdjustmentAmount: string;
   /** "An adjustment reason is required and cannot be empty." — pre-DB manual wallet-adjustment reason reject → ValidationError. */
   readonly adjustmentReasonRequired: string;
+  /** "The adjustment direction must be either credit or debit." — fail-closed manual wallet-adjustment direction reject (a non-GraphQL caller passing a non-member direction) → ValidationError. */
+  readonly invalidAdjustmentDirection: string;
 }
 
 export type ErrorMessageKey = {
