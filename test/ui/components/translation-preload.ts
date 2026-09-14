@@ -39,6 +39,7 @@ import { Landing } from "@/shared/locale/namespaces/landing";
 import { Notifications } from "@/shared/locale/namespaces/notifications";
 import { ParentLink } from "@/shared/locale/namespaces/parentLink";
 import { ParentMonitoring } from "@/shared/locale/namespaces/parentMonitoring";
+import { Sessions } from "@/shared/locale/namespaces/sessions";
 
 /** Mutable navigation state consumed by the mocked `next/navigation` exports. */
 export interface TestNavigationState {
@@ -125,6 +126,11 @@ for (const translations of [arMessages, enMessages]) {
   // portal suites (root + detail containers + five tabs) surface missing-key
   // drift at preload time.
   ParentMonitoring.getLabels(translations);
+  // Warm the Sessions handle so the student-sessions container + rate-teacher
+  // dialog suites surface missing-key drift at preload time (the rate dialog
+  // resolves its whole label surface through the Sessions namespace handle;
+  // Errors is warmed above).
+  Sessions.getLabels(translations);
   // Warm the admin-directory handles (users / students / teachers) so the
   // admin mobile-card + empty-state suites surface missing-key drift at
   // preload time.

@@ -94,9 +94,11 @@ interface NotificationDrawerListProps {
  * The settled rows list. Row anatomy follows the prototype: unread dot +
  * bold title + end-aligned locale-formatted timestamp + 2-line-clamped body.
  * Each row IS a real anchor whose href resolves through
- * `resolveNotificationRoute(relatedEntityType)` — entity-type-keyed deep
- * links (parent-link rows land on the student decision route); unknown or
- * absent entity types fall through to the notifications feed page. Either
+ * `resolveNotificationRoute(type, relatedEntityType)` — the row's
+ * notification TYPE is checked first (session-completion rows land on the
+ * student sessions route), then the entity-type-keyed deep links
+ * (parent-link rows land on the student decision route); unknown or
+ * absent pointers fall through to the notifications feed page. Either
  * way navigation is native — no router call.
  */
 function NotificationDrawerList({ items, onOpenNotification }: Readonly<NotificationDrawerListProps>): ReactNode {
@@ -108,7 +110,7 @@ function NotificationDrawerList({ items, onOpenNotification }: Readonly<Notifica
         <ListItemButton
           key={item.id}
           component={Link}
-          href={resolveNotificationRoute(item.relatedEntityType)}
+          href={resolveNotificationRoute(item.type, item.relatedEntityType)}
           divider={index < items.length - 1}
           onClick={() => onOpenNotification(item)}
           sx={{ ...focusVisibleRingSx, alignItems: "flex-start", gap: 1.5, px: 2, py: 1.5 }}

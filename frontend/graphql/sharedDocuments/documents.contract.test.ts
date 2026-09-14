@@ -56,6 +56,7 @@ import type {
   MeQuery,
   MyStudentSessionsQuery,
   MyStudentSessionsQueryVariables,
+  MyTeacherEvaluationsQuery,
   MyTeacherSessionsQuery,
   MyTeacherSessionsQueryVariables,
   RecitationReadingsQuery,
@@ -67,6 +68,8 @@ import type {
   SessionByIdQueryVariables,
   StartSessionMutation,
   StartSessionMutationVariables,
+  SubmitTeacherEvaluationMutation,
+  SubmitTeacherEvaluationMutationVariables,
   UpdateMyLocaleMutation,
   UpdateMyLocaleMutationVariables,
 } from "@/frontend/graphql/generated/gql/graphql";
@@ -101,6 +104,10 @@ import {
   sessionByIdQueryDocument,
   startSessionMutationDocument,
 } from "@/frontend/graphql/sharedDocuments/scheduling/session.documents";
+import {
+  myTeacherEvaluationsQueryDocument,
+  submitTeacherEvaluationMutationDocument,
+} from "@/frontend/graphql/sharedDocuments/teachers/student-evaluation.documents";
 
 // ---------------------------------------------------------------------------
 // Assertion-free AST helpers
@@ -296,6 +303,21 @@ const DOCUMENT_CONTRACT_TABLE: readonly DocumentContractRow[] = [
     variables: ["input"],
     objectSelections: ["adminJoinSession"],
   },
+  // --- student teacher-evaluation (teachers/student-evaluation.documents.ts) ---
+  {
+    document: myTeacherEvaluationsQueryDocument,
+    operationName: "MyTeacherEvaluations",
+    channel: "query",
+    variables: [],
+    objectSelections: ["myTeacherEvaluations"],
+  },
+  {
+    document: submitTeacherEvaluationMutationDocument,
+    operationName: "SubmitTeacherEvaluation",
+    channel: "mutation",
+    variables: ["input", "sessionId"],
+    objectSelections: ["submitTeacherEvaluation"],
+  },
 ];
 
 describe("shared-document contract — named operations + channel + variables", () => {
@@ -445,6 +467,14 @@ describe("consumer import conventions — barrel ≡ deep import identity", () =
     const typedAdminSessionJoin: TypedDocumentNode<AdminSessionJoinMutation, AdminSessionJoinMutationVariables> =
       adminSessionJoinMutationDocument;
 
+    // The student teacher-evaluation documents (compile-time proof that the
+    // `Evaluation` selection conforms to the generated operation types).
+    const typedMyTeacherEvaluations: TypedDocumentNode<MyTeacherEvaluationsQuery> = myTeacherEvaluationsQueryDocument;
+    const typedSubmitTeacherEvaluation: TypedDocumentNode<
+      SubmitTeacherEvaluationMutation,
+      SubmitTeacherEvaluationMutationVariables
+    > = submitTeacherEvaluationMutationDocument;
+
     // Runtime uses keep the bindings from being flagged as unused.
     expect(typedRegister.loc).toBeDefined();
     expect(typedLogin.loc).toBeDefined();
@@ -466,5 +496,7 @@ describe("consumer import conventions — barrel ≡ deep import identity", () =
     expect(typedAdminSessionReassign.loc).toBeDefined();
     expect(typedAdminSessionJoin.loc).toBeDefined();
     expect(typedUpdateMyLocale.loc).toBeDefined();
+    expect(typedMyTeacherEvaluations.loc).toBeDefined();
+    expect(typedSubmitTeacherEvaluation.loc).toBeDefined();
   });
 });

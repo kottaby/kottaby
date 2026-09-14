@@ -11,6 +11,7 @@
  *  - `session-lifecycle.mutation.ts` registers `createSession`,
  *    `startSession`, `completeSession`, and `cancelSession`.
  *  - `session-report.mutation.ts` registers `submitSessionReport`.
+ *  - `student-evaluation.mutation.ts` registers `submitTeacherEvaluation`.
  *  - `admin-session-governance.mutation.ts` registers
  *    `adminRescheduleSession`, `adminCancelSession`,
  *    `adminReassignTeacher`, and `adminJoinSession`.
@@ -20,3 +21,4 @@ import "./admin-session-governance.mutation";
 import "./recitation.mutation";
 import "./session-lifecycle.mutation";
 import "./session-report.mutation";
+import "./student-evaluation.mutation";

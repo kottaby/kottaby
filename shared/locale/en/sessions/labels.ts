@@ -73,4 +73,13 @@ export const sessionsEn: SessionsLabels = {
   disputeReasonCollapse: "Show less",
   pagerPreviousLabel: "Previous page",
   pagerNextLabel: "Next page",
+  rateTeacher: "Rate teacher",
+  rateTeacherTooltip: "Rate your teacher for this session. A session can be rated only once.",
+  rateTeacherDialogTitle: "Rate your teacher",
+  rateTeacherDialogSubmit: "Submit rating",
+  rateTeacherDialogCancel: "Cancel",
+  rateTeacherSuccess: "Your teacher rating was submitted.",
+  teacherRatedChip: "Rated",
+  ratingEmptyLabelText: "Empty",
+  ratingStarAriaLabel: (position: number) => `Star ${position} of 5`,
 };

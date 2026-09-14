@@ -1,10 +1,6 @@
 import type { ApolloCache } from "@apollo/client";
 import { useMutation } from "@apollo/client/react";
 import { useCallback } from "react";
-import {
-  type MyStudentSessionsQuery_myStudentSessions_items,
-  SessionStatus,
-} from "@/frontend/graphql/generated/gql/graphql";
 import { confirmSessionCompletionMutationDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import {
@@ -16,8 +12,6 @@ import {
   evictSessionFromListFields,
   STUDENT_SESSION_LIST_FIELDS,
 } from "@/frontend/views/student/sessions/sessionListCacheEviction";
-import type { SessionRowAction } from "@/frontend/views/student/sessions/sessionRowAction";
-import { type InFlightSlots, isInFlight } from "@/frontend/views/student/sessions/studentSessionInFlightSlots";
 import {
   dropRowAlert,
   type StudentSessionNoticeWiring,
@@ -139,37 +133,4 @@ export function useStudentSessionConfirm(deps: Readonly<StudentSessionConfirmDep
   );
 
   return { handleConfirm };
-}
-
-/**
- * Confirm affordance matrix: the Confirm descriptor renders ONLY
- * on the exactly-once pending shape (`Completed` ∧ student stamp unset ∧
- * hold still marked) — the SAME predicate the row's pending pill keys off.
- * The descriptor disables while THIS row's `confirm` slot is in flight and
- * carries the consequence-explainer tooltip (the held fee becomes the
- * teacher's earning). Every other shape gets an empty list.
- */
-export function studentActionsForSession(
-  session: MyStudentSessionsQuery_myStudentSessions_items,
-  wiring: {
-    readonly t: SessionsLabels;
-    readonly inFlightSlots: InFlightSlots;
-    readonly onConfirm: (sessionId: string) => void;
-  }
-): ReadonlyArray<SessionRowAction> {
-  const isConfirmPending =
-    session.status === SessionStatus.Completed && session.confirmedByStudentAt === null && session.feeHeld;
-  if (!isConfirmPending) {
-    return [];
-  }
-  return [
-    {
-      id: "confirm",
-      label: wiring.t.confirmCompletion,
-      tooltip: wiring.t.confirmCompletionTooltip,
-      color: "success",
-      disabled: isInFlight(wiring.inFlightSlots, session.id, "confirm"),
-      onIntent: wiring.onConfirm,
-    },
-  ];
 }

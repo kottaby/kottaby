@@ -106,4 +106,7 @@ export const errorsAr: ErrorsLabels = {
   withdrawalNotPending: "طلب السحب هذا لم يعد قيد الانتظار.",
   invalidAdjustmentAmount: "أدخل مبلغ تعديل صالحاً (قيمة موجبة بخانتين عشريتين كحد أقصى).",
   adjustmentReasonRequired: "سبب التعديل مطلوب ولا يمكن تركه فارغاً.",
+  evaluationSessionNotCompleted: "لا يمكن تقييم هذه الجلسة لأنها لم تكتمل ولم يتم تأكيدها من قبل الطرفين.",
+  evaluationAlreadySubmitted: "لقد أرسلت تقييمك لهذه الجلسة بالفعل.",
+  teacherRatingInvalid: "يجب أن يكون تقييم المعلم رقماً صحيحاً بين 1 و5.",
 };

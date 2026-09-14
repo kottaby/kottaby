@@ -107,4 +107,8 @@ export const errorsEn: ErrorsLabels = {
   withdrawalNotPending: "This withdrawal request is no longer pending.",
   invalidAdjustmentAmount: "Enter a valid adjustment amount (a positive value with up to 2 decimal places).",
   adjustmentReasonRequired: "An adjustment reason is required and cannot be empty.",
+  evaluationSessionNotCompleted:
+    "This session cannot be rated because it has not been completed and confirmed by both participants.",
+  evaluationAlreadySubmitted: "You have already submitted a rating for this session.",
+  teacherRatingInvalid: "The teacher rating must be a whole number between 1 and 5.",
 };

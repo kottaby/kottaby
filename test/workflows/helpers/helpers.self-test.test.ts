@@ -27,12 +27,14 @@ import { eq } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { parents } from "@/backend/db/schema/parents/parents";
 import { students } from "@/backend/db/schema/students/students";
+import { evaluations } from "@/backend/db/schema/teachers/evaluations";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { admin } from "@/backend/db/schema/users/admin";
 import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
 import type { RealtimeNotificationPayload } from "@/backend/types";
 import {
+  createSessionFixtureRegistry,
   type FanoutTransportLike,
   type JourneyActor,
   provisionAdminActor,
@@ -287,5 +289,56 @@ describe("actor-context — real users with real role rows (honest permissions)"
 
     const present = await Promise.all(records.map(record => tracked.exists(record)));
     expect(present.every(exists => !exists)).toBe(true);
+  });
+});
+
+describe("SessionFixtureRegistry — evaluations vocabulary (rating rows tear down before their evaluator)", () => {
+  const registry = createSessionFixtureRegistry();
+  let userRecordId = 0;
+  let evaluationRecordId = 0;
+
+  beforeAll(async () => {
+    await db.transaction(async tx => {
+      const user = await createTestUser(tx, { role: "student" });
+      userRecordId = user.id;
+      // One rating row that restrict-deletes into its own rater's user row
+      // (the evaluator is also the evaluated subject — the simplest shape
+      // that binds both FK sides to the single tracked user).
+      const [evaluationRow] = await tx
+        .insert(evaluations)
+        .values({ evaluatedId: user.id, evaluatorId: user.id, sessionId: null, score: 80 })
+        .returning();
+      if (!evaluationRow) {
+        throw new Error("self-test: evaluations insert returned no rows");
+      }
+      evaluationRecordId = evaluationRow.id;
+      registry.track("evaluations", evaluationRecordId);
+      registry.track("evaluations", evaluationRecordId); // duplicate registration dedupes
+      registry.track("users", userRecordId);
+    });
+  });
+
+  afterAll(async () => {
+    // No-op when the teardown test below already cleaned up (registry
+    // empties on success).
+    await registry.cleanup();
+  });
+
+  test("registers evaluation rows as first-class tracked rows (deduplicated)", () => {
+    expect(registry.ids("evaluations")).toEqual([evaluationRecordId]);
+    expect(registry.ids("users")).toEqual([userRecordId]);
+    // Two DISTINCT rows tracked: the rating row and its owning user.
+    expect(registry.trackedCount()).toBe(2);
+  });
+
+  test("cleanup hard-deletes the rating row BEFORE the user it restricts on, zero residue", async () => {
+    // The `evaluator_id` FK is RESTRICT: deleting the user first would abort
+    // the teardown transaction, so a successful cleanup is itself the proof
+    // that the rating row went first in the delete order.
+    await registry.cleanup();
+
+    expect(await db.$count(evaluations, eq(evaluations.id, evaluationRecordId))).toBe(0);
+    expect(await db.$count(users, eq(users.id, userRecordId))).toBe(0);
+    expect(registry.trackedCount()).toBe(0);
   });
 });

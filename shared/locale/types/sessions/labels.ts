@@ -166,4 +166,30 @@ export interface SessionsLabels {
   readonly pagerPreviousLabel: string;
   /** Admin pager — next page (icon-button aria-label). */
   readonly pagerNextLabel: string;
+  /** Student action — rate the teacher on a dual-confirmed session (opens the rating dialog). */
+  readonly rateTeacher: string;
+  /** Rate-CTA tooltip — the rating is one-shot: a session can be rated only once. */
+  readonly rateTeacherTooltip: string;
+  /** Teacher-rating dialog title. */
+  readonly rateTeacherDialogTitle: string;
+  /** Teacher-rating dialog submit button. */
+  readonly rateTeacherDialogSubmit: string;
+  /** Teacher-rating dialog cancel button. */
+  readonly rateTeacherDialogCancel: string;
+  /** Success notice — the teacher rating was submitted. */
+  readonly rateTeacherSuccess: string;
+  /** Read-only chip shown on a session row the student has already rated. */
+  readonly teacherRatedChip: string;
+  /**
+   * Accessible label for the rating control's empty-value radio (MUI
+   * `Rating`'s `emptyLabelText` — the built-in "Empty" default, localized so
+   * the control carries no untranslated MUI-owned copy).
+   */
+  readonly ratingEmptyLabelText: string;
+  /**
+   * Per-star accessible label for the rating control — interpolates ONLY the
+   * star position through the single argument `position` (typed template
+   * function, not an ICU string; identical signature in both locales).
+   */
+  readonly ratingStarAriaLabel: (position: number) => string;
 }
