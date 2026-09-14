@@ -2369,3 +2369,25 @@ Work Log:
 
 Stage Summary:
 - Plan COMPLETE: 19/19 tasks executed, all outcome files written, branch feat/student-evaluation-submission-teacher-rating pushed through c817e31
+
+---
+Task ID: MERGE-SE
+Agent: Orchestrator (student-evaluation branch merge + conflict resolution)
+Task: Resolve conflicts from feat/student-evaluation-submission-teacher-rating into PR #157 (feat/parent-read-only-monitoring-portal). Policy: drizzle migrations prefer main; generated GraphQL simply regenerated; plan files prefer main EXCEPT ai/plans/sprint_3/student-evaluation-submission-teacher-rating.
+
+Work Log:
+- Ground truth first: main (bde0e02) was fully contained in the branch (merge-base == main tip, 0 diverging commits) — no main conflicts existed. The conflict source was the un-PR'd SE branch (5c8fdf6, 29 commits, 94 files, +13k lines; fork point 2bdea32): merging IT into the PR branch is how its content rides to main through the ONE open PR, matching the user's plan-path exception (SE's plan folder must LAND).
+- Trial merge enumerated 8 conflicted files (no migration, no plan-file, no generated-graphql conflicts — SE's elite_gambit migration + plan folder + SE graphql files were pure additions). 7 resolved by mechanical both-sides union; worklog.md EOF double-append union.
+- schema-surface.test.ts union repair: the glue produced TWO adjacent test() declarations sharing one body (tsgo TS1005) → merged into one declaration with a combined title. RECONCILIATION: the parent-portal read quintet + 10 value objects were never enumerated in this pin file (it is local-only — CI's test:graphql = frontend/graphql/test; the file drifted stale on our branch) → PARENT_MONITORING_QUERY_FIELDS + PARENT_MONITORING_TYPE_NAMES constants added and spread into both pins. sdl-static-assertions frozen baselines re-anchored likewise (34→42 query ops, 35→38 mutation ops; MultiEdit partial-application gotcha hit — verify file state between attempts).
+- Migrations per policy: SE adds exactly backend/drizzle/20260913160232_elite_gambit (dedup DELETE + UNIQUE(session_id, evaluator_id) in a DO-block with duplicate_object swallow); no main-side counterpart, no conflicts; full 10-folder chain verified on fresh PGlite rigs (dev merge2-dev + test dirs), evaluations_session_evaluator_unique confirmed via pg_constraint.
+- GraphQL regenerated: schema.graphql 38495 bytes + codegen clean.
+- Post-merge oxlint (deny-warnings, full repo): useStudentSessionConfirm.ts at 152 lines (SE merge union) → studentActionsForSession extracted to studentSessionRowActions.ts, consumer updated (no shim). tsgolint STUCK twice after heavy runs (pkill -9 -f tsgolint then retry — recurring recipe).
+- PGlite DIR-POISONING hazard (new): a WASM Aborted() crash (parent-monitoring.wire) leaves the data dir refusing "begin" for subsequent processes — session.repository (62 fails) and helpers.self-test (4 fails) were DIR artifacts, all 71/71 + 17/17 on fresh dirs. Rule: ANY WASM abort → rotate a fresh PGLITE_DATA_DIR before re-judging.
+- Test battery on the merged tree: schema-surface 53/53, sdl-static 44/44, parity 45/45, SE repo 17/17, SE service 18/18, SE wire 21/21, session repo 71/71, helpers 17/17, parent service 76/76, parent UI 117/117, deep-link 15/15 (needs the Happy-DOM preloads — bare bun test fails with document undefined), student sessions UI 0 fail, duplicates 0 clones, oxlint 0/0, biome clean.
+- Pre-existing (proven on BOTH parents, NOT merge-caused): journey steps 5/9 (concurrent-submit race premise — PGlite serializes transactions; fails identically on SE tip 5c8fdf6 with its own fresh rig) and parent-monitoring.wire (in-process testClient registerUser failure identical on HEAD 129bf1d). Left as-is, documented.
+- CI round 1 on merge commit 7ccd028: quality/tests-services/tests-graphql success; tests-db FAILED on getRatingStats (real Postgres) — the elite_gambit constraint collided with the platform-analytics fixture's three same-pair evaluation rows (soft-delete probes). Tier-1 committed-state tests SKIP on PGlite rigs so local runs could not catch it (22 pass/10 skip locally). FIX 85957b8: probes spread across distinct session rows (aggregate never joins sessions — deltas unchanged).
+- FINAL: CI 4/4 success on 85957b8; PR #157 MERGEABLE/CLEAN; NOT merged per instruction.
+
+Stage Summary:
+- SE feature (teacher evaluations, write-once constraint, elite_gambit migration, plan folder) now rides PR #157; branch tip 85957b8; all four CI checks green; awaiting human merge decision.
+- Recipe notes: MultiEdit is NOT reliably atomic in this environment — re-verify the file between attempts; PGlite dir poisoning mandates fresh data dirs after any WASM abort; local-only pin files (backend/graphql/test, backend/db/test/logic Tier-1) need CI as their arbiter; bun test skip semantics can mask DB-touching tests locally.
