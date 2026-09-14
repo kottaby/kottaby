@@ -149,23 +149,6 @@ export default defineConfig({
       },
     },
     {
-      // StudentRepository is the students table's single-writer namespace: the
-      // registration write, handshake-code lookups, trial grant, held-balance
-      // debit/refund and the two sibling-delegated subscription-lane writes
-      // (activation credit + expiry zeroing) all live here. The heavy
-      // statement bodies are already extracted to the sibling helper modules
-      // (`student.repository.credit-lane.helpers.ts`,
-      // `student.repository.zero-lane.helpers.ts`); the remaining wrappers
-      // plus the admin-directory read pushed the counted lines past the
-      // 300 ceiling. Bump the file ceiling (same pattern as
-      // the user-management.service.ts override below); function-level limits still apply
-      // per-method.
-      files: ["backend/db/repo/students/student.repository.ts"],
-      rules: {
-        "max-lines": ["error", { max: 340, skipBlankLines: true, skipComments: true }],
-      },
-    },
-    {
       // Apollo cache `Reference` entities carry the protocol-mandated `__ref`
       // wire property; the underscore prefix is not ours to rename and biome's
       // unsafe autofix reverts bracket access back to member access. This list
@@ -177,20 +160,6 @@ export default defineConfig({
       ],
       rules: {
         "no-underscore-dangle": "off",
-      },
-    },
-    {
-      // Admin user-management service hosts 7 governance + CRUD methods in a
-      // single namespace (the canonical Pothos resolver target). The 300-line
-      // ceiling is structurally too tight for this aggregation — the
-      // governance work added `setUserSuspended` + `setUserBlocked` to the existing 5 methods
-      // (listDirectory / getUserDetail / createUser / updateUser /
-      // setUserDeleted). Splitting the namespace would break the resolver
-      // import contract. Bump the file ceiling; function-level limits still
-      // apply per-method.
-      files: ["backend/services/admin/user-management.service.ts"],
-      rules: {
-        "max-lines": ["error", { max: 400, skipBlankLines: true, skipComments: true }],
       },
     },
   ],

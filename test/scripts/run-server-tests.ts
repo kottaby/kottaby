@@ -4,7 +4,12 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn as bunSpawn, Glob, type Subprocess } from "bun";
 import { killListenersOnPort } from "@/test/helpers/port-helpers";
-import { deduplicateLines, renderProgressBar, stripAnsiCodes } from "@/test/scripts/runner-helpers";
+import {
+  deduplicateLines,
+  renderProgressBar,
+  stripAnsiCodes,
+  stripDevLeakedEnvKeys,
+} from "@/test/scripts/runner-helpers";
 
 const DEFAULT_PORT = 3066;
 const DEFAULT_TEST_PATH = "frontend/graphql/test/";
@@ -145,7 +150,10 @@ async function pollServerReady(url: string, deadline: number): Promise<boolean> 
  * Returns a copy of process.env with DB-related vars dropped, so the spawned
  * `next dev --env-file=<envFile>` is the sole source of truth for DB config.
  * Without this, `bun` auto-loads `.env` (dev env) into process.env, and the
- * spread would override the test env file DB settings.
+ * spread would override the test env file DB settings. The payment/tunnel
+ * strip runs for the same reason — see `DEV_LEAKED_ENV_KEYS` in
+ * `runner-helpers.ts` (the dev provider/webhook state must never leak into a
+ * spawned test process or server; suites opt in explicitly in-process).
  */
 function buildDbEnv(): Record<string, string | undefined> {
   const env = { ...process.env } as Record<string, string | undefined>;
@@ -153,6 +161,7 @@ function buildDbEnv(): Record<string, string | undefined> {
   delete env.DB_FILE_NAME;
   delete env.DB_PROVIDER;
   delete env.DB_CONNECTION_MODE;
+  stripDevLeakedEnvKeys(env);
   return env;
 }
 

@@ -1,8 +1,62 @@
-/** * StudentRepository — data-access layer for the `students` role-child table. */
+/**
+ * StudentRepository — data-access layer for the `students` role-child table.
+ *
+ * The `students` row shares its PK with `users.id` (FK ON DELETE CASCADE) and
+ * carries the `handshake_code` parent-linking identifier plus the zeroed
+ * credit balances (`balance_hifz`, `balance_tajweed`, `balance_reviews`) and
+ * the segregated one-time free-trial lane (`balance_trial`) guarded by the
+ * `trial_granted_at` marker.
+ *
+ * Registration-path writes (`createForRegistration`) take a REQUIRED
+ * `tx: DBTransaction` (last param) so the registration transaction can roll
+ * back on any child-insert failure (atomicity). The trial grant method
+ * (`grantFreeTrialOnce`), the held-balance lane debit/refund methods
+ * (`decrementLaneIfAvailable` / `incrementLane`) and the subscription
+ * activation credit (`creditLaneBalance`) accept an optional `tx` so
+ * they can run either inside a caller's transaction or standalone against
+ * the global handle.
+ *
+ * Conventions per `backend/db/repo/AGENTS.md`:
+ *  - Writes (`createForRegistration`) take a REQUIRED `tx` (atomicity);
+ *    debit/refund use `queryDb` raw parameterized SQL on the
+ *    non-transactional branch and the Drizzle builder on the transactional
+ *    branch.
+ *  - Reads are read-only, single-scalar/parameterized equality lookups that
+ *    take an OPTIONAL `tx` (last param) and use `queryDb` (raw parameterized
+ *    SQL) on the non-transactional branch, mirroring `UserRepository`
+ *    `findByEmail` / `findById` — Neon HTTP fast path when eligible, Drizzle
+ *    select inside a supplied transaction. No prepared statements (single
+ *    equality, no reuse win), no `inArray`, no LIKE/ILIKE, no `sql` templates.
+ *  - Zero business rules, zero log strings, zero i18n imports — reads return
+ *    `null` on miss; the service layer owns validation, governance filtering
+ *    and error mapping.
+ *
+ * File layout: the subscription activation credit (`creditLaneBalance` and
+ * its frozen `CREDIT_LANE_BALANCE_COLUMNS` lane→column map) lives in the
+ * sibling `student.repository.credit-lane.helpers.ts` module (extracted
+ * verbatim); the namespace's `creditLaneBalance` method is a one-to-one
+ * delegation wrapper, so the public API (names, signatures, behavior) is
+ * unchanged. The subscription-lane expiry zeroing
+ * (`zeroLaneIfNoCoveringSubscription` and its frozen
+ * `ZERO_LANE_BALANCE_COLUMNS` map) follows the same extraction pattern in
+ * the sibling `student.repository.zero-lane.helpers.ts` module. The admin
+ * student directory listing (`listDirectory` with its filter-chain builder,
+ * aliased parent join handle and the two directory contracts) follows the
+ * same extraction pattern in the sibling
+ * `student.repository.directory.helpers.ts` module — the namespace's
+ * `listDirectory` method is a one-to-one delegation wrapper and the two
+ * directory contracts are re-exported verbatim, so the public API (names,
+ * signatures, behavior, import paths) is unchanged.
+ */
 import { and, asc, desc, eq, ilike, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
 import { type AnyPgColumn, alias } from "drizzle-orm/pg-core";
 import { db, queryDb } from "@/backend/db";
 import * as studentRepositoryCreditLaneImpl from "@/backend/db/repo/students/student.repository.credit-lane.helpers";
+import type {
+  AdminStudentDirectoryRow,
+  NormalizedAdminStudentFilters,
+} from "@/backend/db/repo/students/student.repository.directory.helpers";
+import * as studentRepositoryDirectoryImpl from "@/backend/db/repo/students/student.repository.directory.helpers";
 import * as studentRepositoryZeroLaneImpl from "@/backend/db/repo/students/student.repository.zero-lane.helpers";
 import { students } from "@/backend/db/schema/students/students";
 import { users } from "@/backend/db/schema/users/users";
@@ -16,6 +70,11 @@ import type {
   StudentLinkTargetRowType,
   StudentSelectType,
 } from "@/backend/types";
+
+export type {
+  AdminStudentDirectoryRow,
+  NormalizedAdminStudentFilters,
+} from "@/backend/db/repo/students/student.repository.directory.helpers";
 
 /**
  * Frozen held-balance-lane → `students` balance-column resolution map.
@@ -36,101 +95,6 @@ const LANE_BALANCE_COLUMNS: Readonly<Record<HeldBalanceLane, AnyPgColumn>> = Obj
 /** Type guard — narrows `DBQueryExecutor` to `DBTransaction`. */
 function isDBTransaction(tx: DBQueryExecutor): tx is DBTransaction {
   return typeof tx === "object" && "select" in tx;
-}
-
-/**
- * Aliased `users` handle for the admin student directory's parent join —
- * resolves the linked parent's display identity WITHOUT colliding with the
- * student's own `users` row in the same statement.
- */
-const directoryParentUser = alias(users, "directory_parent_user");
-
-/**
- * `NormalizedAdminStudentFilters` — repo-internal filter shape for the
- * admin student directory listing.
- *
- * The service layer normalizes a transport-shape
- * `AdminStudentFiltersSubmitInput` into this structure before calling the
- * repo:
- *  - `searchPattern` is the search substring AFTER `escapeLikeWildcards`
- *    has been applied AND after the result has been wrapped as `%…%`.
- *    The repo binds this directly to its `ilike(column, pattern)`
- *    predicates — never re-escaping or re-wrapping (one canonical escape
- *    point at the service, one binding point at the repo).
- *  - `hasParent` filters on the `parent_id` link state (`null` = no
- *    constraint — the member drops out of the WHERE chain).
- *  - `language` is the trimmed target language; the repo matches it
- *    case-insensitively (exact, parameterized) against the student's
- *    primary OR secondary language columns.
- */
-export interface NormalizedAdminStudentFilters {
-  readonly searchPattern?: string | null;
-  readonly hasParent?: boolean | null;
-  readonly language?: string | null;
-}
-
-/**
- * `AdminStudentDirectoryRow` — raw DB row shape returned by `listDirectory`
- * (users INNER JOIN students on the shared PK, LEFT JOIN users-as-parent on
- * `students.parent_id`). The nullable-with-default schema columns preserve
- * their `| null` select types; the service layer null-coalesces the
- * balances and derives the `hasParent` headline at projection time.
- */
-export interface AdminStudentDirectoryRow {
-  readonly id: number;
-  readonly name: string;
-  readonly email: string;
-  readonly phone: string | null;
-  readonly country: string | null;
-  readonly balanceHifz: number | null;
-  readonly balanceReviews: number | null;
-  readonly balanceTajweed: number | null;
-  readonly balanceTrial: number;
-  readonly trialGrantedAt: Date | null;
-  readonly primaryLanguage: string | null;
-  readonly anotherLanguage: string | null;
-  readonly parentId: number | null;
-  readonly parentName: string | null;
-  readonly parentEmail: string | null;
-  readonly createdAt: Date;
-}
-
-/**
- * Builds the ANDed WHERE chain from the normalized student-directory
- * filters. Absent or null members are skipped (the directory falls back to
- * the unfiltered listing rather than erroring). The `searchPattern` is
- * bound directly to two `ilike` predicates — one over the user's full
- * name, one over the email — joined by `OR` so a single search term
- * matches either column. The `language` filter is a case-insensitive exact
- * match (parameterized `lower(...)` equality — never LIKE) over the
- * primary OR secondary language column. No string interpolation; every
- * value is Drizzle-parameterized.
- */
-function buildStudentDirectoryFilterChain(filters: NormalizedAdminStudentFilters): SQL | undefined {
-  const conditions: SQL[] = [];
-  if (filters.searchPattern) {
-    conditions.push(
-      or(ilike(users.fullName, filters.searchPattern), ilike(users.email, filters.searchPattern)) ?? sql`false`
-    );
-  }
-  if (filters.hasParent !== null && filters.hasParent !== undefined) {
-    conditions.push(filters.hasParent ? isNotNull(students.parentId) : isNull(students.parentId));
-  }
-  if (filters.language) {
-    conditions.push(
-      or(
-        sql`lower(${students.primaryLanguage}) = lower(${filters.language})`,
-        sql`lower(${students.anotherLanguage}) = lower(${filters.language})`
-      ) ?? sql`false`
-    );
-  }
-  if (conditions.length === 0) {
-    return undefined;
-  }
-  if (conditions.length === 1) {
-    return conditions[0];
-  }
-  return and(...conditions) ?? sql`true`;
 }
 
 /**
@@ -467,49 +431,32 @@ export namespace StudentRepository {
     return studentRepositoryZeroLaneImpl.zeroLaneIfNoCoveringSubscription(studentId, lane, tx);
   }
 
-  /** (`students. */
+  /**
+   * Lists the admin student directory: `students` rows INNER JOINed to
+   * their `users` accounts on the shared PK, with the linked parent's
+   * display identity resolved via a LEFT JOIN on `users`-as-parent.
+   *
+   * Implementation lives in the sibling
+   * `student.repository.directory.helpers.ts` module (same extraction
+   * convention as `creditLaneBalance`); this method is a one-to-one
+   * delegation wrapper, so the public API (name, signature, behavior) is
+   * unchanged. Statement-shape notes — the dynamic AND filter chain (search
+   * pattern bound as a parameter, case-insensitive language equality), the
+   * deterministic newest-account-first ordering, the page+count round-trip
+   * pair and the page-query-only parent join — are documented on the
+   * implementation.
+   *
+   * @returns The raw directory rows plus the unfiltered-by-page total (NOT
+   *          the return type — the service layer maps rows →
+   *          `AdminStudentItemReturnType`).
+   */
   export async function listDirectory(
     filters: NormalizedAdminStudentFilters,
     limit: number,
     offset: number,
     tx?: DBTransaction
   ): Promise<{ rows: AdminStudentDirectoryRow[]; total: number }> {
-    const where = buildStudentDirectoryFilterChain(filters);
-    const select = {
-      id: users.id,
-      name: users.fullName,
-      email: users.email,
-      phone: users.phone,
-      country: users.country,
-      balanceHifz: students.balanceHifz,
-      balanceReviews: students.balanceReviews,
-      balanceTajweed: students.balanceTajweed,
-      balanceTrial: students.balanceTrial,
-      trialGrantedAt: students.trialGrantedAt,
-      primaryLanguage: students.primaryLanguage,
-      anotherLanguage: students.anotherLanguage,
-      parentId: students.parentId,
-      parentName: directoryParentUser.fullName,
-      parentEmail: directoryParentUser.email,
-      createdAt: users.createdAt,
-    } as const;
-    const [rows, countRows] = await Promise.all([
-      (tx ?? db)
-        .select(select)
-        .from(students)
-        .innerJoin(users, eq(users.id, students.id))
-        .leftJoin(directoryParentUser, eq(directoryParentUser.id, students.parentId))
-        .where(where)
-        .orderBy(desc(users.createdAt), desc(users.id))
-        .limit(limit)
-        .offset(offset),
-      (tx ?? db)
-        .select({ count: sql<number>`count(*)::int`.as("count") })
-        .from(students)
-        .innerJoin(users, eq(users.id, students.id))
-        .where(where),
-    ]);
-    return { rows, total: countRows[0]?.count ?? 0 };
+    return studentRepositoryDirectoryImpl.listDirectory(filters, limit, offset, tx);
   }
 
   /**

@@ -180,6 +180,15 @@ export interface NotificationsLabels {
    * purchased plan's catalog title (the copy the student bought).
    */
   readonly eventPaymentConfirmedBody: (planTitle: string) => string;
+  /** Notification title — the student's plan payment was declined at the gateway. */
+  readonly eventPaymentFailedTitle: string;
+  /**
+   * Notification body for a failed payment — interpolates ONLY the
+   * attempted plan's catalog title. The copy stays free of amounts,
+   * currencies, and provider references (the result page and the
+   * subscriptions list own the actionable retry surface).
+   */
+  readonly eventPaymentFailedBody: (planTitle: string) => string;
   // ─── Session-report-ready event copy ───────────────────────────────────────
   /** Notification title — the session's report was submitted and is ready to view. */
   readonly eventSessionReportReadyTitle: string;

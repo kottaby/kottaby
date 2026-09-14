@@ -37,6 +37,10 @@ interface SubscriptionPurchaseErrorsLabels {
   readonly paymentReferenceConflict: string;
   /** Settlement quarantine: the provider's claimed amount/currency did not match the stored payment (no write applied). */
   readonly paymentAmountMismatch: string;
+  /** Purchase reject: the plan price is not a non-negative decimal amount with at most two fraction digits → ValidationError (VALIDATION, gateway cents guard). */
+  readonly planPriceShapeInvalid: string;
+  /** Purchase reject: the plan price's cent value exceeds the supported amount range → ValidationError (VALIDATION, gateway cents guard). */
+  readonly planPriceOutOfRange: string;
 }
 
 export interface ErrorsLabels {

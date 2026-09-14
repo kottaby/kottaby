@@ -1,12 +1,13 @@
 /**
- * `backend/lib/env.ts` — realtime-notification config registration suite
- * (WebSocket sidecar + fan-out transport keys).
+ * `backend/lib/env.ts` — env-seam registration suite
+ * (realtime-notification keys + Paymob gateway provider keys + ngrok dev-tunnel keys).
  *
  * Coverage map (the three mandated tiers + the guard/security tiers of the
  * repo's env-manipulating suites):
  *  - Registry inclusion: every registered key is wired through the env-config
  *    seam — a distinctive explicit value is observable through its typed
- *    getter, and the cached snapshot carries all seven new fields.
+ *    getter, and the cached snapshot carries all seven realtime fields plus
+ *    the full `paymob` and `ngrok` configuration objects.
  *  - Invalidation coverage: every key is resolved from the CACHED snapshot
  *    (stale-env proof), is re-read after `resetEnvironmentCache()` (set
  *    value → reset → custom value), and falls back to its default once the
@@ -15,14 +16,25 @@
  *  - Typed defaults: with every realtime key absent, the getters return the
  *    documented dev/test defaults (port / host / origins / transport / caps),
  *    and the transport default flips to "redis" ONLY when a Redis URL is
- *    explicitly present.
+ *    explicitly present. With every paymob/ngrok key absent, the config
+ *    resolves to its inert snapshot (null credentials/IDs, documented base
+ *    URLs, timeout 10000, sweep window 30, tunnel port 3000).
  *  - Parsing boundaries: port bounds (0 = ephemeral … 65535), positive-int
  *    caps, host emptiness semantics, origin-list splitting/trimming/case
- *    normalization, transport vocabulary (case-insensitive).
+ *    normalization, transport vocabulary (case-insensitive); integration-ID
+ *    integer coercion (floats, signs, garbage → null), empty-string secrets
+ *    rejected (never observable as empty strings), timeout/sweep-window
+ *    positive-int fallbacks, checkout-URL override verbatim (including the
+ *    legacy unifiedcheckout fallback value), tunnel-port bounds.
  *  - Security: a wildcard origin is unreachable in ANY resolution shape
  *    (default, explicit mixed, all-wildcard); credential-bearing Redis URLs
- *    never cross the non-URL config disclosure surface; the module performs
- *    zero logging (source-pinned) — connection strings stay off every log.
+ *    never cross the non-URL config disclosure surface; paymob secret
+ *    material is exposed ONLY through the `paymob` members (never the ngrok
+ *    or realtime surfaces); the module performs zero logging (source-pinned)
+ *    — connection strings and secrets stay off every log.
+ *  - Test-CI contract: the shared `TEST_CI_UNSET_PAYMOB_ENV_KEYS` list stays
+ *    pinned to exactly the ten PAYMOB_* keys (tunnel keys excluded), so test
+ *    CI keeps the gateway inert and the tunnel channel unselectable.
  *
  * Pure unit tier — NO DB, NO server boot. Runs via the mandated runner:
  * `bun run test/scripts/run-test.ts backend/lib/env.test.ts`
@@ -34,6 +46,7 @@ import { join } from "node:path";
 import {
   getEnvironmentConfig,
   getNotificationFanoutTransport,
+  getPaymobConfig,
   getRedisUrl,
   getWebSocketAllowedOrigins,
   getWebSocketHost,
@@ -42,6 +55,7 @@ import {
   getWebSocketPort,
   resetEnvironmentCache,
 } from "@/backend/lib/env";
+import { TEST_CI_UNSET_PAYMOB_ENV_KEYS } from "@/backend/lib/test-ci-env";
 
 // ─── Env-manipulation fixture (restored after every case) ───────────────────
 
@@ -474,5 +488,401 @@ describe("security posture", () => {
     expect(source.includes("console.")).toBe(false);
     expect(source.includes("logDomainError")).toBe(false);
     expect(source.includes("@/backend/lib/logger")).toBe(false);
+  });
+});
+
+// ─── Paymob + ngrok fixture (restored after every case) ─────────────────────
+
+/** The dev-only tunnel keys — deliberately absent in test CI (see test-ci-env.ts). */
+const NGROK_ENV_KEYS = ["NGROK_AUTHTOKEN", "NGROK_DOMAIN", "NGROK_PORT"] as const;
+
+/** Every paymob/ngrok key the gateway seam registers. */
+const GATEWAY_ENV_KEYS = [...TEST_CI_UNSET_PAYMOB_ENV_KEYS, ...NGROK_ENV_KEYS];
+
+const originalGatewayEnv: Record<string, string | undefined> = {};
+for (const key of GATEWAY_ENV_KEYS) {
+  originalGatewayEnv[key] = process.env[key];
+}
+
+/** Removes every paymob/ngrok key — the deterministic base for default probes. */
+function clearGatewayEnv(): void {
+  for (const key of GATEWAY_ENV_KEYS) {
+    delete process.env[key];
+  }
+}
+
+function restoreGatewayEnv(): void {
+  for (const key of GATEWAY_ENV_KEYS) {
+    const value = originalGatewayEnv[key];
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+  resetEnvironmentCache();
+}
+
+/** The inert (all-keys-absent) provider configuration the seam must resolve. */
+const INERT_PAYMOB_CONFIG = {
+  secretKey: null,
+  publicKey: null,
+  hmacSecret: null,
+  apiKey: null,
+  integrationIdCard: null,
+  integrationIdWallet: null,
+  apiBaseUrl: "https://accept.paymob.com",
+  checkoutBaseUrl: "https://eg.checkout.paymob.com",
+  httpTimeoutMs: 10000,
+  reconcilePendingMinutes: 30,
+};
+
+/** One invalidation probe: a distinctive env value + how to observe it through the seam. */
+type GatewayKeyProbe = {
+  key: string;
+  value: string;
+  /** Value observed through the typed seam once `value` is set (differs from `value` for numeric members). */
+  observed?: unknown;
+  inert: unknown;
+  observe: () => unknown;
+};
+
+const GATEWAY_KEY_PROBES: readonly GatewayKeyProbe[] = [
+  { key: "PAYMOB_SECRET_KEY", value: "sk-probe-secret-1", inert: null, observe: () => getPaymobConfig().secretKey },
+  { key: "PAYMOB_PUBLIC_KEY", value: "pk-probe-public-1", inert: null, observe: () => getPaymobConfig().publicKey },
+  { key: "PAYMOB_HMAC_SECRET", value: "hmac-probe-secret-1", inert: null, observe: () => getPaymobConfig().hmacSecret },
+  { key: "PAYMOB_API_KEY", value: "api-probe-key-1", inert: null, observe: () => getPaymobConfig().apiKey },
+  {
+    key: "PAYMOB_INTEGRATION_ID_CARD",
+    value: "4567",
+    observed: 4567,
+    inert: null,
+    observe: () => getPaymobConfig().integrationIdCard,
+  },
+  {
+    key: "PAYMOB_INTEGRATION_ID_WALLET",
+    value: "7890",
+    observed: 7890,
+    inert: null,
+    observe: () => getPaymobConfig().integrationIdWallet,
+  },
+  {
+    key: "PAYMOB_API_BASE_URL",
+    value: "https://api.probe.example.test",
+    inert: "https://accept.paymob.com",
+    observe: () => getPaymobConfig().apiBaseUrl,
+  },
+  {
+    key: "PAYMOB_CHECKOUT_BASE_URL",
+    value: "https://checkout.probe.example.test/hosted/",
+    inert: "https://eg.checkout.paymob.com",
+    observe: () => getPaymobConfig().checkoutBaseUrl,
+  },
+  {
+    key: "PAYMOB_HTTP_TIMEOUT_MS",
+    value: "25000",
+    observed: 25000,
+    inert: 10000,
+    observe: () => getPaymobConfig().httpTimeoutMs,
+  },
+  {
+    key: "PAYMOB_RECONCILE_PENDING_MINUTES",
+    value: "45",
+    observed: 45,
+    inert: 30,
+    observe: () => getPaymobConfig().reconcilePendingMinutes,
+  },
+  {
+    key: "NGROK_AUTHTOKEN",
+    value: "ngrok-probe-token-1",
+    inert: null,
+    observe: () => getEnvironmentConfig().ngrok.authtoken,
+  },
+  {
+    key: "NGROK_DOMAIN",
+    value: "probe.ngrok.dev",
+    inert: null,
+    observe: () => getEnvironmentConfig().ngrok.domain,
+  },
+  {
+    key: "NGROK_PORT",
+    value: "4321",
+    observed: 4321,
+    inert: 3000,
+    observe: () => getEnvironmentConfig().ngrok.port,
+  },
+];
+
+// ─── Paymob + ngrok registry inclusion ──────────────────────────────────────
+
+describe("paymob/ngrok registry inclusion — every gateway key resolves through the env seam", () => {
+  beforeEach(() => {
+    clearGatewayEnv();
+    resetEnvironmentCache();
+  });
+  afterEach(restoreGatewayEnv);
+
+  test("every PAYMOB_*/NGROK_* key is observable through its typed config member", () => {
+    for (const probe of GATEWAY_KEY_PROBES) {
+      process.env[probe.key] = probe.value;
+      resetEnvironmentCache();
+      expect(probe.observe()).toBe(probe.observed ?? probe.value);
+    }
+  });
+
+  test("the cached snapshot carries the full paymob configuration object", () => {
+    const paymob = getEnvironmentConfig().paymob;
+    expect(Object.keys(paymob).toSorted((a, b) => a.localeCompare(b))).toEqual(
+      Object.keys(INERT_PAYMOB_CONFIG).toSorted((a, b) => a.localeCompare(b))
+    );
+    expect(typeof paymob.apiBaseUrl).toBe("string");
+    expect(typeof paymob.checkoutBaseUrl).toBe("string");
+    expect(typeof paymob.httpTimeoutMs).toBe("number");
+    expect(typeof paymob.reconcilePendingMinutes).toBe("number");
+  });
+
+  test("the cached snapshot carries the full ngrok configuration object", () => {
+    const ngrok = getEnvironmentConfig().ngrok;
+    expect(Object.keys(ngrok).toSorted((a, b) => a.localeCompare(b))).toEqual(["authtoken", "domain", "port"]);
+    expect(typeof ngrok.port).toBe("number");
+  });
+
+  test("TEST_CI_UNSET_PAYMOB_ENV_KEYS stays pinned to exactly the ten PAYMOB_* keys", () => {
+    const unsetKeys: string[] = [...TEST_CI_UNSET_PAYMOB_ENV_KEYS];
+    const paymobProbeKeys = GATEWAY_KEY_PROBES.map(probe => probe.key).filter(key => key.startsWith("PAYMOB_"));
+    expect(unsetKeys.toSorted((a, b) => a.localeCompare(b))).toEqual(
+      paymobProbeKeys.toSorted((a, b) => a.localeCompare(b))
+    );
+    expect(TEST_CI_UNSET_PAYMOB_ENV_KEYS.some(key => key.startsWith("NGROK_"))).toBe(false);
+  });
+});
+
+// ─── Paymob + ngrok invalidation coverage (resetEnvironmentCache) ────────────
+
+describe("paymob/ngrok invalidation coverage — resetEnvironmentCache re-reads every gateway key", () => {
+  beforeEach(() => {
+    clearGatewayEnv();
+    resetEnvironmentCache();
+  });
+  afterEach(restoreGatewayEnv);
+
+  for (const probe of GATEWAY_KEY_PROBES) {
+    test(`\`${probe.key}\` is stale until reset, re-read after reset, inert after removal`, () => {
+      expect(probe.observe()).toBe(probe.inert); // builds the cache from cleared env
+      process.env[probe.key] = probe.value;
+      expect(probe.observe()).toBe(probe.inert); // STALE — reads go through the cache
+      resetEnvironmentCache();
+      expect(probe.observe()).toBe(probe.observed ?? probe.value); // reset re-reads the key
+      delete process.env[probe.key];
+      resetEnvironmentCache();
+      expect(probe.observe()).toBe(probe.inert); // removal + reset → inert default returns
+    });
+  }
+});
+
+// ─── Paymob + ngrok typed dev/test defaults ─────────────────────────────────
+
+describe("paymob/ngrok typed defaults — every gateway key absent", () => {
+  beforeEach(() => {
+    clearGatewayEnv();
+    resetEnvironmentCache();
+  });
+  afterEach(restoreGatewayEnv);
+
+  test("the paymob config resolves to the fully inert snapshot", () => {
+    expect(getPaymobConfig()).toEqual(INERT_PAYMOB_CONFIG);
+  });
+
+  test("every nullable paymob member is null — never an empty string or a guessed number", () => {
+    const paymob = getPaymobConfig();
+    expect(paymob.secretKey).toBeNull();
+    expect(paymob.publicKey).toBeNull();
+    expect(paymob.hmacSecret).toBeNull();
+    expect(paymob.apiKey).toBeNull();
+    expect(paymob.integrationIdCard).toBeNull();
+    expect(paymob.integrationIdWallet).toBeNull();
+  });
+
+  test("the ngrok config resolves to the unconfigured tunnel posture", () => {
+    expect(getEnvironmentConfig().ngrok).toEqual({ authtoken: null, domain: null, port: 3000 });
+  });
+
+  test("the checkout base URL default is the current hosted-checkout host (full host prefix)", () => {
+    const checkoutBaseUrl = getPaymobConfig().checkoutBaseUrl;
+    expect(checkoutBaseUrl).toBe("https://eg.checkout.paymob.com");
+    expect(checkoutBaseUrl.startsWith("https://")).toBe(true);
+  });
+});
+
+// ─── Paymob + ngrok parsing boundaries ──────────────────────────────────────
+
+describe("paymob/ngrok parsing boundaries", () => {
+  beforeEach(() => {
+    clearGatewayEnv();
+    resetEnvironmentCache();
+  });
+  afterEach(restoreGatewayEnv);
+
+  test("integration IDs coerce canonical integer strings and reject everything else → null", () => {
+    process.env.PAYMOB_INTEGRATION_ID_CARD = "4567";
+    process.env.PAYMOB_INTEGRATION_ID_WALLET = "007";
+    resetEnvironmentCache();
+    expect(getPaymobConfig().integrationIdCard).toBe(4567);
+    expect(getPaymobConfig().integrationIdWallet).toBe(7);
+
+    const invalidValues = ["3.5", "abc", "", "   ", "12abc", "-5", "+7", "0x10"];
+    for (const invalid of invalidValues) {
+      process.env.PAYMOB_INTEGRATION_ID_CARD = invalid;
+      process.env.PAYMOB_INTEGRATION_ID_WALLET = invalid;
+      resetEnvironmentCache();
+      expect(getPaymobConfig().integrationIdCard).toBeNull();
+      expect(getPaymobConfig().integrationIdWallet).toBeNull();
+    }
+  });
+
+  test("empty-string credential values are rejected — secrets are never observable as empty strings", () => {
+    const credentialProbes: ReadonlyArray<{ key: string; observe: () => unknown }> = [
+      { key: "PAYMOB_SECRET_KEY", observe: () => getPaymobConfig().secretKey },
+      { key: "PAYMOB_PUBLIC_KEY", observe: () => getPaymobConfig().publicKey },
+      { key: "PAYMOB_HMAC_SECRET", observe: () => getPaymobConfig().hmacSecret },
+      { key: "PAYMOB_API_KEY", observe: () => getPaymobConfig().apiKey },
+    ];
+
+    for (const probe of credentialProbes) {
+      process.env[probe.key] = "";
+      resetEnvironmentCache();
+      expect(probe.observe()).toBeNull();
+    }
+
+    for (const probe of credentialProbes) {
+      process.env[probe.key] = "   ";
+      resetEnvironmentCache();
+      expect(probe.observe()).toBeNull();
+    }
+  });
+
+  test("credential values are returned trimmed", () => {
+    process.env.PAYMOB_SECRET_KEY = "  sk-trimmed-probe  ";
+    resetEnvironmentCache();
+    expect(getPaymobConfig().secretKey).toBe("sk-trimmed-probe");
+  });
+
+  test("HTTP timeout accepts positive integers, falls back to 10000 otherwise", () => {
+    process.env.PAYMOB_HTTP_TIMEOUT_MS = "1";
+    resetEnvironmentCache();
+    expect(getPaymobConfig().httpTimeoutMs).toBe(1);
+
+    const invalidValues = ["0", "-1", "2.5", "abc", "", "   ", "10ms"];
+    for (const invalid of invalidValues) {
+      process.env.PAYMOB_HTTP_TIMEOUT_MS = invalid;
+      resetEnvironmentCache();
+      expect(getPaymobConfig().httpTimeoutMs).toBe(10000);
+    }
+  });
+
+  test("reconcile window accepts positive integers, falls back to 30 otherwise", () => {
+    process.env.PAYMOB_RECONCILE_PENDING_MINUTES = "1";
+    resetEnvironmentCache();
+    expect(getPaymobConfig().reconcilePendingMinutes).toBe(1);
+
+    const invalidValues = ["0", "-2", "1.5", "abc", ""];
+    for (const invalid of invalidValues) {
+      process.env.PAYMOB_RECONCILE_PENDING_MINUTES = invalid;
+      resetEnvironmentCache();
+      expect(getPaymobConfig().reconcilePendingMinutes).toBe(30);
+    }
+  });
+
+  test("checkout base URL accepts a custom prefix verbatim (incl. the legacy unifiedcheckout fallback)", () => {
+    process.env.PAYMOB_CHECKOUT_BASE_URL = "https://accept.paymob.com/unifiedcheckout/";
+    resetEnvironmentCache();
+    expect(getPaymobConfig().checkoutBaseUrl).toBe("https://accept.paymob.com/unifiedcheckout/");
+
+    process.env.PAYMOB_CHECKOUT_BASE_URL = "  https://checkout.custom.example.test/hosted/  ";
+    resetEnvironmentCache();
+    expect(getPaymobConfig().checkoutBaseUrl).toBe("https://checkout.custom.example.test/hosted/");
+  });
+
+  test("checkout base URL whitespace-only counts as unset → default", () => {
+    process.env.PAYMOB_CHECKOUT_BASE_URL = "   ";
+    resetEnvironmentCache();
+    expect(getPaymobConfig().checkoutBaseUrl).toBe("https://eg.checkout.paymob.com");
+  });
+
+  test("API base URL accepts a custom host verbatim; whitespace-only falls back to the default", () => {
+    process.env.PAYMOB_API_BASE_URL = "  https://api.custom.example.test  ";
+    resetEnvironmentCache();
+    expect(getPaymobConfig().apiBaseUrl).toBe("https://api.custom.example.test");
+
+    process.env.PAYMOB_API_BASE_URL = "   ";
+    resetEnvironmentCache();
+    expect(getPaymobConfig().apiBaseUrl).toBe("https://accept.paymob.com");
+  });
+
+  test("ngrok port accepts 0 (probe-style) and the 65535 upper bound", () => {
+    process.env.NGROK_PORT = "0";
+    resetEnvironmentCache();
+    expect(getEnvironmentConfig().ngrok.port).toBe(0);
+
+    process.env.NGROK_PORT = "65535";
+    resetEnvironmentCache();
+    expect(getEnvironmentConfig().ngrok.port).toBe(65535);
+  });
+
+  test("ngrok port rejects malformed/out-of-range values → default 3000", () => {
+    const invalidValues = ["-1", "65536", "abc", "3.5", "", "   ", "3001abc", "0x10"];
+    for (const invalid of invalidValues) {
+      process.env.NGROK_PORT = invalid;
+      resetEnvironmentCache();
+      expect(getEnvironmentConfig().ngrok.port).toBe(3000);
+    }
+  });
+
+  test("tunnel eligibility needs BOTH members — a domain without an authtoken stays ineligible", () => {
+    process.env.NGROK_DOMAIN = "only-domain.ngrok.dev";
+    resetEnvironmentCache();
+    expect(getEnvironmentConfig().ngrok.domain).toBe("only-domain.ngrok.dev");
+    expect(getEnvironmentConfig().ngrok.authtoken).toBeNull();
+  });
+});
+
+// ─── Paymob + ngrok security posture ────────────────────────────────────────
+
+describe("paymob/ngrok security posture", () => {
+  beforeEach(() => {
+    clearGatewayEnv();
+    resetEnvironmentCache();
+  });
+  afterEach(restoreGatewayEnv);
+
+  test("secret material is exposed ONLY through the paymob members — never the sibling surfaces", () => {
+    const marker = "sk-do-not-leak-marker";
+    process.env.PAYMOB_SECRET_KEY = marker;
+    resetEnvironmentCache();
+
+    // The provider seam carries it by design…
+    expect(getPaymobConfig().secretKey).toBe(marker);
+
+    // …but the realtime and tunnel surfaces carry no trace of it.
+    const siblingSurface = JSON.stringify({
+      port: getWebSocketPort(),
+      host: getWebSocketHost(),
+      allowedOrigins: getWebSocketAllowedOrigins(),
+      transport: getNotificationFanoutTransport(),
+      maxConnections: getWebSocketMaxConnections(),
+      maxConnectionsPerUser: getWebSocketMaxConnectionsPerUser(),
+      redisUrl: getRedisUrl(),
+      ngrok: getEnvironmentConfig().ngrok,
+    });
+    expect(siblingSurface.includes(marker)).toBe(false);
+  });
+
+  test("the test-CI unset-key list is frozen — callers cannot add tunnel keys to it", () => {
+    expect(Object.isFrozen(TEST_CI_UNSET_PAYMOB_ENV_KEYS)).toBe(true);
+    expect(Reflect.set(TEST_CI_UNSET_PAYMOB_ENV_KEYS, TEST_CI_UNSET_PAYMOB_ENV_KEYS.length, "NGROK_AUTHTOKEN")).toBe(
+      false
+    );
+    const outsider: string = "NGROK_AUTHTOKEN";
+    expect(TEST_CI_UNSET_PAYMOB_ENV_KEYS.some(key => key === outsider)).toBe(false);
   });
 });

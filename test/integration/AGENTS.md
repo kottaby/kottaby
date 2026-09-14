@@ -9,8 +9,15 @@ Live **provider smokes** only — one real API round-trip per external service t
 | Database providers | `db/*.integration.test.ts` | Neon HTTP |
 | Cache / Redis providers | `redis/*.integration.test.ts` | Upstash, Redis Cloud, local Redis |
 | Meeting adapters | `meeting/*.integration.test.ts` | Zoom, Google Meet, Microsoft Teams |
+| Payment gateway | `paymob/*.integration.test.ts` | Paymob sandbox (`PAYMOB_LIVE_TESTS=1`) |
 
 **Naming:** `*.integration.test.ts` only. One `describe` block per provider adapter, **one `test` per file** (single API call — avoids quota / rate limits).
+
+**Live opt-in gates:** suites that hit a paid/vendored provider gate on an explicit opt-in env
+flag AND resolvable credentials, and skip cleanly otherwise — e.g. the Paymob smokes gate on
+`PAYMOB_LIVE_TESTS=1` plus the canonical `PAYMOB_*` keys (via `@/test/helpers/paymob-live-env`),
+so a plain `bun run test` / `test:integration` run never spends provider quota even on machines
+whose env files carry real sandbox credentials.
 
 ## What does NOT belong here
 
@@ -87,6 +94,7 @@ test/integration/
   db/                         # Neon HTTP, etc.
   redis/                      # Redis fan-out transport smoke (local REDIS_URL / Redis Cloud / Upstash)
   meeting/                    # Meeting provider smokes (Zoom, Google Meet, Microsoft Teams)
+  paymob/                     # Paymob sandbox smokes (PAYMOB_LIVE_TESTS=1; shared live-suite harness in helpers/)
 ```
 
 ## Adding a new provider smoke

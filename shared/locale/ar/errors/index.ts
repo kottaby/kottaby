@@ -37,6 +37,8 @@ export const errorsAr: ErrorsLabels = {
     idempotencyKeyRequired: "مفتاح منع تكرار الطلب مفقود. يرجى إعادة المحاولة.",
     paymentReferenceConflict: "هذه الدفعة مرتبطة بالفعل باشتراك آخر. يرجى بدء دفعة جديدة.",
     paymentAmountMismatch: "لم يتطابق مبلغ الدفعة مع سعر الخطة، لذلك لم تُطبَّق الدفعة.",
+    planPriceShapeInvalid: "يجب أن يكون سعر الخطة مبلغاً غير سالب بحد أقصى خانتين عشريتين.",
+    planPriceOutOfRange: "يتجاوز سعر الخطة النطاق المدعوم للمبلغ.",
   },
   applicantNotFound: "لم يتم العثور على طلب التقديم كمعلم قرآن.",
   applicantCooldownActive: "يمكنك إعادة التقديم للتحقق كمعلم قرآن بعد {cooldownUntil}.",

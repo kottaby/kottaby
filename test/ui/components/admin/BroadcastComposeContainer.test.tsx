@@ -21,10 +21,11 @@
  *   after success · double-click protection (one captured mutation per send,
  *   disabled-while-sending).
  *
- * The compose-session idempotency key is observed at the LINK tier: a
- * capturing `ApolloLink` wraps the `MockLink` and records the
- * `x-idempotency-key` context header each mutation operation carries — the
- * same context the real authLink merges into the outgoing HTTP headers.
+ * The compose-session idempotency key is observed at the LINK tier: the
+ * shared `renderWithKeyCapture` scaffold wraps the `MockLink` with a
+ * capturing `ApolloLink` and reports the `x-idempotency-key` context header
+ * each mutation operation carries — the same context the real authLink
+ * merges into the outgoing HTTP headers.
  *
  * Runs via the mandated runner:
  * `bun run test/scripts/run-test.ts test/ui/components/admin/BroadcastComposeContainer.test.tsx`
@@ -49,12 +50,10 @@ await import("@/test/ui/components/next-dynamic-mock");
 // ─── Post-DOM module wiring (top-level await — LOAD ORDERING CONTRACT) ───────
 
 const { cleanup, fireEvent, screen, waitFor } = await import("@testing-library/react");
-const { renderWithWrapper } = await import("@/test/ui/components/TestWrapper");
+const { renderWithKeyCapture } = await import("@/test/ui/components/helpers");
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { ApolloLink } from "@apollo/client";
-import { MockLink } from "@apollo/client/testing";
-import { MockedProvider } from "@apollo/client/testing/react";
+import type { MockLink } from "@apollo/client/testing";
 import type { RenderResult } from "@testing-library/react";
 import {
   type AdminPlansQuery,
@@ -178,31 +177,17 @@ function validationMock(variables: SendVariables): MockLink.MockedResponse {
 
 // ─── Link-tier compose-key capture ──────────────────────────────────────────
 
-/** Assertion-free read of the mutation's `x-idempotency-key` context header. */
-function contextIdempotencyKey(operation: ApolloLink.Operation): string | null {
-  const headers: unknown = operation.getContext().headers;
-  if (typeof headers !== "object" || headers === null) {
-    return null;
-  }
-  const value = Object.entries(headers).find(([key]) => key === "x-idempotency-key")?.[1];
-  return typeof value === "string" ? value : null;
-}
-
-/** Renders the container under MockedProvider behind a key-capturing link. */
+/**
+ * Renders the container under MockedProvider behind a key-capturing link —
+ * the shared `renderWithKeyCapture` scaffold (extracted so every mutating
+ * suite consumes the capture wiring once).
+ */
 function renderCompose(
   mocks: ReadonlyArray<MockLink.MockedResponse>,
   options: { readonly locale?: AppLocale; readonly onMutationSent?: (key: string | null) => void } = {}
 ): RenderResult {
-  const capture = new ApolloLink((operation, forward) => {
-    options.onMutationSent?.(contextIdempotencyKey(operation));
-    return forward(operation);
-  });
-  const link = ApolloLink.from([capture, new MockLink([...mocks])]);
-  return renderWithWrapper(
-    <MockedProvider link={link}>
-      <BroadcastComposeContainer />
-    </MockedProvider>,
-    { locale: options.locale ?? "en" }
+  return renderWithKeyCapture(<BroadcastComposeContainer />, mocks, options.locale ?? "en", key =>
+    options.onMutationSent?.(key)
   );
 }
 

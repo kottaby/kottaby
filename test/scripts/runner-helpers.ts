@@ -50,3 +50,29 @@ export function renderProgressBar(current: number, total: number, width = 16): s
   const bar = "█".repeat(filled) + "░".repeat(empty);
   return `\x1b[36m[${bar}]\x1b[0m \x1b[1m${percent}%\x1b[0m \x1b[90m(${current}/${total} files)\x1b[0m`;
 }
+
+/**
+ * Payment/tunnel keys whose DEV `.env` values must never reach a spawned
+ * test process. The parent `bun run` auto-loads the cwd `.env` into
+ * `process.env`, and dotenv precedence puts an inherited var ABOVE
+ * `--env-file=.env.test` — which does not define these keys — so without
+ * this strip every spawned test silently resolves the DEV payment
+ * provider/webhook state instead of the test defaults (mock gateway,
+ * webhooks off). Deleted BEFORE the env-file values merge in, so a future
+ * `.env.test` definition still wins. The Paymob live suites are unaffected:
+ * they opt in explicitly via `process.env` inside `beforeAll` (after spawn),
+ * and their credentials travel through `--env-file=.env.test`.
+ */
+const DEV_LEAKED_ENV_KEYS = ["PAYMENT_GATEWAY_PROVIDER", "PAYMENT_WEBHOOK_ENABLED"] as const;
+
+/**
+ * Deletes every {@link DEV_LEAKED_ENV_KEYS} member from an env record built
+ * off `process.env`. Mutates the record in place — call it as the LAST step
+ * before spawning, after both env sources (parent env + test env file) have
+ * merged.
+ */
+export function stripDevLeakedEnvKeys(env: Record<string, string | undefined>): void {
+  for (const key of DEV_LEAKED_ENV_KEYS) {
+    delete env[key];
+  }
+}

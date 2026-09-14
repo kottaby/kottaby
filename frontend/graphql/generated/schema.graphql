@@ -1322,6 +1322,11 @@ type StudentSubscription {
   """Timestamp the payment was verified, or null while unverified."""
   paymentVerifiedAt: String
 
+  """
+  The catalog plan this subscription grants (the resolved row always exists — restrict FK).
+  """
+  plan: Plan!
+
   """ID of the catalog plan this subscription grants."""
   planId: Int!
 

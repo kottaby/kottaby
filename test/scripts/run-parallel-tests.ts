@@ -6,7 +6,12 @@ import { availableParallelism } from "node:os";
 import { Glob, type Subprocess } from "bun";
 import { isTestCi } from "@/backend/lib/test-ci-env";
 import { loadTestEnvFile, TEST_ENV_FILE, withProcessLock } from "@/scripts/lib";
-import { deduplicateLines, renderProgressBar, stripAnsiCodes } from "@/test/scripts/runner-helpers";
+import {
+  deduplicateLines,
+  renderProgressBar,
+  stripAnsiCodes,
+  stripDevLeakedEnvKeys,
+} from "@/test/scripts/runner-helpers";
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const TUI_REFRESH_INTERVAL_MS = 200;
@@ -278,6 +283,10 @@ async function runSingleTestFile(
       // file (dotenv precedence), so this pin is authoritative.
       workerEnv.DATABASE_URL = loadTestEnvFile().DATABASE_URL;
     }
+    // The DEV `.env` leak strip (see `DEV_LEAKED_ENV_KEYS` in run-test.ts):
+    // the parent `bun run` auto-loads the dev payment provider/webhook state,
+    // which would otherwise silently resolve every worker's gateway.
+    stripDevLeakedEnvKeys(workerEnv);
 
     const bunArgs = ["bun", `--env-file=${TEST_ENV_FILE}`, "test", file, `--timeout=${timeoutMs}`];
     if (coverage) {

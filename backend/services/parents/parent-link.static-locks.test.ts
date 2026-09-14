@@ -194,6 +194,10 @@ const FRONTEND_NEW_FILES: readonly (readonly [string, string])[] = [
 /** The new/modified backend files outside the parents module trees. */
 const BACKEND_NEW_FILES: readonly (readonly [string, string])[] = [
   ["backend/db/repo/students/student.repository.ts", "backend/db/repo/students/student.repository.ts"],
+  [
+    "backend/db/repo/students/student.repository.directory.helpers.ts",
+    "backend/db/repo/students/student.repository.directory.helpers.ts",
+  ],
   ["backend/services/index.ts", "backend/services/index.ts"],
   ["backend/graphql/mutation/index.ts", "backend/graphql/mutation/index.ts"],
   ["backend/graphql/query/index.ts", "backend/graphql/query/index.ts"],
@@ -380,15 +384,17 @@ function countLikeMatches(content: string): number {
 
 /**
  * The one sanctioned LIKE-carrying file in the new/modified backend corpus:
- * the students repository binds the ADMIN STUDENTS-DIRECTORY search
- * (name/email `ilike` pair). The pattern arrives FULLY escaped and
+ * the students repository's DIRECTORY HELPER binds the ADMIN
+ * STUDENTS-DIRECTORY search (name/email `ilike` pair) — the search moved
+ * here from `student.repository.ts` when the repository was split into
+ * per-lane helper modules. The pattern arrives FULLY escaped and
  * %-wrapped from the service layer (`escapeLikeWildcards` — one canonical
  * escape point upstream, one binding point here), so the usage is safe;
  * the count pin keeps the sanctioned set visible — a FOURTH match (or the
  * removal of the sanctioned pair) fails the lock and forces a PR-note
  * review, exactly like the lock-(a) parent_id writer allowlist.
  */
-const SANCTIONED_LIKE_FILE = "backend/db/repo/students/student.repository.ts";
+const SANCTIONED_LIKE_FILE = "backend/db/repo/students/student.repository.directory.helpers.ts";
 const SANCTIONED_STUDENT_REPO_LIKE_MATCHES = 3; // 2 ilike() bindings + 1 docblock mention (lexical caveat)
 
 // ─── Lock (c) — zero-audit scanners ──────────────────────────────────────────

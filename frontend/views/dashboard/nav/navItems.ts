@@ -105,10 +105,12 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  *  - Parent Children → `/parent/children` (a RETARGET of the former
  *    shared `/children` catch-all link; the parent portal root ships
  *    at the role-scoped route)
- *    RETARGET of the former shared `/sessions` catch-all link; the
- *    student item points at the shared `STUDENT_SESSIONS_ROUTE`
- *    constant so the nav and the session-completion notification
- *    deep-link never drift)
+ *  - Student Sessions → the shared `STUDENT_SESSIONS_ROUTE` constant
+ *    (the nav and the session-completion notification deep-link never
+ *    drift)
+ *  - Student Plans → `/student/plans` (a pure ADD to the student list:
+ *    the student-guarded catalog page ships at the route; the `plans`
+ *    label key is shared with the admin entry — both `DashboardLabels`-owned)
  *  - Admin Users → `/admin/users` (the directory page exists)
  *  - Admin Plans → `/admin/plans`
  *  - Admin Broadcasts → `/admin/broadcasts` (a pure ADD, not a
@@ -127,6 +129,9 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
     // Same single-sourced constant as the session-completion notification
     // deep link (the surface where the Rate action lives).
     { route: STUDENT_SESSIONS_ROUTE, labelKey: "sessions", Icon: SessionsIcon },
+    // Targets the student-guarded plan catalog at
+    // `app/(dashboard)/student/plans/page.tsx` — browse + purchase CTA.
+    { route: "/student/plans", labelKey: "plans", Icon: PlansIcon },
     { route: "/subscriptions", labelKey: "subscriptions", Icon: SubscriptionsIcon },
     { route: "/homework", labelKey: "homework", Icon: HomeworkIcon },
     { route: STUDENT_LINK_REQUESTS_ROUTE, labelKey: "linkRequests", Icon: LinkChildIcon },
