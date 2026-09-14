@@ -9,7 +9,7 @@ import {
 } from "@mui/icons-material";
 import { Alert, Box, Button, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { StatusShell } from "@/frontend/views/teachers/dashboard/ApplicantStatusShell";
+import { PromptPanel, StatusShell } from "@/frontend/views/teachers/dashboard/ApplicantStatusShell";
 import { Applicant, useAppTranslation } from "@/shared/locale";
 import type { ApplicantLabels } from "@/shared/locale/types/applicant";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
@@ -17,18 +17,31 @@ import type { ErrorsLabels } from "@/shared/locale/types/errors";
 /** Shared CTA metrics — comfortable ≥44px touch target. */
 const reapplyButtonSx = { minHeight: 44, px: 3 } as const;
 
-/**
- * Re-apply click intent — INTENTIONAL no-op placeholder. The verification
- * purchase route does not exist yet; until it ships, clicking must not
- * navigate anywhere or claim an action the product cannot perform yet.
- */
-function handleReapplyIntent(): void {
-  // No navigation, no state change — affordance only (purchase route pending).
-}
-
 // ----------------------------------------------------------------------------
 // Zone compositions + branch sub-components
 // ----------------------------------------------------------------------------
+
+interface PendingZoneProps {
+  readonly promptText: string;
+  readonly purchaseLabel: string;
+  /** Opens the verification-purchase confirmation dialog. */
+  readonly onPurchaseIntent: () => void;
+}
+
+/**
+ * Pending body (branch 5): the awaiting-purchase prompt panel plus the
+ * ENABLED purchase CTA that opens the verification-purchase dialog.
+ */
+export function PendingZone({ promptText, purchaseLabel, onPurchaseIntent }: Readonly<PendingZoneProps>): ReactNode {
+  return (
+    <Stack spacing={2} sx={{ alignItems: "flex-start" }}>
+      <PromptPanel>{promptText}</PromptPanel>
+      <Button variant="contained" startIcon={<LockIcon />} onClick={onPurchaseIntent} sx={{ ...reapplyButtonSx }}>
+        {purchaseLabel}
+      </Button>
+    </Stack>
+  );
+}
 
 interface CooldownZoneProps {
   /** `cooldownExpiryLine` already expanded with the formatted instant. */
@@ -70,18 +83,19 @@ export function CooldownZone({ expiryText, reapplyLabel }: Readonly<CooldownZone
 interface EligibleZoneProps {
   readonly eligibleText: string;
   readonly reapplyLabel: string;
+  /** Opens the verification-purchase confirmation dialog. */
+  readonly onPurchaseIntent: () => void;
 }
 
 /**
  * Failed + eligible body (branch 8): success-tinted explanatory copy plus
- * the ENABLED re-apply CTA whose click stays a documented intentional no-op
- * until the purchase surface ships.
+ * the ENABLED re-apply CTA that opens the verification-purchase dialog.
  */
-export function EligibleZone({ eligibleText, reapplyLabel }: Readonly<EligibleZoneProps>): ReactNode {
+export function EligibleZone({ eligibleText, reapplyLabel, onPurchaseIntent }: Readonly<EligibleZoneProps>): ReactNode {
   return (
     <Stack spacing={2} sx={{ alignItems: "flex-start" }}>
       <PromptPanel icon={<CheckCircleIcon fontSize="small" />}>{eligibleText}</PromptPanel>
-      <Button variant="contained" startIcon={<ReapplyIcon />} onClick={handleReapplyIntent} sx={{ ...reapplyButtonSx }}>
+      <Button variant="contained" startIcon={<ReapplyIcon />} onClick={onPurchaseIntent} sx={{ ...reapplyButtonSx }}>
         {reapplyLabel}
       </Button>
     </Stack>
@@ -121,50 +135,6 @@ export function CorruptStatusNotice({ te }: { readonly te: ErrorsLabels }): Reac
     <Alert severity="error" variant="outlined">
       {te.applicantStatusCorrupt}
     </Alert>
-  );
-}
-
-interface PanelProps {
-  readonly children: ReactNode;
-  readonly icon?: ReactNode;
-}
-
-/** Tinted body panel echoing the prototypes' inner copy bubble. */
-export function PromptPanel({ children, icon }: Readonly<PanelProps>): ReactNode {
-  return (
-    <Box
-      sx={theme => ({
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 1.5,
-        p: 2,
-        borderRadius: 2,
-        bgcolor: theme.palette.primaryContainer,
-        color: theme.palette.onPrimaryContainer,
-      })}
-    >
-      {icon}
-      <Typography variant="body2">{children}</Typography>
-    </Box>
-  );
-}
-
-interface AttemptsRowProps {
-  readonly attemptCountLabel: string;
-  readonly attempts: number;
-}
-
-/** Verification-attempts counter — label/value pair mirrored by flex wrap. */
-export function AttemptsRow({ attemptCountLabel, attempts }: Readonly<AttemptsRowProps>): ReactNode {
-  return (
-    <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 1 }}>
-      <Typography variant="overline" sx={theme => ({ color: theme.palette.text.secondary })}>
-        {attemptCountLabel}
-      </Typography>
-      <Typography variant="h6" sx={{ fontWeight: 700 }}>
-        {attempts}
-      </Typography>
-    </Box>
   );
 }
 
