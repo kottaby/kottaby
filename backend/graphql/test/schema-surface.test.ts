@@ -61,6 +61,13 @@
  *    `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }`
  *    conjunction verbatim (the `$all` is what makes the scope combine with
  *    AND semantics — a plain scope map would silently degrade to ANY).
+ *  - **admin financial-auditing surface pins** — the three new
+ *    financial-auditing queries and the three mutations carry the
+ *    `$all` conjunction and sit at their lexicographic sorted positions
+ *    (`approveWithdrawal` < `adjustTeacherWallet` < `rejectWithdrawal` on
+ *    the mutation root; `adminPendingWithdrawals` < `adminStudentPayments`
+ *    < `adminTeacherWallet` on the query root); the adjustment-direction
+ *    enum exposes exactly the `Credit`/`Debit` wire vocabulary.
  *  - **Allowlist agreement** — the scopeless `_health` field is present in
  *    the closed `PUBLIC_OPERATION_NAMES` tuple / `PUBLIC_OPERATIONS` set
  *    1:1 (schema↔allowlist agreement enforced as code).
@@ -134,17 +141,6 @@
  *    parent-link surfaces that shipped on the live roots without inventory
  *    entries are re-anchored here as a documented one-time reconciliation
  *    (additions only — no historical pin altered).
- *  - **parent-monitoring portal surface** — the five read-only
- *    parent-scoped root queries (`myLinkedChildren`,
- *    `parentChildProgress`, `parentChildSessions`, `parentChildReports`,
- *    `parentChildHomework`) and the ten named types backing the
- *    projection set are pinned by name and by exact arg / field shapes.
- *    The portal exposes ZERO new mutations (read-only by construction,
- *    not by vigilance) — the zero-mutation lock pins that invariant at
- *    the SDL surface by asserting the Mutation root carries no
- *    portal-named field. The participant-only `sessionReport` /
- *    `sessionHomework` reads stay byte-unchanged (their SDL snippets
- *    are pinned verbatim against the frozen pre-portal baseline).
  *
  * Pure unit tier — NO server boot, NO network, NO DB. Runs via the mandated
  * runner: `bun run test/scripts/run-test.ts backend/graphql/test/schema-surface.test.ts`.
@@ -450,46 +446,33 @@ const RECITATION_RECORD_QUERY_FIELDS = ["sessionRecitation"] as const;
 const RECITATION_RECORD_TYPE_NAMES = ["SessionRecitation", "SessionRecitationInput"] as const;
 
 /**
- * Parent-monitoring portal root queries — five read-only parent-scoped
- * reads. The zero-arg `myLinkedChildren` returns the caller's confirmed-
- * linked children; the four per-student paginated reads each take a
- * required `studentId: Int!` plus optional `page` / `pageSize`. Every
- * field carries the explicit
- * `authScopes: { $all: { authenticated: true, role: [UserRole.Parent] } }`
- * conjunction (anonymous → 401, authenticated non-parent → 403).
+ * Admin financial-auditing surface — the sanctioned addition. Three
+ * admin-only queries (payments audit listing, wallet inspector,
+ * pending-withdrawal queue) and three admin-only mutations (approve /
+ * reject withdrawal, manual wallet adjustment), each carrying the
+ * `authScopes: { $all: { authenticated: true, role: [UserRole.Admin] } }`
+ * conjunction (`adminOnlyAuthScopes` from `backend/graphql/shared`).
  */
-const PARENT_PORTAL_QUERY_FIELDS = [
-  "myLinkedChildren",
-  "parentChildHomework",
-  "parentChildProgress",
-  "parentChildReports",
-  "parentChildSessions",
-] as const;
+const ADMIN_FINANCE_QUERY_FIELDS = ["adminPendingWithdrawals", "adminStudentPayments", "adminTeacherWallet"] as const;
+const ADMIN_FINANCE_MUTATION_FIELDS = ["adjustTeacherWallet", "approveWithdrawal", "rejectWithdrawal"] as const;
+/** The adjustment-direction vocabulary — registered ONCE, no pgEnum backing. */
+const ADMIN_FINANCE_ENUMS = ["WalletAdjustmentDirection"] as const;
 /**
- * Parent-monitoring portal named types — ten GraphQL object types
- * backing the read projection set. The four entity-shaped objects
- * (`ParentLinkedChild`, `ParentAttendanceEntry`, `ParentReportEntry`,
- * `ParentHomeworkEntry`) carry `id: ID!` for Apollo cache
- * normalization; the three page wrappers (`ParentAttendancePage`,
- * `ParentReportPage`, `ParentHomeworkPage`) expose the honest
- * `items` + `totalCount` + `page` + `pageSize` echo; the three
- * composite value objects (`ParentHomeworkTrack`,
- * `ParentHomeworkPosition`, `ParentChildProgress`) carry no row id
- * and expose their structural fields directly. NO new enum, NO new
- * input type — the portal reuses the once-registered
- * `SessionStatus` / `SurahJuzRef` Pothos enums.
+ * Named-type surface — the two row objects (`AdminStudentPayment` in
+ * `pothos/billing/`, `AdminWithdrawalQueueRow` next to its domain), the
+ * three page/wrapper envelopes, and the three closed input whitelists.
+ * The canonical `TeacherTransaction` object is REUSED for the mutation
+ * payloads and the wallet ledger rows (single canonical object rule).
  */
-const PARENT_PORTAL_TYPE_NAMES = [
-  "ParentAttendanceEntry",
-  "ParentAttendancePage",
-  "ParentChildProgress",
-  "ParentHomeworkEntry",
-  "ParentHomeworkPage",
-  "ParentHomeworkPosition",
-  "ParentHomeworkTrack",
-  "ParentLinkedChild",
-  "ParentReportEntry",
-  "ParentReportPage",
+const ADMIN_FINANCE_TYPE_NAMES = [
+  "AdminStudentPayment",
+  "AdminStudentPaymentPage",
+  "AdminStudentPaymentsFilterInput",
+  "AdminTeacherWallet",
+  "AdminWalletTransactionFilterInput",
+  "AdminWithdrawalQueuePage",
+  "AdminWithdrawalQueueRow",
+  "AdjustTeacherWalletInput",
 ] as const;
 
 /**
@@ -646,24 +629,6 @@ function mutationField(name: string): GraphQLField<unknown, unknown> {
   return field;
 }
 
-/**
- * Fail-fast root Query field lookup — shared by the parent-monitoring
- * portal describe block below (and available to any future describe that
- * needs a one-shot root query field dereference without re-declaring a
- * closure-scoped twin).
- */
-function rootQueryField(name: string): GraphQLField<unknown, unknown> {
-  const queryType = graphQLSchema.getQueryType();
-  if (!queryType) {
-    throw new Error("Schema must define a root Query type");
-  }
-  const field = queryType.getFields()[name];
-  if (!field) {
-    throw new Error(`Query must register the \`${name}\` root field`);
-  }
-  return field;
-}
-
 describe("Query._health — retyped probe surface", () => {
   const queryType = graphQLSchema.getQueryType();
 
@@ -687,11 +652,12 @@ describe("Query._health — retyped probe surface", () => {
     // mutation pair), the whole-platform analytics snapshot, the
     // session-report read pair, the admin session-governance pair
     // (4.4 reconcile), the subscription-purchase owner listing
-    // (`mySubscriptions`), and the RECONCILED admin audit listing +
+    // (`mySubscriptions`), the RECONCILED admin audit listing +
     // parent-link read pair + R1–R3 admin directory trio (shipped but never
-    // pinned — re-anchored alongside the R4 statusCounts aggregate) + the
+    // pinned — re-anchored alongside the R4 statusCounts aggregate), the
     // R5 admin directory export trio (the sanctioned export-all read
-    // surface).
+    // surface), and the admin financial-auditing read trio
+    // (payments audit listing, wallet inspector, pending-withdrawal queue).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
       [
@@ -711,7 +677,7 @@ describe("Query._health — retyped probe surface", () => {
         ...RECONCILED_PARENT_LINK_QUERY_FIELDS,
         ...RECONCILED_ADMIN_AUDIT_QUERY_FIELDS,
         ...RECITATION_RECORD_QUERY_FIELDS,
-        ...PARENT_PORTAL_QUERY_FIELDS,
+        ...ADMIN_FINANCE_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -773,7 +739,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set grows ONLY by the sanctioned additions (quartet + dispute pair + confirm + payout + admin-user trio + admin-governance pair + session-governance quartet + session-report write + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair + the session-recitation write)", () => {
+  test("mutation set grows ONLY by the sanctioned additions (quartet + dispute pair + confirm + payout + admin-user trio + admin-governance pair + session-governance quartet + session-report write + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair + the session-recitation write + the financial-auditing trio)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
@@ -791,9 +757,11 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     // session-report write, the subscription purchase write, the
     // RECONCILED parent-link trio + admin broadcast/certify pair (shipped
     // but never pinned — re-anchored alongside the R4 statusCounts
-    // aggregate), and the session-recitation write
-    // (`setSessionRecitation`). All authScopes-gated — none is allowlist
-    // material; the public-operation registry stays byte-unchanged.
+    // aggregate), the session-recitation write
+    // (`setSessionRecitation`), and the admin financial-auditing trio
+    // (`approveWithdrawal` / `rejectWithdrawal` / `adjustTeacherWallet`).
+    // All authScopes-gated — none is allowlist material; the
+    // public-operation registry stays byte-unchanged.
     expect(names).toEqual(
       [
         ...PRE_3_1_MUTATION_FIELDS,
@@ -809,6 +777,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...RECONCILED_PARENT_LINK_MUTATION_FIELDS,
         ...RECONCILED_ADMIN_BROADCAST_CERTIFY_MUTATION_FIELDS,
         ...RECITATION_RECORD_MUTATION_FIELDS,
+        ...ADMIN_FINANCE_MUTATION_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
     expect(names).not.toContain("_health");
@@ -866,7 +835,8 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     // enum is the sanctioned addition; the subscription-purchase
     // settlement quartet (`PaymentGateway`, `PaymentStatus`,
     // `SubscriptionCreditLane`, `SubscriptionStatus`) is the
-    // sanctioned addition.
+    // sanctioned addition; the `WalletAdjustmentDirection`
+    // financial-auditing vocabulary is the sanctioned addition.
     expect(enumNames).toEqual(
       [
         ...PRE_3_1_ENUMS,
@@ -877,6 +847,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...ADMIN_USER_ENUMS,
         ...SUBSCRIPTION_PURCHASE_ENUMS,
         ...RECONCILED_ENUMS,
+        ...ADMIN_FINANCE_ENUMS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -961,7 +932,8 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...R4R_ADMIN_DIRECTORY_TYPE_NAMES,
         ...R5_ADMIN_EXPORT_TYPE_NAMES,
         ...RECITATION_RECORD_TYPE_NAMES,
-        ...PARENT_PORTAL_TYPE_NAMES,
+        ...ADMIN_FINANCE_TYPE_NAMES,
+        ...ADMIN_FINANCE_ENUMS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -1494,6 +1466,181 @@ describe("admin-governance mutations — exact arg shapes + `$all` scope pins", 
   });
 });
 
+describe("admin financial-auditing surface — exact arg shapes + `$all` scope pins + enum vocabulary", () => {
+  const queryType = graphQLSchema.getQueryType();
+
+  if (!queryType) {
+    throw new Error("Schema must define a root Query type");
+  }
+
+  /** Fail-fast query field lookup (mirrors the notification describe's helper). */
+  function adminQueryField(name: string): GraphQLField<unknown, unknown> {
+    const fields = queryType?.getFields();
+    const field = fields?.[name];
+    if (!field) {
+      throw new Error(`Query must register the \`${name}\` root field`);
+    }
+    return field;
+  }
+
+  test("`adminStudentPayments` returns AdminStudentPaymentPage! with the filter + pagination args", () => {
+    const field = adminQueryField("adminStudentPayments");
+    expect(field.type.toString()).toBe("AdminStudentPaymentPage!");
+    const argsByName = new Map(field.args.map(arg => [arg.name, arg.type.toString()]));
+    expect(argsByName.get("filters")).toBe("AdminStudentPaymentsFilterInput");
+    expect(argsByName.get("page")).toBe("Int");
+    expect(argsByName.get("pageSize")).toBe("Int");
+    expect(field.args).toHaveLength(3);
+  });
+
+  test("`adminTeacherWallet` returns AdminTeacherWallet! with the required teacherId arg", () => {
+    const field = adminQueryField("adminTeacherWallet");
+    expect(field.type.toString()).toBe("AdminTeacherWallet!");
+    const argsByName = new Map(field.args.map(arg => [arg.name, arg.type.toString()]));
+    expect(argsByName.get("teacherId")).toBe("ID!");
+    expect(argsByName.get("filters")).toBe("AdminWalletTransactionFilterInput");
+    expect(argsByName.get("page")).toBe("Int");
+    expect(argsByName.get("pageSize")).toBe("Int");
+    expect(field.args).toHaveLength(4);
+  });
+
+  test("`adminPendingWithdrawals` returns AdminWithdrawalQueuePage! with pagination args only", () => {
+    const field = adminQueryField("adminPendingWithdrawals");
+    expect(field.type.toString()).toBe("AdminWithdrawalQueuePage!");
+    const argsByName = new Map(field.args.map(arg => [arg.name, arg.type.toString()]));
+    expect(argsByName.get("page")).toBe("Int");
+    expect(argsByName.get("pageSize")).toBe("Int");
+    expect(field.args).toHaveLength(2);
+  });
+
+  test("`approveWithdrawal` returns TeacherTransaction! with EXACTLY ONE required `transactionId: ID!` arg", () => {
+    const field = mutationField("approveWithdrawal");
+    expect(field.type.toString()).toBe("TeacherTransaction!");
+    const argNames = field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b));
+    expect(argNames).toEqual(["transactionId"]);
+    const idArg = field.args[0];
+    if (!idArg) throw new Error("expected the transactionId argument");
+    expect(idArg.type.toString()).toBe("ID!");
+  });
+
+  test("`rejectWithdrawal` returns TeacherTransaction! with EXACTLY the two required args", () => {
+    const field = mutationField("rejectWithdrawal");
+    expect(field.type.toString()).toBe("TeacherTransaction!");
+    const argsByName = new Map(field.args.map(arg => [arg.name, arg.type.toString()]));
+    expect(argsByName.get("transactionId")).toBe("ID!");
+    expect(argsByName.get("reason")).toBe("String!");
+    expect(field.args).toHaveLength(2);
+  });
+
+  test("`adjustTeacherWallet` returns TeacherTransaction! with EXACTLY ONE required `input` arg", () => {
+    const field = mutationField("adjustTeacherWallet");
+    expect(field.type.toString()).toBe("TeacherTransaction!");
+    const argNames = field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b));
+    expect(argNames).toEqual(["input"]);
+    const inputArg = field.args[0];
+    if (!inputArg) throw new Error("expected the input argument");
+    expect(inputArg.type.toString()).toBe("AdjustTeacherWalletInput!");
+  });
+
+  test("ALL SIX financial-auditing root fields carry the EXACT `$all` conjunction", () => {
+    for (const name of [...ADMIN_FINANCE_QUERY_FIELDS, ...ADMIN_FINANCE_MUTATION_FIELDS]) {
+      const field = graphQLSchema.getMutationType()?.getFields()[name] ?? queryType.getFields()[name];
+      if (!field) throw new Error(`expected the \`${name}\` root field`);
+      const scopes = authScopesSnapshot(field);
+      expect(scopes).toEqual({
+        $all: { authenticated: true, role: [UserRole.Admin] },
+      });
+      expect(Object.keys(scopes).toSorted((a, b) => a.localeCompare(b))).toEqual(["$all"]);
+      const allScope: unknown = Reflect.get(scopes, "$all");
+      if (!isRecord(allScope)) throw new Error("expected record-shaped $all scope conjunction");
+      const roleSet: unknown = Reflect.get(allScope, "role");
+      expect(roleSet).toEqual([UserRole.Admin]);
+    }
+  });
+
+  test("anonymous (context-free) in-process execution of ALL SIX financial-auditing fields yields UNAUTHORIZED", async () => {
+    // Each op asserted in its OWN document: all six are non-null at the
+    // root, so a combined document would null-propagate the first failure
+    // over its siblings.
+    const documents = [
+      { source: "{ adminStudentPayments { totalCount } }", path: "adminStudentPayments" },
+      { source: '{ adminTeacherWallet(teacherId: "1") { teacherId } }', path: "adminTeacherWallet" },
+      { source: "{ adminPendingWithdrawals { totalCount } }", path: "adminPendingWithdrawals" },
+      { source: 'mutation { approveWithdrawal(transactionId: "1") { id } }', path: "approveWithdrawal" },
+      {
+        source: 'mutation { rejectWithdrawal(transactionId: "1", reason: "x") { id } }',
+        path: "rejectWithdrawal",
+      },
+      {
+        source:
+          'mutation { adjustTeacherWallet(input: { teacherId: "1", amount: "1.00", direction: Credit, reason: "x" }) { id } }',
+        path: "adjustTeacherWallet",
+      },
+    ] as const;
+    const results = await Promise.all(
+      documents.map(async document => graphql({ schema: graphQLSchema, source: document.source, contextValue: {} }))
+    );
+    for (const [index, result] of results.entries()) {
+      const errors = result.errors;
+      if (!errors) throw new Error("expected the anonymous financial-auditing call to fail");
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.extensions?.code).toBe("UNAUTHORIZED");
+      expect(errors[0]?.path).toEqual([documents[index]?.path]);
+    }
+  });
+
+  test("WalletAdjustmentDirection exposes exactly the Credit | Debit wire vocabulary", () => {
+    const enumType = graphQLSchema.getType("WalletAdjustmentDirection");
+
+    if (!(enumType instanceof GraphQLEnumType)) {
+      throw new Error("WalletAdjustmentDirection must be registered as a GraphQL enum type");
+    }
+    expect(
+      enumType
+        .getValues()
+        .map(value => value.name)
+        .toSorted((a, b) => a.localeCompare(b))
+    ).toEqual(["Credit", "Debit"]);
+  });
+
+  test("smuggled identity args die at validation BEFORE any resolver runs (zero identity-arg surface)", () => {
+    // The actor identity is sourced exclusively from `ctx.user.id` — a
+    // smuggled `actorId` must die as `Unknown argument` BEFORE the resolver
+    // body runs.
+    const smuggledApprove = validate(
+      graphQLSchema,
+      parse('mutation { approveWithdrawal(transactionId: "1", actorId: 42) { id } }')
+    );
+    expect(smuggledApprove).toHaveLength(1);
+    expect(smuggledApprove[0]?.message).toContain('Unknown argument "actorId"');
+
+    const smuggledAdjust = validate(
+      graphQLSchema,
+      parse(
+        'mutation { adjustTeacherWallet(input: { teacherId: "1", amount: "1.00", direction: Credit, reason: "x", actorId: 42 }) { id } }'
+      )
+    );
+    expect(smuggledAdjust).toHaveLength(1);
+    expect(smuggledAdjust[0]?.message).toContain('unknown field "actorId"');
+  });
+
+  test("the closed filter inputs reject smuggled fields at validation (BOPLA boundary)", () => {
+    const smuggledPaymentFilters = validate(
+      graphQLSchema,
+      parse("{ adminStudentPayments(filters: { userId: 42 }) { totalCount } }")
+    );
+    expect(smuggledPaymentFilters).toHaveLength(1);
+    expect(smuggledPaymentFilters[0]?.message).toContain('unknown field "userId"');
+
+    const smuggledWalletFilters = validate(
+      graphQLSchema,
+      parse('{ adminTeacherWallet(teacherId: "1", filters: { userId: 42 }) { teacherId } }')
+    );
+    expect(smuggledWalletFilters).toHaveLength(1);
+    expect(smuggledWalletFilters[0]?.message).toContain('unknown field "userId"');
+  });
+});
+
 describe("Public-operation allowlist agreement", () => {
   test("`_health` is a member of the closed allowlist 1:1 with its scopeless schema posture", () => {
     expect(PUBLIC_OPERATION_NAMES).toContain("_health");
@@ -1625,374 +1772,25 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     expect(committedSdl).toContain("sessionRecitation(sessionId: ID!): SessionRecitation");
     expect(committedSdl).toContain("type SessionRecitation {");
     expect(committedSdl).toContain("input SessionRecitationInput {");
-    // …and the parent-monitoring portal surface (five read-only root
-    // queries + the ten named types) is really inside the committed
-    // artifact — the portal exposes ZERO new mutations (read-only by
-    // construction, not by vigilance).
-    expect(committedSdl).toContain("myLinkedChildren: [ParentLinkedChild!]!");
-    expect(committedSdl).toContain("parentChildProgress(studentId: Int!): ParentChildProgress!");
+    // …and the admin financial-auditing surface (3 queries + 3 mutations
+    // + the adjustment-direction enum + the 8 named types) is really
+    // inside the committed artifact.
     expect(committedSdl).toContain(
-      "parentChildSessions(page: Int, pageSize: Int, studentId: Int!): ParentAttendancePage!"
+      "adminStudentPayments(filters: AdminStudentPaymentsFilterInput, page: Int, pageSize: Int): AdminStudentPaymentPage!"
     );
-    expect(committedSdl).toContain("parentChildReports(page: Int, pageSize: Int, studentId: Int!): ParentReportPage!");
     expect(committedSdl).toContain(
-      "parentChildHomework(page: Int, pageSize: Int, studentId: Int!): ParentHomeworkPage!"
+      "adminTeacherWallet(filters: AdminWalletTransactionFilterInput, page: Int, pageSize: Int, teacherId: ID!): AdminTeacherWallet!"
     );
-    expect(committedSdl).toContain("type ParentLinkedChild {");
-    expect(committedSdl).toContain("type ParentAttendanceEntry {");
-    expect(committedSdl).toContain("type ParentAttendancePage {");
-    expect(committedSdl).toContain("type ParentReportEntry {");
-    expect(committedSdl).toContain("type ParentReportPage {");
-    expect(committedSdl).toContain("type ParentHomeworkTrack {");
-    expect(committedSdl).toContain("type ParentHomeworkEntry {");
-    expect(committedSdl).toContain("type ParentHomeworkPage {");
-    expect(committedSdl).toContain("type ParentHomeworkPosition {");
-    expect(committedSdl).toContain("type ParentChildProgress {");
-  });
-});
-
-// ─── Parent-monitoring portal surface ──────────────────────────────────────
-//
-// The portal is a read-only vertical slice over four existing read models.
-// Five new parent-only root queries (zero-arg `myLinkedChildren` + four
-// per-student paginated reads) carry the explicit `$all { authenticated:
-// true, role: [UserRole.Parent] }` conjunction — anonymous callers deny
-// 401, authenticated non-parents deny 403. The portal exposes ZERO new
-// mutations (read-only by construction, not by vigilance); the
-// zero-mutation lock below pins that invariant at the SDL surface by
-// asserting the Mutation root carries no portal-named field of any kind.
-// The participant-only `sessionReport` / `sessionHomework` reads stay
-// byte-unchanged — their SDL snippets are pinned verbatim against the
-// frozen pre-portal baseline.
-
-/** Exact per-field SDL type strings for `ParentLinkedChild`. */
-const PARENT_LINKED_CHILD_FIELD_TYPES: Record<string, string> = {
-  createdAt: "DateTime!",
-  fullName: "String!",
-  id: "ID!",
-};
-
-/** Exact per-field SDL type strings for `ParentAttendanceEntry`. */
-const PARENT_ATTENDANCE_ENTRY_FIELD_TYPES: Record<string, string> = {
-  createdAt: "DateTime!",
-  endedAt: "DateTime",
-  id: "ID!",
-  startedAt: "DateTime",
-  status: "SessionStatus!",
-};
-
-/** Exact per-field SDL type strings for `ParentAttendancePage`. */
-const PARENT_ATTENDANCE_PAGE_FIELD_TYPES: Record<string, string> = {
-  items: "[ParentAttendanceEntry!]!",
-  page: "Int!",
-  pageSize: "Int!",
-  totalCount: "Int!",
-};
-
-/** Exact per-field SDL type strings for `ParentReportEntry`. */
-const PARENT_REPORT_ENTRY_FIELD_TYPES: Record<string, string> = {
-  createdAt: "DateTime!",
-  id: "ID!",
-  sessionId: "Int!",
-  sessionStartedAt: "DateTime",
-  sessionStatus: "SessionStatus!",
-  studentRatingByTeacher: "Int",
-  teacherNotes: "String",
-};
-
-/** Exact per-field SDL type strings for `ParentReportPage`. */
-const PARENT_REPORT_PAGE_FIELD_TYPES: Record<string, string> = {
-  items: "[ParentReportEntry!]!",
-  page: "Int!",
-  pageSize: "Int!",
-  totalCount: "Int!",
-};
-
-/** Exact per-field SDL type strings for `ParentHomeworkTrack`. */
-const PARENT_HOMEWORK_TRACK_FIELD_TYPES: Record<string, string> = {
-  fromAyah: "Int",
-  grade: "Int",
-  surahJuz: "SurahJuzRef",
-  toAyah: "Int",
-};
-
-/** Exact per-field SDL type strings for `ParentHomeworkEntry`. */
-const PARENT_HOMEWORK_ENTRY_FIELD_TYPES: Record<string, string> = {
-  createdAt: "DateTime!",
-  id: "ID!",
-  jadid: "ParentHomeworkTrack",
-  madi: "ParentHomeworkTrack",
-  sessionId: "Int!",
-};
-
-/** Exact per-field SDL type strings for `ParentHomeworkPage`. */
-const PARENT_HOMEWORK_PAGE_FIELD_TYPES: Record<string, string> = {
-  items: "[ParentHomeworkEntry!]!",
-  page: "Int!",
-  pageSize: "Int!",
-  totalCount: "Int!",
-};
-
-/** Exact per-field SDL type strings for `ParentHomeworkPosition`. */
-const PARENT_HOMEWORK_POSITION_FIELD_TYPES: Record<string, string> = {
-  fromAyah: "Int",
-  surahJuz: "SurahJuzRef!",
-  toAyah: "Int",
-};
-
-/** Exact per-field SDL type strings for `ParentChildProgress`. */
-const PARENT_CHILD_PROGRESS_FIELD_TYPES: Record<string, string> = {
-  child: "ParentLinkedChild!",
-  latestJadidPosition: "ParentHomeworkPosition",
-  latestMadiPosition: "ParentHomeworkPosition",
-  progressRowCount: "Int!",
-};
-
-/**
- * Frozen participant-only SDL snippets — byte-equality baseline. The two
- * reads existed on the root Query BEFORE the portal surface landed and
- * MUST stay byte-identical after it (the indistinguishable-`null` collapse
- * for non-participants is the locked oracle posture). Asserting these
- * literals against the committed SDL proves the participant surface did
- * not drift — a single character change to the field type, arg name, or
- * arg type fails the pin.
- */
-const PARTICIPANT_SESSION_REPORT_SDL = "sessionReport(sessionId: ID!): SessionReport";
-const PARTICIPANT_SESSION_HOMEWORK_SDL = "sessionHomework(sessionId: ID!): SessionHomeWork";
-
-describe("Parent-monitoring portal surface — five read-only queries, zero-mutation lock, byte-unchanged participant reads", () => {
-  const queryType = graphQLSchema.getQueryType();
-
-  if (!queryType) {
-    throw new Error("Schema must define a root Query type");
-  }
-
-  // Captured ONCE after the narrowing guard — used by the
-  // participant-only byte-equality assertions below.
-  const rootFields = queryType.getFields();
-
-  test("`myLinkedChildren` is zero-arg and returns NON-NULL `[ParentLinkedChild!]!`", () => {
-    const field = rootQueryField("myLinkedChildren");
-    // Zero-arg by design — the caller's identity is sourced exclusively
-    // from the verified context; no client-supplied parent id exists.
-    expect(field.args).toHaveLength(0);
-    expect(field.type.toString()).toBe("[ParentLinkedChild!]!");
-  });
-
-  test("`parentChildProgress` returns NON-NULL `ParentChildProgress!` with EXACTLY ONE required `studentId: Int!` arg", () => {
-    const field = rootQueryField("parentChildProgress");
-    expect(field.type.toString()).toBe("ParentChildProgress!");
-    expect(field.args).toHaveLength(1);
-    const argsByName = new Map(field.args.map(arg => [arg.name, arg.type.toString()]));
-    expect(argsByName.get("studentId")).toBe("Int!");
-  });
-
-  test("the three paginated portal reads return NON-NULL page wrappers with EXACTLY `studentId: Int!` + `page: Int` + `pageSize: Int`", () => {
-    const expected: Record<string, string> = {
-      parentChildHomework: "ParentHomeworkPage!",
-      parentChildReports: "ParentReportPage!",
-      parentChildSessions: "ParentAttendancePage!",
-    };
-    for (const [fieldName, returnType] of Object.entries(expected)) {
-      const field = rootQueryField(fieldName);
-      expect(field.type.toString()).toBe(returnType);
-      // Three args exactly — the closed whitelist; no parent-id smuggle.
-      expect(field.args).toHaveLength(3);
-      const argsByName = new Map(field.args.map(arg => [arg.name, arg.type.toString()]));
-      expect(argsByName.get("studentId")).toBe("Int!");
-      expect(argsByName.get("page")).toBe("Int");
-      expect(argsByName.get("pageSize")).toBe("Int");
-    }
-  });
-
-  test("ALL FIVE portal queries carry the EXACT `$all` conjunction — `{ authenticated: true, role: [UserRole.Parent] }`", () => {
-    // The `$all` key is load-bearing: a plain `{ authenticated, role }`
-    // map would combine the two scope checks with ANY semantics
-    // (either-or), silently allowing a non-parent authenticated caller
-    // through. The `$all` conjunction makes the combine AND — both
-    // scope checks must pass for the resolver body to run.
-    for (const name of PARENT_PORTAL_QUERY_FIELDS) {
-      const scopes = authScopesSnapshot(rootQueryField(name));
-      expect(scopes).toEqual({
-        $all: { authenticated: true, role: [UserRole.Parent] },
-      });
-      // SEC: the scope keys are EXACTLY `["$all"]` — no permission /
-      // superAdmin / fallback bypass.
-      expect(Object.keys(scopes).toSorted((a, b) => a.localeCompare(b))).toEqual(["$all"]);
-      const allScope: unknown = Reflect.get(scopes, "$all");
-      if (!isRecord(allScope)) throw new Error("expected record-shaped $all scope conjunction");
-      expect(Object.keys(allScope).toSorted((a, b) => a.localeCompare(b))).toEqual(["authenticated", "role"]);
-      // SEC: the role set is EXACTLY `[UserRole.Parent]` — no admin /
-      // teacher / student / superAdmin override silently smuggled in.
-      const roleSet: unknown = Reflect.get(allScope, "role");
-      expect(Array.isArray(roleSet)).toBe(true);
-      expect(roleSet).toEqual([UserRole.Parent]);
-    }
-  });
-
-  test("smuggled identity args die at validation BEFORE any resolver runs (zero identity-arg surface on portal queries)", () => {
-    // A smuggled `parentId` / `actorId` / `userId` must die as
-    // `Unknown argument` BEFORE the resolver body runs — the parent
-    // identity is sourced exclusively from `ctx.user.id` (BOLA-safe by
-    // construction).
-    const smuggled = [
-      "{ myLinkedChildren(parentId: 1) { id } }",
-      "{ parentChildProgress(studentId: 1, actorId: 42) { progressRowCount } }",
-      "{ parentChildSessions(studentId: 1, page: 1, pageSize: 25, userId: 42) { totalCount } }",
-      "{ parentChildReports(studentId: 1, page: 1, pageSize: 25, parentId: 42) { totalCount } }",
-      "{ parentChildHomework(studentId: 1, page: 1, pageSize: 25, actorId: 42) { totalCount } }",
-    ];
-    for (const source of smuggled) {
-      const errors = validate(graphQLSchema, parse(source));
-      expect(errors).toHaveLength(1);
-      expect(errors[0]?.message).toContain("Unknown argument");
-    }
-  });
-
-  test("the ten portal object types are registered with EXACT field sets + exact per-field type strings (BOPLA projection boundary)", () => {
-    const expectations: Record<string, Record<string, string>> = {
-      ParentAttendanceEntry: PARENT_ATTENDANCE_ENTRY_FIELD_TYPES,
-      ParentAttendancePage: PARENT_ATTENDANCE_PAGE_FIELD_TYPES,
-      ParentChildProgress: PARENT_CHILD_PROGRESS_FIELD_TYPES,
-      ParentHomeworkEntry: PARENT_HOMEWORK_ENTRY_FIELD_TYPES,
-      ParentHomeworkPage: PARENT_HOMEWORK_PAGE_FIELD_TYPES,
-      ParentHomeworkPosition: PARENT_HOMEWORK_POSITION_FIELD_TYPES,
-      ParentHomeworkTrack: PARENT_HOMEWORK_TRACK_FIELD_TYPES,
-      ParentLinkedChild: PARENT_LINKED_CHILD_FIELD_TYPES,
-      ParentReportEntry: PARENT_REPORT_ENTRY_FIELD_TYPES,
-      ParentReportPage: PARENT_REPORT_PAGE_FIELD_TYPES,
-    };
-    for (const [typeName, expectedFields] of Object.entries(expectations)) {
-      const type = graphQLSchema.getType(typeName);
-      if (!(type instanceof GraphQLObjectType)) {
-        throw new Error(`${typeName} must be registered as a GraphQL object type`);
-      }
-      const fields = type.getFields();
-      expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual(
-        Object.keys(expectedFields).toSorted((a, b) => a.localeCompare(b))
-      );
-      expect(Object.keys(fields)).toHaveLength(Object.keys(expectedFields).length);
-      for (const field of Object.values(fields)) {
-        expect(field.type.toString()).toBe(expectedFields[field.name]);
-      }
-    }
-  });
-
-  test("the four entity-shaped portal objects expose `id: ID!` (Apollo cache normalization)", () => {
-    // The four entity-shaped portal types carry `id` first for Apollo
-    // cache normalization. The three page wrappers + three composite
-    // value objects carry no row id by design (they are embedded value
-    // objects, not normalizable entities).
-    for (const typeName of ["ParentLinkedChild", "ParentAttendanceEntry", "ParentReportEntry", "ParentHomeworkEntry"]) {
-      const type = graphQLSchema.getType(typeName);
-      if (!(type instanceof GraphQLObjectType)) {
-        throw new Error(`${typeName} must be registered as a GraphQL object type`);
-      }
-      const idField = type.getFields().id;
-      if (!idField) throw new Error(`${typeName} must register the \`id\` field`);
-      expect(idField.type.toString()).toBe("ID!");
-    }
-    // The three page wrappers + three composite value objects carry NO `id`.
-    for (const typeName of [
-      "ParentAttendancePage",
-      "ParentReportPage",
-      "ParentHomeworkPage",
-      "ParentHomeworkTrack",
-      "ParentHomeworkPosition",
-      "ParentChildProgress",
-    ]) {
-      const type = graphQLSchema.getType(typeName);
-      if (!(type instanceof GraphQLObjectType)) {
-        throw new Error(`${typeName} must be registered as a GraphQL object type`);
-      }
-      expect(Object.hasOwn(type.getFields(), "id")).toBe(false);
-    }
-  });
-
-  test("zero-mutation lock — the Mutation root carries ZERO portal-named fields (read-only by construction, not by vigilance)", () => {
-    const mutationType = graphQLSchema.getMutationType();
-    if (!mutationType) {
-      throw new Error("Schema must define a root Mutation type");
-    }
-    const mutationFieldNames = Object.keys(mutationType.getFields());
-    // The five portal query names MUST NOT appear on the Mutation root.
-    for (const portalQueryName of PARENT_PORTAL_QUERY_FIELDS) {
-      expect(mutationFieldNames).not.toContain(portalQueryName);
-    }
-    // No Mutation field name matches the portal domain vocabulary
-    // (`parentChild*` / `myLinkedChildren` / `parentMonitoring` /
-    // `ParentMonitoring`). The legitimate parent-link mutations
-    // (`requestParentChildLink`, `respondToParentLinkRequest`,
-    // `cancelParentLinkRequest`) are PRE-EXISTING — they predate this
-    // surface and are pinned in the reconciled parent-link mutation
-    // inventory above; they do NOT match any of the portal-name
-    // patterns below.
-    for (const fieldName of mutationFieldNames) {
-      expect(fieldName).not.toMatch(/^parentChild/);
-      expect(fieldName).not.toBe("myLinkedChildren");
-      expect(fieldName).not.toMatch(/^parentMonitoring/);
-      expect(fieldName).not.toMatch(/^ParentMonitoring/);
-    }
-  });
-
-  test("zero-mutation lock — the committed SDL Mutation block contains ZERO lines referencing portal service names", () => {
-    const committedSdl = readFileSync(resolve(process.cwd(), "frontend/graphql/generated/schema.graphql"), "utf8");
-    // Slice the Mutation block out of the committed SDL (the
-    // lexicographic sort places `type Mutation {` as a stable anchor;
-    // the slice runs to the closing brace on its own line).
-    const blockStart = committedSdl.indexOf("type Mutation {");
-    expect(blockStart).toBeGreaterThanOrEqual(0);
-    const blockEnd = committedSdl.indexOf("}", blockStart);
-    expect(blockEnd).toBeGreaterThan(blockStart);
-    const mutationBlock = committedSdl.slice(blockStart, blockEnd);
-    for (const portalToken of [
-      "myLinkedChildren",
-      "parentChildProgress",
-      "parentChildSessions",
-      "parentChildReports",
-      "parentChildHomework",
-      "parentMonitoring",
-      "ParentMonitoring",
-    ]) {
-      expect(mutationBlock).not.toContain(portalToken);
-    }
-  });
-
-  test("participant-only byte-unchanged — the `sessionReport` and `sessionHomework` SDL snippets match the frozen baseline verbatim", () => {
-    const committedSdl = readFileSync(resolve(process.cwd(), "frontend/graphql/generated/schema.graphql"), "utf8");
-    // The two reads existed on the root Query BEFORE the portal surface
-    // landed; both stay byte-identical after it (single `sessionId: ID!`
-    // arg, nullable return — the indistinguishable-`null` collapse for
-    // non-participants preserved). Asserting these literals against the
-    // committed SDL proves the participant surface did not drift.
-    expect(committedSdl).toContain(PARTICIPANT_SESSION_REPORT_SDL);
-    expect(committedSdl).toContain(PARTICIPANT_SESSION_HOMEWORK_SDL);
-    // The live built schema agrees with the committed artifact —
-    // the two reads are NULLABLE with EXACTLY ONE required `sessionId: ID!` arg.
-    const sessionReportField = rootFields.sessionReport;
-    if (!sessionReportField) throw new Error("Query must register the `sessionReport` root field");
-    expect(sessionReportField.type.toString()).toBe("SessionReport");
-    expect(sessionReportField.args).toHaveLength(1);
-    expect(sessionReportField.args[0]?.name).toBe("sessionId");
-    expect(sessionReportField.args[0]?.type.toString()).toBe("ID!");
-    const sessionHomeworkField = rootFields.sessionHomework;
-    if (!sessionHomeworkField) throw new Error("Query must register the `sessionHomework` root field");
-    expect(sessionHomeworkField.type.toString()).toBe("SessionHomeWork");
-    expect(sessionHomeworkField.args).toHaveLength(1);
-    expect(sessionHomeworkField.args[0]?.name).toBe("sessionId");
-    expect(sessionHomeworkField.args[0]?.type.toString()).toBe("ID!");
-  });
-
-  test("SEC — none of the five portal queries is on the public-operation allowlist (all are authenticated, never anonymous)", () => {
-    // The portal fields are auth-gated via the `$all` conjunction —
-    // anonymous callers must fail the `authenticated` scope with
-    // UNAUTHORIZED (401). The public-operation registry is the ONLY
-    // closed set of scopeless operations; NONE of the five portal
-    // names may be a member (BFLA defense — anonymous reach must
-    // deny pre-resolver).
-    for (const name of PARENT_PORTAL_QUERY_FIELDS) {
-      expect(PUBLIC_OPERATION_NAMES).not.toContain(name);
-      expect(PUBLIC_OPERATIONS.has(name)).toBe(false);
-    }
+    expect(committedSdl).toContain("adminPendingWithdrawals(page: Int, pageSize: Int): AdminWithdrawalQueuePage!");
+    expect(committedSdl).toContain("approveWithdrawal(transactionId: ID!): TeacherTransaction!");
+    expect(committedSdl).toContain("rejectWithdrawal(reason: String!, transactionId: ID!): TeacherTransaction!");
+    expect(committedSdl).toContain("adjustTeacherWallet(input: AdjustTeacherWalletInput!): TeacherTransaction!");
+    expect(committedSdl).toContain("enum WalletAdjustmentDirection {");
+    expect(committedSdl).toContain("type AdminStudentPaymentPage {");
+    expect(committedSdl).toContain("type AdminTeacherWallet {");
+    expect(committedSdl).toContain("type AdminWithdrawalQueuePage {");
+    expect(committedSdl).toContain("input AdminStudentPaymentsFilterInput {");
+    expect(committedSdl).toContain("input AdminWalletTransactionFilterInput {");
+    expect(committedSdl).toContain("input AdjustTeacherWalletInput {");
   });
 });

@@ -38,6 +38,20 @@ Screenshots must not be trusted just because `screenshot` exited 0. Verify:
 - Plain viewport screenshot, plus `document.querySelector("<selector>").scrollIntoView({ block: "center", behavior: "instant" })` to frame a specific section.
 - Reserve `--full` for stateless, fully-rendered pages, and even then verify DOM state after the shot.
 
+## Batch capture discipline (added 2026-09-13)
+
+- Re-verify the ACTIVE tab + a content marker with `agent-browser eval` before EVERY screenshot in
+  a viewport-marching batch — browser/session churn between commands has produced captures of the
+  wrong tab's content.
+- Re-pin `NEXT_LOCALE` + viewport after every re-login; the locale cookie silently reverts.
+- The browser session console buffer persists across navigations: after fixing a console error,
+  the gate can still see stale `[error]` entries. Gate on a FRESH session, or confirm the error
+  count is 0 after a verified reload.
+- If a fixed source still serves stale/broken output after a dev-server restart, the Turbopack
+  `.next-dev` disk cache is poisoned (a transient syntax error got compiled in): stop the server,
+  `rm -rf .next-dev`, restart. This is a dev build artifact — the "never clear caches" rule covers
+  lint/quality-gate caches, not the dev bundle dir.
+
 ## Reading shots
 
 The orchestrator NEVER calls ReadMediaFile on screenshots in its own loop. Images go to isolated inspector subagents; the main context receives text-only verdicts.
