@@ -156,20 +156,25 @@ export namespace ParentMonitoringService {
     outerTx?: DBTransaction
   ): Promise<ParentChildProgressReturnType> {
     await requireActor(parentActorId, UserRole.Parent, locale, outerTx, false);
+    await enforcePortalRateLimit(parentActorId, locale); // request-volume cap — every portal read, not only the children list
 
-    return withTransaction(outerTx, async tx => {
-      const student = await requireLinkedChild(parentActorId, studentId, locale, tx);
-      const childUser = await UserRepository.findById(studentId, tx);
-      if (childUser === null) {
-        // Unreachable while the FKs hold (the student row exists and
-        // shares its PK with the user row) — a missing user here means
-        // data drift and MUST abort the unit, not return partial data.
-        throw new Error(`ParentMonitoringService.getChildProgress: child user ${studentId} vanished after gate`);
-      }
-      const progressRowCount = await ProgressRepository.countForStudent(studentId, tx);
-      const latestHomeWork = await HomeWorkRepository.findLatestByStudentId(studentId, tx);
-      return composeChildProgress(student, childUser, progressRowCount, latestHomeWork);
-    });
+    return withTransaction(
+      outerTx,
+      async tx => {
+        const student = await requireLinkedChild(parentActorId, studentId, locale, tx);
+        const childUser = await UserRepository.findById(studentId, tx);
+        if (childUser === null) {
+          // Unreachable while the FKs hold (the student row exists and
+          // shares its PK with the user row) — a missing user here means
+          // data drift and MUST abort the unit, not return partial data.
+          throw new Error(`ParentMonitoringService.getChildProgress: child user ${studentId} vanished after gate`);
+        }
+        const progressRowCount = await ProgressRepository.countForStudent(studentId, tx);
+        const latestHomeWork = await HomeWorkRepository.findLatestByStudentId(studentId, tx);
+        return composeChildProgress(student, childUser, progressRowCount, latestHomeWork);
+      },
+      { isolationLevel: "repeatable read" } // one snapshot for the link gate + every data read
+    );
   }
 
   /**
@@ -197,21 +202,26 @@ export namespace ParentMonitoringService {
     outerTx?: DBTransaction
   ): Promise<ParentAttendancePageReturnType> {
     await requireActor(parentActorId, UserRole.Parent, locale, outerTx, false);
+    await enforcePortalRateLimit(parentActorId, locale); // request-volume cap — every portal read, not only the children list
     const { page: effectivePage, pageSize, offset } = clampPageInput(page);
 
-    return withTransaction(outerTx, async tx => {
-      await requireLinkedChild(parentActorId, studentId, locale, tx);
-      const [rows, totalCount] = await Promise.all([
-        SessionRepository.listForStudent(studentId, {}, pageSize, offset, tx),
-        SessionRepository.countForStudent(studentId, {}, tx),
-      ]);
-      return {
-        items: rows.map(mapSessionToAttendanceEntry),
-        totalCount,
-        page: effectivePage,
-        pageSize,
-      };
-    });
+    return withTransaction(
+      outerTx,
+      async tx => {
+        await requireLinkedChild(parentActorId, studentId, locale, tx);
+        const [rows, totalCount] = await Promise.all([
+          SessionRepository.listForStudent(studentId, {}, pageSize, offset, tx),
+          SessionRepository.countForStudent(studentId, {}, tx),
+        ]);
+        return {
+          items: rows.map(mapSessionToAttendanceEntry),
+          totalCount,
+          page: effectivePage,
+          pageSize,
+        };
+      },
+      { isolationLevel: "repeatable read" } // one snapshot for the link gate + every data read
+    );
   }
 
   /**
@@ -238,21 +248,26 @@ export namespace ParentMonitoringService {
     outerTx?: DBTransaction
   ): Promise<ParentReportPageReturnType> {
     await requireActor(parentActorId, UserRole.Parent, locale, outerTx, false);
+    await enforcePortalRateLimit(parentActorId, locale); // request-volume cap — every portal read, not only the children list
     const { page: effectivePage, pageSize, offset } = clampPageInput(page);
 
-    return withTransaction(outerTx, async tx => {
-      await requireLinkedChild(parentActorId, studentId, locale, tx);
-      const [rows, totalCount] = await Promise.all([
-        ReportRepository.listForStudent(studentId, pageSize, offset, tx),
-        ReportRepository.countForStudent(studentId, tx),
-      ]);
-      return {
-        items: rows.map(mapReportRowToEntry),
-        totalCount,
-        page: effectivePage,
-        pageSize,
-      };
-    });
+    return withTransaction(
+      outerTx,
+      async tx => {
+        await requireLinkedChild(parentActorId, studentId, locale, tx);
+        const [rows, totalCount] = await Promise.all([
+          ReportRepository.listForStudent(studentId, pageSize, offset, tx),
+          ReportRepository.countForStudent(studentId, tx),
+        ]);
+        return {
+          items: rows.map(mapReportRowToEntry),
+          totalCount,
+          page: effectivePage,
+          pageSize,
+        };
+      },
+      { isolationLevel: "repeatable read" } // one snapshot for the link gate + every data read
+    );
   }
 
   /**
@@ -282,20 +297,25 @@ export namespace ParentMonitoringService {
     outerTx?: DBTransaction
   ): Promise<ParentHomeworkPageReturnType> {
     await requireActor(parentActorId, UserRole.Parent, locale, outerTx, false);
+    await enforcePortalRateLimit(parentActorId, locale); // request-volume cap — every portal read, not only the children list
     const { page: effectivePage, pageSize, offset } = clampPageInput(page);
 
-    return withTransaction(outerTx, async tx => {
-      await requireLinkedChild(parentActorId, studentId, locale, tx);
-      const [rows, totalCount] = await Promise.all([
-        HomeWorkRepository.listForStudent(studentId, pageSize, offset, tx),
-        HomeWorkRepository.countForStudent(studentId, tx),
-      ]);
-      return {
-        items: rows.map(mapHomeWorkRowToEntry),
-        totalCount,
-        page: effectivePage,
-        pageSize,
-      };
-    });
+    return withTransaction(
+      outerTx,
+      async tx => {
+        await requireLinkedChild(parentActorId, studentId, locale, tx);
+        const [rows, totalCount] = await Promise.all([
+          HomeWorkRepository.listForStudent(studentId, pageSize, offset, tx),
+          HomeWorkRepository.countForStudent(studentId, tx),
+        ]);
+        return {
+          items: rows.map(mapHomeWorkRowToEntry),
+          totalCount,
+          page: effectivePage,
+          pageSize,
+        };
+      },
+      { isolationLevel: "repeatable read" } // one snapshot for the link gate + every data read
+    );
   }
 }

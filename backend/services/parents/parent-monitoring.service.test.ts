@@ -1096,15 +1096,40 @@ describe("ParentMonitoringService — requireActor token-role denial (BFLA defen
     });
   });
 
-  test("requireActor allows a parent-role actor (relaxed read path: governance arm disabled)", async () => {
+  test("requireActor rejects a SOFT-DELETED parent even on the relaxed read path", async () => {
     await runInRollback(async tx => {
       trackSpy(
         spyOn(UserRepository, "findById").mockResolvedValue({
           ...parentUser,
-          // Governed flags would block on the mutation path; the read path
-          // passes `enforceGovernance: false` so a governed-but-not-deleted
-          // parent's self-scoped reads stay visible.
+          // A deleted account has no reads: `isDeleted` is rejected on every
+          // path. Only the blocked/suspended arms stay governance-scoped so
+          // a governed-but-present parent's self-scoped reads stay visible.
           isDeleted: true,
+        })
+      );
+
+      let caught: unknown = null;
+      try {
+        await requireActor(PARENT_ACTOR_ID, UserRole.Parent, LOCALE_EN, tx, false);
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(ForbiddenError);
+      if (caught instanceof ForbiddenError) {
+        expect(caught.message).toBe(enErrors.forbidden);
+      }
+    });
+  });
+
+  test("requireActor allows a BLOCKED parent on the relaxed read path (governance arm disabled)", async () => {
+    await runInRollback(async tx => {
+      trackSpy(
+        spyOn(UserRepository, "findById").mockResolvedValue({
+          ...parentUser,
+          // The self-scoped-history rationale: blocked/suspended flags are
+          // governance-scoped (mutations), so the read path keeps the
+          // parent's own lists visible.
+          isBlocked: true,
         })
       );
 

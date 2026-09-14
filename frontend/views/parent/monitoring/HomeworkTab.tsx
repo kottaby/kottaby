@@ -1,11 +1,9 @@
 "use client";
 
-import { useQuery } from "@apollo/client/react";
 import { PrintOutlined } from "@mui/icons-material";
 import { Box, IconButton, Stack, Typography } from "@mui/material";
 import { type ReactNode, useMemo, useState } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
-import { parentChildHomeworkQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
@@ -16,6 +14,7 @@ import {
   filterHomeworkRows,
   type SearchFilterState,
 } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
+import { useAllHomeworkPages } from "@/frontend/views/parent/monitoring/useAllPortalPages";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
@@ -29,9 +28,9 @@ export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
     sort: DEFAULT_SORT,
   });
   const [printOpen, setPrintOpen] = useState(false);
-  const { data, loading, error, refetch } = useQuery(parentChildHomeworkQueryDocument, {
-    variables: { studentId: props.studentId, page: undefined, pageSize: undefined },
-  });
+  // Fetch-all-pages: summaries + the graded-row list cover the child's WHOLE
+  // homework history — page 1 alone would silently truncate >25/50.
+  const { data, loading, error, refetch } = useAllHomeworkPages(props.studentId);
   const errorCode = error ? extractErrorCode(error) : null;
   const denied =
     errorCode !== null &&

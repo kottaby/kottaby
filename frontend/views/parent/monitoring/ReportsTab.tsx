@@ -1,11 +1,9 @@
 "use client";
 
-import { useQuery } from "@apollo/client/react";
 import { PrintOutlined } from "@mui/icons-material";
 import { Box, IconButton, Stack, Typography } from "@mui/material";
 import { type ReactNode, useMemo, useState } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
-import { parentChildReportsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
@@ -16,6 +14,7 @@ import {
   filterReportRows,
   type SearchFilterState,
 } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
+import { useAllReportPages } from "@/frontend/views/parent/monitoring/useAllPortalPages";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
@@ -29,9 +28,9 @@ export function ReportsTab(props: Readonly<ReportsTabProps>): ReactNode {
     ratingFilter: null,
     sort: DEFAULT_SORT,
   });
-  const { data, loading, error, refetch } = useQuery(parentChildReportsQueryDocument, {
-    variables: { studentId: props.studentId, page: undefined, pageSize: undefined },
-  });
+  // Fetch-all-pages: summaries + trend chart + print/export bundle cover the
+  // child's WHOLE report history — page 1 alone would silently truncate >25/50.
+  const { data, loading, error, refetch } = useAllReportPages(props.studentId);
   const errorCode = error ? extractErrorCode(error) : null;
   const denied =
     errorCode !== null &&

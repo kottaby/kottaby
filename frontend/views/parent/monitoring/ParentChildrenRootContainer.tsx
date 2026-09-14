@@ -23,18 +23,15 @@ export function ParentChildrenRootContainer(props: Readonly<ParentChildrenRootCo
   const hasStudentParam = props.student !== null && props.student !== "";
 
   useEffect(() => {
-    if (children === undefined || children.length === 0) {
-      return;
-    }
-    if (!hasStudentParam) {
+    // Cold-entry ONLY: with no `?student=` param the root redirects to the
+    // first child. A present param means the user is explicitly list-
+    // browsing (or the detail page owns a stale-id denial) — the root must
+    // never yank the URL (pinned by the container suite; auto-redirecting
+    // on a foreign/stale id also re-opens the child-id enumeration oracle).
+    if (!hasStudentParam && children !== undefined && children.length > 0) {
       router.replace(`/parent/children/${children[0].id}`);
-    } else {
-      const childExists = children.some(c => c.id === props.student);
-      if (!childExists) {
-        router.replace(`/parent/children/${children[0].id}`);
-      }
     }
-  }, [hasStudentParam, children, router, props.student]);
+  }, [hasStudentParam, children, router]);
 
   const errorCode = error ? extractErrorCode(error) : null;
   const denied =

@@ -54,13 +54,25 @@ export function renderReportsBody(
     );
   }
   if (filteredRows?.length === 0 && (searchState.query !== "" || searchState.ratingFilter !== null)) {
+    // Zero matches under an ACTIVE filter must keep the filter bar reachable
+    // — the empty state alone would strand the user on a filter he cannot
+    // change or clear without a page reload.
     return (
-      <IconCircleEmptyState
-        testId="parent-reports-search-empty"
-        icon={<SearchOutlined sx={{ fontSize: 36 }} />}
-        title={t.searchNoResults}
-        body={""}
-      />
+      <>
+        <SearchFilterBar
+          state={searchState}
+          labels={t}
+          onChange={onSearchChange}
+          resultCount={0}
+          totalCount={rows.length}
+        />
+        <IconCircleEmptyState
+          testId="parent-reports-search-empty"
+          icon={<SearchOutlined sx={{ fontSize: 36 }} />}
+          title={t.searchNoResults}
+          body={""}
+        />
+      </>
     );
   }
   return (

@@ -1,18 +1,17 @@
 "use client";
 
-import { useQuery } from "@apollo/client/react";
 import { CalendarMonthOutlined, ViewListOutlined } from "@mui/icons-material";
 import { Box, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
 import { IconCircleEmptyState } from "@/frontend/components/ui/IconCircleEmptyState";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
-import { parentChildSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { AttendanceCalendar } from "@/frontend/views/parent/monitoring/AttendanceCalendar";
 import { AttendanceSummary } from "@/frontend/views/parent/monitoring/AttendanceSummary";
 import { AttendanceRow, AttendanceSkeleton } from "@/frontend/views/parent/monitoring/AttendanceTab.parts";
+import { useAllAttendancePages } from "@/frontend/views/parent/monitoring/useAllPortalPages";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 type ViewMode = "list" | "calendar";
@@ -24,9 +23,9 @@ export function AttendanceTab(props: Readonly<AttendanceTabProps>): ReactNode {
   const locale = useAppLocale();
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
-  const { data, loading, error, refetch } = useQuery(parentChildSessionsQueryDocument, {
-    variables: { studentId: props.studentId, page: undefined, pageSize: undefined },
-  });
+  // Fetch-all-pages: the tab renders count + summary + calendar over the
+  // child's WHOLE history — page 1 alone would silently truncate >25/50.
+  const { data, loading, error, refetch } = useAllAttendancePages(props.studentId);
 
   const errorCode = error ? extractErrorCode(error) : null;
   const denied =

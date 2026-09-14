@@ -63,6 +63,18 @@ export namespace ProgressRepository {
         .where(eq(progress.studentId, studentId));
       return rows[0]?.count ?? 0;
     }
+    if (tx) {
+      // Pool / PoolClient executor — run the raw SQL through the SUPPLIED
+      // executor so the count shares the caller's connection (and, inside
+      // an explicit transaction, its snapshot). `queryDb` would route the
+      // count through the global pool and could observe a different
+      // snapshot than the caller's other reads.
+      const result = await tx.query<{ count: string | number }>(
+        `SELECT count(*) AS count FROM progress WHERE student_id = $1`,
+        [studentId]
+      );
+      return Number(result.rows[0]?.count ?? 0);
+    }
     const result = await queryDb<{ count: string | number }>(
       `SELECT count(*) AS count FROM progress WHERE student_id = $1`,
       [studentId]
