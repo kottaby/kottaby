@@ -177,13 +177,13 @@
 
 ## Phase 6/7 — Final Gate & Knowledge Propagation
 
-- [ ] 12. **Final quality gate + deferred-items enforcement**
+- [x] 12. **Final quality gate + deferred-items enforcement**
   - `grep -c "❌\|⚠️" ai/plans/sprint_1/verification-plan-purchase-5-sessions/deferred-items.md` → resolve or reclassify (D2/D3/D4 are cross-ticket coordination notes — mark ✅ once the explicit hand-off notes exist in this plan's outcome files and `docs/` references are updated by Task 13).
   - Baseline comparison vs Task 0 counts → document deltas.
   - `bun quality-gate` green.
   - _Requirements: REQ-0.5, REQ-9_
 
-- [ ] 13. **Knowledge propagation & docs**
+- [x] 13. **Knowledge propagation & docs**
   - Rewrite `docs/billing/subscription-purchase.md` §10 (:369-372): replace "no special-casing" with the shipped contract — dedicated `purchaseVerificationPlan` mutation, nullable payment owner, activation credit-skip, and why (schema/INV-TV binding).
   - CREATE `docs/teachers/verification-plan-purchase.md` consolidating: purchase flow steps, guard contract, transition semantics, idempotency, testing map, links to `docs/teachers/applicant-lifecycle.md` and `docs/billing/subscription-purchase.md`.
   - Do NOT edit AGENTS.md or `.agents/instructions/*` (hand-curated).

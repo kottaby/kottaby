@@ -41,7 +41,7 @@ import { VERIFICATION_PLAN_TITLE } from "@/shared/constants";
 import { Applicant, useAppTranslation } from "@/shared/locale";
 
 /** The snackbar notice record rendered through the shared transient notice slot. */
-export type PurchaseNotice = { readonly message: string; readonly severity: "success" | "info" | "error" };
+type PurchaseNotice = { readonly message: string; readonly severity: "success" | "info" | "error" };
 
 /** ICU placeholder tokens of `purchasePlanLine`, in the parity-pinned expansion order. */
 const PLAN_LINE_TITLE = "{title}";
