@@ -52,13 +52,13 @@ export function ProgressSummary({
         <SharedStatCard
           icon={<AutoStoriesOutlined fontSize="small" />}
           value={stats.jadidValue}
-          label={labels.statCoverageAreas}
+          label={labels.progressLatestJadidLabel}
           color="success"
         />
         <SharedStatCard
           icon={<ReplayOutlined fontSize="small" />}
           value={stats.madiValue}
-          label={labels.statActiveTrack}
+          label={labels.progressLatestMadiLabel}
           color="warning"
         />
         <SharedStatCard

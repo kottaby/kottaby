@@ -26,7 +26,9 @@ export async function withRateLimit(
   request: NextRequest,
   eventHandler: (req: NextRequest) => Promise<Response>
 ): Promise<Response> {
-  // Test mode bypass: CI integration tests send 100+ GraphQL requests
+  // Production-only rate limiting. Test environments (TEST_CI/TEST_SERVER) bypass
+  // the limiter because integration tests send 100+ requests within the rate window.
+  // This is safe: test environments are isolated, never exposed to untrusted traffic.
   // within the rate-limit window. Skip rate limiting entirely when
   // TEST_CI or TEST_SERVER env flags are set.
   if (process.env.TEST_CI === "1" || process.env.TEST_SERVER === "1") {

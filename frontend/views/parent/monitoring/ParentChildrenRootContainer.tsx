@@ -23,10 +23,18 @@ export function ParentChildrenRootContainer(props: Readonly<ParentChildrenRootCo
   const hasStudentParam = props.student !== null && props.student !== "";
 
   useEffect(() => {
-    if (!hasStudentParam && children !== undefined && children.length > 0) {
-      router.replace(`/parent/children/${children[0].id}`);
+    if (children === undefined || children.length === 0) {
+      return;
     }
-  }, [hasStudentParam, children, router]);
+    if (!hasStudentParam) {
+      router.replace(`/parent/children/${children[0].id}`);
+    } else {
+      const childExists = children.some(c => c.id === props.student);
+      if (!childExists) {
+        router.replace(`/parent/children/${children[0].id}`);
+      }
+    }
+  }, [hasStudentParam, children, router, props.student]);
 
   const errorCode = error ? extractErrorCode(error) : null;
   const denied =
