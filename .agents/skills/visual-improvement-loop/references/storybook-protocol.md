@@ -23,6 +23,15 @@ Delegate to a coder subagent. Prompt must require:
 
 Story ids are kebab-slugs like `views-dashboard-accounting-credits-creditadjustform--carryover-expanded`. Grab them from the stories files' `title:` or the Storybook manager URL; prefer `iframe.html?id=<id>&viewMode=story&globals=locale:en` for EN captures (needed for fair comparison against EN prototype mockups) and `locale:ar` when verifying RTL.
 
+## Per-arm state markers (fixture state-machine trap)
+
+A story fixture can make an entire arm unreachable while the story still "renders" — e.g. a
+derived-state component where two fixture shapes produce the SAME presentation (an unverified-pending
+row rendering the failed arm), so the intended arm's marker never appears in any capture. When
+capturing an arm, assert its UNIQUE state marker via DOM eval (chip label, banner presence, absence
+of the other arm's marker) — not just "the page rendered". A marker that never appears means either
+a fixture bug or a selector bug; fix the fixture to the wire shape that legitimately produces the arm.
+
 ## Keep stories and implementation in sync
 
 When a fix wave changes component structure/props, the same fixer must update the stories — stories get stale fast and stale stories corrupt the next loop's conclusions.

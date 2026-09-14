@@ -46,6 +46,7 @@ import {
   PaymentStatus,
   type PlanCatalogQuery_planCatalog,
   type PurchaseVerificationPlanMutation,
+  SubscriptionCreditLane,
   SubscriptionStatus,
 } from "@/frontend/graphql/generated/gql/graphql";
 import { planCatalogQueryDocument, purchaseVerificationPlanMutationDocument } from "@/frontend/graphql/sharedDocuments";
@@ -79,6 +80,9 @@ const PLAN_ROW: PlanCatalogQuery_planCatalog = {
   deactivatedAt: null,
   createdAt: "2026-08-01T10:00:00.000Z",
   updatedAt: "2026-08-01T10:00:00.000Z",
+  // The seeded verification plan's lane — the catalog selection now carries
+  // the lane field for the plan card's lane chip.
+  balanceLane: SubscriptionCreditLane.Reviews,
 };
 
 /** The catalog mock — one row list, either containing the verification plan or not. */

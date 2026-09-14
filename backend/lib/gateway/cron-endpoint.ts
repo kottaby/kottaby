@@ -52,11 +52,11 @@
  * time) so tests can stub `process.env` per invocation.
  */
 
-import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { apiErrorResponse, apiSuccessResponse, resolveRequestId } from "@/backend/lib/api";
+import { bearerSecretMatches, cronUnauthorizedError } from "@/backend/lib/api/cron-auth";
 import { getEnv } from "@/backend/lib/env";
-import { DomainError, RateLimitExceededError } from "@/backend/lib/errors";
+import { RateLimitExceededError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { checkRateLimit, getClientIdentifier, type RateLimiterConfig } from "@/backend/lib/ratelimit";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
@@ -81,26 +81,6 @@ const cronSweepRateLimiter: RateLimiterConfig = {
   limit: 100,
   windowMs: 60_000,
 };
-
-/** The failed-auth denial — classified to 401 (UNAUTHORIZED family). */
-function sweepUnauthorizedError(): DomainError {
-  return new DomainError("UNAUTHORIZED", "Invalid cron credentials.");
-}
-
-/**
- * Timing-safe bearer comparison: both sides are hashed to fixed-length
- * SHA-256 digests first, so `timingSafeEqual` never sees (or leaks via
- * early exit) length differences between the presented and expected
- * secrets.
- */
-function bearerSecretMatches(presented: string | null, expected: string): boolean {
-  if (presented === null || presented.length === 0) {
-    return false;
-  }
-  const presentedDigest = createHash("sha256").update(presented).digest();
-  const expectedDigest = createHash("sha256").update(expected).digest();
-  return timingSafeEqual(presentedDigest, expectedDigest);
-}
 
 interface CronSweepEndpointConfig<TResult> {
   /**
@@ -164,7 +144,7 @@ export function createCronSweepEndpoint<TResult>(
     const configuredSecret = (rawSecret ?? "").trim();
     const presented = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null;
     if (configuredSecret.length === 0 || !bearerSecretMatches(presented, configuredSecret)) {
-      return apiErrorResponse(sweepUnauthorizedError(), { requestId, locale: envelopeLocale });
+      return apiErrorResponse(cronUnauthorizedError(), { requestId, locale: envelopeLocale });
     }
 
     // The sweep owns its transaction; a thrown failure is masked through

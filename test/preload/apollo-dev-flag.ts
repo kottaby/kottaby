@@ -1,7 +1,7 @@
 /**
  * Apollo Client dev-mode flag — preload for suites that assert on Apollo's
  * development-mode warnings (e.g. the "Cache data may be lost" cache-data-loss
- * heuristic, invariant 118).
+ * heuristic).
  *
  * Apollo's default (non-bundler) build resolves its internal `__DEV__` flag
  * from `globalThis.__DEV__ === true` at module-load time (see

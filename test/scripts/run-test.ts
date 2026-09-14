@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { withProcessLock } from "@/scripts/lib/process-lock";
 import { loadTestEnvFile } from "@/scripts/lib/test-build-env";
+import { stripDevLeakedEnvKeys } from "@/test/scripts/runner-helpers";
 
 const BUN_BIN = existsSync(join(homedir(), ".bun", "bin", "bun"))
   ? join(homedir(), ".bun", "bin", "bun")
@@ -18,6 +19,15 @@ function logInfo(message: string): void {
 function logError(message: string): void {
   process.stderr.write(`[run-test] ERROR: ${message}\n`);
 }
+
+/**
+ * Payment/tunnel keys whose DEV `.env` values must never reach a test
+ * process — see `DEV_LEAKED_ENV_KEYS` in `runner-helpers.ts` for the leak
+ * mechanism (parent `bun run` auto-loads the dev `.env`; an inherited var
+ * beats `--env-file`). The Paymob live suites are unaffected: they opt in
+ * explicitly via `process.env` inside `beforeAll`, and their credentials
+ * travel through `--env-file=.env.test` at spawn.
+ */
 
 function formatTimestampDir(date: Date = new Date()): string {
   const year = date.getFullYear();
@@ -154,22 +164,26 @@ async function runTest(testPath: string): Promise<number> {
 
   logInfo(`Running: bun test ${testPath}`);
 
+  const childEnv: Record<string, string | undefined> = {
+    ...process.env,
+    ...loadTestEnvFile(),
+    FORCE_COLOR: "0",
+    NODE_ENV: "test",
+    KOTTABY_TEST_RUNNER_OK: "1",
+  };
+  stripDevLeakedEnvKeys(childEnv);
+
   const proc = Bun.spawn([BUN_BIN, "--env-file=.env.test", "test", testPath, "--timeout=60000"], {
     stdout: "pipe",
     stderr: "pipe",
     // PIN DATABASE_URL to the TEST database explicitly (dotenv precedence:
     // an explicitly-set env var beats Bun's auto-loaded cwd `.env`, which
     // would otherwise silently point single-file runs at the DEV database).
-    env: {
-      ...process.env,
-      ...loadTestEnvFile(),
-      FORCE_COLOR: "0",
-      NODE_ENV: "test",
-      KOTTABY_TEST_RUNNER_OK: "1",
-    },
+    // The payment/tunnel strip runs AFTER both env sources merge — see
+    // `DEV_LEAKED_ENV_KEYS`.
+    env: childEnv,
     cwd: PROJECT_ROOT,
   });
-
   const stdoutText = await new Response(proc.stdout).text();
   const stderrText = await new Response(proc.stderr).text();
   const exitCode = await proc.exited;

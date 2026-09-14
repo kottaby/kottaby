@@ -702,10 +702,21 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
     expect(pending.startDate).toBeNull();
     expect(pending.endDate).toBeNull();
 
-    // Zero credit, zero notification, zero publish for the failed leg.
+    // Zero credit; the failure leg persists + publishes ONE failure
+    // notification (the failed copy pair) to Student A.
     expect(await readBalances(studentA.userId)).toEqual(balancesBefore);
-    expect(await inboxCount(studentA.userId)).toBe(1);
-    expect(publishSpy.mock.calls).toHaveLength(1);
+    expect(await inboxCount(studentA.userId)).toBe(2);
+    expect(publishSpy.mock.calls).toHaveLength(2);
+    const failureNotifs = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.relatedEntityId, result.subscription.id));
+    expect(failureNotifs).toHaveLength(1);
+    if (failureNotifs[0]) {
+      tracked.register(notifications, failureNotifs[0].id);
+      expect(failureNotifs[0].type).toBe(NotificationType.PaymentConfirmation);
+      expect(failureNotifs[0].userId).toBe(studentA.userId);
+    }
 
     // The committed pending set grew by exactly the new pair.
     const countsAfter = await pendingSetCounts(studentA.userId);
@@ -785,8 +796,8 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
     // Zero mutation anywhere: pending set, balances, inbox, publishes.
     expect(await pendingSetCounts(studentA.userId)).toEqual(ownerCounts);
     expect(await readBalances(studentA.userId)).toEqual(balancesBefore);
-    expect(await inboxCount(studentA.userId)).toBe(1);
-    expect(publishSpy.mock.calls).toHaveLength(1);
+    expect(await inboxCount(studentA.userId)).toBe(2);
+    expect(publishSpy.mock.calls).toHaveLength(2);
   });
 
   test("step 11 — Student A: purchase on the seeded Reviews-lane plan + confirmed event → balance_reviews credited exactly", async () => {
@@ -851,10 +862,11 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       claims: countsBefore.claims + 1,
     });
 
-    // ONE more persisted notification (student A's inbox now holds two) and
-    // ONE more post-commit publish — the confirmation fan-out targets the
-    // purchaser only, exactly like step 3's.
-    expect(await inboxCount(studentA.userId)).toBe(2);
+    // ONE more persisted notification (student A's inbox now holds three:
+    // the step-3 confirmation, the step-6 failure copy, this confirmation)
+    // and ONE more post-commit publish — the confirmation fan-out targets
+    // the purchaser only, exactly like step 3's.
+    expect(await inboxCount(studentA.userId)).toBe(3);
     const reviewsNotifs = await db
       .select()
       .from(notifications)
@@ -867,7 +879,7 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       expect(reviewsNotifs[0].type).toBe(NotificationType.PaymentConfirmation);
       expect(reviewsNotifs[0].userId).toBe(studentA.userId);
     }
-    expect(publishSpy.mock.calls).toHaveLength(2);
+    expect(publishSpy.mock.calls).toHaveLength(3);
   });
 
   test("step 12 — Student A: purchase on the Tajweed-lane fixture plan + confirmed event → balance_tajweed credited exactly; replay never double-credits", async () => {
@@ -930,9 +942,11 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       claims: countsBefore.claims + 1,
     });
 
-    // ONE more persisted notification (student A's inbox now holds three) and
-    // ONE more post-commit publish — addressed to Student A ONLY.
-    expect(await inboxCount(studentA.userId)).toBe(3);
+    // ONE more persisted notification (student A's inbox now holds four:
+    // the step-3 confirmation, the step-6 failure copy, the step-11
+    // confirmation, this confirmation) and ONE more post-commit publish —
+    // addressed to Student A ONLY.
+    expect(await inboxCount(studentA.userId)).toBe(4);
     const tajweedNotifs = await db
       .select()
       .from(notifications)
@@ -947,8 +961,8 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
       expect(tajweedNotifs[0].title).toBe(NOTIFS_EN.eventPaymentConfirmedTitle);
       expect(tajweedNotifs[0].body).toBe(NOTIFS_EN.eventPaymentConfirmedBody(tajweedPlanRow.title));
     }
-    expect(publishSpy.mock.calls).toHaveLength(3);
-    const lastPublish: unknown = publishSpy.mock.calls[2]?.[0];
+    expect(publishSpy.mock.calls).toHaveLength(4);
+    const lastPublish: unknown = publishSpy.mock.calls[3]?.[0];
     if (!Array.isArray(lastPublish) || lastPublish.length !== 1) {
       throw new Error("expected exactly one published delivery receipt for the tajweed activation");
     }
@@ -971,7 +985,7 @@ describe("cross-actor journey: subscription purchase → gateway settlement", ()
     expect(replayOutcome).toEqual({ processed: true, replayed: true });
     expect(await readBalances(studentA.userId)).toEqual(balancesAfter);
     expect((await paymentRow(result.payment.id)).status).toBe(PaymentStatus.Paid);
-    expect(await inboxCount(studentA.userId)).toBe(3);
-    expect(publishSpy.mock.calls).toHaveLength(3);
+    expect(await inboxCount(studentA.userId)).toBe(4);
+    expect(publishSpy.mock.calls).toHaveLength(4);
   });
 });

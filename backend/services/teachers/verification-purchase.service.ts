@@ -82,6 +82,7 @@ import {
   isCarryableIdempotencyKey,
   isPositiveSafeId,
 } from "@/backend/services/billing/purchase-guards.helpers";
+import { buildCheckoutBillingInput } from "@/backend/services/billing/subscription-purchase.helpers";
 import { assertActorGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
 import { ApplicantLifecycleService } from "@/backend/services/teachers/applicant-lifecycle.service";
 import type {
@@ -393,6 +394,10 @@ async function purchaseVerificationInTx(
     updatedAt: createdPayment.updatedAt,
     status: PaymentStatus.Pending,
     paymentGateway: checkout.provider,
+    // No provider transaction reference exists yet — the pending pair is
+    // created before the gateway decision; the auditable link is recorded
+    // by the guarded decision writers (the one-time NULL → value allowance).
+    providerTransactionId: createdPayment.providerTransactionId,
   };
 
   return { subscription, payment, checkout };
@@ -517,15 +522,22 @@ export namespace VerificationPurchaseService {
 
     // Gateway checkout BEFORE the transaction — the provider call is a
     // network boundary. The amount/currency pair is the plan row's own,
-    // carried verbatim; the caller cannot influence either. The
-    // applicant's user id rides the checkout input's generic purchaser
-    // slot.
+    // carried verbatim; the caller cannot influence either. The applicant's
+    // user id rides the checkout input's generic purchaser slot. The
+    // special reference is the purchase-claim key itself — the provider
+    // echoes it back on every callback and fulfillment resolves the pending
+    // pair by it, so the claim and the provider order share one correlation
+    // identity. The billing identity derives server-side from the
+    // purchaser's user row (never client-supplied — the same shared helper
+    // the student subscription purchase flow uses).
     const gateway = getPaymentGateway(locale);
     const checkout = await gateway.createCheckout({
       studentId: applicantUserId,
       planId: plan.id,
       amount: plan.price,
       currency: plan.currency,
+      specialReference: idempotencyKey,
+      billing: await buildCheckoutBillingInput(applicantUserId, t, outerTx),
     });
 
     return withTransaction(outerTx, tx =>

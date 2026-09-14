@@ -25,7 +25,7 @@ Do NOT use for: brand-new pages with no implementation yet (use spec-driven-deve
 1. **One image per ReadMediaFile context.** Each visual inspection happens in a dedicated isolated subagent for ONE screenshot (never batch — multi-image payloads kill the upstream stream). The only permitted exception is the prototype-comparison inspector, which reads EXACTLY TWO images sequentially (prototype first, then implementation), never more.
 2. **Never trust a capture without verifying the page state.** Verify `document.title` (auth bounce guard) and the interaction-driven DOM state (e.g. expanded sections) BEFORE and AFTER each screenshot. See `references/capture-protocol.md`.
 3. **Prototype ≠ spec.** The prototype is an imagination aid: compare STRUCTURE ONLY — ignore colors entirely (prototypes ship arbitrary Tailwind colors). All row data in prototypes is fake — never let any of it leak into production code; the spec/docs always win on conflicts.
-4. **Every fix wave passes the per-file quality loop.** No visual fix ships without `bun run scripts/health/sub-loop.ts <file> --lifecycle codescene` exit 0 and green component tests. This skill composes with the quality-loop skill — the loop runs per changed file, never skipped, even for "just CSS".
+4. **Every fix wave passes the per-file quality loop.** No visual fix ships without `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` exit 0 and green component tests. This skill composes with the quality-loop skill — the loop runs per changed file, never skipped, even for "just CSS".
 5. **Disjoint-file fix waves.** Parallel fix agents must own non-overlapping file sets (e.g. list vs form vs shared editor). Sharing the working tree with other workstreams: never touch files outside the assigned set; pre-existing failures in other domains are recorded, not fixed.
 6. **Scripts measure, inspectors judge.** Mechanical defects (console errors, overflow, wrong page) are caught by the objective pre-check gate (Phase 3.5) BEFORE any image is inspected. Image inspectors are reserved for what requires eyes.
 
@@ -86,7 +86,7 @@ Aggregate the pass table (screen × viewport → score) and sort findings by sev
 
 Cluster findings by shared files; dispatch one fixer per file set:
 
-- Prompt: findings verbatim, the component file scope, conventions refs (`frontend/AGENTS.md`, `frontend/THEME_PALETTE.md`, per-dir AGENTS.md), the requirement to pass sub-loop `--lifecycle codescene` per touched file + the component test suite, and "no plan-tag comments, theme tokens only, RTL-safe".
+- Prompt: findings verbatim, the component file scope, conventions refs (`frontend/AGENTS.md`, `frontend/THEME_PALETTE.md`, per-dir AGENTS.md), the requirement to pass sub-loop `--lifecycle duplicates` per touched file + the component test suite, and "no plan-tag comments, theme tokens only, RTL-safe".
 - Fixers consult `references/fix-patterns.md` and apply the matching recipe; if no row matches a finding, the fixer says so in its report — that gap is a playbook candidate for the evolution log.
 - Findings may point at a shared primitive (shared grids/containers). If so, the fix is a CROSS-FILE decision the orchestrator makes, not a silent edit the file-owner makes.
 

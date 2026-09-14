@@ -75,6 +75,9 @@ export const notificationsAr: NotificationsLabels = {
   eventPaymentConfirmedTitle: "تم تأكيد الدفع",
   eventPaymentConfirmedBody: (planTitle: string) =>
     `تم استلام دفعتك لخطة ${planTitle} — اشتراكك مفعّل الآن وحصصك متاحة.`,
+  eventPaymentFailedTitle: "فشل الدفع",
+  eventPaymentFailedBody: (planTitle: string) =>
+    `لم تكتمل عملية الدفع لخطة ${planTitle} — لم يتم تفعيل الاشتراك ولم تُضف أي حصص. يمكنك إعادة محاولة الشراء في أي وقت.`,
   eventSessionReportReadyTitle: "تقرير الجلسة جاهز",
   eventSessionReportReadyBody: (teacherName: string) => `قدّم ${iso(teacherName)} تقرير جلستك.`,
   eventSessionReportReadyParentBody: (studentName: string, teacherName: string) =>

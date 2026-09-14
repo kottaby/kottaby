@@ -25,7 +25,7 @@
  *      precedent).
  *   4. ROUND-TRIP — the REAL documents execute through a real Apollo pipeline
  *      (`ApolloClient` + `MockLink` + the production `createApolloCache()`)
- *      and emit ZERO "Cache data may be lost" (invariant 118) diagnostics —
+ *      and emit ZERO "Cache data may be lost" cache-data-loss diagnostics —
  *      including a cache-hit re-read of a previously written lookup. The
  *      `HandshakeCodeLookup: { keyFields: false }` typePolicy registration
  *      itself is locked in `frontend/providers/apollo/apolloCache.test.ts`
@@ -53,6 +53,7 @@
 
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { ApolloClient, InMemoryCache, type TypedDocumentNode } from "@apollo/client";
+import { loadDevMessages, loadErrorMessages } from "@apollo/client/dev";
 import { MockLink } from "@apollo/client/testing";
 import {
   type DocumentNode,
@@ -77,6 +78,15 @@ import {
 } from "@/frontend/graphql/sharedDocuments/students/handshake-code.documents";
 import { createApolloCache } from "@/frontend/providers/apollo/apolloCache";
 import { apolloDevModePreloaded } from "@/test/preload/apollo-dev-flag";
+
+// Apollo's non-bundler build never auto-loads the friendly invariant message
+// tables, so its diagnostics render as a URL-encoded fallback whose numeric
+// code is build-specific (the cache-data-loss warning was renumbered 118 → 125
+// between Apollo 4.2 and 4.3). Loading the dev message tables here pins the
+// diagnostic to its stable friendly text — the same posture as the browser
+// dev build the apollo-dev-flag preload emulates.
+loadDevMessages();
+loadErrorMessages();
 
 // ---------------------------------------------------------------------------
 // Assertion-free AST helpers (guard-and-throw narrowing, same style as
@@ -158,11 +168,13 @@ function requireQueryData<TData>(result: { readonly data: TData | undefined }, l
 // Warning-signature helper — Apollo's "Cache data may be lost" diagnostic.
 
 /**
- * Detects Apollo invariant 118 (the cache-data-loss warning) in one captured
- * `console.warn`/`console.error` argument list. Apollo 4 renders numeric
- * invariant codes either as the friendly "Cache data may be lost…" text or as
- * a URL-encoded payload (`…go.apollo.dev/c/err#%7B…%22message%22:118…`),
- * depending on which invariant bundle loaded — both signatures are matched.
+ * Detects Apollo's "Cache data may be lost" cache-data-loss diagnostic in one
+ * captured `console.warn`/`console.error` argument list. With the dev message
+ * tables loaded at the top of this file, the warning renders as its stable
+ * friendly text. As a fallback (dev messages not yet registered), Apollo
+ * renders a URL-encoded error payload whose numeric invariant code is
+ * build-specific (118 under Apollo 4.2, 125 under 4.3) — the fallback branch
+ * matches any numeric invariant message rather than a hard-coded code.
  */
 function isCacheDataLossWarning(args: readonly unknown[]): boolean {
   return args.some(arg => {
@@ -171,7 +183,7 @@ function isCacheDataLossWarning(args: readonly unknown[]): boolean {
       return true;
     }
     try {
-      return decodeURIComponent(text).includes('"message":118');
+      return /"message":\d+/.test(decodeURIComponent(text));
     } catch {
       return false;
     }
