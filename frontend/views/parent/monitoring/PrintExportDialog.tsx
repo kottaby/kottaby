@@ -14,7 +14,7 @@ export interface PrintableRow {
 }
 
 function escapeCsv(value: string): string {
-  return '"' + value.replace(/"/g, '""') + '"';
+  return '"' + value.replace(/"/g, '""').replace(/\r?\n/g, ' ') + '"';
 }
 
 export function PrintExportDialog({
