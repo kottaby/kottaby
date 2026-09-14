@@ -27,12 +27,16 @@
  *   4. ONE transaction that owns the authoritative validation and every
  *      write: the plan is re-validated as active (the pre-checkout read is
  *      only a gateway-input lookup — a plan deactivated mid-checkout fails
- *      the purchase), the applicant lifecycle guard is re-asserted (a
- *      missing applicants row, an active re-application cooldown, and a
- *      certified applicant each fail the purchase BEFORE any write), the
- *      idempotency claim is inserted savepoint-bracketed, and the pending
- *      subscription + pending payment rows commit atomically with the
- *      claim's subscription backfill.
+ *      the purchase), the fresh row is re-compared against the price and
+ *      currency the checkout was created with (`PLAN_PRICE_CHANGED` denial
+ *      before any write), the caller's governance state is re-asserted
+ *      (a caller deleted/blocked/suspended during checkout fails here),
+ *      the applicant lifecycle guard is re-asserted (a missing applicants
+ *      row, an active re-application cooldown, and a certified applicant
+ *      each fail the purchase BEFORE any write), the idempotency claim is
+ *      inserted savepoint-bracketed, and the pending subscription + pending
+ *      payment rows commit atomically with the claim's subscription
+ *      backfill.
  *
  * The verification purchaser is an APPLICANT — a user without a `students`
  * row by construction. The payment row is therefore written with a NULL
@@ -72,7 +76,11 @@ import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ConflictError, isPgUniqueViolation, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { getPaymentGateway } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
-import { isCarryableIdempotencyKey, isPositiveSafeId } from "@/backend/services/billing/purchase-guards.helpers";
+import {
+  assertPlanUnchangedSinceCheckout,
+  isCarryableIdempotencyKey,
+  isPositiveSafeId,
+} from "@/backend/services/billing/purchase-guards.helpers";
 import { assertActorGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
 import { ApplicantLifecycleService } from "@/backend/services/teachers/applicant-lifecycle.service";
 import type {
@@ -210,16 +218,19 @@ async function insertPendingSubscription(
 
 /**
  * The purchase transaction body — the fixed, never reordered write order
- * (active-plan re-validation → lifecycle guard → savepoint-bracketed
- * idempotency claim → applicant read → pending subscription insert →
- * NULL-owner pending payment insert → re-application attempt accounting
- * from `failed` → guarded flip to in-evaluation → claim backfill). Any
- * failure rolls the whole purchase back, which also releases the claim
- * (a failed purchase never burns its key).
+ * (active-plan re-validation → checkout-value re-comparison → governance
+ * re-assertion → lifecycle guard → savepoint-bracketed idempotency claim →
+ * applicant read → pending subscription insert → NULL-owner pending
+ * payment insert → re-application attempt accounting from `failed` →
+ * guarded flip to in-evaluation → claim backfill). Any failure rolls the
+ * whole purchase back, which also releases the claim (a failed purchase
+ * never burns its key).
  */
 async function purchaseVerificationInTx(
   applicantUserId: number,
   planId: number,
+  checkoutAmount: string,
+  checkoutCurrency: string,
   checkout: PaymentCheckoutSession,
   idempotencyKey: string,
   locale: string,
@@ -238,6 +249,18 @@ async function purchaseVerificationInTx(
     });
     throw new NotFoundError("PLAN", t.subscriptionPurchase.planNotPurchasable);
   }
+
+  // The checkout was priced from the PRE-transaction plan read; the pair is
+  // only committable when the fresh row still agrees with it. Thrown before
+  // ANY row write — the rollback discards the checkout session with zero
+  // rows written (see the shared guard's docblock on session compensation).
+  assertPlanUnchangedSinceCheckout("Verification purchase", activePlan, checkoutAmount, checkoutCurrency, t);
+
+  // Governance re-assertion INSIDE the transaction: the pre-checkout check
+  // read the actor before the gateway round-trip, so a caller deleted,
+  // blocked, or suspended during checkout fails the whole purchase here —
+  // the pair rolls back together with the claim.
+  await assertActorGovernanceClean(applicantUserId, t, tx);
 
   // The lifecycle guard runs INSIDE the transaction and BEFORE any write:
   // a missing applicants row, an active re-application cooldown, and a
@@ -407,9 +430,28 @@ export namespace VerificationPurchaseService {
     // participates in the caller's unit instead of escaping to the pool);
     // production callers omit it and this is a bare pool read. The
     // authoritative re-validation runs inside the purchase transaction
-    // below.
+    // below. Plan titles carry no uniqueness constraint, so an ambiguous
+    // catalog (two active rows sharing the canonical title) can never
+    // silently bind the purchase to the first match: the ambiguity is the
+    // catalog-misconfiguration conflict, denied with the client-safe copy
+    // BEFORE the gateway call and any write.
     const activePlans = await PlanRepository.listActive(outerTx);
-    const plan = activePlans.find(candidate => candidate.title === VERIFICATION_PLAN_TITLE);
+    const matchingPlans = activePlans.filter(candidate => candidate.title === VERIFICATION_PLAN_TITLE);
+    if (matchingPlans.length > 1) {
+      logger.logDomainError(
+        "Verification purchase rejected: ambiguous catalog — multiple active plans share the canonical title",
+        {
+          code: "CONFLICT",
+          entity: "plans",
+          // No single plan row is attributable — the resolution key names
+          // the ambiguous catalog member (never the idempotency key, never
+          // caller identity).
+          entityId: VERIFICATION_PLAN_TITLE,
+        }
+      );
+      throw new ConflictError(PAYMENT_PROCESSING_CONFLICT_MESSAGE);
+    }
+    const plan = matchingPlans.at(0);
     if (plan === undefined) {
       logger.logDomainError("Verification purchase rejected: plan is not purchasable", {
         code: "PLAN_NOT_FOUND",
@@ -436,7 +478,17 @@ export namespace VerificationPurchaseService {
     });
 
     return withTransaction(outerTx, tx =>
-      purchaseVerificationInTx(applicantUserId, plan.id, checkout, idempotencyKey, locale, tx, t)
+      purchaseVerificationInTx(
+        applicantUserId,
+        plan.id,
+        plan.price,
+        plan.currency,
+        checkout,
+        idempotencyKey,
+        locale,
+        tx,
+        t
+      )
     );
   }
 }

@@ -19,3 +19,12 @@ export const VERIFICATION_PLAN_TITLE = "New Teacher Verification & Evaluation Pl
 
 /** Exact number of sessions a verification plan purchase grants (product contract). */
 export const VERIFICATION_PLAN_SESSION_COUNT = 5 as const;
+
+/** Exact checkout/ledger price of the verification plan, verbatim decimal string (product contract). */
+export const VERIFICATION_PLAN_PRICE = "150.00" as const;
+
+/** Exact ISO currency code the verification plan is priced in (product contract). */
+export const VERIFICATION_PLAN_CURRENCY = "EGP" as const;
+
+/** Exact subscription window in days a verification purchase grants (product contract). */
+export const VERIFICATION_PLAN_INTERVAL_DAYS = 14 as const;

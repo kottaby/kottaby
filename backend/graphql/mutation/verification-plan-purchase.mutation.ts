@@ -52,8 +52,12 @@ gqlSchemaBuilder.mutationField("purchaseVerificationPlan", t =>
     },
     resolve: async (_root, _args, ctx) => {
       // TypeScript narrowing only — see `query/billing/wallet.query.ts`.
+      // The `authenticated` scope rejects this state first; the fallback
+      // still carries the canonical LOCALIZED unauthorized copy (the
+      // resolver localization contract — never a hardcoded string).
       if (!ctx.user) {
-        throw new UnauthorizedError("Authentication required.");
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
       }
       // No input argument exists: the identity is `ctx.user.id`, the plan is
       // resolved server-side, and the idempotency key rides the

@@ -12,15 +12,18 @@
  * - Confirm executes the inputless `purchaseVerificationPlan` mutation
  *   carrying the per-attempt `x-idempotency-key` context header: the key is
  *   minted per dialog mount, KEPT across domain rejections so the
- *   server-side replay dedupe stays effective, and rotated ONLY after a
- *   successful purchase.
+ *   server-side replay dedupe stays effective, and rotated after a
+ *   successful purchase OR a duplicate-replay settle (a spent key must
+ *   never ride a later attempt).
  * - Outcome lanes (`extensions.code` branch, localized copy only):
  *   success → profile refetch + success notice + close request;
  *   `APPLICANT_COOLDOWN_ACTIVE` → the server-localized cooldown copy (the
  *   ONE code whose server message may surface — it is built from the same
  *   shared locale catalog) + profile refetch + close request;
  *   `DUPLICATE_REQUEST` → the calm info lane (the request already landed
- *   server-side) + close request — nothing is retryable there;
+ *   server-side) + key rotation + profile refetch + close request — the
+ *   spent key never rides a reopen, and the card re-renders the truthful
+ *   lifecycle state;
  *   everything else → the generic localized failure notice and NO close
  *   request, so the retry replays the SAME kept idempotency key in place.
  * - The mock gateway settles with `checkout.checkoutUrl === null`, so no
@@ -157,8 +160,12 @@ export function useVerificationPurchase(wiring: VerificationPurchaseWiring): Ver
       }
       if (code === "DUPLICATE_REQUEST") {
         // Same-key replay: the first request already landed server-side —
-        // surface it as already-received (calm info lane, no refetch) and
-        // close: replaying a spent key again has nothing to change.
+        // surface it as already-received (calm info lane). The spent key is
+        // ROTATED so a reopen can never ride it again, and the profile
+        // refetch re-renders the card's truthful lifecycle state (a
+        // refetch failure folds silently — it must not mask the notice).
+        idempotencyKeyRef.current = crypto.randomUUID();
+        await refetchProfile().catch(() => undefined);
         setNotice({ message: t.purchaseSuccess, severity: "info" });
         onClose();
         return;

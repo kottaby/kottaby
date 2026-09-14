@@ -11,10 +11,12 @@
  *   missing-plan posture (confirm disabled + localized error alert) ·
  *   confirm success → profile refetch + success snackbar + dialog closed ·
  *   APPLICANT_COOLDOWN_ACTIVE → server-localized message + refetch + closed ·
- *   DUPLICATE_REQUEST → info snackbar + closed · generic error → localized
- *   error snackbar, dialog stays open, SAME per-attempt idempotency key
- *   replayed on the retry (kept across domain rejections) · success ROTATES
- *   the key for the next attempt.
+ *   DUPLICATE_REQUEST → info snackbar + key ROTATION + profile refetch +
+ *   closed (a spent key never rides a reopen — the next attempt carries a
+ *   FRESH one) · generic error → localized error snackbar, dialog stays
+ *   open, SAME per-attempt idempotency key replayed on the retry (kept
+ *   across domain rejections) · success ROTATES the key for the next
+ *   attempt.
  *
  * Translation discipline: assertions reference ONLY the PRELOADED label
  * objects resolved through `Applicant.getLabels(getTranslations(locale))`,
@@ -351,12 +353,16 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expect(traffic.operationNames).toEqual(["PlanCatalog", "PurchaseVerificationPlan"]);
     });
 
-    test("DUPLICATE_REQUEST → info snackbar (already received) + dialog closed", async () => {
+    test("DUPLICATE_REQUEST → info snackbar + key ROTATION + profile refetch + dialog closed", async () => {
       const traffic = createNetworkTraffic();
       const refetch = createRefetchSpy();
       renderPurchaseDialog(
         traffic,
-        [planCatalogMock([PLAN_ROW]), purchaseFailureMock("DUPLICATE_REQUEST", "duplicate (masked transport surface)")],
+        [
+          planCatalogMock([PLAN_ROW]),
+          purchaseFailureMock("DUPLICATE_REQUEST", "duplicate (masked transport surface)"),
+          purchaseFailureMock("DUPLICATE_REQUEST", "duplicate (masked transport surface)"),
+        ],
         locale,
         () => undefined,
         refetch.refetch
@@ -371,12 +377,29 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       });
       const toastAlert = screen.getByText(t.purchaseSuccess).closest(".MuiAlert-root");
       expect(toastAlert?.className.includes("MuiAlert-colorInfo")).toBe(true);
-      // The duplicate lane does NOT refetch and does NOT stay open.
-      expect(refetch.state.calls).toBe(0);
+      // The duplicate settle rotates the spent key and refetches the
+      // profile — the card re-renders the truthful lifecycle state.
+      expect(refetch.state.calls).toBe(1);
       await waitFor(() => {
         expect(screen.queryByTestId("verification-purchase-dialog")).toBeNull();
       });
       expect(traffic.operationNames).toEqual(["PlanCatalog", "PurchaseVerificationPlan"]);
+
+      // Re-open the SAME dialog instance (the card keeps it mounted): the
+      // next attempt must NOT ride the spent key — it carries a FRESH one.
+      fireEvent.click(screen.getByTestId("verification-purchase-harness-reopen"));
+      const reopened = await screen.findByTestId("verification-purchase-dialog");
+      await waitFor(() => {
+        expect(within(reopened).getByText(expectedPlanLine(t.purchasePlanLine))).toBeDefined();
+      });
+      fireEvent.click(within(reopened).getByRole("button", { name: t.purchaseConfirmCta }));
+
+      await waitFor(() => {
+        expect(traffic.operationNames).toEqual(["PlanCatalog", "PurchaseVerificationPlan", "PurchaseVerificationPlan"]);
+      });
+      expect(traffic.idempotencyKeys[1]).not.toBe("");
+      expect(traffic.idempotencyKeys[2]).not.toBe("");
+      expect(traffic.idempotencyKeys[2]).not.toBe(traffic.idempotencyKeys[1]);
     });
 
     test("generic error → purchaseGenericError snackbar, dialog STAYS open, SAME idempotency key replayed", async () => {

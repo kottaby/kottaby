@@ -7,6 +7,15 @@
  * `frontend/graphql/test/teachers/applicant-profile.test.ts` (the pattern
  * source for the register/login + Bearer-header harness in this file).
  *
+ * Boundary purity (frontend/graphql/test/AGENTS.md rule 10): this file
+ * interacts with the application EXCLUSIVELY through the GraphQL API
+ * (`testClient` + shared TypedDocumentNodes). Entity provisioning that has
+ * no public GraphQL surface rides the sanctioned `test/helpers` seam —
+ * never a direct `db`/drizzle import in the test file. The zero-write
+ * invariant on denials is asserted in the SERVICE tier
+ * (`backend/services/teachers/verification-purchase.service.test.ts`),
+ * which owns the ledger-visibility tooling it needs.
+ *
  * Denial matrix (the happy-path purchase is owned by the service suite
  * `backend/services/teachers/verification-purchase.service.test.ts` and the
  * J1 journey — deliberately NOT duplicated here, so this suite has no
@@ -22,63 +31,56 @@
  *    `applicants` row) WITHOUT a key → VALIDATION — the pre-DB key guard
  *    rejects the absent header before any database work.
  *
- * Documents:
- *  - A LOCAL `parse`d document carries the selection set. The shared
- *    TypedDocumentNode for this mutation is shipped by the dialog task
- *    (`frontend/graphql/sharedDocuments/billing/`); a local document keeps
- *    this suite decoupled from that landing order. `parse` yields the same
- *    DocumentNode — Apollo's `gql` is deliberately not imported: the
- *    `@/backend/db` fixture chain flips bun's module conditions so
- *    `graphql-tag`'s UMD build crashes (mirrors the sibling suite's note).
+ * Documents: shared TypedDocumentNodes only —
+ * `purchaseVerificationPlanMutationDocument`
+ * (`sharedDocuments/billing/verification-purchase.documents.ts`) for the
+ * mutation and `planCatalogQueryDocument` for the catalog probe. No local
+ * `parse`d strings, no raw queries (AGENTS.md rule 3).
  *
  * Idempotency key transport:
  *  - The key rides the per-request `x-idempotency-key` header exactly as
  *    `gqlContextFactory` captures it (propagation-only; raw verbatim value,
  *    `null` when absent). The keyless probe simply omits the header.
  *
- * Data lifecycle (HYGIENE — mirrors the sibling suite):
+ * Data lifecycle (HYGIENE — mirrors the sibling suites):
  *  - Every user this suite creates is tracked by id and deleted in a
  *    describe-scoped `afterAll` via the shared `deleteUsersByIds` helper
  *    (RESTRICT-gated references first, then the users; child rows cascade).
- *  - The ACTIVE verification plan is provisioned as a committed direct-DB
- *    fixture: the purchase flow resolves the plan SERVER-side (by the
- *    canonical title constant) BEFORE the applicant gate, so without a
- *    catalog member the student probe would surface PLAN_NOT_FOUND instead
- *    of the mandated APPLICANT_NOT_FOUND. The fixture mirrors the seeded
- *    product (canonical title constant, 5 sessions, "150.00"/EGP/14,
- *    Reviews lane, active). Resolution picks the oldest active same-title
- *    row, so on a seeded catalog the pre-existing row wins and this fixture
- *    is inert — either way the gate under test is reached. The row is
- *    tracked by id and hard-deleted in the same `afterAll` (explicit id,
- *    never a title sweep), and the committed-state probes assert every
- *    denial wrote zero purchase rows.
+ *  - The verification plan is resolved by the purchase flow SERVER-side
+ *    (canonical title constant) BEFORE the applicant gate, so the student
+ *    probe needs an ACTIVE canonical catalog member to reach the mandated
+ *    APPLICANT_NOT_FOUND. The member is provisioned CONDITIONALLY over the
+ *    GraphQL boundary (an authenticated catalog probe in `beforeAll`):
+ *    seeded catalogs (this CI tier seeds before the suite runs) already
+ *    carry it and the suite provisions nothing; only a catalog WITHOUT the
+ *    canonical member triggers the sanctioned
+ *    `insertVerificationPlanRow` seam. The purchase service REJECTS an
+ *    ambiguous catalog (multiple active rows sharing the canonical title),
+ *    so a blind insert would flip every purchase into a conflict — the
+ *    conditional is load-bearing. The fixture row (when one was created)
+ *    is deleted by explicit id in the same `afterAll` — never a title
+ *    sweep.
  */
 
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
-import { parse } from "graphql";
 
-import { db } from "@/backend/db";
-import { plans } from "@/backend/db/schema/billing/plans";
-import { subscriptionPurchaseIdempotency } from "@/backend/db/schema/billing/subscription-purchase-idempotency";
-import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
-import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { RegisterPublicRole } from "@/frontend/graphql/generated/gql/graphql";
 import {
   loginMutationDocument,
   registerUserMutationDocument,
 } from "@/frontend/graphql/sharedDocuments/auth/auth.documents";
-/** Canonical verification plan identity + contract (shared constants). */
-import {
-  VERIFICATION_PLAN_SESSION_COUNT,
-  VERIFICATION_PLAN_TITLE,
-} from "@/shared/constants/verification-plan.constants";
+import { planCatalogQueryDocument } from "@/frontend/graphql/sharedDocuments/billing/plan-catalog.documents";
+import { purchaseVerificationPlanMutationDocument } from "@/frontend/graphql/sharedDocuments/billing/verification-purchase.documents";
+/** Canonical verification plan identity (shared constant — the server's resolution key). */
+import { VERIFICATION_PLAN_TITLE } from "@/shared/constants/verification-plan.constants";
 import {
   countUsersByIds,
+  deletePlanRowById,
   deleteUsersByIds,
   describeGraphqlSuite,
   expectMutationError,
+  insertVerificationPlanRow,
   setupTestServerLifecycle,
   testClient,
 } from "@/test/helpers";
@@ -86,27 +88,6 @@ import {
 /** Per-run idempotency-key salt — unique keys, never shared across runs. */
 const PREFIX = randomUUID().slice(0, 8);
 const KEY_STUDENT = `${PREFIX}-key-student`;
-
-/** Inline mutation document — selection set mirrors the payload contract. */
-const purchaseVerificationPlanMutation = parse(`
-  mutation PurchaseVerificationPlan {
-    purchaseVerificationPlan {
-      subscription {
-        id
-        status
-      }
-      payment {
-        id
-        status
-      }
-      checkout {
-        provider
-        providerReference
-        checkoutUrl
-      }
-    }
-  }
-`);
 
 /**
  * Randomized email generator (per-suite unique prefix + UUID salt) — follows
@@ -136,7 +117,7 @@ function trackCreatedUser(id: number | null | undefined): void {
   if (typeof id === "number") createdUserIds.add(id);
 }
 
-/** The tracked catalog-fixture row id (inserted in beforeAll, deleted in afterAll). */
+/** The tracked catalog-fixture row id (0 = the catalog already carried the canonical member). */
 let verificationPlanId = 0;
 
 /**
@@ -180,39 +161,33 @@ async function registerAndLogin(
   return { userId, accessToken };
 }
 
-/** Committed purchase-row counters for one user (the zero-writes oracle). */
-async function committedPurchaseRowCounts(userId: number): Promise<{ subs: number; claims: number }> {
-  const [subs, claims] = await Promise.all([
-    db.$count(subscriptions, eq(subscriptions.userId, userId)),
-    db.$count(subscriptionPurchaseIdempotency, eq(subscriptionPurchaseIdempotency.userId, userId)),
-  ]);
-  return { subs, claims };
-}
-
 describeGraphqlSuite("purchaseVerificationPlan GraphQL Integration", () => {
   setupTestServerLifecycle();
 
   // ─── Fixtures: the ACTIVE verification plan the service resolves ────
   beforeAll(async () => {
-    const [planRow] = await db
-      .insert(plans)
-      .values({
-        title: VERIFICATION_PLAN_TITLE,
-        sessionCount: VERIFICATION_PLAN_SESSION_COUNT,
-        price: "150.00",
-        currency: "EGP",
-        intervalDays: 14,
-        balanceLane: SubscriptionCreditLane.Reviews,
-        isActive: true,
-      })
-      .returning();
-    if (!planRow) throw new Error("verification-plan fixture insert returned no rows");
-    verificationPlanId = planRow.id;
+    // Catalog probe over the REAL GraphQL boundary: an authenticated scout
+    // (public registration, tracked for cleanup) reads the ACTIVE catalog.
+    // The canonical plan is provisioned ONLY when missing — see the
+    // module docblock's data-lifecycle section for why the conditional is
+    // load-bearing (the service rejects an ambiguous catalog).
+    const scout = await registerAndLogin(RegisterPublicRole.Student);
+    const catalog = await testClient.query({
+      query: planCatalogQueryDocument,
+      context: { headers: { Authorization: `Bearer ${scout.accessToken}` } },
+    });
+    expect(catalog.error).toBeUndefined();
+    const hasCanonicalMember = (catalog.data?.planCatalog ?? []).some(plan => plan.title === VERIFICATION_PLAN_TITLE);
+    if (!hasCanonicalMember) {
+      const fixture = await insertVerificationPlanRow();
+      verificationPlanId = fixture.id;
+    }
   });
 
   // ─── Hygiene: restore the shared dev database to canonical seed state ───
   // Deletes exactly the rows this suite created (users tracked by id plus
-  // the tracked plan fixture) — explicit ids, never a sweep.
+  // the tracked plan fixture, when one was provisioned) — explicit ids,
+  // never a sweep.
   afterAll(async () => {
     const ids = [...createdUserIds];
     if (ids.length > 0) {
@@ -221,23 +196,22 @@ describeGraphqlSuite("purchaseVerificationPlan GraphQL Integration", () => {
       expect(await countUsersByIds(ids)).toBe(0);
     }
     if (verificationPlanId > 0) {
-      await db.delete(plans).where(eq(plans.id, verificationPlanId));
-      expect(await db.$count(plans, eq(plans.id, verificationPlanId))).toBe(0);
+      await deletePlanRowById(verificationPlanId);
     }
   });
 
   test("Tier 3 — anonymous caller gets UNAUTHORIZED (401 semantics, never FORBIDDEN)", async () => {
     const result = await testClient.mutate({
-      mutation: purchaseVerificationPlanMutation,
+      mutation: purchaseVerificationPlanMutationDocument,
     });
     expect(result.error).toBeDefined();
     expectMutationError(result.error, "UNAUTHORIZED");
   });
 
   test("Tier 3 — authenticated STUDENT with a valid idempotency key gets APPLICANT_NOT_FOUND (service-level applicant gate)", async () => {
-    const { userId, accessToken } = await registerAndLogin(RegisterPublicRole.Student);
+    const { accessToken } = await registerAndLogin(RegisterPublicRole.Student);
     const result = await testClient.mutate({
-      mutation: purchaseVerificationPlanMutation,
+      mutation: purchaseVerificationPlanMutationDocument,
       context: {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -248,16 +222,12 @@ describeGraphqlSuite("purchaseVerificationPlan GraphQL Integration", () => {
       },
     });
     expectMutationError(result.error, "APPLICANT_NOT_FOUND");
-    // Zero committed writes: the guard runs before the claim/pair inserts
-    // (the payload-absence itself is enforced by the error channel — a
-    // non-null root field that throws never yields data).
-    expect(await committedPurchaseRowCounts(userId)).toEqual({ subs: 0, claims: 0 });
   });
 
   test("Tier 1 boundary — teacher applicant WITHOUT an idempotency key gets VALIDATION (pre-DB key guard)", async () => {
-    const { userId, accessToken } = await registerAndLogin(RegisterPublicRole.Teacher);
+    const { accessToken } = await registerAndLogin(RegisterPublicRole.Teacher);
     const result = await testClient.mutate({
-      mutation: purchaseVerificationPlanMutation,
+      mutation: purchaseVerificationPlanMutationDocument,
       context: {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -267,6 +237,5 @@ describeGraphqlSuite("purchaseVerificationPlan GraphQL Integration", () => {
       },
     });
     expectMutationError(result.error, "VALIDATION");
-    expect(await committedPurchaseRowCounts(userId)).toEqual({ subs: 0, claims: 0 });
   });
 });

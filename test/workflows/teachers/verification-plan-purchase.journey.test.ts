@@ -104,6 +104,9 @@ import { NotificationEngine } from "@/backend/services/notifications";
 import { VerificationPurchaseService } from "@/backend/services/teachers/verification-purchase.service";
 import type { ApplicantSelectType, PaymentWebhookEvent, PlanSelectType, UserSelectType } from "@/backend/types";
 import {
+  VERIFICATION_PLAN_CURRENCY,
+  VERIFICATION_PLAN_INTERVAL_DAYS,
+  VERIFICATION_PLAN_PRICE,
   VERIFICATION_PLAN_SESSION_COUNT,
   VERIFICATION_PLAN_TITLE,
 } from "@/shared/constants/verification-plan.constants";
@@ -131,12 +134,6 @@ const NOTIFS_EN = getServerTranslations("en").notificationsTranslations;
 /** Milliseconds per day — the activation window arithmetic. */
 const MS_PER_DAY = 86_400_000;
 
-/** Catalog price/currency of the verification plan (the seeded product contract). */
-const VERIFICATION_PLAN_PRICE = "150.00";
-const VERIFICATION_PLAN_CURRENCY = "EGP";
-/** Activation window of the verification plan (days) — the seeder's interval literal. */
-const VERIFICATION_PLAN_INTERVAL_DAYS = 14;
-
 const tracked = new TrackedFixtures();
 
 /**
@@ -161,6 +158,8 @@ const ledgerSubscriptionIds: number[] = [];
 let bundle: JourneyFixtureBundle;
 /** The purchase target as the SERVICE resolves it (active catalog + exact-title match). */
 let planRow: PlanSelectType;
+/** The plan row id THIS journey created (0 = the seeded catalog member served). */
+let journeyCreatedPlanId = 0;
 /** Cooldown-active applicant (B) and cooldown-expired applicant (C) owner rows. */
 let applicantB: UserSelectType;
 let applicantC: UserSelectType;
@@ -273,29 +272,47 @@ beforeAll(async () => {
     applicantB = userB;
     applicantC = userC;
 
-    const plan = await createTestPlan(tx, {
-      title: VERIFICATION_PLAN_TITLE,
-      sessionCount: VERIFICATION_PLAN_SESSION_COUNT,
-      price: VERIFICATION_PLAN_PRICE,
-      currency: VERIFICATION_PLAN_CURRENCY,
-      intervalDays: VERIFICATION_PLAN_INTERVAL_DAYS,
-      balanceLane: SubscriptionCreditLane.Reviews,
-      isActive: true,
-    });
-    tracked.register(plans, plan.id);
+    // CONDITIONAL catalog fixture: the purchase service resolves its target
+    // server-side by the canonical title and REJECTS an ambiguous catalog
+    // (multiple active rows sharing it), so a blind insert on a seeded
+    // catalog would flip every purchase into a conflict. The committed
+    // fixture is created ONLY when the catalog lacks the canonical member;
+    // on a seeded catalog the pre-existing row serves (read, never
+    // mutated — its product fields are pinned identical by the seeder).
+    const activeInTx = await PlanRepository.listActive(tx);
+    const existingCanonical = activeInTx.find(entry => entry.title === VERIFICATION_PLAN_TITLE);
+    if (existingCanonical === undefined) {
+      const plan = await createTestPlan(tx, {
+        title: VERIFICATION_PLAN_TITLE,
+        sessionCount: VERIFICATION_PLAN_SESSION_COUNT,
+        price: VERIFICATION_PLAN_PRICE,
+        currency: VERIFICATION_PLAN_CURRENCY,
+        intervalDays: VERIFICATION_PLAN_INTERVAL_DAYS,
+        balanceLane: SubscriptionCreditLane.Reviews,
+        isActive: true,
+      });
+      tracked.register(plans, plan.id);
+      journeyCreatedPlanId = plan.id;
+    }
   });
 
   // Resolve the purchase target EXACTLY the way the purchase service does:
-  // active-catalog read + exact-title match. The service re-resolves the same
-  // deterministic ordering inside its own transaction, so both sides always
-  // agree on the same row (fixture row here, seeded row on seeded catalogs —
-  // the product fields are pinned identical by the seeder).
+  // committed active-catalog read + exact-title match. With the
+  // conditional-fixture guard above, exactly ONE active row carries the
+  // canonical title, so the match is deterministic — no first-match
+  // ambiguity against a seeded sibling row.
   const activeCatalog = await PlanRepository.listActive();
   const resolved = activeCatalog.find(entry => entry.title === VERIFICATION_PLAN_TITLE);
   if (!resolved) {
     throw new Error(
       `journey fixture: no ACTIVE plan titled "${VERIFICATION_PLAN_TITLE}" in the catalog — the verification plan fixture failed to commit`
     );
+  }
+  // When this journey provisioned the fixture itself, the resolved row
+  // MUST be it (the catalog held no other canonical member) — the created
+  // fixture is never silently swapped for a seeded row.
+  if (journeyCreatedPlanId > 0) {
+    expect(resolved.id).toBe(journeyCreatedPlanId);
   }
   planRow = resolved;
 });

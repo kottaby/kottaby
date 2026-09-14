@@ -9,16 +9,26 @@
  * database by convention (no cleanup).
  */
 
+import { eq } from "drizzle-orm";
 import { db } from "@/backend/db";
+import { plans } from "@/backend/db/schema/billing/plans";
 import { session } from "@/backend/db/schema/classes/session";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { admin } from "@/backend/db/schema/users/admin";
 import { users } from "@/backend/db/schema/users/users";
+import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import type { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SessionType } from "@/backend/enum/scheduling/session-type.enum";
 import { hashPassword } from "@/backend/lib/auth/password";
+import {
+  VERIFICATION_PLAN_CURRENCY,
+  VERIFICATION_PLAN_INTERVAL_DAYS,
+  VERIFICATION_PLAN_PRICE,
+  VERIFICATION_PLAN_SESSION_COUNT,
+  VERIFICATION_PLAN_TITLE,
+} from "@/shared/constants/verification-plan.constants";
 
 /** Direct-DB session-row insert (full column control over lifecycle state). */
 export async function insertSessionRow(overrides: {
@@ -51,6 +61,45 @@ export async function insertCertifiedTeacherRow(userId: number): Promise<number>
   const [teacherRow] = await db.insert(teacher).values({ id: userId, isApproved: true }).returning({ id: teacher.id });
   if (!teacherRow) throw new Error("teacher child-row insert returned no rows");
   return teacherRow.id;
+}
+
+/**
+ * Committed ACTIVE verification-plan catalog row (the seeded product
+ * contract: canonical title constant, session count, price, currency,
+ * interval, Reviews lane). Provisioned ONLY when the catalog lacks the
+ * canonical member — the purchase flow resolves the plan server-side by
+ * exact title, and the purchase service REJECTS an ambiguous catalog
+ * (multiple active rows sharing the canonical title), so suites must never
+ * blind-insert a second one. Returns the row id for explicit cleanup.
+ */
+export async function insertVerificationPlanRow(): Promise<{ id: number }> {
+  const [row] = await db
+    .insert(plans)
+    .values({
+      title: VERIFICATION_PLAN_TITLE,
+      sessionCount: VERIFICATION_PLAN_SESSION_COUNT,
+      price: VERIFICATION_PLAN_PRICE,
+      currency: VERIFICATION_PLAN_CURRENCY,
+      intervalDays: VERIFICATION_PLAN_INTERVAL_DAYS,
+      balanceLane: SubscriptionCreditLane.Reviews,
+      isActive: true,
+    })
+    .returning({ id: plans.id });
+  if (!row) throw new Error("verification plan fixture insert returned no rows");
+  return row;
+}
+
+/**
+ * Explicit-id hard delete of a tracked plan fixture row plus its zero
+ * residue re-probe (the suites' afterAll hygiene, owned by this seam so
+ * the integration test files stay on the GraphQL boundary).
+ */
+export async function deletePlanRowById(id: number): Promise<void> {
+  await db.delete(plans).where(eq(plans.id, id));
+  const residue = await db.$count(plans, eq(plans.id, id));
+  if (residue !== 0) {
+    throw new Error(`plan fixture cleanup failed: plan ${id} still present`);
+  }
 }
 
 /**

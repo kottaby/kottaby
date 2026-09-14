@@ -39,6 +39,12 @@
  *    pair survives; a key spent by a DIFFERENT caller is denied with the
  *    oracle-safe payment-not-found error (no owner-identity leak, and no
  *    idempotency-key material in any domain log).
+ *  - Mid-flight (the checkout network window — the in-transaction
+ *    re-validations that own it): a plan price/currency change during
+ *    checkout → the PLAN_PRICE_CHANGED validation denial; a caller
+ *    suspended during checkout → the forbidden denial; an ambiguous
+ *    canonical catalog (two active rows sharing the title) → the
+ *    client-safe conflict. All zero-write.
  *  - Tier 3 (chaos): a gateway outage at the pre-transaction boundary
  *    writes zero rows (the checkout is the only await before the
  *    transaction opens); concurrent double-submit on the SAME key through
@@ -69,7 +75,7 @@ import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
-import { ConflictError, DomainError, NotFoundError, ValidationError } from "@/backend/lib/errors";
+import { ConflictError, DomainError, ForbiddenError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { MockPaymentGatewayAdapter } from "@/backend/services/billing/payment-gateway/mock-payment-gateway.adapter";
 import { resetPaymentGateway } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
@@ -140,8 +146,24 @@ async function createApplicantFixture(
   return { user, applicant };
 }
 
-/** The verification-plan product fixture (title + session count from the shared constants). */
-async function createVerificationPlanFixture(tx: DBTransaction): Promise<PlanSelectType> {
+/**
+ * The verification-plan product row EXACTLY as the service resolves it
+ * (active catalog + exact title match) — money/window assertions are
+ * grounded in the row the service actually charges. Provisioned ONLY when
+ * the catalog lacks the canonical member: the purchase service REJECTS an
+ * ambiguous catalog (multiple active rows sharing the canonical title),
+ * so a blind fixture insert on a seeded catalog would flip every purchase
+ * into a conflict. On seeded catalogs the pre-existing committed row
+ * serves (its product fields are pinned identical by the seeder — read,
+ * never mutated); the conditional insert rides the caller's transaction
+ * and rolls back with it.
+ */
+async function ensureVerificationPlanRow(tx: DBTransaction): Promise<PlanSelectType> {
+  const active = await PlanRepository.listActive(tx);
+  const existing = active.find(candidate => candidate.title === VERIFICATION_PLAN_TITLE);
+  if (existing !== undefined) {
+    return existing;
+  }
   return createTestPlan(tx, {
     title: VERIFICATION_PLAN_TITLE,
     sessionCount: VERIFICATION_PLAN_SESSION_COUNT,
@@ -151,20 +173,6 @@ async function createVerificationPlanFixture(tx: DBTransaction): Promise<PlanSel
     balanceLane: SubscriptionCreditLane.Reviews,
     isActive: true,
   });
-}
-
-/**
- * The purchase target EXACTLY as the service resolves it (active catalog +
- * exact title match) — money/window assertions are grounded in the row the
- * service actually charges, whatever else the catalog holds.
- */
-async function serviceResolvedPlan(tx: DBTransaction): Promise<PlanSelectType> {
-  const active = await PlanRepository.listActive(tx);
-  const plan = active.find(candidate => candidate.title === VERIFICATION_PLAN_TITLE);
-  if (plan === undefined) {
-    throw new Error("test harness failure: no active verification plan row resolved");
-  }
-  return plan;
 }
 
 /**
@@ -220,8 +228,7 @@ describe("VerificationPurchaseService — purchase (Tier 1: branches)", () => {
   test("happy path: NULL-owner pending pair + guarded flip (attempts untouched) + backfilled claim + mock checkout", async () => {
     await runInRollback(async tx => {
       const { user } = await createApplicantFixture(tx);
-      await createVerificationPlanFixture(tx);
-      const plan = await serviceResolvedPlan(tx);
+      const plan = await ensureVerificationPlanRow(tx);
       const key = purchaseKey();
 
       const result = await VerificationPurchaseService.purchase(user.id, key, "en", tx);
@@ -294,7 +301,7 @@ describe("VerificationPurchaseService — purchase (Tier 1: branches)", () => {
         status: ApplicantStatus.Failed,
         cooldownUntil: new Date(Date.now() + 86_400_000),
       });
-      await createVerificationPlanFixture(tx);
+      await ensureVerificationPlanRow(tx);
 
       const err = await expectRepoError(() => VerificationPurchaseService.purchase(user.id, purchaseKey(), "en", tx));
       expect(err).toBeInstanceOf(ValidationError);
@@ -320,7 +327,7 @@ describe("VerificationPurchaseService — purchase (Tier 1: branches)", () => {
         status: ApplicantStatus.Failed,
         cooldownUntil: new Date(Date.now() - 60_000),
       });
-      await createVerificationPlanFixture(tx);
+      await ensureVerificationPlanRow(tx);
 
       const result = await VerificationPurchaseService.purchase(user.id, purchaseKey(), "en", tx);
 
@@ -337,7 +344,7 @@ describe("VerificationPurchaseService — purchase (Tier 1: branches)", () => {
   test("certified applicant (passed) → the localized already-certified denial — zero writes", async () => {
     await runInRollback(async tx => {
       const { user } = await createApplicantFixture(tx, { status: ApplicantStatus.Passed });
-      await createVerificationPlanFixture(tx);
+      await ensureVerificationPlanRow(tx);
 
       const err = await expectRepoError(() => VerificationPurchaseService.purchase(user.id, purchaseKey(), "en", tx));
       expectDomainDenial(err, "APPLICANT_ALREADY_CERTIFIED", t().applicantAlreadyCertified);
@@ -350,7 +357,7 @@ describe("VerificationPurchaseService — purchase (Tier 1: branches)", () => {
   test("non-applicant caller (no applicants row) → the applicant-not-found denial — zero writes", async () => {
     await runInRollback(async tx => {
       const user = await createTestUser(tx);
-      await createVerificationPlanFixture(tx);
+      await ensureVerificationPlanRow(tx);
 
       const err = await expectRepoError(() => VerificationPurchaseService.purchase(user.id, purchaseKey(), "en", tx));
       expect(err).toBeInstanceOf(NotFoundError);
@@ -364,7 +371,7 @@ describe("VerificationPurchaseService — purchase (Tier 1: branches)", () => {
   test("missing and empty idempotency keys → the localized key-required denial — zero writes", async () => {
     await runInRollback(async tx => {
       const { user } = await createApplicantFixture(tx);
-      await createVerificationPlanFixture(tx);
+      await ensureVerificationPlanRow(tx);
 
       const missingErr = await expectRepoError(() => VerificationPurchaseService.purchase(user.id, null, "en", tx));
       expectDomainDenial(missingErr, "VALIDATION", t().subscriptionPurchase.idempotencyKeyRequired);
@@ -401,7 +408,7 @@ describe("VerificationPurchaseService — purchase (Tier 1: branches)", () => {
   test("repeat purchase from in_evaluation (fresh key) → second pair; the flip is a silent no-op", async () => {
     await runInRollback(async tx => {
       const { user } = await createApplicantFixture(tx);
-      await createVerificationPlanFixture(tx);
+      await ensureVerificationPlanRow(tx);
 
       await VerificationPurchaseService.purchase(user.id, purchaseKey(), "en", tx);
       const second = await VerificationPurchaseService.purchase(user.id, purchaseKey(), "en", tx);
@@ -424,7 +431,7 @@ describe("VerificationPurchaseService — purchase (Tier 2: replay classificatio
   test("same-caller key replay throws the duplicate-request conflict and keeps ONE pair", async () => {
     await runInRollback(async tx => {
       const { user } = await createApplicantFixture(tx);
-      await createVerificationPlanFixture(tx);
+      await ensureVerificationPlanRow(tx);
       const key = purchaseKey();
 
       const first = await VerificationPurchaseService.purchase(user.id, key, "en", tx);
@@ -449,7 +456,7 @@ describe("VerificationPurchaseService — purchase (Tier 2: replay classificatio
     await runInRollback(async tx => {
       const { user: ownerUser } = await createApplicantFixture(tx);
       const { user: attackerUser } = await createApplicantFixture(tx);
-      await createVerificationPlanFixture(tx);
+      await ensureVerificationPlanRow(tx);
 
       const spentKey = purchaseKey();
       await VerificationPurchaseService.purchase(ownerUser.id, spentKey, "en", tx);
@@ -490,7 +497,7 @@ describe("VerificationPurchaseService — purchase (Tier 3: chaos)", () => {
   test("a gateway outage at the pre-transaction boundary writes zero rows", async () => {
     await runInRollback(async tx => {
       const { user } = await createApplicantFixture(tx);
-      await createVerificationPlanFixture(tx);
+      await ensureVerificationPlanRow(tx);
 
       // The checkout is the ONLY await between the pre-DB boundary and the
       // transaction body — an outage there must leave the ledger untouched
@@ -525,7 +532,7 @@ describe("VerificationPurchaseService — purchase (Tier 4: identity fuzz)", () 
         status: ApplicantStatus.Failed,
         cooldownUntil: new Date(Date.now() + 86_400_000),
       });
-      await createVerificationPlanFixture(tx);
+      await ensureVerificationPlanRow(tx);
 
       // Cooldown-active denial — both locales, distinct expansions, fully
       // expanded templates, and neither the name nor the id leaks.
@@ -577,6 +584,124 @@ describe("VerificationPurchaseService — purchase (Tier 4: identity fuzz)", () 
   });
 });
 
+/**
+ * Checkout-window combinator: runs `attempt` (the purchase) while the mock
+ * adapter's checkout seam first executes `mutation` — emulating the network
+ * window between the pre-checkout reads and the purchase transaction (the
+ * checkout is the ONLY await separating them). The spy restores itself even
+ * when the attempt rejects, so a denial mid-suite never poisons the shared
+ * adapter prototype.
+ */
+async function attemptDuringCheckoutWindow<T>(mutation: () => Promise<void>, attempt: () => Promise<T>): Promise<T> {
+  const prototype = MockPaymentGatewayAdapter.prototype;
+  const realCreateCheckout = prototype.createCheckout;
+  const checkoutSpy = spyOn(prototype, "createCheckout").mockImplementation(async input => {
+    await mutation();
+    return realCreateCheckout.call(prototype, input);
+  });
+  try {
+    return await attempt();
+  } finally {
+    checkoutSpy.mockRestore();
+  }
+}
+
+describe("VerificationPurchaseService — purchase (in-transaction re-validation, mid-flight)", () => {
+  beforeAll(() => {
+    resetPaymentGateway();
+  });
+
+  test("a plan price changed during checkout → PLAN_PRICE_CHANGED validation denial, zero writes", async () => {
+    await runInRollback(async tx => {
+      const { user } = await createApplicantFixture(tx);
+      const plan = await ensureVerificationPlanRow(tx);
+
+      // Direct repo update riding the checkout seam: the pre-checkout read
+      // fed the gateway the ORIGINAL price; the fresh in-transaction row now
+      // disagrees — committing would pair the provider's charge with a
+      // different stored amount (a settlement guaranteed to quarantine).
+      const err = await attemptDuringCheckoutWindow(
+        async () => {
+          await PlanRepository.updatePlanFields(plan.id, { price: "999.99" }, tx);
+        },
+        () => expectRepoError(() => VerificationPurchaseService.purchase(user.id, purchaseKey(), "en", tx))
+      );
+
+      // The generic localized validation label, machine-coded for the field
+      // payload — the plan selector is the offending input.
+      expectDomainDenial(err, "VALIDATION", t().validation);
+      if (!(err instanceof ValidationError)) {
+        throw new Error("expected the mid-flight price denial to be a ValidationError");
+      }
+      expect(err.fields).toEqual([{ field: "planId", code: "PLAN_PRICE_CHANGED", message: t().validation }]);
+
+      // Thrown BEFORE any row write: no pair, no claim.
+      const counts = await ledgerCounts(tx, user.id);
+      expect(counts).toEqual({ subs: 0, payments: 0, claims: 0 });
+    });
+  });
+
+  test("a caller suspended during checkout → forbidden denial, zero writes", async () => {
+    await runInRollback(async tx => {
+      const { user } = await createApplicantFixture(tx);
+      await ensureVerificationPlanRow(tx);
+
+      // The pre-checkout governance check saw a CLEAN actor; the suspension
+      // flips the actor's column during checkout, so only the
+      // in-transaction re-assertion can catch it.
+      const err = await attemptDuringCheckoutWindow(
+        async () => {
+          await tx.update(users).set({ suspended: true }).where(eq(users.id, user.id));
+        },
+        () => expectRepoError(() => VerificationPurchaseService.purchase(user.id, purchaseKey(), "en", tx))
+      );
+
+      expectDomainDenial(err, "FORBIDDEN", t().forbidden);
+      expect(err).toBeInstanceOf(ForbiddenError);
+
+      // The governed caller wrote nothing: no pair, no claim.
+      const counts = await ledgerCounts(tx, user.id);
+      expect(counts).toEqual({ subs: 0, payments: 0, claims: 0 });
+    });
+  });
+
+  test("an ambiguous canonical catalog (two active rows) → the client-safe conflict, zero writes", async () => {
+    await runInRollback(async tx => {
+      const { user } = await createApplicantFixture(tx);
+      // Two active canonical rows, environment-proof: on a seeded catalog
+      // the committed member already exists, so ONE explicit fixture insert
+      // already creates the ambiguity; on an unseeded one two inserts do.
+      // Both shapes ride this transaction and roll back with it.
+      await createTestPlan(tx, {
+        title: VERIFICATION_PLAN_TITLE,
+        sessionCount: VERIFICATION_PLAN_SESSION_COUNT,
+        price: "150.00",
+        currency: "EGP",
+        intervalDays: 14,
+        balanceLane: SubscriptionCreditLane.Reviews,
+        isActive: true,
+      });
+      await createTestPlan(tx, {
+        title: VERIFICATION_PLAN_TITLE,
+        sessionCount: VERIFICATION_PLAN_SESSION_COUNT,
+        price: "150.00",
+        currency: "EGP",
+        intervalDays: 14,
+        balanceLane: SubscriptionCreditLane.Reviews,
+        isActive: true,
+      });
+
+      const err = await expectRepoError(() => VerificationPurchaseService.purchase(user.id, purchaseKey(), "en", tx));
+      // The catalog misconfiguration is the internal-invariant breach: the
+      // client-safe conflict copy (the exact ambiguity never surfaces), and
+      // the denial lands BEFORE the gateway call — zero writes.
+      expectDomainDenial(err, "CONFLICT", "Payment could not be processed.");
+      const counts = await ledgerCounts(tx, user.id);
+      expect(counts).toEqual({ subs: 0, payments: 0, claims: 0 });
+    });
+  });
+});
+
 describe("VerificationPurchaseService — purchase (chaos: production tx path, committed fixtures)", () => {
   let chaosUserId = 0;
   let chaosPlanId = 0;
@@ -588,13 +713,24 @@ describe("VerificationPurchaseService — purchase (chaos: production tx path, c
     await db.transaction(async tx => {
       const user = await createTestUser(tx, { role: "teacher" });
       await createTestApplicant(tx, user.id, { status: ApplicantStatus.Pending });
-      const plan = await createTestPlan(tx, {
-        title: VERIFICATION_PLAN_TITLE,
-        sessionCount: VERIFICATION_PLAN_SESSION_COUNT,
-        balanceLane: SubscriptionCreditLane.Reviews,
-      });
+      // CONDITIONAL catalog fixture: on a seeded catalog the canonical
+      // member already exists (committed), and the purchase service
+      // REJECTS an ambiguous catalog — a blind second insert would flip
+      // this suite AND parallel workers' purchases into conflicts. The
+      // committed fixture is created only on a catalog without the
+      // canonical member; `chaosPlanId` stays 0 when the existing row
+      // serves, and the afterAll deletes only a row this suite created.
+      const active = await PlanRepository.listActive(tx);
+      const existing = active.find(candidate => candidate.title === VERIFICATION_PLAN_TITLE);
+      if (existing === undefined) {
+        const plan = await createTestPlan(tx, {
+          title: VERIFICATION_PLAN_TITLE,
+          sessionCount: VERIFICATION_PLAN_SESSION_COUNT,
+          balanceLane: SubscriptionCreditLane.Reviews,
+        });
+        chaosPlanId = plan.id;
+      }
       chaosUserId = user.id;
-      chaosPlanId = plan.id;
     });
   });
 
@@ -622,7 +758,11 @@ describe("VerificationPurchaseService — purchase (chaos: production tx path, c
     }
     await db.delete(subscriptions).where(eq(subscriptions.userId, chaosUserId));
     await db.delete(applicants).where(eq(applicants.id, chaosUserId));
-    await db.delete(plans).where(eq(plans.id, chaosPlanId));
+    if (chaosPlanId > 0) {
+      // Only a row THIS suite created is deleted — the seeded canonical
+      // member (when it served) is never touched.
+      await db.delete(plans).where(eq(plans.id, chaosPlanId));
+    }
     await db.delete(users).where(eq(users.id, chaosUserId));
 
     // Load-bearing residue proof: the teardown must leave zero rows behind.
