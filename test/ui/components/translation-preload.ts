@@ -26,21 +26,28 @@ import { mock } from "bun:test";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { arMessages } from "@/shared/locale/ar/messages";
 import { enMessages } from "@/shared/locale/en/messages";
-import { AdminStudents } from "@/shared/locale/namespaces/adminStudents";
-import { AdminTeachers } from "@/shared/locale/namespaces/adminTeachers";
-import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
-import { Applicant } from "@/shared/locale/namespaces/applicant";
-import { Auth } from "@/shared/locale/namespaces/auth";
-import { Checkout } from "@/shared/locale/namespaces/checkout";
-import { Common } from "@/shared/locale/namespaces/common";
-import { Dashboard } from "@/shared/locale/namespaces/dashboard";
-import { Errors } from "@/shared/locale/namespaces/errors";
-import { HandshakeCode } from "@/shared/locale/namespaces/handshakeCode";
-import { Landing } from "@/shared/locale/namespaces/landing";
-import { Notifications } from "@/shared/locale/namespaces/notifications";
-import { ParentLink } from "@/shared/locale/namespaces/parentLink";
-import { ParentMonitoring } from "@/shared/locale/namespaces/parentMonitoring";
-import { Sessions } from "@/shared/locale/namespaces/sessions";
+import { namespaces } from "@/shared/locale/namespaces/registry";
+
+// Namespace handles come from the registry (single source of truth) instead
+// of per-namespace imports — keeps this preload in sync with the registry and
+// avoids duplicating its import table (jscpd zero-clone policy).
+const {
+  AdminStudents,
+  AdminTeachers,
+  AdminUsers,
+  Applicant,
+  Auth,
+  Checkout,
+  Common,
+  Dashboard,
+  Errors,
+  HandshakeCode,
+  Landing,
+  Notifications,
+  ParentLink,
+  ParentMonitoring,
+  Sessions,
+} = namespaces;
 
 /** Mutable navigation state consumed by the mocked `next/navigation` exports. */
 export interface TestNavigationState {

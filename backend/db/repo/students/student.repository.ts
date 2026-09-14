@@ -48,8 +48,8 @@
  * directory contracts are re-exported verbatim, so the public API (names,
  * signatures, behavior, import paths) is unchanged.
  */
-import { and, asc, desc, eq, ilike, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
-import { type AnyPgColumn, alias } from "drizzle-orm/pg-core";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db, queryDb } from "@/backend/db";
 import * as studentRepositoryCreditLaneImpl from "@/backend/db/repo/students/student.repository.credit-lane.helpers";
 import type {
