@@ -20,6 +20,10 @@ import { ConflictError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.service";
 import type { DBTransaction, PlanReturnType, PlanSubmitInput } from "@/backend/types";
+import {
+  VERIFICATION_PLAN_SESSION_COUNT,
+  VERIFICATION_PLAN_TITLE,
+} from "@/shared/constants/verification-plan.constants";
 
 export interface DemoPlanSpec extends PlanSubmitInput {
   /** Balance lane this demo plan must carry; reconciled on every seed pass. */
@@ -49,9 +53,11 @@ export const INITIAL_DEMO_PLANS: readonly DemoPlanSpec[] = [
   {
     // New-teacher verification sessions assess existing recitation instead of
     // teaching new memorization or recitation rules, so they draw the review
-    // lane like the other assessment-style products below.
-    title: "New Teacher Verification & Evaluation Plan",
-    sessionCount: 5,
+    // lane like the other assessment-style products below. Title and session
+    // count are sourced from the shared verification-plan constants — the
+    // title is the server-side resolution key for verification purchases.
+    title: VERIFICATION_PLAN_TITLE,
+    sessionCount: VERIFICATION_PLAN_SESSION_COUNT,
     price: "150.00",
     currency: "EGP",
     intervalDays: 14,

@@ -230,9 +230,17 @@ function toAdminPaymentGatewayEnum(gateway: PgPaymentGateway): PaymentGateway {
   return mapped;
 }
 
+/**
+ * Narrows one joined admin-audit row to the canonical TS-enum shape. The
+ * student owner rides in as nullable (the widened ledger column) but cannot
+ * be null in a row that survived the `students` INNER join — reaching null
+ * means a broken join contract, so it raises loudly instead of rendering an
+ * owner-less row (the same hard-error posture as the pgEnum narrowers
+ * above).
+ */
 function toAdminPaymentRow(row: {
   id: number;
-  studentId: number;
+  studentId: number | null;
   subscriptionId: number | null;
   amount: string;
   currency: string;
@@ -242,8 +250,14 @@ function toAdminPaymentRow(row: {
   updatedAt: Date;
   studentName: string;
 }): AdminStudentPaymentRow {
+  if (row.studentId === null) {
+    throw new ConflictError(
+      "StudentPaymentRepository: admin audit row has no student owner — the students inner join makes this unreachable"
+    );
+  }
   return {
     ...row,
+    studentId: row.studentId,
     status: toAdminPaymentStatusEnum(row.status),
     paymentGateway: toAdminPaymentGatewayEnum(row.paymentGateway),
   };
@@ -395,9 +409,12 @@ export namespace StudentPaymentRepository {
   }
 
   /**
-   * Count of the admin-audit ledger view — the exact same predicate chain as
-   * `listForAdminAudit`, without the join (unless the name search is set,
-   * which filters on the joined `users` row). Mirrors the dual-branch idiom.
+   * Count of the admin-audit ledger view — the exact same predicate chain
+   * AND join semantics as `listForAdminAudit`: the students→users INNER
+   * join is applied unconditionally so the counted row-set equals the
+   * listed row-set for every filter combination (owner-less ledger rows
+   * are excluded from BOTH surfaces consistently; the 1:1 PK join leaves
+   * owner-bearing counts unchanged). Mirrors the dual-branch idiom.
    *
    * @returns The number of ledger rows the filtered audit page contains.
    */
@@ -405,26 +422,22 @@ export namespace StudentPaymentRepository {
     filters: NormalizedAdminPaymentFilters,
     tx?: DBTransaction
   ): Promise<number> {
-    const needsJoin = filters.studentNameSearch !== null;
     if (tx) {
-      const query = tx.select({ total: sql<number>`count(*)::int` }).from(studentPayments);
-      const joined = needsJoin
-        ? query
-            .innerJoin(students, eq(students.id, studentPayments.studentId))
-            .innerJoin(users, eq(users.id, students.id))
-        : query;
-      const rows = await joined.where(buildAdminPaymentFilterChain(filters));
+      const rows = await tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(studentPayments)
+        .innerJoin(students, eq(students.id, studentPayments.studentId))
+        .innerJoin(users, eq(users.id, students.id))
+        .where(buildAdminPaymentFilterChain(filters));
       return rows[0]?.total ?? 0;
     }
     const params: unknown[] = [];
     const whereClause = buildAdminPaymentRawFilterChain(filters, params);
-    const joinClause = needsJoin
-      ? ` JOIN students ON students.id = student_payments.student_id
-         JOIN users ON users.id = students.id`
-      : "";
     const result = await queryDb<{ total: number }>(
       `SELECT count(*)::int AS "total"
-         FROM student_payments${joinClause}${whereClause}`,
+         FROM student_payments
+         JOIN students ON students.id = student_payments.student_id
+         JOIN users ON users.id = students.id${whereClause}`,
       params
     );
     return result.rows[0]?.total ?? 0;

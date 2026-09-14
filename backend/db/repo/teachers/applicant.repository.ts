@@ -19,7 +19,7 @@
  *    prepared statements — writes are excluded from preparation
  *    (`docs/drizzle/prepared-statements.md`).
  */
-import { and, desc, eq, ilike, or, type SQL, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, type SQL, sql } from "drizzle-orm";
 import type { PoolClient } from "pg";
 import { db, queryDb } from "@/backend/db";
 import { applicants } from "@/backend/db/schema/teachers/applicants";
@@ -359,6 +359,59 @@ export namespace ApplicantRepository {
       // (enum-less varchar; see the doc block above).
     }
     return counts;
+  }
+
+  /**
+   * Moves an applicant into evaluation: sets `status` to `in_evaluation` and
+   * stamps `updated_at` in ONE guarded atomic UPDATE with `RETURNING *`.
+   *
+   * The guard is the prior state folded into the WHERE predicate — the row
+   * only matches while its stored status is still `pending` or `failed` (the
+   * two states from which a verification purchase may proceed). Under
+   * concurrent purchases the row lock serializes the statements, so exactly
+   * one writer flips the row; the loser matches zero rows. A zero-row result
+   * is the MISS SIGNAL, never an error: it means the applicant is already
+   * `in_evaluation` (repeat/concurrent purchase), already `passed` (whose
+   * purchases are rejected upstream by the purchase guard), or absent
+   * entirely — the service tier disambiguates which.
+   *
+   * Parameterized always; the id and both status members are bound values,
+   * never concatenated; no prepared statement (writes are excluded —
+   * `docs/drizzle/prepared-statements.md`).
+   *
+   * @returns The updated applicant row, or `null` when zero rows matched
+   *          the guarded predicate (see above — a silent no-op for callers).
+   */
+  export async function transitionToInEvaluation(
+    userId: number,
+    tx?: DBTransaction
+  ): Promise<ApplicantSelectType | null> {
+    // Single guarded statement — the lifecycle pre-state IS the WHERE
+    // predicate, so a stale read can never replay an illegal transition.
+    const evaluationWrite = {
+      status: ApplicantStatus.InEvaluation,
+      updatedAt: sql`now()`,
+    };
+    if (tx) {
+      // Transactional write — joins the caller's atomic purchase flow.
+      const [row] = await tx
+        .update(applicants)
+        .set(evaluationWrite)
+        .where(
+          and(eq(applicants.id, userId), inArray(applicants.status, [ApplicantStatus.Pending, ApplicantStatus.Failed]))
+        )
+        .returning();
+      return row ?? null;
+    }
+    // Standalone write — global db handle.
+    const [row] = await db
+      .update(applicants)
+      .set(evaluationWrite)
+      .where(
+        and(eq(applicants.id, userId), inArray(applicants.status, [ApplicantStatus.Pending, ApplicantStatus.Failed]))
+      )
+      .returning();
+    return row ?? null;
   }
 
   /**

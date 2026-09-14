@@ -634,6 +634,11 @@ type Mutation {
   purchaseSubscription(input: PurchaseSubscriptionInput!): PurchaseSubscriptionPayload!
 
   """
+  Purchase the teacher verification plan; identity from the session, plan resolved server-side.
+  """
+  purchaseVerificationPlan: PurchaseSubscriptionPayload!
+
+  """
   Rotate the JWT pair from a valid refresh token. Returns fresh access + refresh tokens. The new access_token + refresh_token + session_id are also set as httpOnly cookies (rotation invalidates the prior pair).
   """
   refreshToken(refreshToken: String!): RefreshTokenPayload!
