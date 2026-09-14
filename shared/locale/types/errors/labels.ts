@@ -225,6 +225,8 @@ export interface ErrorsLabels {
   readonly invalidAdjustmentAmount: string;
   /** "An adjustment reason is required and cannot be empty." — pre-DB manual wallet-adjustment reason reject → ValidationError. */
   readonly adjustmentReasonRequired: string;
+  /** "The adjustment direction must be either credit or debit." — fail-closed manual wallet-adjustment direction reject (a non-GraphQL caller passing a non-member direction) → ValidationError. */
+  readonly invalidAdjustmentDirection: string;
   /** Rating-gate reject — the session cannot receive a teacher rating yet (not completed, or missing a participant's completion stamp) → ConflictError("EVALUATION_SESSION_NOT_COMPLETED", …). */
   readonly evaluationSessionNotCompleted: string;
   /** Write-once reject — the caller already rated the teacher for this session (unique-constraint loser) → ConflictError("EVALUATION_ALREADY_SUBMITTED", …). */
