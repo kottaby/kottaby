@@ -2116,3 +2116,24 @@ Work Log:
 
 Stage Summary:
 - Branch tip carries both runs: their pass-2 loop + my prod-rig residuals; push + CI watch next
+
+---
+Task ID: GATE-1
+Agent: Orchestrator (full test + quality-gate green round)
+Task: Run the full pipeline (db migrate, seed, generate:gqlSchema, codegen, test:db, test:services, test:graphql), the quality-gate skill (.agents/skills/quality-gate/SKILL.md), fix all issues, make all green, commit and push.
+
+Work Log:
+- Sandbox reset the tree to main again on session start (stale /tmp/vwt worktree metadata pruned via git worktree prune); re-established feat/parent-read-only-monitoring-portal (PR #157), git identity eng-Shinawy set.
+- pglite rig rebuilt after env reset: .env + .env.test with DB_PROVIDER=pglite, PGLITE_DATA_DIR=/home/z/my-project/db/pglite{,-test}/app_db (DB_NAME app_db), placeholder-format DATABASE_URL, DATABASE_ENCRYPTION_KEY fixture, AUTH_COOKIE_SECURE=false. NOTE: migrate/seed must be run against BOTH the dev dir (.env) AND the test dir (.env.test) — test:db fails with "relation users does not exist" if only .env is migrated (fresh .env.test is created from scratch each sandbox reset).
+- Pipeline ALL GREEN: bun db migrate ✅ (12 migrations), db seed ✅ (demo users + plans + trial reconcile), generate:gqlSchema ✅ (schema.graphql 32969 bytes, no drift vs committed), codegen ✅ (gql/graphql.ts regenerated clean).
+- Test suites on pglite (serialized runners): test:db ✅ 33 files / 606 tests / 0 fail (4030 asserts, 57s); test:services ✅ 53 files / 1114 tests / 0 fail (22281 asserts, 60s); test:graphql ✅ 10 files / 172 tests / 0 fail.
+- Quality gate (bun quality-gate:fresh then resume): tsgo ✅, oxlint ✅ (0 warnings / 0 errors on 1822 files), biome:check ✅ (1850 files, no fixes), knip check:unused ✅, full-repo lint (non-type-aware) ✅ exit 0, check:duplicates ✅ (0 clones / 1080 files / 140k lines).
+- BLOCKER FOUND (environmental, not code): the gate's full-repo lint:type-aware stage OOMs in the 4GB sandbox — V8 heap OOM at --max-old-space-size=2560 (heap peaked ~2500MB), kernel OOM-killer SIGKILL at 2816 and 3072. Tuned LINT_QUEUE_CONCURRENCY=1 + LINT_MAX_OLD_SPACE_MB via env (no config files touched). Mitigation evidence that the lint LAYER is clean: (a) CI quality job ✅ on the exact head 4a37aac (GitHub runner memory), (b) file-scoped sub-loop --lifecycle lint (full tsgo→oxlint→biome→lint:type-aware chain) PASSES for all 6 TS files touched by the last 3 branch commits (parent-monitoring.service.test.ts, ParentChildDetailContainer{,.tabs,.parts}.tsx, RatingTrendChart.tsx, parent children page.tsx). Rule of thumb: full-repo type-aware lint needs >3GB RSS — run it only in CI or after the sandbox memory budget grows.
+- Remote CI verified via GitHub API on 4a37aac: quality ✅ tests-db ✅ tests-graphql ✅ tests-services ✅ (all completed success).
+- Working tree had ZERO tracked modifications this round (pipeline + gates all reproduce CI-green on the pushed head); this worklog entry is the only commit.
+
+Stage Summary:
+- FULL PIPELINE + ALL locally-runnable GATES GREEN on feat/parent-read-only-monitoring-portal @ 4a37aac; CI on the head already fully green; nothing to fix in code this round.
+- Known environmental limits (documented, not defects): full-repo lint:type-aware OOMs in the 4GB sandbox (CI-proven green instead; file-scoped sub-loop as local substitute); pglite test DB needs its own migrate+seed after every sandbox reset.
+- Recipe notes: GitHub API via curl + Bearer token works for check-runs (gh CLI not installed in this sandbox); lint OOM triage ladder: 2560 V8-heap OOM → 2816/3072 kernel OOM → accept CI evidence + file-scoped lint; always `git branch --show-current` before and after heavy commands (sandbox reverts HEAD to main between tool calls).
+- Next-round candidates: resume the visual loop backlog from VIS-1 (dark-mode capture pass, surah-name vocabulary ladder, admin resolved-cases history view, dispute-analytics trend history).
