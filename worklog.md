@@ -2391,3 +2391,22 @@ Work Log:
 Stage Summary:
 - SE feature (teacher evaluations, write-once constraint, elite_gambit migration, plan folder) now rides PR #157; branch tip 85957b8; all four CI checks green; awaiting human merge decision.
 - Recipe notes: MultiEdit is NOT reliably atomic in this environment — re-verify the file between attempts; PGlite dir poisoning mandates fresh data dirs after any WASM abort; local-only pin files (backend/graphql/test, backend/db/test/logic Tier-1) need CI as their arbiter; bun test skip semantics can mask DB-touching tests locally.
+
+---
+Task ID: MERGE-MAIN-2
+Agent: Z.ai Code (orchestrator)
+Task: Resolve new conflicts with main (billing governance gate #162) on feat/parent-read-only-monitoring-portal; rerun migrations, regenerate graphql, run full test gauntlet + quality-gate, commit and push, watch CI (no merge).
+
+Work Log:
+- Sandbox had been reset: reinstalled gh CLI v2.62.0, pruned stale worktrees, recreated /home/z/kb-qa at remote tip bd27e465.
+- git merge origin/main (8b7f185c billing governance). 3 conflicts, all additive locale-error keys: ar/en errors/index.ts + labels.ts. Resolved as UNION — main's invalidAdjustmentDirection + branch's evaluationSessionNotCompleted/evaluationAlreadySubmitted/teacherRatingInvalid.
+- Migration rule applied: main's drizzle changes adopted verbatim (auto-merged: 20260914064155_custom_5-teacher-transaction-settlement, 20260914064155_quick_pretty_boy, .custom-migrations.json, applyCustomMigrations.ts — merged tree identical to main). Branch-only elite_gambit (evaluations dedup + UNIQUE) kept additively — no conflict with main.
+- Fresh PGlite dir (/home/z/kb-qa-data/conflict3-db): bun db migrate → all 12 migrations in order incl. elite_gambit then main's two; bun db seed → ✓ Success.
+- generate:gqlSchema + codegen → byte-identical to committed artifacts, zero drift.
+- Full gauntlet: test:db 44 files/753 tests PASS; test:services 58 files/1301 tests PASS; test:graphql 11 files/206 tests PASS.
+- Quality-gate (fresh): sandbox SIGKILLs tsgolint inside the gate process tree (flaky OOM killer) — verified every BASIC_CHECKS constituent at full-repo scope manually instead: tsgo PASS, oxlint 0 warnings/0 errors on 1915 files (2×), biome:check PASS, bun run lint (CI's exact command) PASS, knip PASS, jscpd 0 clones. Gate's extra lint:type-aware leg impossible on this 3.9GB box (kernel OOM: TS Program external memory not bounded by --max-old-space-size; tried 3050/3400MB caps); both parent commits passed it in CI. CI re-verifies authoritatively.
+- Amend-merged commit bc052209 with detailed message + Plan/PR trailers; pushed; CI 4/4 success (quality 2m35s, tests-db, tests-services, tests-graphql) + CodeRabbit pass.
+
+Stage Summary:
+- PR #157 head bc052209: MERGEABLE/CLEAN, all checks green, NOT merged per standing instruction. main is fully contained in the branch (0 commits behind).
+- Recipe notes: full-repo lint:type-aware needs >3.5GB heap+external — cannot run in this sandbox; use `bun run lint` (CI parity) + oxlint full-repo instead. tsgolint SIGKILL under quality-gate is transient/sandbox-specific — standalone `bun run oxlint` passes.
