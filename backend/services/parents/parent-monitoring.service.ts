@@ -82,6 +82,39 @@ import type {
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
+/**
+ * Shared paged-read scaffold for the three paginated per-student portal
+ * reads: actor re-check (relaxed) → request-volume cap → pagination clamp
+ * → ONE repeatable-read transaction in which the link gate runs FIRST and
+ * the caller's list+count pair shares the same snapshot → page-envelope
+ * composition. The per-read differences (repository pair + row mapper)
+ * arrive as callbacks, keeping one canonical gate/snapshot/envelope
+ * sequence instead of three drifting copies.
+ */
+async function runGatedPagedRead<TRepo, TEntry>(
+  parentActorId: number,
+  studentId: number,
+  page: ParentPageInput | undefined,
+  locale: string,
+  outerTx: DBTransaction | undefined,
+  listAndCount: (tx: DBTransaction, pageSize: number, offset: number) => Promise<[readonly TRepo[], number]>,
+  mapItem: (row: TRepo) => TEntry
+): Promise<{ items: TEntry[]; totalCount: number; page: number; pageSize: number }> {
+  await requireActor(parentActorId, UserRole.Parent, locale, outerTx, false);
+  await enforcePortalRateLimit(parentActorId, locale); // request-volume cap — every portal read, not only the children list
+  const { page: effectivePage, pageSize, offset } = clampPageInput(page);
+
+  return withTransaction(
+    outerTx,
+    async tx => {
+      await requireLinkedChild(parentActorId, studentId, locale, tx);
+      const [rows, totalCount] = await listAndCount(tx, pageSize, offset);
+      return { items: rows.map(mapItem), totalCount, page: effectivePage, pageSize };
+    },
+    { isolationLevel: "repeatable read" } // one snapshot for the link gate + every data read
+  );
+}
+
 /** Per-parent rate limit — caps portal read volume to prevent child-id probing. */
 async function enforcePortalRateLimit(parentActorId: number, locale: string): Promise<void> {
   // Test mode bypass: service-level rate limiting interferes with the
@@ -201,26 +234,18 @@ export namespace ParentMonitoringService {
     locale: string,
     outerTx?: DBTransaction
   ): Promise<ParentAttendancePageReturnType> {
-    await requireActor(parentActorId, UserRole.Parent, locale, outerTx, false);
-    await enforcePortalRateLimit(parentActorId, locale); // request-volume cap — every portal read, not only the children list
-    const { page: effectivePage, pageSize, offset } = clampPageInput(page);
-
-    return withTransaction(
+    return runGatedPagedRead(
+      parentActorId,
+      studentId,
+      page,
+      locale,
       outerTx,
-      async tx => {
-        await requireLinkedChild(parentActorId, studentId, locale, tx);
-        const [rows, totalCount] = await Promise.all([
+      (tx, pageSize, offset) =>
+        Promise.all([
           SessionRepository.listForStudent(studentId, {}, pageSize, offset, tx),
           SessionRepository.countForStudent(studentId, {}, tx),
-        ]);
-        return {
-          items: rows.map(mapSessionToAttendanceEntry),
-          totalCount,
-          page: effectivePage,
-          pageSize,
-        };
-      },
-      { isolationLevel: "repeatable read" } // one snapshot for the link gate + every data read
+        ]),
+      mapSessionToAttendanceEntry
     );
   }
 
@@ -247,26 +272,18 @@ export namespace ParentMonitoringService {
     locale: string,
     outerTx?: DBTransaction
   ): Promise<ParentReportPageReturnType> {
-    await requireActor(parentActorId, UserRole.Parent, locale, outerTx, false);
-    await enforcePortalRateLimit(parentActorId, locale); // request-volume cap — every portal read, not only the children list
-    const { page: effectivePage, pageSize, offset } = clampPageInput(page);
-
-    return withTransaction(
+    return runGatedPagedRead(
+      parentActorId,
+      studentId,
+      page,
+      locale,
       outerTx,
-      async tx => {
-        await requireLinkedChild(parentActorId, studentId, locale, tx);
-        const [rows, totalCount] = await Promise.all([
+      (tx, pageSize, offset) =>
+        Promise.all([
           ReportRepository.listForStudent(studentId, pageSize, offset, tx),
           ReportRepository.countForStudent(studentId, tx),
-        ]);
-        return {
-          items: rows.map(mapReportRowToEntry),
-          totalCount,
-          page: effectivePage,
-          pageSize,
-        };
-      },
-      { isolationLevel: "repeatable read" } // one snapshot for the link gate + every data read
+        ]),
+      mapReportRowToEntry
     );
   }
 
@@ -296,26 +313,18 @@ export namespace ParentMonitoringService {
     locale: string,
     outerTx?: DBTransaction
   ): Promise<ParentHomeworkPageReturnType> {
-    await requireActor(parentActorId, UserRole.Parent, locale, outerTx, false);
-    await enforcePortalRateLimit(parentActorId, locale); // request-volume cap — every portal read, not only the children list
-    const { page: effectivePage, pageSize, offset } = clampPageInput(page);
-
-    return withTransaction(
+    return runGatedPagedRead(
+      parentActorId,
+      studentId,
+      page,
+      locale,
       outerTx,
-      async tx => {
-        await requireLinkedChild(parentActorId, studentId, locale, tx);
-        const [rows, totalCount] = await Promise.all([
+      (tx, pageSize, offset) =>
+        Promise.all([
           HomeWorkRepository.listForStudent(studentId, pageSize, offset, tx),
           HomeWorkRepository.countForStudent(studentId, tx),
-        ]);
-        return {
-          items: rows.map(mapHomeWorkRowToEntry),
-          totalCount,
-          page: effectivePage,
-          pageSize,
-        };
-      },
-      { isolationLevel: "repeatable read" } // one snapshot for the link gate + every data read
+        ]),
+      mapHomeWorkRowToEntry
     );
   }
 }
