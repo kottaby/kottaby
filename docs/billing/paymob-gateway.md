@@ -55,6 +55,12 @@ are operator-configurable overrides).
 | Reconciliation sweep | `GET /api/cron/reconcile-paymob-payments` | `Authorization: Bearer <CRON_SECRET>` | Cron backstop for delivered-but-unknown-state intentions |
 | Transaction inquiry (used by the sweep) | `POST api/auth/tokens` then `POST api/ecommerce/orders/transaction_inquiry` | API key in the mint body; minted token in the inquiry **body** | Resolves stale pending payments |
 
+The checkout URL carries the vendor-issued `client_secret` as a query member — Paymob's documented
+Unified Checkout contract, so the value is visible in the student's browser address bar
+(history/referrer) by design; it is percent-encoded on the way out and scoped to the single
+intention (`paymob.mapper.ts`). Revisit this posture only if Paymob replaces the query-param
+checkout form with tokenized URLs.
+
 Refund / void / capture and saved-card (CIT/MIT) endpoints are intentionally NOT wired — see the
 deferral notes in `ai/plans/sprint_1/subscription-purchase-payment-gateway/deferred-items.md` and
 the mirror under `.agents/skills/paymob-payments/references/docs/manage-payment-apis/`.

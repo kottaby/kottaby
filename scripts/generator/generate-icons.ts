@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import * as sharpModule from "sharp";
-import toIco from "to-ico";
 
 const sharp = sharpModule.default;
 
@@ -19,9 +18,37 @@ function ensureDir(filePath: string): void {
   }
 }
 
+// ICO container wrapping pre-rendered PNGs (Vista+ PNG-embedded entries):
+// 6-byte header, then one 16-byte directory entry per image, then the blobs.
+function buildIco(pngBuffers: Buffer[]): Buffer {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(pngBuffers.length, 4);
+
+  const directory = Buffer.alloc(pngBuffers.length * 16);
+  let offset = header.length + directory.length;
+  pngBuffers.forEach((png, index) => {
+    const base = index * 16;
+    const dimension = png.readUInt32BE(16); // IHDR width (big-endian); square icons
+    const sizeByte = dimension >= 256 ? 0 : dimension; // 256 is encoded as 0
+    directory.writeUInt8(sizeByte, base);
+    directory.writeUInt8(sizeByte, base + 1);
+    directory.writeUInt8(0, base + 2);
+    directory.writeUInt8(0, base + 3);
+    directory.writeUInt16LE(1, base + 4);
+    directory.writeUInt16LE(32, base + 6);
+    directory.writeUInt32LE(png.length, base + 8);
+    directory.writeUInt32LE(offset, base + 12);
+    offset += png.length;
+  });
+
+  return Buffer.concat([header, directory, ...pngBuffers]);
+}
+
 async function convertSvgToIco(svgBuffer: Buffer, outputDir: string): Promise<void> {
   const pngBuffers = await Promise.all(icoSizes.map(size => sharp(svgBuffer).resize(size, size).png().toBuffer()));
-  const icoBuffer = await toIco(pngBuffers);
+  const icoBuffer = buildIco(pngBuffers);
   const icoPath = resolve(outputDir, "favicon.ico");
   ensureDir(icoPath);
   writeFileSync(icoPath, icoBuffer);
