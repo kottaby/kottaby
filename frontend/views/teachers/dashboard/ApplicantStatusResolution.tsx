@@ -124,11 +124,14 @@ export function resolveStatusBody(
         };
       }
       // Eligible re-application affordance — opens the purchase dialog.
+      // The CHIP stays in the failed family (warning tone — the lifecycle
+      // status is still a failure); the positive eligibility news lives in
+      // the EligibleZone copy below, never on the status chip itself.
       return {
         chipLabel: t.statusFailed,
         chipIcon: ErrorIcon,
-        tone: "success",
-        accent: palette => palette.success.main,
+        tone: "warning",
+        accent: palette => palette.warning.main,
         content: (
           <EligibleZone
             eligibleText={t.eligibleToReapply}

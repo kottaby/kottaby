@@ -81,7 +81,7 @@ function PurchasePlanBody({ catalogLoading, verificationPlan }: Readonly<Purchas
             color: theme.palette.onPrimaryContainer,
           })}
         >
-          <Typography variant="body1" sx={{ fontWeight: 600 }}>
+          <Typography variant="body1" sx={{ fontWeight: 600 }} dir="auto">
             {expandPurchasePlanLine(t.purchasePlanLine, verificationPlan)}
           </Typography>
         </Box>
@@ -168,6 +168,8 @@ export function VerificationPurchaseDialog({
           <Button
             onClick={onClose}
             disabled={purchasing}
+            variant="outlined"
+            color="inherit"
             sx={theme => ({ ...focusVisibleRingSx, minHeight: 44, color: theme.palette.text.secondary })}
           >
             {t.purchaseCancelCta}
