@@ -14,8 +14,10 @@
  *
  * Covered contract:
  *  - Admin gate matrix — anonymous (`actorId = 0`) callers are
- *    UNAUTHORIZED, non-admin actors FORBIDDEN, and every denial writes
- *    ZERO audit rows (probed by querying `audit_logs` inside the tx).
+ *    UNAUTHORIZED, non-admin actors FORBIDDEN, governed admins (e.g. a
+ *    suspended admin) fail closed with FORBIDDEN through the strict
+ *    governance gate, and every denial writes ZERO audit rows (probed by
+ *    querying `audit_logs` inside the tx).
  *  - Approve / reject success — the settled ledger row, the exactly-one
  *    audit row with the `Override` action on the `teacher_transaction`
  *    entity and the details vocabulary (`action` marker, verbatim
@@ -147,6 +149,16 @@ function adjustmentInput(
   reason: string
 ): AdminWalletAdjustmentSubmitInput {
   return { teacherId, amount, direction, reason };
+}
+
+/**
+ * Type guard over a raw (non-GraphQL) adjustment payload — the compile-time
+ * enum cannot express a runtime-garbage direction, so a JSON round-trip
+ * payload is laundered through this deliberately loose guard (the
+ * linting-rules endorsed escape hatch instead of an unsafe `as` assertion).
+ */
+function isRawAdjustmentPayload(value: unknown): value is AdminWalletAdjustmentSubmitInput {
+  return typeof value === "object" && value !== null;
 }
 
 /**
@@ -282,6 +294,28 @@ describe("AdminFinancialAuditingService admin gate (runInRollback)", () => {
       expect(await readLedger(tx, teacherId)).toEqual(ledgerBefore);
     });
   });
+
+  test("suspended admin actor is FORBIDDEN on reads and mutations (governance gate fails closed); zero audit rows", async () => {
+    await runInRollback(async tx => {
+      const suspendedAdmin = await createTestUser(tx, { role: "admin", suspended: true });
+
+      const readError = await expectServiceError(() =>
+        AdminFinancialAuditingService.listPendingWithdrawalsForAdmin(suspendedAdmin.id, 1, 50, "en", tx)
+      );
+      expect(readError).toBeInstanceOf(ForbiddenError);
+      expectDomainDenial(readError, "FORBIDDEN", t().accountSuspended);
+
+      const approveError = await expectServiceError(() =>
+        AdminFinancialAuditingService.approveWithdrawal(suspendedAdmin.id, 1, "en", tx)
+      );
+      expect(approveError).toBeInstanceOf(ForbiddenError);
+      expectDomainDenial(approveError, "FORBIDDEN", t().accountSuspended);
+
+      // The governance denial wrote ZERO audit rows attributed to the
+      // suspended actor.
+      expect(await countAuditsForActor(tx, suspendedAdmin.id)).toBe(0);
+    });
+  });
 });
 
 // ─── Approve success ─────────────────────────────────────────────────────
@@ -394,7 +428,7 @@ describe("AdminFinancialAuditingService.rejectWithdrawal (runInRollback)", () =>
       const walletId = await seedWalletBalance(tx, teacherId, "100.00", "100.00");
       const pendingId = await seedPendingWithdrawal(tx, walletId, "50.00");
 
-      const malformedReasons = ["", "    ", `x`.repeat(501)];
+      const malformedReasons = ["", "    ", `x`.repeat(230)];
       const rejectAt = async (reason: string): Promise<void> => {
         const caught = await expectServiceError(() =>
           AdminFinancialAuditingService.rejectWithdrawal(adminId, pendingId, reason, "en", tx)
@@ -641,8 +675,75 @@ describe("AdminFinancialAuditingService.adjustTeacherWallet (runInRollback)", ()
       };
       await denyAt("");
       await denyAt("   ");
-      await denyAt("r".repeat(501));
+      await denyAt("r".repeat(230));
 
+      expect((await readWallet(tx, teacherId)).balance).toBe("100.00");
+      expect(await readLedger(tx, teacherId)).toHaveLength(0);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("reason cap matches the ledger description column: 230-char reason rejected pre-DB (never reaches SQL), 229 boundary accepted", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const teacherId = await createTeacher(tx);
+      await seedWalletBalance(tx, teacherId, "100.00", "100.00");
+
+      // One char over the 229 cap (the varchar(255) description capacity
+      // minus the 26-char composed-prefix headroom): the pre-DB VALIDATION
+      // denial fires BEFORE any database work — a Postgres 22001 overflow
+      // inside the mutation is impossible.
+      const caught = await expectServiceError(() =>
+        AdminFinancialAuditingService.adjustTeacherWallet(
+          adminId,
+          adjustmentInput(teacherId, "5.00", WalletAdjustmentDirection.Credit, "r".repeat(230)),
+          "en",
+          tx
+        )
+      );
+      expectDomainDenial(caught, "VALIDATION", t().adjustmentReasonRequired);
+      expect(caught).toBeInstanceOf(ValidationError);
+
+      // Zero side effects: nothing reached the database.
+      expect((await readWallet(tx, teacherId)).balance).toBe("100.00");
+      expect(await readLedger(tx, teacherId)).toHaveLength(0);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+
+      // The 229 boundary reason is accepted: the composed 25-char marker +
+      // reason stays within the varchar(255) description capacity.
+      const boundaryReason = "r".repeat(229);
+      const accepted = await AdminFinancialAuditingService.adjustTeacherWallet(
+        adminId,
+        adjustmentInput(teacherId, "5.00", WalletAdjustmentDirection.Credit, boundaryReason),
+        "en",
+        tx
+      );
+      expect(accepted.description).toBe(`Manual bonus adjustment: ${boundaryReason}`);
+    });
+  });
+
+  test("garbage direction: fail-closed VALIDATION denial (never the debit branch), zero rows", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const teacherId = await createTeacher(tx);
+      await seedWalletBalance(tx, teacherId, "100.00", "100.00");
+
+      // A non-GraphQL caller is not bound by the TypeScript enum — the JSON
+      // round-trip erases the compile-time direction typing, so the runtime
+      // garbage reaches the service exactly as a raw caller's payload would.
+      const rawJson: unknown = JSON.parse(
+        JSON.stringify({ teacherId, amount: "10.00", direction: "increase", reason: "direction probe" })
+      );
+      if (!isRawAdjustmentPayload(rawJson)) {
+        throw new Error("test fixture: the raw adjustment payload guard failed");
+      }
+      const caught = await expectServiceError(() =>
+        AdminFinancialAuditingService.adjustTeacherWallet(adminId, rawJson, "en", tx)
+      );
+      expectDomainDenial(caught, "VALIDATION", t().invalidAdjustmentDirection);
+      expect(caught).toBeInstanceOf(ValidationError);
+
+      // Zero money movement: balance intact, empty ledger, no audit rows.
       expect((await readWallet(tx, teacherId)).balance).toBe("100.00");
       expect(await readLedger(tx, teacherId)).toHaveLength(0);
       expect(await countAuditsForActor(tx, adminId)).toBe(0);

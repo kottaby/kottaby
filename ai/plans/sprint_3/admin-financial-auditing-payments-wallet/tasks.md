@@ -154,7 +154,7 @@ Foundation-first with interleaved tests: trigger amendment → types → repo pr
 
 ### Phase 6: Final Gate & Propagation
 
-- [ ] 6.1 Deferred-items enforcement + full quality gate
+- [x] 6.1 Deferred-items enforcement + full quality gate
   - `grep -cE "^\| D[0-9]+ .*(❌|⚠️)" ai/plans/sprint_3/admin-financial-auditing-payments-wallet/deferred-items.md` MUST be 0 (row-scoped: legend definitions and the command itself must not count)
   - `bun quality-gate` green; diff vs `/tmp/baseline-*` shows zero new errors; full slices green (db / services / graphql / workflows / ui)
   - Outcome: `outcome/6.1-final-gate-outcome.md`

@@ -1,3 +1,4 @@
+-- Source: 5-teacher-transaction-settlement.sql
 -- =============================================================================
 -- 5-teacher-transaction-settlement.sql
 -- -----------------------------------------------------------------------------
@@ -72,4 +73,5 @@ BEGIN
 
     RAISE EXCEPTION 'teacher_transaction is immutable — UPDATE is permitted only to settle a pending withdrawal to completed or failed with all columns unchanged';
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;--> statement-breakpoint
+
