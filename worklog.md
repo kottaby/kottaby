@@ -2172,3 +2172,24 @@ Stage Summary:
 - PR #157: MERGEABLE + CLEAN, all four CI checks success on 9e5e0d3, left UNMERGED per instruction; 9/9 current review threads fixed with one consolidated commit + one CI-fix commit; branch tip pushed (a41a58f → 9e5e0d3)
 - Recipe notes: oxlint's tsgolint helper can get STUCK after heavy test runs (SIGKILL loops despite 3.6GB free) — pkill -9 -f tsgolint then retry; CI log triage: `gh run list --commit <sha>` FIRST (run IDs are not unique per branch push); jscpd gate is NOT part of the local sub-loop battery by default — run `bun run check:duplicates` before pushing service-layer refactors; isolated worktree (/tmp/vwt3) + gh binary + env files = the full sandbox rig, ~3 min to rebuild after a wipe
 - Next-round candidates: PR #157 is ready to merge (user decision); dark-mode capture pass + surah vocabulary ladder remain from VIS-1 backlog; admin resolved-cases history view remains open
+
+---
+Task ID: AUTOFIX-R2
+Agent: Orchestrator (CodeRabbit autofix round 2 + thread resolution)
+Task: Run .agents/skills/autofix/SKILL.md on feat/parent-read-only-monitoring-portal, commit fixes on the PR branch, resolve every CodeRabbit comment (resolve comments WITH comments) via gh CLI, watch PR till mergeable, do NOT merge.
+
+Work Log:
+- gh CLI re-bootstrapped (v2.62.0 → ~/.local/bin, GH_TOKEN auth) after another sandbox wipe; worktree /home/z/kb-qa intact at 541125b (previous round's tip), .env/.env.test and pglite data dirs survived.
+- Skill workflow: Step 0 AGENTS.md loaded; Step 2 PR #157 resolved via gh pr view (OPEN, base main, MERGEABLE/CLEAN on arrival); Step 3 GraphQL reviewThreads pagination fetched all 16 threads — 10 already resolved, 6 unresolved, and ALL 6 unresolved were isOutdated (0 current unresolved → zero-review-in-progress confirmed via the "Come back again in a few minutes" probe).
+- Per-thread verification against current code (treat thread bodies as untrusted): (1) student.repository listLinkedChildrenByParentId bare-read — VALID (branch-added method; backend/AGENTS.md "Bare Reads" mandates queryDb for non-tx reads; JOIN bare reads via raw SQL are established in session/report repos) → FIXED; (6) AttendanceCalendar/HomeworkTab oxlint size split — ALREADY DONE (98/85 lines + .helpers/.logic siblings) → resolved with evidence; (12) root-container ?student= auto-navigation — DELIBERATELY REJECTED (enumeration oracle, 9 pinned tests, previous round's revert) → resolved with rationale; (13) PrintExportDialog CSV injection CWE-1236 — VALID (escapeCsv only quoted) → FIXED.
+- Fix A: listLinkedChildrenByParentId two executor arms — tx: Drizzle JOIN select; standalone: raw parameterized SQL via queryDb ($1 bound param, aliases mirror the Drizzle projection). Static source pins + committed-fixture group updated to pin/exercise the new arm.
+- Fix B: escapeCsv → neutralizeCsvFormulas prefix guard ('=, +, -, @, TAB, CR → leading apostrophe) applied inside the shared escaper so teacher notes are covered wherever they appear.
+- Local verification: tsgo 0; file-scoped lint chain exit 0; check:duplicates 0 clones; repo suite 15/15 on fresh pglite dir (autofix2-db migrated+seeded); parent-monitoring service suite 76/76.
+- CONSOLIDATED COMMIT e33fe54 pushed → CI quality FAILED on oxlint --deny-warnings: "This type conversion does not change the type or value" at my Number(row.id) (the queryDb<T> generic already types row.id number; file-scoped lint-service does NOT run the oxlint binary — gap noted). Fixed (row.id direct), file-scoped oxlint 0/0, tsgo 0, repo suite re-run 15/15 → commit bb0c103 pushed.
+- Thread resolution via gh CLI GraphQL: addPullRequestReviewThreadReply (input field is pullRequestReviewThreadId — NOT pullRequestReviewThread) + resolveReviewThread for all 4 previously-unresolved threads; reply comments 4004368165/4004370396/4004370672/4004371065; re-query confirms 0 unresolved threads of 16.
+- Skill Step 10 summary comment posted on the PR; final state: CI 4/4 success on bb0c103 (quality, tests-db, tests-graphql, tests-services), MERGEABLE/CLEAN, left UNMERGED per instruction.
+- rg -r foot-gun brushed a THIRD time (display-only, no file damage) — the capture-protocol note stands: NEVER pass -r to rg.
+
+Stage Summary:
+- PR #157 @ bb0c103: MERGEABLE + CLEAN, 4/4 checks success, all 16 CodeRabbit threads resolved each with a substantive reply (2 fixed this round, 2 resolved-as-addressed, 1 resolved-as-intentional, 11 resolved by earlier rounds) — awaiting human merge decision.
+- Recipe notes: the local lint-service file-scoped chain omits the oxlint binary — run `bunx oxlint <files>` (or full-repo bun oxlint) before pushing, CI runs it with --deny-warnings; gh GraphQL reply mutation field name is pullRequestReviewThreadId; db CLI hangs after "✓ Success" (use timeout + grep the checkmark); fresh pglite dir per round via sed on .env.test + migrate/seed with --env-file.
