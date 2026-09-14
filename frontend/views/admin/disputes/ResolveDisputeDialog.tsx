@@ -1,20 +1,25 @@
 "use client";
 
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import type { DisputeResolution } from "@/frontend/graphql/generated/gql/graphql";
 import { ResolveDisputeIntroBanner } from "@/frontend/views/admin/disputes/ResolveDisputeIntroBanner";
 import { ResolveDisputeNoteField } from "@/frontend/views/admin/disputes/ResolveDisputeNoteField";
 import { ResolveDisputeOptionGroup } from "@/frontend/views/admin/disputes/ResolveDisputeOptionGroup";
 import { useResolveSessionDispute } from "@/frontend/views/admin/disputes/useResolveSessionDispute";
+import {
+  GovernanceDialogActions,
+  GovernanceFormDialog,
+} from "@/frontend/views/admin/session-governance/dialogFormAtoms";
 import { Common, Sessions, useAppTranslation } from "@/shared/locale";
 
 /**
  * ResolveDisputeDialog — the ADMIN arbitration seam for one disputed session
  * (`/disputes`, R-111 / backend R-104). Structural sibling of the
  * participant `CancelSessionConfirmDialog` family: same portal/dialog/form
- * discipline, but the decision space is EXACTLY ONE terminal outcome
- * (the localized radios live in {@link ResolveDisputeOptionGroup}).
+ * discipline (carried by the shared {@link GovernanceFormDialog} /
+ * {@link GovernanceDialogActions} atoms), but the decision space is EXACTLY
+ * ONE terminal outcome (the localized radios live in
+ * {@link ResolveDisputeOptionGroup}).
  *
  * Note field: OPTIONAL, ≤ {@link MAX_RESOLVE_NOTE_LENGTH} chars at the UI
  * seam (mirrors the backend contract), live raw-character counter. The
@@ -98,60 +103,41 @@ export function ResolveDisputeDialog({
     });
   };
 
-  // Dismissal gate — enforces the `onClose` prop contract at the dialog
-  // itself: backdrop click and Escape are IGNORED while the mutation is
-  // pending (the cancel Button is separately disabled while loading).
-  const handleDialogClose = (): void => {
-    if (!loading) {
-      onClose();
-    }
-  };
-
   return (
-    <Dialog
+    <GovernanceFormDialog
       open={open}
-      onClose={handleDialogClose}
-      fullWidth
-      maxWidth="sm"
-      slotProps={{ paper: { component: "form", onSubmit: handleSubmit } }}
-      aria-labelledby="resolve-dispute-dialog-title"
+      onClose={onClose}
+      loading={loading}
+      onSubmit={handleSubmit}
+      titleId="resolve-dispute-dialog-title"
+      title={t.resolveDisputeTitle}
+      actions={
+        <GovernanceDialogActions
+          onClose={onClose}
+          loading={loading}
+          cancelLabel={tc.cancel}
+          submitLabel={t.resolveDisputeSubmit}
+          submitTestId="resolve-dispute-submit"
+          submitDisabled={resolution === null}
+        />
+      }
     >
-      <DialogTitle id="resolve-dispute-dialog-title" sx={theme => ({ color: theme.palette.onSurface })}>
-        {t.resolveDisputeTitle}
-      </DialogTitle>
-      <DialogContent sx={{ display: "grid", gap: 2 }}>
-        <ResolveDisputeIntroBanner body={t.resolveDisputeBody} />
-        <ResolveDisputeOptionGroup
-          value={resolution}
-          onChange={next => {
-            setResolution(next);
-          }}
-          t={t}
-        />
-        <ResolveDisputeNoteField
-          value={note}
-          onChange={next => {
-            setNote(next);
-          }}
-          maxLength={MAX_RESOLVE_NOTE_LENGTH}
-          t={t}
-        />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-        <Button onClick={onClose} disabled={loading} sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}>
-          {tc.cancel}
-        </Button>
-        <Button
-          type="submit"
-          variant="contained"
-          color="primary"
-          disabled={loading || resolution === null}
-          data-testid="resolve-dispute-submit"
-          sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
-        >
-          {t.resolveDisputeSubmit}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      <ResolveDisputeIntroBanner body={t.resolveDisputeBody} />
+      <ResolveDisputeOptionGroup
+        value={resolution}
+        onChange={next => {
+          setResolution(next);
+        }}
+        t={t}
+      />
+      <ResolveDisputeNoteField
+        value={note}
+        onChange={next => {
+          setNote(next);
+        }}
+        maxLength={MAX_RESOLVE_NOTE_LENGTH}
+        t={t}
+      />
+    </GovernanceFormDialog>
   );
 }

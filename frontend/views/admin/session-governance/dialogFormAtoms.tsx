@@ -109,7 +109,16 @@ export function GovernanceDialogActions({
 }: Readonly<GovernanceDialogActionsProps>): ReactNode {
   return (
     <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-      <Button onClick={onClose} disabled={loading} sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}>
+      {/* Outlined cancel — a bare text button beside a contained primary
+          reads as non-interactive; the outlined variant gives the dismiss
+          affordance equal control quality (still ONE contained primary). */}
+      <Button
+        onClick={onClose}
+        disabled={loading}
+        variant="outlined"
+        color="inherit"
+        sx={{ minHeight: { xs: 44, sm: 40 }, px: 3, whiteSpace: "nowrap" }}
+      >
         {cancelLabel}
       </Button>
       <Button
@@ -118,7 +127,21 @@ export function GovernanceDialogActions({
         color={submitColor}
         disabled={loading || (submitDisabled ?? false)}
         data-testid={submitTestId}
-        sx={{ minHeight: { xs: 44, sm: 40 }, px: 3 }}
+        sx={theme => ({
+          minHeight: { xs: 44, sm: 40 },
+          px: 3,
+          whiteSpace: "nowrap",
+          // A disabled destructive submit keeps its error identity (dimmed
+          // error-container pair instead of the neutral disabled wash) —
+          // the destructive intent must read before the form is valid.
+          ...(submitColor === "error" && {
+            "&.Mui-disabled": {
+              bgcolor: theme.palette.errorContainer,
+              color: theme.palette.onErrorContainer,
+              opacity: 0.6,
+            },
+          }),
+        })}
       >
         {submitLabel}
       </Button>

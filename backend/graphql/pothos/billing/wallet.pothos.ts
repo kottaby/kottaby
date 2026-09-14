@@ -82,8 +82,13 @@ function toTransactionStatus(status: TeacherTransactionSelectType["status"]): Tr
  * The canonical `TeacherTransaction` GraphQL object — one append-only
  * ledger row. Producers return `TeacherTransactionSelectType` (the
  * `teacher_transaction` table's derived select row). `id` first.
+ *
+ * Exported for cross-surface reuse (the admin financial-auditing mutation
+ * payloads return this SAME canonical row type — the single canonical
+ * object rule); wallet-surface registration stays resolver-transitive
+ * through the barrel.
  */
-const TeacherTransactionPothosObject = gqlSchemaBuilder
+export const TeacherTransactionPothosObject = gqlSchemaBuilder
   .objectRef<TeacherTransactionSelectType>("TeacherTransaction")
   .implement({
     fields: t => ({

@@ -1,3 +1,4 @@
+export * from "./admin-finance.types";
 export * from "./callback-channel.types";
 export * from "./payment-gateway.types";
 export * from "./paymob.types";
