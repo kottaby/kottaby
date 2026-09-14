@@ -544,7 +544,7 @@ export namespace StudentRepository {
       [parentId]
     );
     return result.rows.map(row => ({
-      id: Number(row.id),
+      id: row.id,
       fullName: row.fullName,
       createdAt: new Date(row.createdAt),
     }));
