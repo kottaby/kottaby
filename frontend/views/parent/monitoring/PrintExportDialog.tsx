@@ -13,8 +13,20 @@ export interface PrintableRow {
   readonly col4: string;
 }
 
+/**
+ * CSV formula-injection guard (CWE-1236): values exported from teacher notes
+ * could open with a spreadsheet formula trigger (`=`, `+`, `-`, `@`, TAB, CR)
+ * and be evaluated as a formula by Excel/Sheets on import. Prefixing a single
+ * quote defuses the cell — the viewer renders it as literal text. Applied to
+ * every exported cell inside `escapeCsv`, so free-text columns (teacher
+ * notes) are neutralized wherever they appear.
+ */
+function neutralizeCsvFormulas(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 function escapeCsv(value: string): string {
-  return '"' + value.replace(/"/g, '""').replace(/\r?\n/g, " ") + '"';
+  return '"' + neutralizeCsvFormulas(value).replace(/"/g, '""').replace(/\r?\n/g, " ") + '"';
 }
 
 export function PrintExportDialog({

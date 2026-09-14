@@ -11,8 +11,9 @@
  *    file-local fixture builders — never seed data.
  *  - No `expect(...).rejects.toThrow()` — the read is total and never
  *    rejects.
- *  - A separate committed-fixture group covers the STANDALONE executor
- *    branch (`tx ?? db`). That branch by definition runs without a
+ *  - A separate committed-fixture group covers the STANDALONE bare-read
+ *    branch (raw parameterized SQL via `queryDb`, per backend/AGENTS.md
+ *    "Bare Reads"). That branch by definition runs without a
  *    transaction, so the fixture must be committed; it is registered and
  *    hard-deleted in `afterAll` (rule 9), keeping the repo/ directory's
  *    100%-coverage mandate (rule 14) honest.
@@ -297,14 +298,15 @@ describe("StudentRepository.listLinkedChildrenByParentId — transactional path 
 
   const repoSource = readFileSync(join(import.meta.dir, "../../../repo/students/student.repository.ts"), "utf8");
 
-  test("source: listLinkedChildrenByParentId uses the (tx ?? db) Drizzle branch — no queryDb raw SQL", () => {
-    // The new method uses the Drizzle select with an explicit column
-    // projection (no `SELECT *`, no queryDb raw SQL — it is a JOIN query,
-    // matching the listDirectory sibling pattern). Other methods in the
-    // file keep their own queryDb usage; only the new method is pinned
-    // here for source-shape stability.
+  test("source: listLinkedChildrenByParentId branches on tx — Drizzle JOIN on tx, queryDb bare read standalone", () => {
+    // Two executor arms (backend/AGENTS.md "Bare Reads"): the transactional
+    // arm keeps the Drizzle join select with an explicit three-column
+    // projection (no `SELECT *`); the standalone arm routes the same JOIN
+    // through raw parameterized SQL via `queryDb` — never the global
+    // Drizzle handle — matching the session/report repository pattern for
+    // JOIN bare reads.
     expect(repoSource.includes("listLinkedChildrenByParentId")).toBe(true);
-    // The Drizzle JOIN: students ⋈ users on shared PK, scoped by the
+    // The Drizzle JOIN arm: students ⋈ users on shared PK, scoped by the
     // parent_id equality and the soft-delete severance.
     expect(repoSource.includes("eq(students.parentId, parentId)")).toBe(true);
     expect(repoSource.includes("eq(users.isDeleted, false)")).toBe(true);
@@ -312,16 +314,21 @@ describe("StudentRepository.listLinkedChildrenByParentId — transactional path 
     expect(repoSource.includes("asc(students.createdAt), asc(students.id)")).toBe(true);
     // Explicit three-column projection (no SELECT *).
     expect(repoSource.includes("id: students.id, fullName: users.fullName, createdAt: students.createdAt")).toBe(true);
+    // The standalone arm: raw parameterized SQL via queryDb — the parent id
+    // rides the $1 bound parameter, aliases mirror the projection keys.
+    expect(repoSource.includes("FROM students s")).toBe(true);
+    expect(repoSource.includes("INNER JOIN users u ON u.id = s.id")).toBe(true);
+    expect(repoSource.includes("s.parent_id = $1")).toBe(true);
+    expect(repoSource.includes("s.created_at ASC, s.id ASC")).toBe(true);
   });
 
   test("source: no prepared statements, no SQL line-comment sequences, no array operators in the new method", () => {
-    // The new method's body uses only Drizzle builders — no raw SQL
-    // templates, no `sql.placeholder(...)`, no `inArray(...)` calls. The
-    // word "inArray" appears in sibling method JSDoc (documentation of
-    // what they DON'T do), so we pin the call form `inArray(` and the
-    // prepared-statement form `sql.placeholder` to keep the contract
-    // precise — the new JOIN predicate is fused into the Drizzle builder,
-    // never string-interpolated.
+    // The new method's raw-SQL arm uses inline `$1` bound parameters only —
+    // no `sql.placeholder(...)` prepared statements, no `inArray(...)`
+    // calls, no SQL line-comment sequences. The word "inArray" appears in
+    // sibling method JSDoc (documentation of what they DON'T do), so we pin
+    // the call form `inArray(` and the prepared-statement form
+    // `sql.placeholder` to keep the contract precise.
     expect(repoSource.includes("sql.placeholder")).toBe(false);
     expect(repoSource.includes("inArray(")).toBe(false);
   });
@@ -336,7 +343,7 @@ describe("StudentRepository.listLinkedChildrenByParentId — transactional path 
 });
 
 describe("StudentRepository.listLinkedChildrenByParentId — standalone executor path (committed fixture)", () => {
-  test("runs on the (tx ?? db) branch and returns the committed fixture's children in stable order", async () => {
+  test("runs on the queryDb bare-read branch and returns the committed fixture's children in stable order", async () => {
     const fixture = requireCommitted();
     const rows = await StudentRepository.listLinkedChildrenByParentId(fixture.parentId);
     expect(rows.map(r => r.id)).toEqual(fixture.childIds);

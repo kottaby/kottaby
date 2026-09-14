@@ -512,16 +512,41 @@ export namespace StudentRepository {
     return { rows, total: countRows[0]?.count ?? 0 };
   }
 
-  /** Lists the caller's confirmed-linked children, oldest-first. Soft-deleted excluded. */
+  /**
+   * Lists the caller's confirmed-linked children, oldest-first. Soft-deleted
+   * excluded — the severance predicate lives in the JOIN, never the service.
+   *
+   * Read-only, two executor arms (per backend/AGENTS.md "Bare Reads"): on the
+   * caller's transaction it runs as a Drizzle join select; standalone it runs
+   * as raw parameterized SQL via `queryDb` (the parent id rides a bound
+   * parameter — the Neon-HTTP-eligible pattern, never the global Drizzle
+   * handle). The raw-SQL column aliases mirror the Drizzle projection keys so
+   * both arms return the identical `ParentLinkedChildReturnType` shape.
+   */
   export async function listLinkedChildrenByParentId(
     parentId: number,
     tx?: DBTransaction
   ): Promise<ParentLinkedChildReturnType[]> {
-    return (tx ?? db)
-      .select({ id: students.id, fullName: users.fullName, createdAt: students.createdAt })
-      .from(students)
-      .innerJoin(users, eq(users.id, students.id))
-      .where(and(eq(students.parentId, parentId), eq(users.isDeleted, false)))
-      .orderBy(asc(students.createdAt), asc(students.id));
+    if (tx) {
+      return tx
+        .select({ id: students.id, fullName: users.fullName, createdAt: students.createdAt })
+        .from(students)
+        .innerJoin(users, eq(users.id, students.id))
+        .where(and(eq(students.parentId, parentId), eq(users.isDeleted, false)))
+        .orderBy(asc(students.createdAt), asc(students.id));
+    }
+    const result = await queryDb<{ id: number; fullName: string; createdAt: Date | string }>(
+      `SELECT s.id AS id, u.full_name AS "fullName", s.created_at AS "createdAt"
+       FROM students s
+       INNER JOIN users u ON u.id = s.id
+       WHERE s.parent_id = $1 AND u.is_deleted = false
+       ORDER BY s.created_at ASC, s.id ASC`,
+      [parentId]
+    );
+    return result.rows.map(row => ({
+      id: Number(row.id),
+      fullName: row.fullName,
+      createdAt: new Date(row.createdAt),
+    }));
   }
 }
