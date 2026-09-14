@@ -65,6 +65,43 @@ AGENTS.md and `.agents/instructions/` files are hand-curated; runs NEVER update 
   mode-aware text token on `.MuiSelect-icon`; weak dialog isolation → scoped `slotProps` backdrop
   scrim+blur. → landed: `references/fix-patterns.md` (4 new rows, updated in this change).
 
+### 2026-09-13 — admin-financial-auditing-payments-wallet (visual-improvement-loop R2)
+
+- **Wire-enum case bugs in display mappers**: the wallet/withdrawal tone+label mappers switched on
+  lowercase wire values (`"completed"`) while the GraphQL wire sends capitalized enums
+  (`"Completed"`) → every status chip rendered error-red, every type chip primary-blue. Tests
+  passed because fixtures fed lowercase. Landed: fix-patterns (test mappers against wire-case
+  values); fixed in `walletLedgerDisplay.ts` / `withdrawalStatusDisplay.ts`.
+- Turbopack `.next-dev` disk cache poisons survive a dev-server restart after a transient syntax
+  error — a fixed source still serves the broken module. Clear `.next-dev` (dev build artifact,
+  NOT a protected lint cache) and restart. → landed: `references/capture-protocol.md`.
+- The browser session console buffer persists across navigations — stale `[error]` entries
+  false-positive the console gate after fixes. Gate on a fresh session, or verify the count drops
+  after reload. → landed: `references/capture-protocol.md`.
+- Batch viewport-capture loops MUST re-verify the active tab + a content marker before EVERY
+  screenshot: two captures were taken with a different tab's content (URL/view state churn between
+  commands). → landed: `references/capture-protocol.md` (state guard, batch discipline).
+- `NEXT_LOCALE` cookie silently reverts after browser-session churn → re-pin + title-guard per
+  capture. → landed: `references/capture-protocol.md`.
+- MUI Select with `value=""`: `renderValue` is NOT called for the empty value — use `displayEmpty`
+  so the "" MenuItem text shows in the closed control. → landed: `references/fix-patterns.md`.
+- MUI Autocomplete: overriding `renderInput`'s `slotProps` wholesale (common when adding an
+  htmlInput aria-label) drops the popup-indicator endAdornment — merge `...params.slotProps`.
+  → landed: `references/fix-patterns.md`.
+- MUI multiline outlined TextField + forced `inputLabel: { shrink: true }` clips the notched label
+  glyphs at the border — don't force shrink on multiline fields; the un-shrunk label is the hint.
+  → landed: `references/fix-patterns.md`.
+- Offscreen pre-check heuristic flags elements clipped INSIDE overflow-auto scroll containers
+  (e.g. scrollable tab strips at 390px) — verify `scrollWidth > clientWidth` + page-level overflow
+  before treating an offender as a defect. → landed: `references/objective-prechecks.md` (manual
+  fallback note).
+- Subagent concurrency in this environment is ~2 — dispatch inspector pairs, not quads; failures
+  surface as `user concurrency limit exceeded`. → landed: `references/rubric.md` (dispatch note).
+- Fix-wave recipes promoted to the playbook: outlined TonalChip variant to separate chip
+  FAMILIES (type vs status) when dark container pairs collide; contained-primary vs outlined-error
+  settle-button pair; error-tinted disabled destructive submit; right-aligned money columns with
+  bold amounts. → landed: `references/fix-patterns.md` (3 new rows, updated in this change).
+
 ### 2026-09-13 — subscription-validity-window-expiry (visual-improvement-loop run)
 
 - Sandbox tool-runners kill background dev servers between tool calls, AND a server that was started

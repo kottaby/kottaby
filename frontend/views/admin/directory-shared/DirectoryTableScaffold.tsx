@@ -31,6 +31,8 @@ export interface DirectoryTableHeader {
   readonly label: ReactNode;
   /** Fixed column width (the tables use `tableLayout: "fixed"`). */
   readonly width: string;
+  /** Column text alignment — `"end"` for money/numeric columns. Defaults to `"start"`. */
+  readonly align?: "start" | "end";
 }
 
 interface DirectoryTableScaffoldProps {
@@ -57,7 +59,7 @@ export function DirectoryTableScaffold(props: DirectoryTableScaffoldProps): Reac
         <TableHead>
           <TableRow sx={theme => ({ bgcolor: theme.palette.surfaceContainerHigh })}>
             {headers.map(header => (
-              <DirectoryHeaderCell key={header.id} width={header.width}>
+              <DirectoryHeaderCell key={header.id} width={header.width} align={header.align}>
                 {header.label}
               </DirectoryHeaderCell>
             ))}

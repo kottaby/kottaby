@@ -1,4 +1,5 @@
 export * from "./adminBroadcasts";
+export * from "./adminFinance";
 export * from "./adminSessionGovernance";
 export * from "./adminStudents";
 export * from "./adminTeachers";

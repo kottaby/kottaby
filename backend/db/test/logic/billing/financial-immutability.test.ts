@@ -68,9 +68,12 @@ const PAYMENTS_DELETE_TRIGGER = "prevent_student_payments_delete_trigger";
 const AUDIT_UPDATE_TRIGGER = "prevent_audit_logs_update_trigger";
 const AUDIT_DELETE_TRIGGER = "prevent_audit_logs_delete_trigger";
 
-/** Raised message substrings per table (canonical migration DDL). */
+/** Raised message substrings per table (canonical migration DDL). The
+ * teacher_transaction UPDATE trigger carries the settlement exception: a
+ * pending withdrawal may settle to completed/failed (all columns unchanged),
+ * so its message differs from the plain immutable rows. */
 const TEACHER_TX_IMMUTABLE = "teacher_transaction is immutable";
-const TEACHER_TX_UPDATE_MSG = "UPDATE is not permitted";
+const TEACHER_TX_UPDATE_MSG = "UPDATE is permitted only to settle a pending withdrawal";
 const TEACHER_TX_DELETE_MSG = "DELETE is not permitted";
 const PAYMENTS_IMMUTABLE = "student_payments is immutable";
 const AUDIT_IMMUTABLE = "audit_logs is immutable";

@@ -30,8 +30,8 @@
  *  - Tier 4 (security/static): CHECK constraint probes — a direct negative
  *    balance / total_earning write and a direct negative ledger amount
  *    insert are each rejected by their named CHECK constraint inside a
- *    savepoint bracket; namespace-closure pin (exactly the six documented
- *    methods, no update/delete primitive for the append-only ledger); the
+ *    savepoint bracket; namespace-closure pin (exactly the documented
+ *    method surface, no update/delete primitive for the append-only ledger); the
  *    defensive zero-row INSERT guards exercised through a typed executor
  *    stub (unreachable through a live PostgreSQL INSERT ... RETURNING).
  *
@@ -430,16 +430,27 @@ describe("WalletRepository — transactional paths (runInRollback)", () => {
 });
 
 describe("WalletRepository — namespace closure", () => {
-  test("exposes exactly the six documented methods — no update or delete primitive for the append-only ledger", () => {
+  test("exposes exactly the documented methods — no update or delete primitive for the append-only ledger", () => {
     const exposed = Object.keys(WalletRepository).toSorted((a, b) => a.localeCompare(b));
 
     expect(exposed).toEqual([
+      "countPendingWithdrawals",
+      "countTransactionsForAdmin",
+      "creditBonusOnce",
       "creditEarningOnce",
+      "debitAdjustmentOnce",
       "debitForWithdrawalOnce",
       "ensureWalletOnce",
+      "findAdminWalletProbe",
+      "findById",
       "findByTeacherId",
+      "findSettlementProbe",
+      "listPendingWithdrawals",
       "listRecentTransactions",
       "listTransactionsByWalletId",
+      "listTransactionsForAdmin",
+      "restoreWithdrawalDebitOnce",
+      "settleWithdrawalOnce",
     ]);
     expect(exposed.some(name => /update|delete/i.test(name))).toBe(false);
   });

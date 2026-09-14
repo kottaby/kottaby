@@ -16,9 +16,11 @@ export interface DirectoryHeaderCellProps {
   readonly children: ReactNode;
   /** Fixed column width (e.g. `"29.5%"`) — the tables use `tableLayout: "fixed"`. */
   readonly width?: string;
+  /** Column text alignment — `"end"` for money/numeric columns. Defaults to `"start"`. */
+  readonly align?: "start" | "end";
 }
 
-export function DirectoryHeaderCell({ children, width }: DirectoryHeaderCellProps): ReactNode {
+export function DirectoryHeaderCell({ children, width, align = "start" }: DirectoryHeaderCellProps): ReactNode {
   return (
     <TableCell
       sx={theme => ({
@@ -28,7 +30,7 @@ export function DirectoryHeaderCell({ children, width }: DirectoryHeaderCellProp
         fontWeight: 600,
         letterSpacing: "0.06em",
         color: theme.palette.text.secondary,
-        textAlign: "start",
+        textAlign: align,
         borderBottom: `1px solid ${theme.palette.border.light}`,
       })}
     >
