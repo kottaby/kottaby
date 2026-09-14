@@ -2137,3 +2137,19 @@ Stage Summary:
 - Known environmental limits (documented, not defects): full-repo lint:type-aware OOMs in the 4GB sandbox (CI-proven green instead; file-scoped sub-loop as local substitute); pglite test DB needs its own migrate+seed after every sandbox reset.
 - Recipe notes: GitHub API via curl + Bearer token works for check-runs (gh CLI not installed in this sandbox); lint OOM triage ladder: 2560 V8-heap OOM → 2816/3072 kernel OOM → accept CI evidence + file-scoped lint; always `git branch --show-current` before and after heavy commands (sandbox reverts HEAD to main between tool calls).
 - Next-round candidates: resume the visual loop backlog from VIS-1 (dark-mode capture pass, surah-name vocabulary ladder, admin resolved-cases history view, dispute-analytics trend history).
+Task ID: full-suite-green-verification
+Agent: Orchestrator (full test suite + quality-gate verification)
+Task: Make all tests pass (db migrate, dbseed, generate:gqlSchema, codegen, test:db, test:services, test:graphql) plus the quality-gate skill; fix all issues; commit and push
+
+Work Log:
+- Rebuilt the pinned worktree at 4a37aac after a sandbox reset; PGlite envs (.env dev + .env.test) mirror .env.test.ci with non-placeholder DATABASE_URL so applyDbEnvOverride's .env force-load cannot retarget test processes
+- Replicated the CI matrix locally on fresh PGlite DBs (migrate + seed per suite, serialized embedded workers): test:db 41/41 files / 694 tests, test:services 56/56 / 1259 tests, test:graphql 10/10 / 172 tests — all green, zero fixes
+- generate:gqlSchema + codegen + git diff --exit-code drift check clean (matches CI quality job)
+- Quality gate per .agents/skills/quality-gate/SKILL.md: quality-gate:fresh hit the 4GB sandbox ceiling (tsgolint/ESLint type-aware workers SIGKILL'd at default heap, SIGABRT at 1800-2600MB full-repo); workaround = 3 directory-chunked type-aware lint runs (1816 files, all clean) warming .eslintcache-type-aware, then the gate state machine rode the warm cache to "ALL QUALITY GATES PASSED" (tsgo, oxlint 0/0, biome no-fixes, type-aware lint, duplicates 0 clones, unused)
+- Evidence caveats recorded honestly: oxlint/tsgolint only survives standalone with ~3.5GB free; CI's quality job (which omits type-aware lint) remains the authoritative green for the exact tree
+
+Stage Summary:
+- Follows GATE-1's round: their "full-repo type-aware lint unrunnable locally" blocker is resolved by the chunked cache-warming technique (smaller per-chunk working sets build .eslintcache-type-aware; the full-repo gate stage then short-circuits on cache hits within a 2600MB heap) - the official gate state machine now completes locally
+- All requested suites and the quality gate are green on 4a37aac with zero code changes needed (tree was clean; only this worklog entry is committed)
+- PR #157 CI to be re-watched after this commit; branch remains ready for merge decision
+
