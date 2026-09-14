@@ -405,6 +405,36 @@ describe("VerificationPurchaseService — purchase (Tier 1: branches)", () => {
     });
   });
 
+  test("a canonical row with a WRONG product contract (price) → the client-safe conflict, zero writes", async () => {
+    await runInRollback(async tx => {
+      const { user } = await createApplicantFixture(tx);
+      // Environment-proof isolation: whatever ACTIVE canonical rows the
+      // catalog holds are deactivated inside this transaction, then ONE
+      // row with the canonical title but a WRONG price is inserted — the
+      // single title match must still be denied because the gateway would
+      // charge a price the product contract never declares.
+      await tx
+        .update(plans)
+        .set({ isActive: false, deactivatedAt: new Date() })
+        .where(eq(plans.title, VERIFICATION_PLAN_TITLE));
+      await createTestPlan(tx, {
+        title: VERIFICATION_PLAN_TITLE,
+        sessionCount: VERIFICATION_PLAN_SESSION_COUNT,
+        price: "999.00",
+        currency: "EGP",
+        intervalDays: 14,
+        balanceLane: SubscriptionCreditLane.Reviews,
+        isActive: true,
+      });
+
+      const err = await expectRepoError(() => VerificationPurchaseService.purchase(user.id, purchaseKey(), "en", tx));
+      expectDomainDenial(err, "CONFLICT", "Payment could not be processed.");
+      // Denied BEFORE the gateway call and any write.
+      const counts = await ledgerCounts(tx, user.id);
+      expect(counts).toEqual({ subs: 0, payments: 0, claims: 0 });
+    });
+  });
+
   test("repeat purchase from in_evaluation (fresh key) → second pair; the flip is a silent no-op", async () => {
     await runInRollback(async tx => {
       const { user } = await createApplicantFixture(tx);

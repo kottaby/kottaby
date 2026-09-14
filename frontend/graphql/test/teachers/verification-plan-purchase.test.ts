@@ -9,9 +9,10 @@
  *
  * Boundary purity (frontend/graphql/test/AGENTS.md rule 10): this file
  * interacts with the application EXCLUSIVELY through the GraphQL API
- * (`testClient` + shared TypedDocumentNodes). Entity provisioning that has
- * no public GraphQL surface rides the sanctioned `test/helpers` seam —
- * never a direct `db`/drizzle import in the test file. The zero-write
+ * (`testClient` + shared TypedDocumentNodes). The canonical verification
+ * plan is SEEDED test data for this tier (the tests-graphql pipeline runs
+ * `bun run db seed` before the suite boots) — REQUIRED, never provisioned
+ * here: the setup probe fails the suite when it is absent. The zero-write
  * invariant on denials is asserted in the SERVICE tier
  * (`backend/services/teachers/verification-purchase.service.test.ts`),
  * which owns the ledger-visibility tooling it needs.
@@ -49,17 +50,13 @@
  *  - The verification plan is resolved by the purchase flow SERVER-side
  *    (canonical title constant) BEFORE the applicant gate, so the student
  *    probe needs an ACTIVE canonical catalog member to reach the mandated
- *    APPLICANT_NOT_FOUND. The member is provisioned CONDITIONALLY over the
- *    GraphQL boundary (an authenticated catalog probe in `beforeAll`):
- *    seeded catalogs (this CI tier seeds before the suite runs) already
- *    carry it and the suite provisions nothing; only a catalog WITHOUT the
- *    canonical member triggers the sanctioned
- *    `insertVerificationPlanRow` seam. The purchase service REJECTS an
- *    ambiguous catalog (multiple active rows sharing the canonical title),
- *    so a blind insert would flip every purchase into a conflict — the
- *    conditional is load-bearing. The fixture row (when one was created)
- *    is deleted by explicit id in the same `afterAll` — never a title
- *    sweep.
+ *    APPLICANT_NOT_FOUND. That member is seeded catalog data for this
+ *    tier: the `beforeAll` probe verifies it over the GraphQL boundary and
+ *    FAILS SETUP when absent (this suite never provisions catalog rows —
+ *    the purchase service rejects an ambiguous canonical catalog, so a
+ *    blind insert on a seeded catalog would flip every purchase into a
+ *    conflict, and plan provisioning belongs to the service/repository
+ *    test tier).
  */
 
 import { afterAll, beforeAll, expect, test } from "bun:test";
@@ -76,11 +73,9 @@ import { purchaseVerificationPlanMutationDocument } from "@/frontend/graphql/sha
 import { VERIFICATION_PLAN_TITLE } from "@/shared/constants/verification-plan.constants";
 import {
   countUsersByIds,
-  deletePlanRowById,
   deleteUsersByIds,
   describeGraphqlSuite,
   expectMutationError,
-  insertVerificationPlanRow,
   setupTestServerLifecycle,
   testClient,
 } from "@/test/helpers";
@@ -116,9 +111,6 @@ const createdUserIds = new Set<number>();
 function trackCreatedUser(id: number | null | undefined): void {
   if (typeof id === "number") createdUserIds.add(id);
 }
-
-/** The tracked catalog-fixture row id (0 = the catalog already carried the canonical member). */
-let verificationPlanId = 0;
 
 /**
  * Registers a user through the PUBLIC registerUser mutation, then logs in
@@ -168,9 +160,11 @@ describeGraphqlSuite("purchaseVerificationPlan GraphQL Integration", () => {
   beforeAll(async () => {
     // Catalog probe over the REAL GraphQL boundary: an authenticated scout
     // (public registration, tracked for cleanup) reads the ACTIVE catalog.
-    // The canonical plan is provisioned ONLY when missing — see the
-    // module docblock's data-lifecycle section for why the conditional is
-    // load-bearing (the service rejects an ambiguous catalog).
+    // The canonical verification plan is SEEDED catalog data for this tier
+    // — REQUIRED, never provisioned here (see the module docblock's
+    // data-lifecycle section): a seeded catalog without the canonical
+    // member is a setup failure, not something this suite patches with a
+    // direct-DB fixture row.
     const scout = await registerAndLogin(RegisterPublicRole.Student);
     const catalog = await testClient.query({
       query: planCatalogQueryDocument,
@@ -179,24 +173,21 @@ describeGraphqlSuite("purchaseVerificationPlan GraphQL Integration", () => {
     expect(catalog.error).toBeUndefined();
     const hasCanonicalMember = (catalog.data?.planCatalog ?? []).some(plan => plan.title === VERIFICATION_PLAN_TITLE);
     if (!hasCanonicalMember) {
-      const fixture = await insertVerificationPlanRow();
-      verificationPlanId = fixture.id;
+      throw new Error(
+        "setup: the seeded catalog has no ACTIVE verification plan row — run `bun run db seed` before this suite"
+      );
     }
   });
 
   // ─── Hygiene: restore the shared dev database to canonical seed state ───
-  // Deletes exactly the rows this suite created (users tracked by id plus
-  // the tracked plan fixture, when one was provisioned) — explicit ids,
-  // never a sweep.
+  // Deletes exactly the users this suite created (tracked by id) — the
+  // catalog is probed, never mutated.
   afterAll(async () => {
     const ids = [...createdUserIds];
     if (ids.length > 0) {
       const deleted = await deleteUsersByIds(ids);
       expect(deleted).toBe(ids.length);
       expect(await countUsersByIds(ids)).toBe(0);
-    }
-    if (verificationPlanId > 0) {
-      await deletePlanRowById(verificationPlanId);
     }
   });
 

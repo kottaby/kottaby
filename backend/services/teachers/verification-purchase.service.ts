@@ -70,6 +70,7 @@ import {
   SubscriptionRepository,
 } from "@/backend/db/repo";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
+import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { ApplicantStatus } from "@/backend/enum/teachers/applicant-status.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
@@ -86,6 +87,7 @@ import { ApplicantLifecycleService } from "@/backend/services/teachers/applicant
 import type {
   DBTransaction,
   PaymentCheckoutSession,
+  PlanSelectType,
   PurchaseSubscriptionReturnType,
   StudentPaymentReturnType,
   StudentPaymentSelectType,
@@ -93,7 +95,13 @@ import type {
   SubscriptionReturnType,
   SubscriptionSelectType,
 } from "@/backend/types";
-import { VERIFICATION_PLAN_TITLE } from "@/shared/constants/verification-plan.constants";
+import {
+  VERIFICATION_PLAN_CURRENCY,
+  VERIFICATION_PLAN_INTERVAL_DAYS,
+  VERIFICATION_PLAN_PRICE,
+  VERIFICATION_PLAN_SESSION_COUNT,
+  VERIFICATION_PLAN_TITLE,
+} from "@/shared/constants/verification-plan.constants";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /**
@@ -214,6 +222,33 @@ async function insertPendingSubscription(
       cause: error instanceof Error ? error : undefined,
     });
   }
+}
+
+/**
+ * The canonical member must carry the FULL seeded product contract — a
+ * title match alone would let a mis-priced or mis-termed catalog row be
+ * charged verbatim by the gateway and referenced as the subscription's
+ * terms. The mismatch is the same catalog-misconfiguration conflict:
+ * denied with the client-safe copy before the gateway call and any write
+ * (the exact divergent field belongs to the adjacent correlated log line,
+ * never to the wire message).
+ */
+function assertCanonicalPlanContract(plan: PlanSelectType): void {
+  if (
+    plan.price === VERIFICATION_PLAN_PRICE &&
+    plan.currency === VERIFICATION_PLAN_CURRENCY &&
+    plan.sessionCount === VERIFICATION_PLAN_SESSION_COUNT &&
+    plan.intervalDays === VERIFICATION_PLAN_INTERVAL_DAYS &&
+    plan.balanceLane === SubscriptionCreditLane.Reviews
+  ) {
+    return;
+  }
+  logger.logDomainError("Verification purchase rejected: canonical plan contract mismatch", {
+    code: "CONFLICT",
+    entity: "plans",
+    entityId: plan.id,
+  });
+  throw new ConflictError(PAYMENT_PROCESSING_CONFLICT_MESSAGE);
 }
 
 /**
@@ -463,6 +498,10 @@ export namespace VerificationPurchaseService {
       });
       throw new NotFoundError("PLAN", t.subscriptionPurchase.planNotPurchasable);
     }
+
+    // The canonical member must carry the FULL seeded product contract
+    // before the gateway may charge it (see the shared guard's docblock).
+    assertCanonicalPlanContract(plan);
 
     // Gateway checkout BEFORE the transaction — the provider call is a
     // network boundary. The amount/currency pair is the plan row's own,
