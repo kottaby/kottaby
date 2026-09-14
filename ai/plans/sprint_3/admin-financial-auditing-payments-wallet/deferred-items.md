@@ -38,9 +38,11 @@ Tracks all work deferred from one task to another so nothing is lost. Seeded at 
 
 ## Enforcement
 
-Final gate (Task 6.1) runs:
+Final gate (Task 6.1) runs a **row-scoped** grep that only counts ledger-table item rows
+carrying a Blocked/Partial status — the status-legend definitions and this command itself
+must never count:
 
 ```bash
-grep -c "❌\|⚠️" ai/plans/sprint_3/admin-financial-auditing-payments-wallet/deferred-items.md
+grep -cE "^\| D[0-9]+ .*(❌|⚠️)" ai/plans/sprint_3/admin-financial-auditing-payments-wallet/deferred-items.md
 # Expected: 0 — D1 must be ✅ by Task 2.1's outcome
 ```

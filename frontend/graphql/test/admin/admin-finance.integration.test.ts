@@ -127,8 +127,12 @@ function collectIntrospectionFieldNames(root: unknown): string[] {
   return names;
 }
 
-/** Assertion-free structural guard down the (aliased) introspection payload. */
-function extractSchemaSurfaceInventory(data: unknown): SchemaSurfaceInventory | undefined {
+/** Assertion-free structural guard down the (aliased) introspection payload:
+ * unwraps the GraphQL envelope (`{ data: ... }`) first, then reads the
+ * aliased `schemaMeta` meta-field. */
+function extractSchemaSurfaceInventory(payload: unknown): SchemaSurfaceInventory | undefined {
+  if (typeof payload !== "object" || payload === null || !("data" in payload)) return undefined;
+  const data: unknown = payload.data;
   if (typeof data !== "object" || data === null || !("schemaMeta" in data)) return undefined;
   const schemaMeta: unknown = data.schemaMeta;
   if (typeof schemaMeta !== "object" || schemaMeta === null) return undefined;

@@ -201,7 +201,6 @@ describe("AdminFinancialAuditingService admin gate (runInRollback)", () => {
   test("anonymous caller (actorId 0) is UNAUTHORIZED on reads and mutations; zero audit rows", async () => {
     await runInRollback(async tx => {
       const teacherId = await createTeacher(tx);
-      const auditsBefore = await tx.$count(auditLogs);
 
       const readError = await expectServiceError(() =>
         AdminFinancialAuditingService.listPendingWithdrawalsForAdmin(ANONYMOUS_ACTOR_ID, 1, 50, "en", tx)
@@ -226,8 +225,10 @@ describe("AdminFinancialAuditingService admin gate (runInRollback)", () => {
       expect(adjustError).toBeInstanceOf(UnauthorizedError);
       expectDomainDenial(adjustError, "UNAUTHORIZED", t().unauthorized);
 
-      // Every denial wrote ZERO audit rows (delta across the whole table).
-      expect(await tx.$count(auditLogs)).toBe(auditsBefore);
+      // Every denial wrote ZERO audit rows attributed to the anonymous
+      // caller (the actor-scoped oracle — a whole-table count drifts under
+      // the parallel runner's shared database).
+      expect(await countAuditsForActor(tx, ANONYMOUS_ACTOR_ID)).toBe(0);
     });
   });
 
@@ -235,7 +236,6 @@ describe("AdminFinancialAuditingService admin gate (runInRollback)", () => {
     await runInRollback(async tx => {
       const teacherId = await createTeacher(tx);
       await seedWalletBalance(tx, teacherId, "100.00", "100.00");
-      const auditsBefore = await tx.$count(auditLogs);
       const ledgerBefore = await readLedger(tx, teacherId);
 
       const readError = await expectServiceError(() =>
@@ -274,8 +274,10 @@ describe("AdminFinancialAuditingService admin gate (runInRollback)", () => {
       expect(adjustError).toBeInstanceOf(ForbiddenError);
       expectDomainDenial(adjustError, "FORBIDDEN", t().forbidden);
 
-      // Every denial wrote ZERO audit rows (delta across the whole table).
-      expect(await tx.$count(auditLogs)).toBe(auditsBefore);
+      // Every denial wrote ZERO audit rows attributed to the non-admin
+      // actor (the actor-scoped oracle — a whole-table count drifts under
+      // the parallel runner's shared database).
+      expect(await countAuditsForActor(tx, teacherId)).toBe(0);
       // ...and ZERO ledger writes: the seeded fixture rows are untouched.
       expect(await readLedger(tx, teacherId)).toEqual(ledgerBefore);
     });
