@@ -20,12 +20,21 @@
  *  - `resetPaymentGateway()` drops the resolved adapter AND invalidates the
  *    shared env snapshot, so provider/secret/enabled changes are observable
  *    on the next resolution without a process restart.
+ *  - The built-in `mock` provider is refused in a real production runtime
+ *    (`NODE_ENV=production` without the test runners' `TEST_SERVER=1`) —
+ *    fail-closed via {@link assertMockDevelopmentRuntime}, so a deployment
+ *    that forgets `PAYMENT_GATEWAY_PROVIDER` can never silently simulate
+ *    settlements (the mock adapter asserts the same guard internally).
  */
 
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { getPaymentGatewayProvider, resetEnvironmentCache } from "@/backend/lib/env";
 import { ValidationError } from "@/backend/lib/errors";
-import { MockPaymentGatewayAdapter } from "@/backend/services/billing/payment-gateway/mock-payment-gateway.adapter";
+import {
+  assertMockDevelopmentRuntime,
+  MockPaymentGatewayAdapter,
+} from "@/backend/services/billing/payment-gateway/mock-payment-gateway.adapter";
+import { PaymobPaymentGateway } from "@/backend/services/billing/payment-gateway/paymob/paymob.adapter";
 import type { PaymentGatewayPort } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
@@ -44,6 +53,7 @@ let gateway: PaymentGatewayPort | null = null;
  */
 const GATEWAY_ADAPTERS: Readonly<Record<string, () => PaymentGatewayPort>> = {
   [PaymentGateway.Mock]: () => new MockPaymentGatewayAdapter(),
+  [PaymentGateway.Paymob]: () => new PaymobPaymentGateway(),
 };
 
 /**
@@ -68,6 +78,16 @@ export function getPaymentGateway(locale?: string): PaymentGatewayPort {
   if (!createAdapter) {
     const tErrors = getServerTranslations(locale ?? "en").errorsTranslations;
     throw new ValidationError("PAYMENT_GATEWAY_UNSUPPORTED", tErrors.validation);
+  }
+
+  // Fail-closed runtime guard: the built-in mock simulates settlements, so a
+  // real production deployment without an explicit provider silently running
+  // it must be impossible — the shared guard (also asserted inside the mock
+  // adapter) refuses it in production, exempting only the test runners'
+  // TEST_SERVER=1 production-build E2E server. The provider resolves as its
+  // canonical string, so the enum member is compared in its string form.
+  if (provider === (PaymentGateway.Mock as string)) {
+    assertMockDevelopmentRuntime();
   }
 
   gateway = createAdapter();

@@ -112,6 +112,21 @@ const MS_PER_DAY = 86_400_000;
 /** Path to the service file under test (used by the static source scans). */
 const SERVICE_FILE_PATH = "@/backend/services/admin/user-management.service.ts".replace(/^@/, `${process.cwd()}/`);
 
+/** Path to the governance-pipeline helpers (the three mutations delegate to it; static scans cover both). */
+const HELPERS_FILE_PATH = "@/backend/services/admin/user-governance.helpers.ts".replace(/^@/, `${process.cwd()}/`);
+
+/**
+ * Strips JSDoc + line comments before BOPLA / signature scans so pattern
+ * matches run against CODE only (comments often cite the forbidden patterns
+ * as documentation, e.g. "never `{ ...input }`").
+ */
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*\*[\s\S]*?\*\//g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "");
+}
+
 type DomainLogSpy = ReturnType<typeof spyOn>;
 
 /** Silences `logger.logDomainError` and returns the spy so call counts can be asserted. */
@@ -992,47 +1007,60 @@ describe("AdminUserManagementService.setUserSuspended / setUserBlocked — Tier 
 // ────────────────────────────────────────────────────────────────────────────
 
 describe("AdminUserManagementService — Tier 4 static source scans (BOPLA / BFLA / no-PII)", () => {
-  // Cache the service file content across the static-scan tests so we
-  // don't re-read the disk for each probe. `bun:test` runs describe
-  // bodies eagerly so the lazy read + memoize pattern keeps the file
-  // read at exactly once per file load.
+  // Cache the service + governance-helpers file content across the
+  // static-scan tests so we don't re-read the disk for each probe.
+  // `bun:test` runs describe bodies eagerly so the lazy read + memoize
+  // pattern keeps each file read at exactly once per file load. The
+  // governance pipeline (self-guard, ladder, audit rows) lives in
+  // `user-governance.helpers.ts` — the three mutations delegate to it —
+  // so the pipeline pins scan the helpers source, not the service.
   let serviceSource = "";
   let serviceCodeOnly = "";
+  let helpersSource = "";
+  let helpersCodeOnly = "";
   test("service source loads", async () => {
     serviceSource = await readFile(SERVICE_FILE_PATH, "utf8");
     expect(serviceSource.length).toBeGreaterThan(0);
-    // Strip JSDoc + line comments before BOPLA / signature scans so
-    // pattern matches run against CODE only (comments often cite the
-    // forbidden patterns as documentation, e.g. "never `{ ...input }`").
-    serviceCodeOnly = serviceSource
-      .replace(/\/\*\*[\s\S]*?\*\//g, "")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/\/\/[^\n]*/g, "");
+    helpersSource = await readFile(HELPERS_FILE_PATH, "utf8");
+    expect(helpersSource.length).toBeGreaterThan(0);
+    serviceCodeOnly = stripComments(serviceSource);
+    helpersCodeOnly = stripComments(helpersSource);
   });
 
   test("AuditActionType is a VALUE import with MEMBERS (never string literals)", () => {
     // The import line declares a VALUE import (not `import type { ... }`).
     expect(serviceSource).toContain('import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum"');
-    // Members are referenced as `AuditActionType.Suspend` / `AuditActionType.Reactivate`.
-    expect(serviceSource).toContain("AuditActionType.Suspend");
-    expect(serviceSource).toContain("AuditActionType.Reactivate");
-    // No bare string literals used as action types.
+    expect(helpersSource).toContain('import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum"');
+    // The CRUD methods reference `AuditActionType.Create` / `AuditActionType.Update`
+    // in the service; the governance axes reference `Suspend` / `Reactivate` /
+    // `Delete` in the helpers (the pipeline lives there).
+    expect(serviceSource).toContain("AuditActionType.Create");
+    expect(serviceSource).toContain("AuditActionType.Update");
+    expect(helpersSource).toContain("AuditActionType.Suspend");
+    expect(helpersSource).toContain("AuditActionType.Reactivate");
+    expect(helpersSource).toContain("AuditActionType.Delete");
+    // No bare string literals used as action types in either source.
     expect(serviceSource).not.toMatch(/actionType:\s*"(?:suspend|reactivate|delete|create|update|override|adjust)"/);
+    expect(helpersSource).not.toMatch(/actionType:\s*"(?:suspend|reactivate|delete|create|update|override|adjust)"/);
   });
 
   test("no PII in audit `details` — only `changedFields` + axis state", () => {
     // The audit details objects carry only `changedFields` (field NAMES),
     // `suspended` / `blocked` axis state, and `suspendedPeriodDays`.
-    // NEVER `email`, `phone`, `passwordHash`, `fullName`, etc.
+    // NEVER `email`, `phone`, `passwordHash`, `fullName`, etc. Scanned in
+    // BOTH sources — the governance axes' details objects live in the
+    // helpers.
     const detailsRegex = /details\s*[:=]\s*\{[^}]*\}/g;
-    const detailsMatches = serviceSource.match(detailsRegex) ?? [];
-    for (const detailsBlock of detailsMatches) {
-      // The only allowed keys inside details blocks are:
-      //   changedFields, suspended, suspendedPeriodDays, blocked, deleted, role
-      // `role` is allowed on the createUser audit (it's a role enum, not PII).
-      const forbiddenPiiKeys = ["email", "phone", "passwordHash", "fullName", "country", "dateOfBirth"];
-      for (const forbidden of forbiddenPiiKeys) {
-        expect(detailsBlock).not.toContain(forbidden);
+    for (const source of [serviceSource, helpersSource]) {
+      const detailsMatches = source.match(detailsRegex) ?? [];
+      for (const detailsBlock of detailsMatches) {
+        // The only allowed keys inside details blocks are:
+        //   changedFields, suspended, suspendedPeriodDays, blocked, deleted, role
+        // `role` is allowed on the createUser audit (it's a role enum, not PII).
+        const forbiddenPiiKeys = ["email", "phone", "passwordHash", "fullName", "country", "dateOfBirth"];
+        for (const forbidden of forbiddenPiiKeys) {
+          expect(detailsBlock).not.toContain(forbidden);
+        }
       }
     }
   });
@@ -1042,35 +1070,46 @@ describe("AdminUserManagementService — Tier 4 static source scans (BOPLA / BFL
     // The service builds payloads field-by-field. Scan CODE only (not
     // comments) — JSDoc cites the forbidden pattern as documentation.
     expect(serviceCodeOnly).not.toMatch(/\.\.\.input\b/);
+    expect(helpersCodeOnly).not.toMatch(/\.\.\.input\b/);
   });
 
   test("BFLA — `assertActiveActorAdmin` is the strict guard consumed by setUserSuspended + setUserBlocked", () => {
-    expect(serviceSource).toContain("assertActiveActorAdmin");
-    // The strict guard appears in BOTH governance methods (count >= 2).
-    const matches = serviceSource.match(/assertActiveActorAdmin\(/g) ?? [];
+    // The strict guard lives in the helpers (the governance pipeline's
+    // home): the import + the TWO strict-guard calls (suspend + block
+    // axes); the delete axis keeps the relaxed guard (REQ-031).
+    expect(helpersSource).toContain("assertActiveActorAdmin");
+    const matches = helpersSource.match(/assertActiveActorAdmin\(/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
+    // The service keeps the relaxed `assertActorAdmin` for the legacy CRUD
+    // methods (the delegation shell owns only the actor-guard variant).
+    expect(serviceSource).toContain("assertActorAdmin");
   });
 
   test("withTransaction single boundary per mutation", () => {
     // Each mutation has exactly ONE `withTransaction(outerTx, ...)` call.
-    // The service has 5 mutations (createUser, updateUser, setUserDeleted,
-    // setUserSuspended, setUserBlocked) → 5 `withTransaction` calls.
+    // The service has 2 mutations (createUser, updateUser) → 2 calls; the
+    // helpers own the three governance axes → 3 calls (5 total).
     // Scan CODE only — JSDoc cites `withTransaction(outerTx, …)` as
-    // documentation in setUserSuspended's pipeline comment.
-    const matches = serviceCodeOnly.match(/withTransaction\(/g) ?? [];
-    expect(matches).toHaveLength(5);
+    // documentation in the pipeline comments.
+    const serviceMatches = serviceCodeOnly.match(/withTransaction\(/g) ?? [];
+    expect(serviceMatches).toHaveLength(2);
+    const helpersMatches = helpersCodeOnly.match(/withTransaction\(/g) ?? [];
+    expect(helpersMatches).toHaveLength(3);
   });
 
   test("tx propagated to every inner call inside withTransaction", () => {
     // Every AuditService.createAuditLog call inside a tx takes `tx` as the
-    // second argument; every repo write takes `tx` as the last argument.
-    // The regexes use `[\s\S]+?` (non-greedy, multi-line) to span the
-    // multi-argument call sites without false-stopping on nested parens
-    // (e.g. `buildAuditContract(actorId, actionType, id, details), tx`).
-    expect(serviceCodeOnly).toMatch(/AuditService\.createAuditLog\([\s\S]+?,\s*tx\s*\)/);
-    expect(serviceCodeOnly).toMatch(/AdminUserRepository\.setSuspendedOnce\([\s\S]+?,\s*tx\s*\)/);
-    expect(serviceCodeOnly).toMatch(/AdminUserRepository\.setBlockedOnce\([\s\S]+?,\s*tx\s*\)/);
-    expect(serviceCodeOnly).toMatch(/AdminUserRepository\.findGovernanceState\(id,\s*tx\)/);
+    // second argument; every repo write takes the transaction as its last
+    // argument. The helpers' guarded repo calls receive the pipeline's
+    // `guardTx` parameter; the ladder's governance-state read and the
+    // audit insert ride `tx`. The regexes use `[\s\S]+?` (non-greedy,
+    // multi-line) to span the multi-argument call sites without
+    // false-stopping on nested parens.
+    expect(helpersCodeOnly).toMatch(/AuditService\.createAuditLog\([\s\S]+?,\s*tx\s*\)/);
+    expect(helpersCodeOnly).toMatch(/AdminUserRepository\.setSuspendedOnce\([\s\S]+?,\s*guardTx\s*\)/);
+    expect(helpersCodeOnly).toMatch(/AdminUserRepository\.setBlockedOnce\([\s\S]+?,\s*guardTx\s*\)/);
+    expect(helpersCodeOnly).toMatch(/AdminUserRepository\.setDeletedOnce\([\s\S]+?,\s*guardTx\s*\)/);
+    expect(helpersCodeOnly).toMatch(/AdminUserRepository\.findGovernanceState\(id,\s*tx\)/);
     expect(serviceCodeOnly).toMatch(/getUserDetail\(id,\s*locale,\s*actorId,\s*tx\)/);
   });
 
@@ -1121,19 +1160,22 @@ describe("AdminUserManagementService — Tier 4 static source scans (BOPLA / BFL
   });
 
   test("setUserDeleted body byte-untouched (REQ-020 lock)", () => {
-    // The setUserDeleted method body is unchanged. The 7 citable
-    // behavioral markers must still appear verbatim:
-    //   - `setDeletedOnce(id, deleted, tx)`
-    //   - `existsById(id, tx)` classifier
+    // The setUserDeleted axis body is unchanged. The citable behavioral
+    // markers must still appear verbatim (the axis body lives in the
+    // helpers; the guarded repo call receives the pipeline's `guardTx`):
+    //   - `setDeletedOnce(id, deleted, guardTx)`
+    //   - `findGovernanceState(id, tx)` classifier (the governance ladder)
     //   - `"USER_SELF_DEACTIVATION_FORBIDDEN"` self-protection
-    //   - `"USER_ALREADY_DELETED"` / `"USER_NOT_DELETED"` direction-based ternary
+    //   - `"USER_ALREADY_DELETED"` / `"USER_NOT_DELETED"` direction-based codes
     //   - `AuditActionType.Delete : AuditActionType.Reactivate`
-    expect(serviceSource).toContain("AdminUserRepository.setDeletedOnce(id, deleted, tx)");
-    expect(serviceSource).toContain("AdminUserRepository.existsById(id, tx)");
-    expect(serviceSource).toContain('"USER_SELF_DEACTIVATION_FORBIDDEN"');
-    expect(serviceSource).toContain('"USER_ALREADY_DELETED"');
-    expect(serviceSource).toContain('"USER_NOT_DELETED"');
-    expect(serviceSource).toContain("deleted ? AuditActionType.Delete : AuditActionType.Reactivate");
+    expect(helpersSource).toContain("AdminUserRepository.setDeletedOnce(id, deleted, guardTx)");
+    expect(helpersSource).toContain("AdminUserRepository.findGovernanceState(id, tx)");
+    expect(helpersSource).toContain('"USER_SELF_DEACTIVATION_FORBIDDEN"');
+    expect(helpersSource).toContain('"USER_ALREADY_DELETED"');
+    expect(helpersSource).toContain('"USER_NOT_DELETED"');
+    expect(helpersSource).toContain("deleted ? AuditActionType.Delete : AuditActionType.Reactivate");
+    // The service delegates the delete axis to the shared pipeline.
+    expect(serviceSource).toContain("setDeletedAxis(id, deleted, actorId, locale");
   });
 });
 

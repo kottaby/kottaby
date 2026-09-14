@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { char, check, decimal, index, integer, pgTable, timestamp } from "drizzle-orm/pg-core";
+import { char, check, decimal, index, integer, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { paymentGateway, paymentStatus } from "@/backend/db/schema/enums";
 import { students } from "@/backend/db/schema/students/students";
@@ -26,8 +26,21 @@ import { students } from "@/backend/db/schema/students/students";
  * `amount`, `currency`, `payment_gateway`, `created_at`) is left
  * unchanged — the `prevent_student_payments_update()` guard (amended by
  * `4-student-payments-status-transition.sql`) raises for every other
- * mutation. Decided payments are therefore terminal, and the audit trail
+ * mutation. Within that same guarded decision the nullable
+ * `provider_transaction_id` may be written once, and only from NULL to the
+ * gateway's transaction reference (amended by
+ * `5-student-payments-provider-transaction.sql`): an already-recorded
+ * reference can never be overwritten or erased, so the auditable link to
+ * the provider's own ledger is exactly as frozen as the financial columns.
+ * Decided payments are therefore terminal, and the audit trail
  * for financial reconciliation is preserved.
+ *
+ * PENDING INSERT GUARD: the invariant holds at insertion too — a pending
+ * row may never be created with a `provider_transaction_id` already set
+ * (`student_payments_pending_provider_transaction_check`: `status <>
+ * 'pending' OR provider_transaction_id IS NULL`). The reference is written
+ * only through the guarded `pending → paid | failed` decision, so no insert
+ * path can seed an audit link outside the trigger's control.
  *
  * Indexes on `student_id` and `subscription_id`.
  */
@@ -45,6 +58,7 @@ export const studentPayments = pgTable(
     currency: char("currency", { length: 3 }).notNull().default("EGP"),
     paymentGateway: paymentGateway("payment_gateway").notNull(),
     status: paymentStatus("status").notNull().default("pending"),
+    providerTransactionId: varchar("provider_transaction_id", { length: 64 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -53,6 +67,10 @@ export const studentPayments = pgTable(
   },
   t => [
     check("student_payments_amount_check", sql`${t.amount} > 0`),
+    check(
+      "student_payments_pending_provider_transaction_check",
+      sql`${t.status} <> 'pending' OR ${t.providerTransactionId} IS NULL`
+    ),
     index("student_payments_student_id_idx").on(t.studentId),
     index("student_payments_subscription_id_idx").on(t.subscriptionId),
   ]

@@ -37,6 +37,8 @@ export const errorsEn: ErrorsLabels = {
     idempotencyKeyRequired: "A request idempotency key is required. Please retry the request.",
     paymentReferenceConflict: "This payment was already used for another subscription. Please start a new payment.",
     paymentAmountMismatch: "The payment amount did not match the plan price, so the payment was not applied.",
+    planPriceShapeInvalid: "The plan price must be a non-negative amount with at most two decimal places.",
+    planPriceOutOfRange: "The plan price exceeds the supported amount range.",
   },
   applicantNotFound: "Teacher application not found.",
   applicantCooldownActive: "You can re-apply for teacher verification after {cooldownUntil}.",

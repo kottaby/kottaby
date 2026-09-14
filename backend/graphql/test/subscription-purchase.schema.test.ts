@@ -311,6 +311,7 @@ describe("subscription purchase — SDL surface contract", () => {
     const expectedTypes: Record<string, string> = {
       id: "ID!",
       planId: "Int!",
+      plan: "Plan!",
       status: "SubscriptionStatus!",
       startDate: "String",
       endDate: "String",
@@ -320,6 +321,8 @@ describe("subscription purchase — SDL surface contract", () => {
       createdAt: "String!",
       updatedAt: "String!",
     };
+    // The plan relation resolves the catalog row (the title the student
+    // surfaces render) — NON-NULL honestly (restrict-FK plan_id).
     for (const [name, expectedType] of Object.entries(expectedTypes)) {
       expect(fields[name]?.type.toString()).toBe(expectedType);
     }

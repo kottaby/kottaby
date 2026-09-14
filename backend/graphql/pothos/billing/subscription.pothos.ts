@@ -23,14 +23,22 @@
  *    `paymentVerifiedAt` until the payment decision, plus the
  *    offline-payment pair `paymentMethod`/`paymentReference`) stay
  *    nullable — a pending subscription carries NULL honestly.
+ *  - The `plan` relation resolves the catalog row the subscription grants
+ *    (the human-readable title for the student surfaces). It is NON-NULL
+ *    honestly: `plan_id` carries `restrict` delete semantics, so a plan
+ *    with subscriptions can never be hard-deleted — the resolved row always
+ *    exists. The resolver delegates to the services layer (no repository
+ *    call, no business logic here).
  *
  * Registered ahead of its resolvers through the billing Pothos barrel
  * (`gqlSchema.ts` side-effect chain); the purchase payload wrapper and the
  * owner listing reference this ref.
  */
 
+import { PlanPothosObject } from "@/backend/graphql/pothos/billing/plan.pothos";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { PaymentGatewayPothosEnum, SubscriptionStatusPothosEnum } from "@/backend/graphql/pothos/shared/enum.pothos";
+import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.service";
 import type { SubscriptionReturnType } from "@/backend/types";
 
 /**
@@ -48,6 +56,11 @@ export const SubscriptionPothosObject = gqlSchemaBuilder
       }),
       planId: t.exposeInt("planId", {
         description: "ID of the catalog plan this subscription grants.",
+      }),
+      plan: t.field({
+        type: PlanPothosObject,
+        description: "The catalog plan this subscription grants (the resolved row always exists — restrict FK).",
+        resolve: (parent, _args, ctx) => PlanCatalogService.findById(parent.planId, ctx.locale),
       }),
       status: t.expose("status", {
         type: SubscriptionStatusPothosEnum,

@@ -58,6 +58,18 @@ The orchestrator NEVER calls ReadMediaFile on screenshots in its own loop. Image
 
 **VLM-CLI inspector mode**: when subagent image delivery is unavailable (agent contexts that never receive image payloads), inspectors run via the `z-ai vision` CLI in Bash — one image per call, rubric inlined in the prompt; the orchestrator aggregates text verdicts.
 
+## Version & environment gotchas (observed)
+
+- Snapshot refs emit as `[ref=eN]`, not `@eN` — extract with `grep -oE 'ref=e[0-9]+' | cut -d= -f2`
+  and re-prefix `@` for click; `grep -o '@e[0-9]*'` NEVER matches.
+- Back-to-back agent-browser invocations inside `$(...)` can race (empty snapshot). Wrap interaction
+  captures in retry loops gated on DOM state (evaluate the expected marker; retry up to 3×).
+- The console dump is CUMULATIVE for the session — `agent-browser console --clear` after each
+  navigation so the pre-check gate judges only the current page's entries.
+- Storybook iframes do NOT receive the app's `next/font` CSS variables — Arabic (and other webfont
+  scripts) render in a fallback font. Never flag Arabic shaping/tracking from a Storybook capture
+  without confirming computed styles (`letterSpacing`, `fontFamily`) via `agent-browser eval`.
+
 ## Useful DOM-first verifications (don't need pixels)
 
 - `agent-browser snapshot -i -c` — interactive a11y tree: proves headings, fields, per-row actions, checkmarks.

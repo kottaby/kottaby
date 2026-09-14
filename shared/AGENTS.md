@@ -70,22 +70,24 @@ Kottaby uses a custom **compile-time TypeScript i18n system** in `shared/locale/
 - **Compile-time safety**: `t.x.y` instead of `t("x.y")` — IDE autocomplete + TypeScript errors on missing keys
 - **Native TypeScript pluralization**: `(count: number) => string` functions instead of ICU strings
 - **Lazy loading**: standard dynamic `import()` per namespace — only loads needed translations
-- **SSR & API support**: `getTranslations(locale, namespace)` for server components / API routes
-- **GraphQL context integration**: `ctx.t("namespace")` bound to `ctx.locale`
+- **SSR & API support**: `getTranslations(locale)` / `getServerTranslations(locale)` for server components / API routes
+- **GraphQL context integration**: `ctx.t("namespaceTranslations")` bound to `ctx.locale`
 - **SEO routing preserved**: Next.js native `[locale]` segments + middleware
 
 ### File Structure
 ```
 shared/locale/
 ├── AppLocale.ts              ← locale enum & type
-├── serverLegacy.ts           ← getTranslations<K>(locale, namespace) for SSR/API
-├── server-graphql-legacy.ts  ← getServerTranslations<K>(locale, namespace) for GraphQL/scripts
-├── clientLegacy.ts           ← useAppTranslation<K>(namespace) hook for client components
-├── index.ts                  ← re-exports
+├── server.ts                 ← getTranslations(locale) for server components / API
+├── server-graphql.ts         ← getServerTranslations(locale) for GraphQL/scripts/tests
+├── server-cookies.ts         ← NEXT_LOCALE cookie reads (server-only, not in the barrel)
+├── client/                   ← useAppTranslation(handle) hook for client components
+├── index.ts                  ← public barrel (re-exports)
 │
-├── types/                    ← TypeScript interfaces (the "schema")
-│   └── message.ts            ← MessageSchema (top-level map of all namespaces)
+├── types/                    ← TypeScript label interfaces (the "schema")
+│   └── message.ts            ← Translations map + per-namespace *Labels types
 │
+├── namespaces/               ← per-namespace compile-time handles (defineNamespace + registry)
 ├── ar/                       ← Arabic implementations
 └── en/                       ← English implementations
 ```
@@ -96,7 +98,7 @@ shared/locale/
 ```typescript
 // ✅ Correct
 import { getTranslations } from "@/shared/locale/server";
-const t = await getTranslations(locale, "auth");
+const t = getTranslations(locale).authTranslations;
 return <h1>{t.login.pageTitle}</h1>;
 
 // ❌ Forbidden
@@ -107,10 +109,11 @@ return <h1>{t("pageTitle")}</h1>;
 
 #### Client Components (`frontend/**/*.tsx`)
 ```typescript
-// ✅ Correct
+// ✅ Correct (namespace HANDLE — the compile-time accessor, never a string)
 import { useAppTranslation } from "@/shared/locale/client";
-const t = useAppTranslation("auth").login;
-return <input placeholder={t.email} />;
+import { Auth } from "@/shared/locale/namespaces/auth";
+const t = useAppTranslation(Auth);
+return <input placeholder={t.login.emailPlaceholder} />;
 
 // ❌ Forbidden
 import { useTranslations } from "next-intl";
@@ -122,22 +125,22 @@ return <input placeholder={t("email")} />;
 ```typescript
 // ✅ Correct
 resolve: async (_parent, args, ctx) => {
-  const tErrors = await ctx.t("errors");
-  throw new GraphQLError(tErrors.auth.invalidCredentials, ...);
+  const tErrors = await ctx.t("errorsTranslations");
+  throw new GraphQLError(tErrors.invalidCredentials, ...);
 };
 
 // ❌ Forbidden
 import { getBackendTranslations } from "@/backend/lib/intl";
 const t = await getBackendTranslations({ locale: ctx.locale, namespace: "errors" });
-throw new GraphQLError(t("auth.invalidCredentials"), ...);
+throw new GraphQLError(t("invalidCredentials"), ...);
 ```
 
 #### API Routes / Scripts / Tests (`app/api/**`, `scripts/**`, `backend/db/test/**`)
 ```typescript
 // ✅ Correct
 import { getServerTranslations } from "@/shared/locale/server-graphql";
-const t = await getServerTranslations(locale, "errors");
-return NextResponse.json({ error: t.auth.notFound }, { status: 404 });
+const t = getServerTranslations(locale).errorsTranslations;
+return NextResponse.json({ error: t.notFound }, { status: 404 });
 ```
 
 ### Pluralization Pattern
@@ -196,11 +199,21 @@ export const auth: AuthLabels = {
 **Usage:** `t.impersonation.bannerLoggedInAs("أحمد")`
 
 ### Namespace Registration (Required for each new namespace)
-1. Add interface to `shared/locale/types/<namespace>/index.ts`
-2. Add implementations to `shared/locale/ar/<namespace>/index.ts` and `shared/locale/en/<namespace>/index.ts`
-3. Export in `shared/locale/types/message.ts` (add to `MessageSchema`)
-4. Add path mapping in `shared/locale/serverLegacy.ts` (`namespacePaths` map)
-5. If used in layout SSR, add to `LocaleProvider` translations in `app/[locale]/layout.tsx`
+The live compile-time handle architecture — the exemplars are the `wallet`, `plans`, and
+`checkout` namespaces:
+1. Add the `*Labels` interface to `shared/locale/types/<ns>/index.ts`.
+2. Add the en/ar leaf implementations to `shared/locale/en/<ns>/index.ts` and
+   `shared/locale/ar/<ns>/index.ts`, each const typed against the interface (compile-time parity).
+3. Create the handle `shared/locale/namespaces/<ns>/<ns>.namespace.ts`:
+   `export const <Ns> = defineNamespace<<Labels>>("<ns>.<ns>", translations => translations.<ns>Translations);`
+   and register the handle in `shared/locale/namespaces/registry.ts` (+ the `namespaces/index.ts`
+   re-export).
+4. Add the `<ns>Translations: <Ns>Labels` member to the `Translations` interface in
+   `shared/locale/types/message.ts`.
+5. Register the bundle slices in `shared/locale/en/messages.ts` and
+   `shared/locale/ar/messages.ts` (`<ns>Translations: <ns>En` / `<ns>Ar`).
+6. Add the colocated parity test (`shared/locale/<ns>-namespace.parity.test.ts`, mirroring the
+   wallet/plans exemplars) and run `bun tsgo` — barrel + type changes must compile clean.
 
 ### Public import contract
 
