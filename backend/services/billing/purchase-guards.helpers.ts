@@ -19,7 +19,7 @@
 import { ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import type { PlanSelectType } from "@/backend/types";
-import { getServerTranslations } from "@/shared/locale/server-graphql";
+import type { getServerTranslations } from "@/shared/locale/server-graphql";
 
 /** The errors-namespace bundle shape consumed by the localized denials. */
 type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
