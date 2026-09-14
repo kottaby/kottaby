@@ -37,9 +37,15 @@
  *   6. The student (a non-applicant role) attempts the purchase → the real
  *      applicant-row gate denies with the localized not-found denial; zero
  *      side effects for the student.
- *   7. The student replays Applicant A's SPENT idempotency key → the
- *      oracle-safe generic not-found denial (no owner existence leak); the
- *      student writes nothing and A's decided pair stays byte-identical.
+ *   7. A FOREIGN APPLICANT (the cooldown-expired re-applicant — an honest
+ *      applicant role) replays Applicant A's SPENT idempotency key → the
+ *      oracle-safe generic payment-not-found denial (another caller's claim
+ *      is never surfaced, so nothing leaks about the key's owner); the
+ *      non-applicant student replaying the SAME SPENT key is denied EARLIER
+ *      at the applicant-row gate (the gate runs before the claim
+ *      classification) with the localized applicant-not-found denial —
+ *      equally oracle-safe. Neither foreign caller writes anything and A's
+ *      decided pair stays byte-identical.
  *
  * Journey rules honored (`test/workflows/AGENTS.md`):
  * - fixtures COMMITTED in `beforeAll` (cast via the sanctioned journey
@@ -663,28 +669,61 @@ describe("cross-actor journey: verification plan purchase → gateway settlement
     expect(publishSpy.mock.calls).toHaveLength(1);
   });
 
-  test("step 7 — Student: replaying Applicant A's SPENT key → oracle-safe not-found denial; the owner's decided pair stays byte-identical", async () => {
-    const foreignUserId = bundle.cast.student.user.id;
+  test("step 7 — Foreign APPLICANT: replaying Applicant A's SPENT key → oracle-safe payment-not-found; the student's replay is gate-denied; the owner's decided pair stays byte-identical", async () => {
+    const foreignApplicantId = applicantC.id;
+    const foreignStudentId = bundle.cast.student.user.id;
     const ownerId = bundle.cast.applicant.user.id;
     const ownerSubscriptionId = ledgerSubscriptionIds[0] ?? 0;
     const ownerPaymentId = ledgerPaymentIds[0] ?? 0;
-    const foreignCountsBefore = await purchaseSetCounts(foreignUserId);
+    const foreignApplicantCountsBefore = await purchaseSetCounts(foreignApplicantId);
+    const foreignApplicantRowBefore = await readApplicantRow(foreignApplicantId);
+    const foreignStudentCountsBefore = await purchaseSetCounts(foreignStudentId);
     const ownerSubscriptionBefore = await readSubscriptionRow(ownerSubscriptionId);
     const ownerPaymentBefore = await readPaymentRow(ownerPaymentId);
 
-    const denial = await catchJourneyError(() =>
-      VerificationPurchaseService.purchase(foreignUserId, KEY_PURCHASE_A, "en")
+    // The honest FOREIGN APPLICANT (an applicants row with no active
+    // cooldown) passes the lifecycle gate, reaches the SPENT key's claim
+    // classification, and is denied with the oracle-safe payment-not-found:
+    // another caller's claim is never surfaced.
+    const applicantDenial = await catchJourneyError(() =>
+      VerificationPurchaseService.purchase(foreignApplicantId, KEY_PURCHASE_A, "en")
     );
-    if (!(denial instanceof NotFoundError)) {
-      throw new Error(`expected NotFoundError (got ${denial instanceof Error ? denial.name : String(denial)})`);
+    if (!(applicantDenial instanceof NotFoundError)) {
+      throw new Error(
+        `expected NotFoundError (got ${applicantDenial instanceof Error ? applicantDenial.name : String(applicantDenial)})`
+      );
     }
-    expect(denial.code).toBe("PAYMENT_NOT_FOUND");
-    expect(denial.message).toContain(ERRORS_EN.notFound);
+    expect(applicantDenial.code).toBe("PAYMENT_NOT_FOUND");
+    expect(applicantDenial.message).toContain(ERRORS_EN.notFound);
     // Oracle-safe: the generic denial leaks nothing about the key's owner.
-    expect(denial.message).not.toContain(bundle.cast.applicant.user.email);
+    expect(applicantDenial.message).not.toContain(bundle.cast.applicant.user.email);
 
-    // The foreign caller wrote nothing; the owner's decided pair is untouched.
-    expect(await purchaseSetCounts(foreignUserId)).toEqual(foreignCountsBefore);
+    // The STUDENT (non-applicant) replaying the SAME SPENT key is denied
+    // EARLIER — the applicant-row gate runs inside the transaction before
+    // the claim classification — with the localized applicant-not-found
+    // denial; equally oracle-safe (it also discloses nothing about the
+    // key's owner).
+    const studentDenial = await catchJourneyError(() =>
+      VerificationPurchaseService.purchase(foreignStudentId, KEY_PURCHASE_A, "en")
+    );
+    if (!(studentDenial instanceof NotFoundError)) {
+      throw new Error(
+        `expected NotFoundError (got ${studentDenial instanceof Error ? studentDenial.name : String(studentDenial)})`
+      );
+    }
+    expect(studentDenial.code).toBe("APPLICANT_NOT_FOUND");
+    expect(studentDenial.message).toContain(ERRORS_EN.applicantNotFound);
+    expect(studentDenial.message).not.toContain(bundle.cast.applicant.user.email);
+
+    // Neither foreign caller wrote anything: the replaying applicant's row
+    // is byte-identical (status, attempts, last-attempt stamp) and the
+    // owner's decided pair is untouched.
+    expect(await purchaseSetCounts(foreignApplicantId)).toEqual(foreignApplicantCountsBefore);
+    const foreignApplicantRowAfter = await readApplicantRow(foreignApplicantId);
+    expect(foreignApplicantRowAfter.status).toBe(foreignApplicantRowBefore.status);
+    expect(foreignApplicantRowAfter.verificationAttempts).toBe(foreignApplicantRowBefore.verificationAttempts);
+    expect(foreignApplicantRowAfter.lastAttemptAt?.getTime()).toBe(foreignApplicantRowBefore.lastAttemptAt?.getTime());
+    expect(await purchaseSetCounts(foreignStudentId)).toEqual(foreignStudentCountsBefore);
     const ownerSubscriptionAfter = await readSubscriptionRow(ownerSubscriptionId);
     expect(ownerSubscriptionAfter.status).toBe(SubscriptionStatus.Active);
     expect(ownerSubscriptionAfter.updatedAt.getTime()).toBe(ownerSubscriptionBefore.updatedAt.getTime());
@@ -692,7 +731,8 @@ describe("cross-actor journey: verification plan purchase → gateway settlement
     expect(ownerPaymentAfter.status).toBe(PaymentStatus.Paid);
     expect(ownerPaymentAfter.updatedAt.getTime()).toBe(ownerPaymentBefore.updatedAt.getTime());
     expect(await inboxCount(ownerId)).toBe(1);
-    expect(await inboxCount(foreignUserId)).toBe(0);
+    expect(await inboxCount(foreignApplicantId)).toBe(0);
+    expect(await inboxCount(foreignStudentId)).toBe(0);
     expect(publishSpy.mock.calls).toHaveLength(1);
   });
 });

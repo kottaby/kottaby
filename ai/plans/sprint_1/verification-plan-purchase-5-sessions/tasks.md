@@ -161,7 +161,7 @@
 
 ## Phase 5 — Journey Green + Post-Implementation Review
 
-- [ ] 10. **Journey green + full layer suites**
+- [x] 10. **Journey green + full layer suites**
   - Re-run journey: `bun run test/scripts/run-test.ts test/workflows/teachers/verification-plan-purchase.journey.test.ts` → green; run TWICE back-to-back (idempotent teardown proof).
   - Full layer sweeps: `bun run test:db:sequential` (changed repos) · `bun run test:services:sequential` · `bun run test:graphql` · `bun run test:ui:components`.
   - Fix any cross-test regressions.
