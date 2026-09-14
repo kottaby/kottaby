@@ -23,10 +23,12 @@ import { randomUUID } from "@/frontend/views/student/plans/purchaseHelpers";
  * server-side from the plan row — nothing else leaves the client.
  *
  * Outcome routing (`PlanPurchaseOutcome`):
- *  - `redirected` — the gateway returned a hosted `checkoutUrl`; the
- *    browser navigates via `globalThis.window.location.href` (the
+ *  - `redirected` — the gateway returned a hosted `checkoutUrl`; the browser
+ *    navigates via `globalThis.window.location.href` (the
  *    auth-recovery hard-redirect idiom — an external host, so the SPA
- *    router is not involved) and the hook returns without further UI work.
+ *    router is not involved). The URL is validated `https:` before
+ *    assignment — a compromised config or provider regression must never
+ *    navigate the student off-protocol (violations resolve `failed`).
  *  - `completed` — the provider activated instantly with NO hosted
  *    checkout (`checkoutUrl: null`, the built-in mock among them); the
  *    caller shows the activated-state notice and keeps the dialog closed.
@@ -65,7 +67,14 @@ export function usePurchaseSubscription(): PurchaseSubscription {
       // attempt key so the server-side replay dedupe stays effective.
       purchaseKeyRef.current = randomUUID();
       if (payload.checkout.checkoutUrl !== null) {
-        globalThis.window.location.href = payload.checkout.checkoutUrl;
+        // Defense-in-depth: the URL is server-derived, but a compromised
+        // config or provider regression must never navigate the browser
+        // off-protocol (an invalid URL throws here → the failed arm).
+        const target = new URL(payload.checkout.checkoutUrl);
+        if (target.protocol !== "https:") {
+          return "failed";
+        }
+        globalThis.window.location.href = target.href;
         return "redirected";
       }
       return "completed";

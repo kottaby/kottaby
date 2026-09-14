@@ -169,10 +169,10 @@ All keys live in the typed env snapshot (`backend/lib/env.ts`); a `null`/unset m
 
 | Key | Default | Fail-closed semantics |
 |---|---|---|
-| `PAYMENT_GATEWAY_PROVIDER` | `mock` | Registry key (trimmed, lowercased); unknown values fail closed |
+| `PAYMENT_GATEWAY_PROVIDER` | `mock` | Registry key (trimmed, lowercased); unknown values fail closed; in production without `TEST_SERVER=1` the built-in `mock` is refused (fail-closed) |
 | `PAYMOB_SECRET_KEY` | `null` | Absent → `createCheckout` answers `SERVICE_UNAVAILABLE` ("Payment gateway is not configured.") |
 | `PAYMOB_PUBLIC_KEY` | `null` | Absent → fail closed (the checkout URL cannot be composed) |
-| `PAYMOB_HMAC_SECRET` | `null` | Absent → every webhook delivery rejected (401-family / fail-closed `false`); test channels fail delivery closed |
+| `PAYMOB_HMAC_SECRET` | `null` | Absent → every webhook delivery rejected (503-family for the unconfigured secret; 401 on a failed compare); test channels fail delivery closed |
 | `PAYMOB_API_KEY` | `null` | Absent → reconciliation sweep gates to a zero-count skip; cron route answers bare 404 |
 | `PAYMOB_INTEGRATION_ID_CARD` | `null` | Absent → fail closed (no payment method on the intention) |
 | `PAYMOB_INTEGRATION_ID_WALLET` | `null` | Optional — wallet appended to the intention only when set |
@@ -259,7 +259,7 @@ bare-404 provider/API-key gate → timing-safe bearer gate) delegates to
 The sweep never throws for unconfigured state or outcome content — only true infrastructure
 breaches propagate to the masked 500. The route-level provider gate intentionally duplicates the
 service-level gate (belt-and-suspenders: the route hides the endpoint, the service stays honest
-when invoked from elsewhere). Both cron routes (`reconcile-paymob-payments` and `sweep-sessions`)
+when invoked from elsewhere). All cron routes (`reconcile-paymob-payments`, `sweep-sessions`, and `expire-subscriptions`)
 answer the same bare-404 fail-closed gates (disabled cron mode; unconfigured provider — see
 [`error-handling-contract.md`](../graphql/error-handling-contract.md) §3 for the webhook route's
 exemption row).

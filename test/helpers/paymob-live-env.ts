@@ -15,6 +15,11 @@
  * {@link arePaymobLiveTestsEnabled} (plus the tunnel gate where the tunnel
  * is part of the flow).
  *
+ * Production keys are refused outright: a resolved `sk_live_…` secret key
+ * skips the suites (never runs them) unless the operator adds the explicit
+ * override `PAYMOB_ALLOW_PROD_KEYS=1` — an operator-error guard against
+ * creating real production intentions from a live run.
+ *
  * Secrets never leave this module's callers: the resolver returns them for
  * env-fixture installation, and no log line or assertion message may
  * include them.
@@ -73,11 +78,21 @@ function parseOptionalInteger(raw: string | undefined): number | null {
   return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
+/** The explicit override env that re-enables live suites under production keys. */
+const PROD_KEY_OVERRIDE_ENV = "PAYMOB_ALLOW_PROD_KEYS" as const;
+
+/** True when the resolved secret key is a production-mode Paymob key (`sk_live_…`). */
+function isProductionSecretKey(secretKey: string): boolean {
+  return secretKey.startsWith("sk_live_");
+}
+
 /**
  * Resolves the live credential set from the process environment: canonical
  * `PAYMOB_*` keys first, then the legacy `Paymob__*` spelling. Returns
  * `null` when any required member is missing — the caller must skip, never
- * guess, a partial credential set.
+ * guess, a partial credential set. A resolved `sk_live_…` key also returns
+ * `null` (skip, never run) unless `PAYMOB_ALLOW_PROD_KEYS=1` explicitly
+ * allows production keys.
  */
 export function resolvePaymobLiveCredentials(): PaymobLiveCredentials | null {
   const secretKey = nonEmpty(process.env.PAYMOB_SECRET_KEY) ?? nonEmpty(process.env.Paymob__SecretKey);
@@ -96,6 +111,12 @@ export function resolvePaymobLiveCredentials(): PaymobLiveCredentials | null {
     apiKey === null ||
     integrationIdCard === null
   ) {
+    return null;
+  }
+  // Production-key refusal (see the module docblock): live vendor traffic
+  // under `sk_live_` keys needs the explicit override, without echoing the
+  // key itself anywhere.
+  if (isProductionSecretKey(secretKey) && process.env[PROD_KEY_OVERRIDE_ENV] !== "1") {
     return null;
   }
   return { secretKey, publicKey, hmacSecret, apiKey, integrationIdCard, integrationIdWallet };

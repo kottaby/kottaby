@@ -83,12 +83,57 @@ function catchSync(fn: () => unknown): unknown {
   return caught;
 }
 
+/** Runs an async thunk, returning the rejection (or null when nothing threw). */
+async function catchRejection(fn: () => Promise<unknown>): Promise<unknown> {
+  try {
+    return await fn();
+  } catch (error) {
+    return error;
+  }
+}
+
 /** Narrows a caught rejection into its DomainError code + message (or null). */
 function domainRejection(error: unknown): { code: string; message: string } | null {
   if (!(error instanceof DomainError)) {
     return null;
   }
   return { code: error.code, message: error.message };
+}
+
+/**
+ * Runs a thunk under a pinned production runtime, restoring `NODE_ENV` /
+ * `TEST_SERVER` (and the gateway epoch) afterwards — the raw-runtime keys are
+ * outside the gateway env fixture above, so they save/restore locally. A
+ * thunk returning a promise is safe: the runtime guard fires synchronously
+ * inside the adapter methods, before any awaited continuation.
+ */
+function withProductionRuntime<T>(testServer: string | undefined, fn: () => T): T {
+  // `NODE_ENV` is a read-only literal union in the Bun types — the cast is
+  // the house env-manipulation idiom (cf. `backend/db/test/ensure-env.ts`),
+  // applied to the save as well so the restore comparison sees `undefined`.
+  const savedNodeEnv = (process.env as { NODE_ENV?: string }).NODE_ENV;
+  const savedTestServer = process.env.TEST_SERVER;
+  (process.env as { NODE_ENV?: string }).NODE_ENV = "production";
+  if (testServer === undefined) {
+    delete process.env.TEST_SERVER;
+  } else {
+    process.env.TEST_SERVER = testServer;
+  }
+  try {
+    return fn();
+  } finally {
+    if (savedNodeEnv === undefined) {
+      delete (process.env as { NODE_ENV?: string }).NODE_ENV;
+    } else {
+      (process.env as { NODE_ENV?: string }).NODE_ENV = savedNodeEnv;
+    }
+    if (savedTestServer === undefined) {
+      delete process.env.TEST_SERVER;
+    } else {
+      process.env.TEST_SERVER = savedTestServer;
+    }
+    resetPaymentGateway();
+  }
 }
 
 // ─── Provider resolution ─────────────────────────────────────────────────────
@@ -165,6 +210,80 @@ describe("getPaymentGateway provider resolution", () => {
       expect(rejection?.code).toBe("PAYMENT_GATEWAY_UNSUPPORTED");
       expect(rejection?.message).toBe(getServerTranslations("en").errorsTranslations.validation);
     }
+  });
+});
+
+// ─── Production runtime guard (fail-closed mock) ────────────────────────────
+
+describe("getPaymentGateway production runtime guard", () => {
+  test("a real production runtime refuses the built-in mock provider with the typed rejection", () => {
+    // No provider configured: the mock default must be refused in production.
+    resetPaymentGateway();
+    withProductionRuntime(undefined, () => {
+      const caught = catchSync(() => getPaymentGateway());
+      expect(caught).toBeInstanceOf(DomainError);
+      const rejection = domainRejection(caught);
+      expect(rejection?.code).toBe("PAYMENT_GATEWAY_MOCK_DISABLED");
+    });
+  });
+
+  test("an explicitly configured mock provider is refused in production too", () => {
+    process.env.PAYMENT_GATEWAY_PROVIDER = "mock";
+    resetPaymentGateway();
+    withProductionRuntime(undefined, () => {
+      const caught = catchSync(() => getPaymentGateway());
+      expect(caught).toBeInstanceOf(DomainError);
+      const rejection = domainRejection(caught);
+      expect(rejection?.code).toBe("PAYMENT_GATEWAY_MOCK_DISABLED");
+    });
+  });
+
+  test("the TEST_SERVER=1 production-build test runtime is exempt — the mock resolves", () => {
+    withProductionRuntime("1", () => {
+      expect(getPaymentGateway()).toBeInstanceOf(MockPaymentGatewayAdapter);
+    });
+  });
+
+  test("outside production the same configuration still resolves the mock", () => {
+    process.env.PAYMENT_GATEWAY_PROVIDER = "mock";
+    resetPaymentGateway();
+    expect(getPaymentGateway()).toBeInstanceOf(MockPaymentGatewayAdapter);
+  });
+
+  test("the paymob provider is unaffected by the mock guard in production", () => {
+    process.env.PAYMENT_GATEWAY_PROVIDER = "paymob";
+    resetPaymentGateway();
+    withProductionRuntime(undefined, () => {
+      expect(getPaymentGateway()).toBeInstanceOf(PaymobPaymentGateway);
+    });
+  });
+});
+
+describe("MockPaymentGatewayAdapter development runtime guard", () => {
+  test("createCheckout and parseWebhookEvent reject in a real production runtime", async () => {
+    const adapter = new MockPaymentGatewayAdapter();
+    withProductionRuntime(undefined, () => {
+      expect(catchSync(() => adapter.parseWebhookEvent({ rawBody: "{}", query: {} }))).toBeInstanceOf(DomainError);
+    });
+    const checkoutRejection = await catchRejection(() =>
+      withProductionRuntime(undefined, () => adapter.createCheckout(CHECKOUT_INPUT))
+    );
+    expect(checkoutRejection).toBeInstanceOf(DomainError);
+    const rejection = domainRejection(checkoutRejection);
+    expect(rejection?.code).toBe("PAYMENT_GATEWAY_MOCK_DISABLED");
+  });
+
+  test("the TEST_SERVER=1 production-build test runtime is exempt for both methods", async () => {
+    const adapter = new MockPaymentGatewayAdapter();
+    withProductionRuntime("1", () => {
+      const event = adapter.parseWebhookEvent({
+        rawBody: JSON.stringify({ reference: "mock_abc", outcome: "confirmed", amount: "150.00", currency: "EGP" }),
+        query: {},
+      });
+      expect(event.outcome).toBe("confirmed");
+    });
+    const session = await withProductionRuntime("1", () => adapter.createCheckout(CHECKOUT_INPUT));
+    expect(session.checkoutUrl).toBeNull();
   });
 });
 

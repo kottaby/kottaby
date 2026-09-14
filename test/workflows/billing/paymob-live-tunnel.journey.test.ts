@@ -31,6 +31,9 @@
  * interception is a pass-through recorder at the provider boundary (every
  * request reaches the vendor); the notification publish seam is SPIED;
  * error assertions through route envelopes — never `.rejects.toThrow()`.
+ * The fetch/publish spies and the receiver server are installed ONLY under
+ * the live gates (inside the guarded `beforeAll`) and restored
+ * unconditionally in `afterAll`, so an ungated run leaks no harness state.
  *
  * Teardown kills the spawned ngrok agent explicitly (the channel's cleanup
  * registration seam is captured at construction) so the reserved domain is
@@ -38,6 +41,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 // Value import (NOT type-only): NextRequest is CONSTRUCTED below.
 import { NextRequest } from "next/server";
@@ -163,38 +167,39 @@ function recordingPassthroughFetch(input: string | URL | Request, init?: BunFetc
 }
 recordingPassthroughFetch.preconnect = (url: string | URL) => globalThis.fetch.preconnect(url);
 
-const fetchSpy = spyOn(globalThis, "fetch").mockImplementation(recordingPassthroughFetch);
-
 /**
- * The in-process callback receiver — the REAL webhook route handler behind
- * the REAL tunnel: the ngrok agent forwards public traffic to this server,
- * whose POST dispatch re-enters the production gate → parse → settlement
- * path with the exact wire bytes the delivery carried. Stopped in
- * `afterAll`.
+ * Live-gated harness — installed ONLY inside the live-guarded `beforeAll`
+ * and restored unconditionally in `afterAll` (before the `!live` early
+ * return), so an ungated run never leaks a proxied global fetch, a silenced
+ * notification-publish seam, or a bound listener into the rest of the suite.
  */
-const receiverServer = Bun.serve({
-  port: 0,
-  fetch: async request => {
-    const url = new URL(request.url);
-    if (request.method === "GET" && url.pathname === "/api/health") {
-      return new Response(null, { status: 200 });
-    }
-    if (request.method === "POST" && url.pathname === "/api/payments/webhook") {
-      const rawBody = await request.text();
-      return POST(
-        new NextRequest(request.url, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: rawBody,
-        })
-      );
-    }
-    return new Response(null, { status: 404 });
-  },
-});
 
-/** The post-commit publish spy — installed over the engine's publish boundary. */
-const publishSpy = spyOn(NotificationEngine, "publishReceipts").mockImplementation(async () => {});
+/** Installs the pass-through fetch recorder over the global fetch boundary. */
+function installFetchRecorder() {
+  return spyOn(globalThis, "fetch").mockImplementation(recordingPassthroughFetch);
+}
+
+/** Installs the post-commit publish no-op over the engine's publish boundary. */
+function installPublishNoop() {
+  return spyOn(NotificationEngine, "publishReceipts").mockImplementation(async () => {});
+}
+
+/** The installed global fetch spy (null until the live-guarded setup). */
+let fetchSpy: ReturnType<typeof installFetchRecorder> | null = null;
+
+/** The in-process callback receiver serving the REAL webhook route handler. */
+let receiverServer: ReturnType<typeof Bun.serve> | null = null;
+
+/** The post-commit publish spy (null until the live-guarded setup). */
+let publishSpy: ReturnType<typeof installPublishNoop> | null = null;
+
+/** Reads the publish spy's recorded calls, failing when it is not installed. */
+function publishCalls() {
+  if (publishSpy === null) {
+    throw new Error("expected the publish spy to be installed under the live gates");
+  }
+  return publishSpy.mock.calls;
+}
 
 /** Captured channel agent terminator — the tunnel must not outlive the suite. */
 let terminateTunnelAgent: (() => void) | null = null;
@@ -358,11 +363,46 @@ beforeAll(async () => {
     return;
   }
 
+  // Harness FIRST: the pass-through fetch recorder, the in-process receiver,
+  // and the publish spy. Everything below assumes them installed; `afterAll`
+  // restores them unconditionally so an ungated run stays untouched.
+  fetchSpy = installFetchRecorder();
+  const receiver = Bun.serve({
+    // Loopback-only bind: the ngrok agent forwards public traffic to this
+    // server over localhost, and the listener must never reach other
+    // interfaces.
+    port: 0,
+    hostname: "localhost",
+    fetch: async request => {
+      const url = new URL(request.url);
+      if (request.method === "GET" && url.pathname === "/api/health") {
+        return new Response(null, { status: 200 });
+      }
+      if (request.method === "POST" && url.pathname === "/api/payments/webhook") {
+        const rawBody = await request.text();
+        return POST(
+          new NextRequest(request.url, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: rawBody,
+          })
+        );
+      }
+      return new Response(null, { status: 404 });
+    },
+  });
+  receiverServer = receiver;
+  publishSpy = installPublishNoop();
+
   // A stray agent from a killed run holds the reserved domain, and a new
   // agent's bind then fails silently (its deliveries 404 at the edge). The
   // journey owns the tunnel lifecycle: sweep stray agents for THIS domain
-  // before the channel resolves.
-  await Bun.spawn(["pkill", "-f", `ngrok http --url=https://${tunnel.domain}`]).exited;
+  // before the channel resolves. `pkill -f` treats its pattern as an ERE —
+  // the reserved domain must be regex-escaped so metacharacters (a literal
+  // `.` in every real domain) cannot widen the match onto unrelated local
+  // processes.
+  const domainPattern = tunnel.domain.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  await Bun.spawn(["pkill", "-f", `ngrok http --url=https://${domainPattern}`]).exited;
 
   // Environment: enabled webhook receiver + the paymob provider active with
   // the REAL credential fixture, and the REAL tunnel pointed at the
@@ -371,7 +411,7 @@ beforeAll(async () => {
   process.env.PAYMENT_GATEWAY_PROVIDER = PaymentGateway.Paymob;
   process.env.NGROK_AUTHTOKEN = tunnel.authtoken;
   process.env.NGROK_DOMAIN = tunnel.domain;
-  process.env.NGROK_PORT = String(receiverServer.port);
+  process.env.NGROK_PORT = String(receiver.port);
   restoreLiveCredsFixture = installPaymobLiveEnvFixture(liveCreds);
   resetPaymentGateway();
   resetCallbackChannel();
@@ -409,17 +449,23 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Harness teardown is UNCONDITIONAL and runs BEFORE the live gate: the
+  // spies/receiver are installed only under the gates, so the null guards
+  // no-op on an ungated run — but the restore must never be reachable only
+  // when `live`, or an ungated run would leak the harness into the suite.
+  fetchSpy?.mockRestore();
+  publishSpy?.mockRestore();
+  terminateTunnelAgent?.();
+  if (receiverServer !== null) {
+    await receiverServer.stop(true).then(
+      () => undefined,
+      () => undefined
+    );
+  }
+
   if (!live) {
     return;
   }
-
-  fetchSpy.mockRestore();
-  publishSpy.mockRestore();
-  terminateTunnelAgent?.();
-  await receiverServer.stop(true).then(
-    () => undefined,
-    () => undefined
-  );
 
   // Immutable-ledger teardown leg FIRST: the append-only trigger blocks a
   // plain DELETE, so the sanctioned suspension wraps exactly this leg.
@@ -471,7 +517,16 @@ describe.skipIf(!live)("LIVE journey: paymob purchase → real tunnel callback �
       throw new Error("expected the intention creation request to be recorded");
     }
     expect(intention.url).toBe(`${PAYMOB_API_BASE}/v1/intention/`);
-    expect(intention.headers.Authorization).toBe(`Token ${liveCreds?.secretKey}`);
+    // The Authorization header is asserted through SHA-256 digests — the raw
+    // secret key must never ride an assertion argument (Bun prints both
+    // sides of a failing toBe into the captured run logs).
+    const expectedAuthDigest = createHash("sha256")
+      .update(`Token ${liveCreds?.secretKey ?? ""}`)
+      .digest("hex");
+    const actualAuthDigest = createHash("sha256")
+      .update(intention.headers.Authorization ?? "")
+      .digest("hex");
+    expect(actualAuthDigest).toBe(expectedAuthDigest);
     const intentionBody: unknown = JSON.parse(intention.body);
     if (!isPlainJsonObject(intentionBody)) {
       throw new Error("intention request body was not a JSON object");
@@ -550,8 +605,8 @@ describe.skipIf(!live)("LIVE journey: paymob purchase → real tunnel callback �
     expect(row.relatedEntityType).toBe("subscription");
 
     // The receipt published strictly post-commit — to the purchaser ONLY.
-    expect(publishSpy.mock.calls).toHaveLength(1);
-    const published: unknown = publishSpy.mock.calls[0]?.[0];
+    expect(publishCalls()).toHaveLength(1);
+    const published: unknown = publishCalls()[0]?.[0];
     if (!Array.isArray(published) || published.length !== 1) {
       throw new Error("expected exactly one published delivery receipt");
     }
@@ -566,7 +621,7 @@ describe.skipIf(!live)("LIVE journey: paymob purchase → real tunnel callback �
     const balancesBefore = await readBalances(student.userId);
     const decidedBefore = await paymentRow(ledgerPaymentIds[0] ?? 0);
     const activeBefore = await subscriptionRow(ledgerSubscriptionIds[0] ?? 0);
-    const publishesBefore = publishSpy.mock.calls.length;
+    const publishesBefore = publishCalls().length;
     const reference = activeBefore.paymentReference;
     if (reference === null) {
       throw new Error("expected the activated subscription to keep its gateway payment reference");
@@ -576,7 +631,7 @@ describe.skipIf(!live)("LIVE journey: paymob purchase → real tunnel callback �
 
     expect(await readBalances(student.userId)).toEqual(balancesBefore);
     expect(await notificationsForSubscription(ledgerSubscriptionIds[0] ?? 0)).toHaveLength(1);
-    expect(publishSpy.mock.calls).toHaveLength(publishesBefore);
+    expect(publishCalls()).toHaveLength(publishesBefore);
     const decidedAfter = await paymentRow(ledgerPaymentIds[0] ?? 0);
     expect(decidedAfter.status).toBe(PaymentStatus.Paid);
     expect(decidedAfter.updatedAt.getTime()).toBe(decidedBefore.updatedAt.getTime());
@@ -587,7 +642,7 @@ describe.skipIf(!live)("LIVE journey: paymob purchase → real tunnel callback �
   test("step 4 — a body tampered after signing posted at the PUBLIC webhook URL is masked 401 through the tunnel", async () => {
     const balancesBefore = await readBalances(student.userId);
     const decidedBefore = await paymentRow(ledgerPaymentIds[0] ?? 0);
-    const publishesBefore = publishSpy.mock.calls.length;
+    const publishesBefore = publishCalls().length;
     const reference = (await subscriptionRow(ledgerSubscriptionIds[0] ?? 0)).paymentReference;
     if (reference === null) {
       throw new Error("expected the activated subscription to keep its gateway payment reference");
@@ -616,7 +671,7 @@ describe.skipIf(!live)("LIVE journey: paymob purchase → real tunnel callback �
     expect(decidedAfter.updatedAt.getTime()).toBe(decidedBefore.updatedAt.getTime());
     expect(await readBalances(student.userId)).toEqual(balancesBefore);
     expect(await notificationsForSubscription(ledgerSubscriptionIds[0] ?? 0)).toHaveLength(1);
-    expect(publishSpy.mock.calls).toHaveLength(publishesBefore);
+    expect(publishCalls()).toHaveLength(publishesBefore);
   });
 
   test("step 5 — fresh purchase settles a failed outcome through the tunnel → payment failed, subscription stays pending", async () => {

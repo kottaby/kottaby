@@ -3,7 +3,12 @@
  * `PaymentGatewayPort`.
  *
  * Dev/test provider semantics:
- *  - `createCheckout` never contacts a network and NEVER throws: checkout is
+ *  - The adapter NEVER runs in a real production runtime: both public methods
+ *    assert the development runtime guard ({@link assertMockDevelopmentRuntime},
+ *    shared with the factory's resolution guard) so simulated settlements stay
+ *    unreachable in production even if a future caller bypasses the factory.
+ *  - `createCheckout` never contacts a network and never throws in a
+ *    development runtime: checkout is
  *    simulated deterministically with a fresh `mock_<uuid>` reference and no
  *    hosted-checkout URL (the mock has none — callers present the reference
  *    instead). Amount, currency, student and plan identities ride in the
@@ -28,7 +33,7 @@
 
 import { randomUUID } from "node:crypto";
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
-import { ValidationError } from "@/backend/lib/errors";
+import { DomainError, ValidationError } from "@/backend/lib/errors";
 import type {
   PaymentCheckoutInput,
   PaymentCheckoutSession,
@@ -59,13 +64,31 @@ function isWebhookOutcome(value: string): value is PaymentWebhookEvent["outcome"
   return (WEBHOOK_OUTCOMES as readonly string[]).includes(value);
 }
 
+/**
+ * Fail-closed runtime guard: the built-in mock simulates settlements, so it
+ * must never run in a real production deployment — not even if a future
+ * caller bypasses the factory's resolution rules. The test runners'
+ * `TEST_SERVER=1` production-build E2E server is the deliberate exemption
+ * (the same test-runtime signal the logger treats as test mode).
+ */
+export function assertMockDevelopmentRuntime(): void {
+  if (process.env.NODE_ENV === "production" && process.env.TEST_SERVER !== "1") {
+    throw new DomainError(
+      "PAYMENT_GATEWAY_MOCK_DISABLED",
+      "The built-in mock payment gateway is reachable only outside production runtimes."
+    );
+  }
+}
+
 export class MockPaymentGatewayAdapter implements PaymentGatewayPort {
   /**
    * Simulates opening a checkout session: a fresh `mock_<uuid>` reference
    * per call and no hosted-checkout URL. Never throws in mock mode — a
-   * simulated gateway has no outage path.
+   * simulated gateway has no outage path (the development-runtime guard
+   * above is the sole rejection, and it fires only in production).
    */
   async createCheckout(_input: PaymentCheckoutInput): Promise<PaymentCheckoutSession> {
+    assertMockDevelopmentRuntime();
     return {
       provider: PaymentGateway.Mock,
       providerReference: `mock_${randomUUID()}`,
@@ -82,6 +105,7 @@ export class MockPaymentGatewayAdapter implements PaymentGatewayPort {
    * returns null — see the module docblock.
    */
   parseWebhookEvent(input: WebhookParseInput): PaymentWebhookEvent {
+    assertMockDevelopmentRuntime();
     const validationMessage = localizedValidationMessage();
 
     let parsed: unknown;

@@ -213,7 +213,10 @@ export function toCheckoutDescriptor(
   return {
     provider: PaymentGateway.Paymob,
     providerReference: request.specialReference,
-    checkoutUrl: `${config.checkoutBaseUrl}?publicKey=${config.publicKey}&clientSecret=${response.client_secret}`,
+    // Query members are percent-encoded: both values are trusted sources
+    // today, but an opaque `client_secret` carrying `&`/`#`/`?` must never
+    // split or grow attacker-shaped parameters on the hosted-checkout URL.
+    checkoutUrl: `${config.checkoutBaseUrl}?publicKey=${encodeURIComponent(config.publicKey)}&clientSecret=${encodeURIComponent(response.client_secret)}`,
   };
 }
 

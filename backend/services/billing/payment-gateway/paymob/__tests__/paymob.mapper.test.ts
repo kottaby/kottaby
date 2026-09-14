@@ -341,6 +341,17 @@ describe("toCheckoutDescriptor", () => {
     );
   });
 
+  test("percent-encodes the URL params — an opaque secret cannot split or grow the URL", () => {
+    const descriptor = toCheckoutDescriptor(
+      makeResponse({ client_secret: "secret&injected=1" }),
+      makeConfig({ publicKey: "pk&weird" }),
+      makeInput()
+    );
+    expect(descriptor.checkoutUrl).toBe(
+      "https://eg.checkout.paymob.com?publicKey=pk%26weird&clientSecret=secret%26injected%3D1"
+    );
+  });
+
   test("supports a checkout prefix that already carries the hosted path", () => {
     const descriptor = toCheckoutDescriptor(
       makeResponse(),
