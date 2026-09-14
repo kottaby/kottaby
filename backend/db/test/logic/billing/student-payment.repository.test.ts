@@ -317,9 +317,27 @@ describe("StudentPaymentRepository", () => {
       const olderThan = new Date(Date.now() - 30 * 60_000);
       const paymobReference = `paymob-ref-${randomUUID()}`;
 
+      // Baselines BEFORE seeding: the shared dev database carries stale
+      // pending paymob rows from earlier live-testing sessions (the ledger
+      // is append-only — they cannot be removed), so the assertions below
+      // are baseline-relative: the read must return the baseline batch
+      // EXACTLY plus this test's new stale row, and nothing else.
+      const paymobBaseline = await StudentPaymentRepository.findStalePendingByGateway(
+        PaymentGateway.Paymob,
+        olderThan,
+        100,
+        tx
+      );
+      const stripeBaseline = await StudentPaymentRepository.findStalePendingByGateway(
+        PaymentGateway.Stripe,
+        olderThan,
+        100,
+        tx
+      );
+
       // Recent paymob pair (default created_at — NOT stale yet) and a stale
       // pair on the mock gateway: both must be filtered out.
-      await createPurchasePair(tx, { paymentGateway: PaymentGateway.Paymob });
+      const recentPaymob = await createPurchasePair(tx, { paymentGateway: PaymentGateway.Paymob });
       await createPurchasePair(tx, { createdAt: staleCreatedAt });
       const stalePaymob = await createPurchasePair(
         tx,
@@ -327,23 +345,28 @@ describe("StudentPaymentRepository", () => {
         { paymentReference: paymobReference }
       );
 
-      const rows = await StudentPaymentRepository.findStalePendingByGateway(PaymentGateway.Paymob, olderThan, 10, tx);
+      const rows = await StudentPaymentRepository.findStalePendingByGateway(PaymentGateway.Paymob, olderThan, 100, tx);
 
-      expect(rows).toHaveLength(1);
-      const row = rows[0];
+      // Exactly ONE new row vs the baseline — the stale paymob row. The
+      // recent pair (freshness filter) and the mock-gateway pair (gateway
+      // filter) never appear.
+      const baselineIds = new Set(paymobBaseline.map(row => row.id));
+      const fresh = rows.filter(row => !baselineIds.has(row.id));
+      expect(fresh.map(row => row.id)).toEqual([stalePaymob.payment.id]);
+      const row = fresh[0];
       if (!row) {
         throw new Error("reconciliation read: expected the stale paymob row to be returned");
       }
-      expect(row.id).toBe(stalePaymob.payment.id);
       expect(row.paymentGateway).toBe(PaymentGateway.Paymob);
       expect(row.status).toBe(PaymentStatus.Pending);
       expect(row.paymentReference).toBe(paymobReference);
       expect(row.providerTransactionId).toBeNull();
+      expect(rows.some(candidate => candidate.id === recentPaymob.payment.id)).toBe(false);
 
-      // A gateway with no stale pending rows yields an empty batch.
+      // A gateway with no stale pending rows yields the (empty) baseline batch.
       expect(
-        await StudentPaymentRepository.findStalePendingByGateway(PaymentGateway.Stripe, olderThan, 10, tx)
-      ).toEqual([]);
+        await StudentPaymentRepository.findStalePendingByGateway(PaymentGateway.Stripe, olderThan, 100, tx)
+      ).toEqual(stripeBaseline);
     });
   });
 
@@ -367,17 +390,26 @@ describe("StudentPaymentRepository", () => {
       // though its created_at is the oldest of the batch.
       expect(await StudentPaymentRepository.markPaidOnce(oldest.subscriptionId, tx)).not.toBeNull();
 
-      const rows = await StudentPaymentRepository.findStalePendingByGateway(PaymentGateway.Paymob, olderThan, 10, tx);
-      expect(rows.map(row => row.id)).toEqual([middle.payment.id, newest.payment.id]);
-      // Oldest first: the read order echoes the seeded creation order.
-      expect(rows.map(row => row.createdAt.getTime())).toEqual([
+      const rows = await StudentPaymentRepository.findStalePendingByGateway(PaymentGateway.Paymob, olderThan, 100, tx);
+
+      // The read is globally oldest-first (the sweep's drain order).
+      const createdAtOrder = rows.map(row => row.createdAt.getTime());
+      expect(createdAtOrder.toSorted((a, b) => a - b)).toEqual(createdAtOrder);
+
+      // This test's own rows: the decided oldest is excluded; middle and
+      // newest remain, seeded creation order echoed.
+      const ownIds = new Set([oldest.payment.id, middle.payment.id, newest.payment.id]);
+      const own = rows.filter(row => ownIds.has(row.id));
+      expect(own.map(row => row.id)).toEqual([middle.payment.id, newest.payment.id]);
+      expect(own.map(row => row.createdAt.getTime())).toEqual([
         middle.payment.createdAt.getTime(),
         newest.payment.createdAt.getTime(),
       ]);
 
-      // The batch limit caps the sweep pass, keeping the oldest first.
+      // The batch limit caps the sweep pass, keeping the oldest first: the
+      // capped read is the prefix of the uncapped one.
       const limited = await StudentPaymentRepository.findStalePendingByGateway(PaymentGateway.Paymob, olderThan, 1, tx);
-      expect(limited.map(row => row.id)).toEqual([middle.payment.id]);
+      expect(limited.map(row => row.id)).toEqual(rows.slice(0, 1).map(row => row.id));
     });
   });
 
