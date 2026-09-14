@@ -514,7 +514,15 @@ describe("HomeWorkRepository — transactional paths (runInRollback)", () => {
       // The whole hostile string rode ONE bound parameter — PostgreSQL
       // rejected the VALUE against the enum type, no statement escaped.
       expect(hasPostgresErrorCode(bindingError, PG_INVALID_ENUM_INPUT)).toBe(true);
-      const intact = await tx.select({ id: homeWork.id }).from(homeWork).limit(1);
+      // Scoped to THIS probe's session: the parallel db-test workers share one
+      // database, so a table-wide read would race another worker's committed
+      // home_work row (observed once on CI). The oracle only needs "the
+      // hostile payload wrote nothing for this session".
+      const intact = await tx
+        .select({ id: homeWork.id })
+        .from(homeWork)
+        .where(eq(homeWork.sessionId, sessionRow.id))
+        .limit(1);
       expect(intact).toHaveLength(0);
     });
   });
