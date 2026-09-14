@@ -203,6 +203,25 @@ function computeDelta(current: ManifestEntry[], previous: ManifestEntry[]): Mani
 }
 
 /**
+ * Returns the manifest entries whose generated drizzle folder no longer
+ * exists on disk — a deleted delta folder with a retained manifest entry is
+ * invisible to the SHA-256 comparison and would silently skip regeneration.
+ * A file counts as present when a per-file delta folder `*_custom_<slug>`
+ * matches its slug, or it is bundled into the combined baseline folder
+ * (whose per-file provenance lives in its `-- Source:` headers).
+ */
+function findMissingGeneratedFolders(manifest: ManifestEntry[]): ManifestEntry[] {
+  const folders = readdirSync(DRIZZLE_DIR).filter(f => statSync(join(DRIZZLE_DIR, f)).isDirectory());
+  const combined = folders.find(f => f.endsWith("_combined_custom_logic")) ?? null;
+  const bundledSources = combined ? parseBundledSources(combined) : new Set<string>();
+  return manifest.filter(entry => {
+    if (bundledSources.has(entry.file)) return false;
+    const slug = entry.file.replace(/\.sql$/, "").replace(/[^a-zA-Z0-9_-]/g, "_");
+    return !folders.some(f => f.endsWith(`_custom_${slug}`));
+  });
+}
+
+/**
  * Generates an individual Drizzle migration folder for a single custom SQL file in the delta.
  * Generating separate folders per file preserves transaction boundaries between individual
  * custom SQL files (e.g. enum additions vs data insertions).
@@ -265,12 +284,24 @@ export function applyCustomMigrations(): string[] {
     }
   }
 
-  if (sidecar.manifestHash === currentHash) {
+  // Hash-only delta detection cannot see a deleted drizzle delta folder
+  // whose manifest entry is retained — verify each manifest-tracked source
+  // file's generated folder still exists on disk and regenerate the
+  // missing ones.
+  const missingFolders = findMissingGeneratedFolders(currentManifest);
+
+  if (sidecar.manifestHash === currentHash && missingFolders.length === 0) {
     logger.info("Custom migrations: no new or changed custom SQL files detected.");
     return [];
   }
 
   const delta = computeDelta(currentManifest, sidecar.manifest);
+  const deltaFiles = new Set(delta.map(e => e.file));
+  for (const entry of missingFolders) {
+    if (!deltaFiles.has(entry.file)) {
+      delta.push(entry);
+    }
+  }
   if (delta.length === 0) {
     writeSidecar({ manifestHash: currentHash, manifest: currentManifest, appliedFolders: sidecar.appliedFolders });
     logger.info("Custom migrations: manifest changed (file removed) but no delta to apply.");

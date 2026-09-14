@@ -20,7 +20,8 @@
  *     raised message, asserted via the `expectRepoError` try/catch helper
  *     (NEVER `rejects.toThrow`, which deadlocks the rollback wrapper).
  *     Covered: teacher_transaction UPDATE (row compared unchanged) +
- *     DELETE (row still present); student_payments tamper UPDATE on a
+ *     DELETE (row still present) + the relabeling settlement probe (an
+ *     earning row relabeled to withdrawal/completed RAISES); student_payments tamper UPDATE on a
  *     decided (paid) row (the full guarded-transition matrix lives in the
  *     StudentPaymentRepository suite); an idempotent re-probe (the same
  *     UPDATE fails identically on repeat, in a separate savepoint); and
@@ -52,6 +53,7 @@ import {
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
+import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import type { DBTransaction } from "@/backend/types";
 import { isPgliteProvider } from "@/test/helpers/skip-when-pglite";
@@ -259,7 +261,7 @@ function deepestCauseMessage(error: Error): string {
  */
 async function insertTeacherLedgerFixture(
   tx: DBTransaction,
-  overrides: Partial<{ amount: string; type: TransactionType }> = {}
+  overrides: Partial<{ amount: string; type: TransactionType; status: TransactionStatus }> = {}
 ): Promise<TeacherTxRowSnapshot> {
   const user = await createTestUser(tx);
   await createTestTeacherRow(tx, user.id);
@@ -267,6 +269,7 @@ async function insertTeacherLedgerFixture(
   const row = await createTestTeacherTransaction(tx, teacherWallet.id, null, {
     type: overrides.type ?? TransactionType.Earning,
     amount: overrides.amount ?? "50.00",
+    status: overrides.status ?? TransactionStatus.Completed,
   });
   return { id: row.id, walletId: row.walletId, amount: row.amount, type: row.type, status: row.status };
 }
@@ -415,6 +418,35 @@ describeTriggerTier("financial ledger immutability — teacher_transaction tampe
           tx.update(teacherTransaction).set({ amount: "999.99" }).where(eq(teacherTransaction.id, fixture.id))
         );
         expect(deepestCauseMessage(error)).toBe(firstMessage);
+      });
+
+      const after = await readTeacherTransactionRow(tx, fixture.id);
+      expect(after).toEqual(fixture);
+    });
+  });
+
+  test("a relabeling settlement UPDATE on an earning row RAISES (type is frozen)", async () => {
+    await runInRollback(async tx => {
+      const fixture = await insertTeacherLedgerFixture(tx, { status: TransactionStatus.Pending });
+      await expectTeacherTransactionPresent(tx, fixture.id);
+      // Precondition: a PENDING earning row — the settlement's own
+      // status/type expectations would otherwise pass, so the ONLY guard the
+      // relabel can trip is the type freeze (only withdrawals settle). The
+      // shared fixture helper defaults earnings to `completed`, hence the
+      // explicit pending override.
+      expect(fixture.type).toBe(TransactionType.Earning);
+      expect(fixture.status).toBe(TransactionStatus.Pending);
+
+      await withinSavepoint(tx, "teacher_tx_relabel_probe", async () => {
+        const error = await expectRepoError(() =>
+          tx
+            .update(teacherTransaction)
+            .set({ type: TransactionType.Withdrawal, status: TransactionStatus.Completed })
+            .where(eq(teacherTransaction.id, fixture.id))
+        );
+        const chain = errorMessageChain(error);
+        expect(chain).toContain(TEACHER_TX_IMMUTABLE);
+        expect(chain).toContain(TEACHER_TX_UPDATE_MSG);
       });
 
       const after = await readTeacherTransactionRow(tx, fixture.id);

@@ -47,7 +47,7 @@ export const teacherTransaction = pgTable(
       .$onUpdate(() => new Date()),
   },
   t => [
-    check("teacher_transaction_amount_check", sql`${t.amount} >= 0`),
+    check("teacher_transaction_amount_check", sql`${t.amount} > 0`),
     index("teacher_transaction_wallet_id_idx").on(t.walletId),
     index("teacher_transaction_session_id_idx").on(t.sessionId),
   ]

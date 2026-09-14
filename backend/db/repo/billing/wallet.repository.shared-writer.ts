@@ -28,26 +28,31 @@ import type { DBTransaction, TeacherTransactionSelectType } from "@/backend/type
 
 /**
  * Shared debit writer behind `debitForWithdrawalOnce` and
- * `debitAdjustmentOnce`: inserts ONE `withdrawal` ledger row at
- * `ledgerStatus` (the in-flight payout record or the completed
- * manual-adjustment record) and debits the wallet `balance` by exactly
- * `amount` via ONE guarded UPDATE — the funds guard lives in the
- * statement's predicate (`balance >= amount`), mirroring
- * `StudentRepository.decrementLaneIfAvailable`. The amount is a decimal
- * STRING bound verbatim (never re-parsed — money discipline).
- * `total_earning` is deliberately untouched: a debit spends the balance,
- * it does not rewrite the lifetime earnings counter. The DB-side
- * `wallet_balance_check >= 0` CHECK is the concurrent-overdraw backstop
- * behind the predicate. `methodLabel` is the caller's fully-qualified
- * method name, carried verbatim into the unreachable zero-row INSERT
- * error so each public entry point keeps its own message.
+ * `debitAdjustmentOnce`: debits the wallet `balance` by exactly `amount`
+ * via ONE guarded UPDATE FIRST — the funds guard lives in the statement's
+ * predicate (`balance >= amount`), mirroring
+ * `StudentRepository.decrementLaneIfAvailable` — and, only after the guard
+ * holds, inserts ONE `withdrawal` ledger row at `ledgerStatus` (the
+ * in-flight payout record or the completed manual-adjustment record). The
+ * amount is a decimal STRING bound verbatim (never re-parsed — money
+ * discipline). `total_earning` is deliberately untouched: a debit spends
+ * the balance, it does not rewrite the lifetime earnings counter. The
+ * DB-side `wallet_balance_check >= 0` CHECK is the concurrent-overdraw
+ * backstop behind the predicate. `methodLabel` is the caller's
+ * fully-qualified method name, carried verbatim into the unreachable
+ * zero-row INSERT error so each public entry point keeps its own message.
+ *
+ * The guarded UPDATE runs strictly BEFORE the ledger INSERT, so a missed
+ * debit returns `null` with ZERO writes performed — no orphan ledger row is
+ * ever live inside the caller's transaction, and no rollback is needed to
+ * clean one up. A nonexistent wallet id also surfaces as `null` (the
+ * caller's insufficient-funds classification) rather than a FK violation,
+ * because the funds guard misses before any row is written.
  *
  * When `tx` is supplied, both writes compose on the caller's
  * transaction. When `tx` is NOT supplied, the pair is wrapped in ONE
- * atomic top-level transaction (`db.transaction`), so a missed guarded
- * debit (`null` return on insufficient funds) rolls the ledger INSERT
- * back with it — no orphan ledger row can survive without its matching
- * balance change.
+ * atomic top-level transaction (`db.transaction`), so the debit and its
+ * matching ledger INSERT commit or roll back together.
  *
  * @returns The inserted ledger row, or `null` when the guarded UPDATE
  *     matched zero rows (insufficient funds — the caller classifies).
@@ -66,6 +71,16 @@ export async function debitWithLedgerRow(
     return db.transaction(nested => debitWithLedgerRow(insert, ledgerStatus, methodLabel, nested));
   }
   const executor = tx;
+  const debited = await executor
+    .update(wallet)
+    .set({ balance: sql`${wallet.balance} - ${insert.amount}`, updatedAt: new Date() })
+    .where(and(eq(wallet.id, insert.walletId), gte(wallet.balance, insert.amount)))
+    .returning({ id: wallet.id });
+  if (debited.length === 0) {
+    // Funds-guard miss: return BEFORE any INSERT — no orphan ledger row is
+    // ever live inside the caller's transaction on this path.
+    return null;
+  }
   const ledgerRows = await executor
     .insert(teacherTransaction)
     .values({
@@ -80,14 +95,6 @@ export async function debitWithLedgerRow(
   const ledger = ledgerRows[0];
   if (!ledger) {
     throw new Error(`${methodLabel}: ledger INSERT returned zero rows`);
-  }
-  const debited = await executor
-    .update(wallet)
-    .set({ balance: sql`${wallet.balance} - ${insert.amount}`, updatedAt: new Date() })
-    .where(and(eq(wallet.id, insert.walletId), gte(wallet.balance, insert.amount)))
-    .returning({ id: wallet.id });
-  if (debited.length === 0) {
-    return null;
   }
   return ledger;
 }

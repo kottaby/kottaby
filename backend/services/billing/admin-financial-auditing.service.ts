@@ -14,11 +14,13 @@
  * then the paired count + listing inside ONE repeatable-read transaction
  * (the audit-trail precedent) so `totalCount` and `items` can never tear
  * across a concurrent producer commit. When no outer transaction is
- * supplied, the count + page pair shares its own snapshot; the surrounding
- * identity and probe reads (admin gate, wallet probes, settlement probes)
- * run on a SEPARATE top-level transaction and are best-effort,
- * non-authoritative reads outside that snapshot — no write decision ever
- * trusts them. The payments view never writes; inspection never fabricates
+ * supplied, the count + page pair shares its own snapshot — and the wallet
+ * inspection's wallet probe + teacher-name resolution share the SAME
+ * snapshot, so the rendered balance can never be older than the ledger
+ * rows beside it. The settlement probes (mutation-path error
+ * disambiguation) run on a SEPARATE top-level transaction and are
+ * best-effort, non-authoritative reads outside that snapshot — no write
+ * decision ever trusts them. The payments view never writes; inspection never fabricates
  * a wallet row — a wallet-less teacher renders the honest null-pair state
  * with the teacher identity still resolved.
  *
@@ -40,10 +42,13 @@
  * expected rejections log via `logger.logDomainError` with bounded context
  * only — never amounts, never other users' wallet ids, never reason text;
  * rejections are typed DomainErrors whose `extensions.code` propagates
- * uncaught to the masking boundary. `assertActorAdmin` runs FIRST inside the
- * transaction — anonymous callers (`actorId = 0`) receive
- * `UnauthorizedError`, non-admins `ForbiddenError`, and denials write ZERO
- * audit rows. No `{ ...input }` spreads anywhere — every repo payload is a
+ * uncaught to the masking boundary. `assertActorAdminActive` — the strict
+ * governance gate, not the role-only gate — runs FIRST inside the
+ * transaction: anonymous callers (`actorId = 0`) receive
+ * `UnauthorizedError`, non-admins `ForbiddenError`, and governed admins
+ * (deleted → blocked → suspended, in that deterministic order) fail closed
+ * with `ForbiddenError`. Denials write ZERO audit rows. No `{ ...input }`
+ * spreads anywhere — every repo payload is a
  * field-by-field copy. No module-level mutable state; no swallowed catches.
  */
 
@@ -52,9 +57,9 @@ import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enu
 import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import { WalletAdjustmentDirection } from "@/backend/enum/billing/wallet-adjustment-direction.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
-import { ConflictError, NotFoundError } from "@/backend/lib/errors";
+import { ConflictError, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import { assertActorAdmin } from "@/backend/services/admin/admin-gate.helpers";
+import { assertActorAdminActive } from "@/backend/services/admin/admin-gate.helpers";
 import { AuditService } from "@/backend/services/admin/audit.service";
 import {
   assertValidAdjustmentAmount,
@@ -186,7 +191,7 @@ export namespace AdminFinancialAuditingService {
     const t = getServerTranslations(locale).errorsTranslations;
 
     return withTransaction(outerTx, async tx => {
-      await assertActorAdmin(actorUserId, locale, tx);
+      await assertActorAdminActive(actorUserId, locale, tx);
 
       // Probe read: HUMAN-READABLE error disambiguation only — the write
       // decision is the guarded repo primitive, never this snapshot.
@@ -273,7 +278,7 @@ export namespace AdminFinancialAuditingService {
     normalizeAdjustmentReason(reason, t);
 
     return withTransaction(outerTx, async tx => {
-      await assertActorAdmin(actorUserId, locale, tx);
+      await assertActorAdminActive(actorUserId, locale, tx);
 
       const probe = await WalletRepository.findSettlementProbe(transactionId, tx);
       if (!probe) {
@@ -331,7 +336,9 @@ export namespace AdminFinancialAuditingService {
   /**
    * REQ-6 — manual wallet adjustment: a bonus credit (balance up,
    * `total_earning` UNCHANGED) or a recorded debit (marked
-   * `withdrawal/completed` ledger row + guarded balance decrement).
+   * `withdrawal/completed` ledger row + guarded balance decrement). Any
+   * direction that is not exactly Credit or Debit fails closed with the
+   * pre-DB VALIDATION denial — never the money-removing debit branch.
    *
    * The amount is validated against the decimal grammar + positivity and
    * the reason normalized BEFORE any database work. A wallet-less teacher
@@ -364,7 +371,7 @@ export namespace AdminFinancialAuditingService {
     const normalizedReason = normalizeAdjustmentReason(input.reason, t);
 
     return withTransaction(outerTx, async tx => {
-      await assertActorAdmin(actorUserId, locale, tx);
+      await assertActorAdminActive(actorUserId, locale, tx);
 
       // The teacher row must exist — the wallet FK targets the teacher
       // table, so an adjustment can never fabricate a teacher.
@@ -405,43 +412,49 @@ export namespace AdminFinancialAuditingService {
         );
 
         return ledger;
+      } else if (input.direction === WalletAdjustmentDirection.Debit) {
+        // Debit: the withdrawal/completed ledger row lands FIRST (the
+        // description marker machine-distinguishes it from a payout), then
+        // the GUARDED decrement (`balance >= amount` in the predicate). A
+        // zero-row miss rolls the whole flow back — the orphan ledger row
+        // dies with the transaction — and surfaces the localized
+        // insufficient-balance conflict.
+        const ledger = await WalletRepository.debitAdjustmentOnce(
+          { walletId: walletRow.id, amount, description: composeDebitDescription(normalizedReason) },
+          tx
+        );
+        if (!ledger) {
+          logger.logDomainError("Wallet adjustment denied: insufficient wallet balance", {
+            code: "CONFLICT",
+            entity: "wallet",
+            entityId: walletRow.id,
+          });
+          throw new ConflictError("WALLET_INSUFFICIENT_FUNDS", t.insufficientBalance);
+        }
+
+        const balanceAfter = await readWalletById(walletRow.id, tx);
+        await AuditService.createAuditLog(
+          buildWalletAdjustmentAuditContract({
+            actorId: actorUserId,
+            transactionId: ledger.id,
+            walletId: walletRow.id,
+            teacherId: input.teacherId,
+            amount,
+            direction: WalletAdjustmentDirection.Debit,
+            balanceAfter: balanceAfter.balance,
+            reasonPresent: true,
+          }),
+          tx
+        );
+
+        return ledger;
+      } else {
+        // Fail closed: anything that is not exactly Credit or Debit is a
+        // caller-contract violation (a non-GraphQL caller passing garbage)
+        // — never the money-removing debit branch. The pre-DB VALIDATION
+        // denial fires before any ledger row or balance movement.
+        throw new ValidationError(t.invalidAdjustmentDirection);
       }
-
-      // Debit: the withdrawal/completed ledger row lands FIRST (the
-      // description marker machine-distinguishes it from a payout), then
-      // the GUARDED decrement (`balance >= amount` in the predicate). A
-      // zero-row miss rolls the whole flow back — the orphan ledger row
-      // dies with the transaction — and surfaces the localized
-      // insufficient-balance conflict.
-      const ledger = await WalletRepository.debitAdjustmentOnce(
-        { walletId: walletRow.id, amount, description: composeDebitDescription(normalizedReason) },
-        tx
-      );
-      if (!ledger) {
-        logger.logDomainError("Wallet adjustment denied: insufficient wallet balance", {
-          code: "CONFLICT",
-          entity: "wallet",
-          entityId: walletRow.id,
-        });
-        throw new ConflictError("WALLET_INSUFFICIENT_FUNDS", t.insufficientBalance);
-      }
-
-      const balanceAfter = await readWalletById(walletRow.id, tx);
-      await AuditService.createAuditLog(
-        buildWalletAdjustmentAuditContract({
-          actorId: actorUserId,
-          transactionId: ledger.id,
-          walletId: walletRow.id,
-          teacherId: input.teacherId,
-          amount,
-          direction: WalletAdjustmentDirection.Debit,
-          balanceAfter: balanceAfter.balance,
-          reasonPresent: true,
-        }),
-        tx
-      );
-
-      return ledger;
     });
   }
 }

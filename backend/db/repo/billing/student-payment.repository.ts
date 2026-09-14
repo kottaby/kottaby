@@ -434,7 +434,7 @@ export namespace StudentPaymentRepository {
          JOIN students ON students.id = student_payments.student_id
          JOIN users ON users.id = students.id${whereClause}
         ORDER BY student_payments.id DESC
-        LIMIT ${limit} OFFSET ${offset}`,
+        LIMIT $${params.push(limit)} OFFSET $${params.push(offset)}`,
       params
     );
     return result.rows;

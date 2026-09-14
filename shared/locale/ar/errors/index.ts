@@ -108,4 +108,5 @@ export const errorsAr: ErrorsLabels = {
   withdrawalNotPending: "طلب السحب هذا لم يعد قيد الانتظار.",
   invalidAdjustmentAmount: "أدخل مبلغ تعديل صالحاً (قيمة موجبة بخانتين عشريتين كحد أقصى).",
   adjustmentReasonRequired: "سبب التعديل مطلوب ولا يمكن تركه فارغاً.",
+  invalidAdjustmentDirection: "يجب أن يكون اتجاه التعديل إما إضافة أو خصم.",
 };

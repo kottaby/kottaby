@@ -1,5 +1,5 @@
 {
-  "manifestHash": "4d554e2a8e8e87d121177a45d004b5afd23ba0fc7cae1c2e805fbdbb3a6a2176",
+  "manifestHash": "81bcb56fce7d888c6d236ecc6386389773550f932c1c356c00148c2b1ca6f386",
   "manifest": [
     {
       "file": "2-functions.sql",
@@ -19,7 +19,7 @@
     },
     {
       "file": "5-teacher-transaction-settlement.sql",
-      "sha256": "16549f86a9b0d1476c76ad966a8e00b78611b10f8c0a895435a1f9d5631c8a4e"
+      "sha256": "d158f1e619b132c698e8485ccca276c658eb02aa410d734f42cc89061dacfbb2"
     }
   ],
   "appliedFolders": [
@@ -28,6 +28,7 @@
     "20260907182426_custom_4-student-payments-status-transition",
     "20260908103411_custom_4-student-payments-status-transition",
     "20260911175854_custom_5-student-payments-provider-transaction",
-    "20260912091422_custom_5-teacher-transaction-settlement"
+    "20260912091422_custom_5-teacher-transaction-settlement",
+    "20260914064155_custom_5-teacher-transaction-settlement"
   ]
 }

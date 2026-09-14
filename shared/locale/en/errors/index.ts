@@ -109,4 +109,5 @@ export const errorsEn: ErrorsLabels = {
   withdrawalNotPending: "This withdrawal request is no longer pending.",
   invalidAdjustmentAmount: "Enter a valid adjustment amount (a positive value with up to 2 decimal places).",
   adjustmentReasonRequired: "An adjustment reason is required and cannot be empty.",
+  invalidAdjustmentDirection: "The adjustment direction must be either credit or debit.",
 };

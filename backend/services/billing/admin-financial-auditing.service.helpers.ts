@@ -44,8 +44,16 @@ export const ADMIN_WALLET_CURRENCY_LABEL = "EGP";
  */
 const ADJUSTMENT_AMOUNT_PATTERN = /^\d{1,7}(\.\d{1,2})?$/;
 
-/** A free-text adjustment reason longer than this is rejected before any DB work. */
-const MAX_REASON_LENGTH = 500;
+/**
+ * A free-text adjustment reason longer than this is rejected before any DB
+ * work. The cap is the `teacher_transaction.description` column capacity
+ * (`varchar(255)`) minus the 26 chars of composed-prefix headroom: the
+ * ledger description is the sanctioned reason store and prepends a 25-char
+ * marker, so a longer reason would overflow the column inside the mutation
+ * (Postgres 22001 surfacing as a generic internal error instead of the
+ * typed VALIDATION denial).
+ */
+const MAX_REASON_LENGTH = 229;
 
 /** The `audit_logs.details` column ceiling — payloads are capped BEFORE insert. */
 const AUDIT_DETAILS_MAX_LENGTH = 2000;

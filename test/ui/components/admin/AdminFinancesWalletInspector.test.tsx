@@ -165,6 +165,27 @@ function walletMock(data: AdminTeacherWalletQuery): MockLink.MockedResponse {
   };
 }
 
+/**
+ * GraphQL-error mock for the wallet read — mirrors the sibling payments
+ * suite's `codeErrorMock` (the `extensions.code` is what the panel's denial
+ * classification extracts; the raw server `message` must never reach the DOM).
+ */
+function walletCodeErrorMock(code: string): MockLink.MockedResponse {
+  return {
+    request: {
+      query: adminTeacherWalletQueryDocument,
+      variables: {
+        teacherId: String(TEACHER_ID),
+        filters: { type: undefined, status: undefined, from: undefined, to: undefined },
+        page: 1,
+        pageSize: 10,
+      },
+    },
+    result: { errors: [{ message: `${code} (masked transport surface)`, extensions: { code } }] },
+    maxUsageCount: Number.POSITIVE_INFINITY,
+  };
+}
+
 function adjustMock(variables: Record<string, unknown>): MockLink.MockedResponse {
   return {
     request: { query: adjustTeacherWalletMutationDocument, variables },
@@ -266,6 +287,29 @@ describe("AdminFinancesWalletInspector (en / LTR)", () => {
       expect(screen.getAllByText(t.inspectorEmpty).length).toBeGreaterThanOrEqual(2)
     );
     expect(screen.queryByText("0.00")).toBeNull();
+  });
+
+  test("query-context FORBIDDEN renders the localized denied notice — never the raw message", async () => {
+    renderInspector([teachersMock(), teachersMock(), walletCodeErrorMock("FORBIDDEN")]);
+
+    await waitFor(() => expect(screen.getByTestId("admin-finances-wallet-denied")).toBeDefined());
+    expect(screen.getByText(t.forbiddenTitle)).toBeDefined();
+    expect(screen.getByText(t.forbiddenBody)).toBeDefined();
+    // The server `message` text NEVER reaches the DOM.
+    expect(screen.queryByText(/masked transport surface/)).toBeNull();
+  });
+
+  test("a non-FORBIDDEN wallet failure renders the shared retry alert — never the denied notice", async () => {
+    renderInspector([teachersMock(), teachersMock(), walletCodeErrorMock("INTERNAL_SERVER_ERROR")]);
+
+    await waitFor(() => expect(screen.getByText(t.errorTitle)).toBeDefined());
+    // The REAL `extensions.code` is surfaced beside the retry affordance
+    // (never a fabricated FORBIDDEN), the denied notice stays hidden, and the
+    // server `message` text NEVER reaches the DOM.
+    expect(screen.getByText("(INTERNAL_SERVER_ERROR)")).toBeDefined();
+    expect(screen.queryByTestId("admin-finances-wallet-denied")).toBeNull();
+    expect(screen.queryByText(t.forbiddenTitle)).toBeNull();
+    expect(screen.queryByText(/masked transport surface/)).toBeNull();
   });
 
   test("adjust calls the mutation with the input object `{ teacherId, amount, direction, reason }`", async () => {
