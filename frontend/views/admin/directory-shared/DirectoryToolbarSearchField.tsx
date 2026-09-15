@@ -14,10 +14,11 @@
  * users directory's desktop-only `md`+ row).
  */
 
-import { SearchOutlined as SearchIcon } from "@mui/icons-material";
-import { TextField } from "@mui/material";
+import { ClearOutlined as ClearIcon, SearchOutlined as SearchIcon } from "@mui/icons-material";
+import { IconButton, InputAdornment, TextField, Tooltip } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material/styles";
 import type { ReactNode } from "react";
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 
 /** Default responsive sizing inside the toolbars' wrapping flex row. */
 const directoryToolbarSearchFieldSx: SxProps<Theme> = {
@@ -33,6 +34,8 @@ interface DirectoryToolbarSearchFieldProps {
   readonly placeholder: string;
   /** Accessible name announced to screen readers (e.g. `labels.filters.search`). */
   readonly ariaLabel: string;
+  /** Accessible name for the clear button (defaults to `clearLabel` or `ariaLabel`). */
+  readonly clearLabel?: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
   /** Replaces the default responsive sizing when the toolbar row is sized differently. */
@@ -43,10 +46,13 @@ export function DirectoryToolbarSearchField({
   id,
   placeholder,
   ariaLabel,
+  clearLabel,
   value,
   onChange,
   sx,
 }: DirectoryToolbarSearchFieldProps): ReactNode {
+  const hasValue = Boolean(value);
+
   return (
     <TextField
       id={id}
@@ -60,6 +66,25 @@ export function DirectoryToolbarSearchField({
           startAdornment: (
             <SearchIcon fontSize="small" sx={theme => ({ marginInlineEnd: 1, color: theme.palette.text.secondary })} />
           ),
+          endAdornment: hasValue ? (
+            <InputAdornment position="end" sx={{ marginInlineStart: 0 }}>
+              <Tooltip title={clearLabel ?? ariaLabel} placement="top">
+                <IconButton
+                  size="small"
+                  aria-label={clearLabel ?? ariaLabel}
+                  onClick={() => onChange("")}
+                  edge="end"
+                  sx={theme => ({
+                    ...focusVisibleRingSx,
+                    color: theme.palette.text.secondary,
+                    p: 0.5,
+                  })}
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </InputAdornment>
+          ) : undefined,
         },
       }}
       sx={sx ?? directoryToolbarSearchFieldSx}
