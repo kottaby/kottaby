@@ -193,25 +193,29 @@ export namespace WalletRepository {
     return debited.length > 0;
   }
 
-
   /**
    * The arbitration reversal debit slice (the consumed-dispute outcomes'
-   * teacher leg), on the caller's transaction: inserts ONE `completed`
-   * `arbitration_reversal` ledger row — the compensating record, keyed to the
-   * disputed session through the ledger's session FK so the reversal stays
-   * traceable end to end — and debits the wallet `balance` by exactly
-   * `amount` via the shared guarded UPDATE (the funds guard lives in the
-   * statement's predicate, `balance >= amount`). The amount is a decimal
-   * STRING bound verbatim (never re-parsed or re-rounded — money
-   * discipline; the decimal columns own the two-fraction storage). Both
-   * effects are one statement sequence on the caller's transaction: a
-   * `null` miss means the caller fails that transaction, so a denied
-   * arbitration commits neither the compensating row nor the debit —
-   * either both effects commit or neither does.
+   * teacher leg), on the caller's transaction: debits the wallet `balance`
+   * by exactly `amount` via ONE guarded UPDATE FIRST — the funds guard
+   * lives in the statement's predicate (`balance >= amount`), the same
+   * composition ruling the shared `debitWithLedgerRow` writer owns — and,
+   * only after the guard holds, inserts ONE `completed`
+   * `arbitration_reversal` ledger row keyed to the disputed session through
+   * the ledger's session FK so the reversal stays traceable end to end.
+   * The amount is a decimal STRING bound verbatim (never re-parsed or
+   * re-rounded — money discipline; the decimal columns own the
+   * two-fraction storage). `total_earning` is deliberately untouched (a
+   * reversal claws back the balance; it never rewrites the gross lifetime
+   * earnings counter). The debit runs strictly BEFORE the ledger INSERT, so
+   * a missed debit returns `null` with ZERO writes — no orphan ledger row
+   * is ever live inside the caller's transaction, and no rollback is needed
+   * to clean one up. A nonexistent wallet id also surfaces as `null` (the
+   * caller's insufficient-funds classification) rather than a FK violation,
+   * because the funds guard misses before any row is written.
    *
    * @returns The inserted ledger row, or `null` when the guarded UPDATE
    *     matched zero rows (insufficient funds — the caller classifies and
-   *     fails the transaction, rolling the compensating row back with it).
+   *     fails the transaction).
    */
   export async function debitForArbitrationOnce(
     insert: {
@@ -223,6 +227,10 @@ export namespace WalletRepository {
     tx?: DBTransaction
   ): Promise<TeacherTransactionSelectType | null> {
     const executor = tx ?? db;
+    const debited = await guardedBalanceDebit(insert.walletId, insert.amount, tx);
+    if (!debited) {
+      return null;
+    }
     const ledgerRows = await executor
       .insert(teacherTransaction)
       .values({
@@ -238,8 +246,7 @@ export namespace WalletRepository {
     if (!ledger) {
       throw new Error("WalletRepository.debitForArbitrationOnce: ledger INSERT returned zero rows");
     }
-    const debited = await guardedBalanceDebit(insert.walletId, insert.amount, tx);
-    return debited ? ledger : null;
+    return ledger;
   }
 
   /**

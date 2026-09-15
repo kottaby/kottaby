@@ -46,9 +46,9 @@ import { db } from "@/backend/db";
 import { WalletRepository } from "@/backend/db/repo";
 import { teacherTransaction } from "@/backend/db/schema/billing/teacher-transaction";
 import { wallet } from "@/backend/db/schema/billing/wallet";
-import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { session } from "@/backend/db/schema/classes/session";
 import { students } from "@/backend/db/schema/students/students";
+import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import {
   createTestSession,
@@ -59,17 +59,12 @@ import {
   createTestWallet,
 } from "@/backend/db/test/entity-setup";
 import { constraintNameOf, expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
-import { withImmutabilityTriggersSuspended } from "@/test/helpers/db-cleanup";
 import { TransactionStatus } from "@/backend/enum/billing/transaction-status.enum";
+import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
-import { TransactionType } from "@/backend/enum/billing/transaction-type.enum";
-import type {
-  DBTransaction,
-  SessionSelectType,
-  TeacherTransactionSelectType,
-  WalletSelectType,
-} from "@/backend/types";
+import type { DBTransaction, SessionSelectType, TeacherTransactionSelectType, WalletSelectType } from "@/backend/types";
+import { withImmutabilityTriggersSuspended } from "@/test/helpers/db-cleanup";
 
 /** PostgreSQL error code for `check_violation`. */
 const PG_CHECK_VIOLATION = "23514";
@@ -441,6 +436,7 @@ describe("WalletRepository — namespace closure", () => {
       "creditBonusOnce",
       "creditEarningOnce",
       "debitAdjustmentOnce",
+      "debitForArbitrationOnce",
       "debitForWithdrawalOnce",
       "ensureWalletOnce",
       "findAdminWalletProbe",
@@ -737,13 +733,24 @@ describe("WalletRepository.debitForArbitrationOnce — transactional paths (runI
       const otherActors = await createWalletActors(tx);
       const sessionRow = await insertDisputedSessionRow(tx, actors);
 
-      // A zero debit is a no-op movement that still records the reversal.
+      // A zero-amount ledger row violates the append-only ledger's
+      // `teacher_transaction_amount_check` (amount > 0 — no no-op movements
+      // are ever recorded); the savepoint bracket keeps the probe
+      // transaction queryable, mirroring the CHECK-probe tier above.
       const zero = await insertWalletRow(tx, actors.teacherUserId, "5.00", "5.00");
-      const zeroLedger = await WalletRepository.debitForArbitrationOnce(
-        { walletId: zero.id, sessionId: sessionRow.id, amount: "0.00", description: "zero" },
-        tx
-      );
-      expect(zeroLedger?.amount).toBe("0.00");
+      await tx.execute(sql`savepoint zero_amount_probe`);
+      let zeroError: unknown;
+      try {
+        await WalletRepository.debitForArbitrationOnce(
+          { walletId: zero.id, sessionId: sessionRow.id, amount: "0.00", description: "zero" },
+          tx
+        );
+      } catch (error) {
+        zeroError = error;
+      }
+      await tx.execute(sql`rollback to savepoint zero_amount_probe`);
+      expect(constraintNameOf(zeroError)).toBe("teacher_transaction_amount_check");
+      expect(hasPostgresErrorCode(zeroError, PG_CHECK_VIOLATION)).toBe(true);
       expect((await readWalletRow(tx, zero.id)).balance).toBe("5.00");
 
       // The column's full decimal(10,2) range drains to exactly zero.
@@ -811,14 +818,12 @@ describe("WalletRepository.debitForArbitrationOnce — transactional paths (runI
 
       // The balance drained EXACTLY once — the financial invariant the
       // funds guard owns (no double debit, no negative balance). The
-      // loser's in-tx compensating row is the artifact the caller's denial
-      // throw removes (proven by the savepoint test above); the harness's
-      // single shared transaction cannot roll it back per-branch.
+      // debit-first composition (the shared writer's ruling) means the
+      // loser's guard miss returns null with ZERO writes — no orphan
+      // ledger row is ever live inside the transaction.
       expect((await readWalletRow(tx, walletRow.id)).balance).toBe("0.00");
       const rows = await readLedgerRows(tx, walletRow.id);
-      expect(rows.map(row => row.description).toSorted((a, b) => (a ?? "").localeCompare(b ?? ""))).toEqual(
-        ["first", "second"].toSorted((a, b) => a.localeCompare(b))
-      );
+      expect(rows.map(row => row.description)).toEqual(["first"]);
     });
   });
 
@@ -851,21 +856,13 @@ describe("WalletRepository.debitForArbitrationOnce — transactional paths (runI
       expect(winners[0]?.description).toBe("arbitration");
       expect(winners[0]?.sessionId).toBe(sessionRow.id);
 
-      // One debit moved the balance; the ledger carries the winner's row
-      // plus the loser's un-debited in-tx artifact (see the double
-      // arbitration above for the composition ruling).
+      // One debit moved the balance; the debit-first composition means the
+      // loser's guard miss leaves ZERO writes — the ledger carries the
+      // winner's reversal row alone.
       expect((await readWalletRow(tx, walletRow.id)).balance).toBe("0.00");
       const rows = await readLedgerRows(tx, walletRow.id);
-      expect(rows.map(row => row.description).toSorted((a, b) => (a ?? "").localeCompare(b ?? ""))).toEqual(
-        ["arbitration", "withdrawal"].toSorted((a, b) => a.localeCompare(b))
-      );
-      // Both slices always INSERT a ledger row (each insert precedes its
-      // own guarded debit; the loser's row would be rolled back by the real
-      // service's throw, but this raw race keeps it) — so the ledger pins
-      // ONE row per type, order-agnostic across the race's outcome.
-      expect(rows.map(row => row.type).toSorted()).toEqual(
-        [TransactionType.ArbitrationReversal, TransactionType.Withdrawal].toSorted()
-      );
+      expect(rows.map(row => row.description)).toEqual(["arbitration"]);
+      expect(rows.map(row => row.type)).toEqual([TransactionType.ArbitrationReversal]);
     });
   });
 
