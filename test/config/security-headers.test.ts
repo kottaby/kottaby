@@ -17,6 +17,9 @@ describe("Security Headers Configuration", () => {
       expect(headersMap.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
       expect(headersMap.get("Permissions-Policy")).toBe("camera=(), microphone=(), geolocation=()");
       expect(headersMap.get("X-XSS-Protection")).toBe("0");
+      expect(headersMap.get("Content-Security-Policy")).toBe(
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' *.space-z.ai *.space-zai; frame-ancestors 'none';"
+      );
     }
   });
 });
