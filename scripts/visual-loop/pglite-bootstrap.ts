@@ -23,13 +23,13 @@ async function main() {
   // The minimal seed creates the teacher USER but no teacher PROFILE row —
   // booking requires an approved profile (TeacherRepository.lockForCertificationCheck).
   await db.execute(
-    "INSERT INTO teacher (id, is_approved, is_online) VALUES (2, true, true) ON CONFLICT (id) DO UPDATE SET is_approved = true",
+    "INSERT INTO teacher (id, is_approved, is_online) VALUES (2, true, true) ON CONFLICT (id) DO UPDATE SET is_approved = true"
   );
   console.log("TEACHER PROFILE ensured");
   console.log("SEEDS DONE");
 
   const res = await db.execute(
-    "SELECT (SELECT COUNT(*) FROM users) AS users, (SELECT COUNT(*) FROM session) AS sessions",
+    "SELECT (SELECT COUNT(*) FROM users) AS users, (SELECT COUNT(*) FROM session) AS sessions"
   );
   console.log("COUNTS:", JSON.stringify(res.rows ?? res));
   const { closePool } = await import("@/backend/db");
