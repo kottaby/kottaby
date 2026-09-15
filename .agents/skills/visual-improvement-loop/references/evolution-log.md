@@ -64,3 +64,120 @@ AGENTS.md and `.agents/instructions/` files are hand-curated; runs NEVER update 
   asymmetric dialog gutter → logical `paddingInline` token spacing; low-contrast select icon →
   mode-aware text token on `.MuiSelect-icon`; weak dialog isolation → scoped `slotProps` backdrop
   scrim+blur. → landed: `references/fix-patterns.md` (4 new rows, updated in this change).
+
+### 2026-09-13 — paymob-gateway-integration (visual-improvement-loop R1: 41 captures, 3 pages, EN+AR)
+
+- Snapshot refs emit as `[ref=eN]` (not `@eN`) in this agent-browser version — `grep -o '@e[0-9]*'`
+  never matches; extract `ref=e[0-9]+` and re-prefix `@`. → landed: `references/capture-protocol.md`
+  (Version & environment gotchas, updated in this change).
+- Console dump is cumulative per session — clear (`console --clear`) after each navigation so the
+  pre-check gate judges only the current page. → landed: `references/capture-protocol.md` (same section).
+- Back-to-back agent-browser calls inside `$(...)` race (empty snapshots) — retry loops gated on DOM
+  state markers. → landed: `references/capture-protocol.md` (same section).
+- Storybook iframes lack `next/font` variables — Arabic renders in fallback fonts; Arabic
+  shaping/tracking findings are capture artifacts unless computed styles confirm. → landed:
+  `references/capture-protocol.md` (same section).
+- VLM inspectors hallucinate Arabic labels and estimate sizes/alignment DOM disproves (alert
+  "centering", 40px buttons that measure 44, date bidi order, invented strings like "عرض الشكاوى") —
+  arbitrate disputed findings with `agent-browser eval` ground truth before acting; a DOM-disproven
+  finding is dismissed, not accepted debt. → landed: `references/rubric.md` (DOM arbitration rule,
+  updated in this change).
+- Story fixture state-machines can make arms unreachable: unverified-pending rows render the derived
+  failed presentation, so the amber pending chip never appeared in any capture — assert each arm's
+  UNIQUE state marker when capturing. → landed: `references/storybook-protocol.md` (per-arm state
+  markers, updated in this change). Feature specifics in the plan outcome.
+- MUI breakpoint objects are min-width: `sm` grid overrides leak into `lg`+ — reset at the next
+  breakpoint. → landed: `references/fix-patterns.md` (grid reflow row, updated in this change).
+- Centered-branch `minHeight` calc must match the page's actual chrome (heading vs no-heading pages
+  differ); one-size calcs re-create top-anchoring. → landed: `references/fix-patterns.md`.
+- `--lifecycle codescene` drift (flagged 2026-09-11) — promoted the fix: SKILL.md now says
+  `--lifecycle duplicates`. → landed: SKILL.md Phase 5 + golden rule 4 wording (updated in this change).
+- Subagent image delivery WORKS in the current environment (Explore agents render screenshots) —
+  supersedes the 2026-09-11 VLM-CLI note; single-image-per-subagent remains the rule. → landed:
+  `references/capture-protocol.md` (Reading shots note, updated in this change).
+### 2026-09-13 — admin-financial-auditing-payments-wallet (visual-improvement-loop R2)
+
+- **Wire-enum case bugs in display mappers**: the wallet/withdrawal tone+label mappers switched on
+  lowercase wire values (`"completed"`) while the GraphQL wire sends capitalized enums
+  (`"Completed"`) → every status chip rendered error-red, every type chip primary-blue. Tests
+  passed because fixtures fed lowercase. Landed: fix-patterns (test mappers against wire-case
+  values); fixed in `walletLedgerDisplay.ts` / `withdrawalStatusDisplay.ts`.
+- Turbopack `.next-dev` disk cache poisons survive a dev-server restart after a transient syntax
+  error — a fixed source still serves the broken module. Clear `.next-dev` (dev build artifact,
+  NOT a protected lint cache) and restart. → landed: `references/capture-protocol.md`.
+- The browser session console buffer persists across navigations — stale `[error]` entries
+  false-positive the console gate after fixes. Gate on a fresh session, or verify the count drops
+  after reload. → landed: `references/capture-protocol.md`.
+- Batch viewport-capture loops MUST re-verify the active tab + a content marker before EVERY
+  screenshot: two captures were taken with a different tab's content (URL/view state churn between
+  commands). → landed: `references/capture-protocol.md` (state guard, batch discipline).
+- `NEXT_LOCALE` cookie silently reverts after browser-session churn → re-pin + title-guard per
+  capture. → landed: `references/capture-protocol.md`.
+- MUI Select with `value=""`: `renderValue` is NOT called for the empty value — use `displayEmpty`
+  so the "" MenuItem text shows in the closed control. → landed: `references/fix-patterns.md`.
+- MUI Autocomplete: overriding `renderInput`'s `slotProps` wholesale (common when adding an
+  htmlInput aria-label) drops the popup-indicator endAdornment — merge `...params.slotProps`.
+  → landed: `references/fix-patterns.md`.
+- MUI multiline outlined TextField + forced `inputLabel: { shrink: true }` clips the notched label
+  glyphs at the border — don't force shrink on multiline fields; the un-shrunk label is the hint.
+  → landed: `references/fix-patterns.md`.
+- Offscreen pre-check heuristic flags elements clipped INSIDE overflow-auto scroll containers
+  (e.g. scrollable tab strips at 390px) — verify `scrollWidth > clientWidth` + page-level overflow
+  before treating an offender as a defect. → landed: `references/objective-prechecks.md` (manual
+  fallback note).
+- Subagent concurrency in this environment is ~2 — dispatch inspector pairs, not quads; failures
+  surface as `user concurrency limit exceeded`. → landed: `references/rubric.md` (dispatch note).
+- Fix-wave recipes promoted to the playbook: outlined TonalChip variant to separate chip
+  FAMILIES (type vs status) when dark container pairs collide; contained-primary vs outlined-error
+  settle-button pair; error-tinted disabled destructive submit; right-aligned money columns with
+  bold amounts. → landed: `references/fix-patterns.md` (3 new rows, updated in this change).
+
+### 2026-09-13 — subscription-validity-window-expiry (visual-improvement-loop run)
+
+- Sandbox tool-runners kill background dev servers between tool calls, AND a server that was started
+  before file edits keeps serving the stale module graph (HMR churn = phantom console errors + stale
+  titles after edits). Kill + fresh-start the server before every post-edit capture round; bundle
+  server-start + captures into one foreground call. → landed: `references/capture-protocol.md`
+  (Sessions & auth, updated in this change).
+- The precheck console sweep accumulated session-wide buffer entries across captures (constant phantom
+  FAIL on every shot). → landed: `scripts/visual-precheck.sh` now `console --clear` per navigation;
+  `references/objective-prechecks.md` note (updated in this change).
+- Off-viewport bleed check false-positived on decorative gradients clipped by `overflow:hidden`
+  ancestors. → landed: `scripts/visual-precheck.sh` skips ancestor-clipped offenders;
+  `references/objective-prechecks.md` check #4 (updated in this change).
+- VLM sub-8px alignment/spacing claims are unreliable: across 3 passes, three DIFFERENT icon-offset
+  directions, contradicting center/void positionings, and two "misaligned footer" claims — every one
+  disproven by DOM `getBoundingClientRect` (deltas 0-2px or token-exact). Pixel-verify before fixing;
+  contradictory findings = noise signature. → landed: `references/fix-patterns.md` watch-out row
+  (updated in this change); protocol note in `references/capture-protocol.md`.
+- VLM integer-granularity totals plateau ≈9.0-9.2 on defect-free surfaces; the 9.5 READY bar is
+  reachable only via the rubric's accepted-debt clause with pixel-verified adjudication. → noted in
+  `references/rubric.md` (updated in this change).
+- Repo db CLIs parse their own `--env-file` (must come AFTER the script path; `bun --env-file` itself
+  is consumed by bun). Fresh sandboxes need `cp .env.test.ci .env.test`. → plan outcome only
+  (repo-specific; not promoted to skill refs).
+
+### 2026-09-14 — verification-plan-purchase-5-sessions (visual-improvement-loop run)
+
+- agent-browser `eval` with LONG multi-statement JS (arrow IIFE + many statements) intermittently
+  throws `SyntaxError: Unexpected identifier` on strings that are valid JS and that shorter variants
+  of the same shape execute fine — rewrite as comma-joined `var` statements without braces/IIFE and
+  it runs. Bisect the string before blaming the page. → landed: `references/capture-protocol.md`
+  (snapshot-text gotchas, updated in this change).
+- Browser-daemon crash (`Resource temporarily unavailable` after 5 retries) POISONS the reused
+  session name — subsequent commands fail until daemons are killed AND a FRESH session name is
+  used. → landed: `references/capture-protocol.md` (Sessions & auth, updated in this change).
+- Component suites in memory-tight sandboxes OOM-kill silently mid-run (exit 137, zero fail lines,
+  lock released) after N files — run the affected component files TARGETED (same preloads) instead
+  of the alphabetical full-suite, and free the dev-server memory first. → landed:
+  `references/capture-protocol.md` (batch discipline, updated in this change).
+- Prototype-comparison inspectors score the implementation against the prototype's FULL fancy scope
+  (roadmaps, resource grids, audio players) and return low "impl structure" scores even when the
+  implementation is exactly spec-scoped — the spec-wins rule must be restated IN the comparator
+  prompt (implementation is judged on its spec's scope; richer prototype ideas are recorded as
+  user-decision candidates, never silently implemented). → landed: `references/prototype-compare.md`
+  (rules section, updated in this change).
+- Lifecycle-status chips must stay lifecycle-semantic even when the branch news is positive:
+  failed-ELIGIBLE kept a success-toned chip because eligibility reads as good news — the eligibility
+  copy lives in the zone body; the chip stays in the failed (warning) family. → promoted:
+  `references/fix-patterns.md` (new row, updated in this change).

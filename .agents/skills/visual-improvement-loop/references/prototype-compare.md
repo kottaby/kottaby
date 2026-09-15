@@ -7,6 +7,7 @@ Prototype comparison happens **after** a screen is READY on the style loop. The 
 - **Structure only.** Prototypes are visually arbitrary (Tailwind colors, mock spacing). Color is never compared. Layout, hierarchy, density, control choices, content coverage are.
 - **Prototype content is fake.** Every name/row/amount is placeholder; never infer a fact about the data from the prototype — only structure is meaningful.
 - **Spec still wins.** When the implementation intentionally differs from the prototype because the spec says so, the spec wins by definition. Deltas from the OTHER direction (prototype richer than the implemented spec) are candidates to surface to the user.
+- **Scope the comparator.** Prototypes usually sketch a fancier surface than the spec implements (roadmaps, resource grids, media players). State the implementation's SPEC scope in the comparator prompt; judge structure within that scope, and record richer-prototype ideas as user-decision candidates — a low "impl structure" score for unimplemented out-of-spec sections is not a defect.
 
 ## Comparator subagent contract
 

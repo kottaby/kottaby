@@ -3,7 +3,7 @@
 import { NotificationsOutlined } from "@mui/icons-material";
 import { Box, Chip, Stack, Typography } from "@mui/material";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import type { MyNotificationsQuery_myNotifications_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
@@ -74,7 +74,7 @@ interface NotificationRowProps {
  * mark-read action is offered; read rows render un-tinted with no dot and
  * no action.
  */
-export function NotificationRow({
+export const NotificationRow = memo(function NotificationRow({
   notification,
   labels,
   locale,
@@ -205,3 +205,4 @@ export function NotificationRow({
     </Box>
   );
 }
+});

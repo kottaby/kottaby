@@ -40,6 +40,7 @@ command -v agent-browser >/dev/null 2>&1 || { echo "ERROR: agent-browser CLI not
 
 if [ "$NAV" -eq 1 ]; then
   [ -n "$URL" ] || { echo "ERROR: --url is required unless --no-nav" >&2; exit 2; }
+  agent-browser console --clear >/dev/null 2>&1 || true
   agent-browser open "$URL" >/dev/null 2>&1 || { echo "ERROR: navigation failed for $URL" >&2; exit 2; }
   sleep "$SETTLE"
 fi
@@ -102,8 +103,11 @@ else
   fi
 fi
 
-# 4. Off-viewport bleed (first 10 offenders; empty array = pass)
-OFFSCREEN_RAW=$(eval_js 'JSON.stringify(Array.from(document.querySelectorAll("body *")).filter((el) => { const r = el.getBoundingClientRect(); return getComputedStyle(el).position !== "fixed" && r.width > 0 && r.right > window.innerWidth + 1; }).slice(0, 10).map((el) => el.tagName + "." + (String(el.className).split(" ")[0] || "")))')
+# 4. Off-viewport bleed (first 10 offenders; empty array = pass).
+# Elements whose rect pokes past the edge but are visually CLIPPED by an
+# overflow hidden/clip ancestor (decorative gradients, cropped panels) cause
+# no visible bleed and are skipped — only visible bleed fails the gate.
+OFFSCREEN_RAW=$(eval_js 'JSON.stringify(Array.from(document.querySelectorAll("body *")).filter((el) => { const r = el.getBoundingClientRect(); if (getComputedStyle(el).position === "fixed" || r.width <= 0 || r.right <= window.innerWidth + 1) return false; let a = el.parentElement; while (a && a !== document.body) { const o = getComputedStyle(a); if (o.overflowX === "hidden" || o.overflowX === "clip" || o.overflowY === "hidden" || o.overflowY === "clip") return false; a = a.parentElement; } return true; }).slice(0, 10).map((el) => el.tagName + "." + (String(el.className).split(" ")[0] || "")))')
 if [ -z "$OFFSCREEN_RAW" ]; then
   report "offscreen" "ERROR" "eval returned nothing"
   STATUS=2

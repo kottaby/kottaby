@@ -2,7 +2,6 @@
 
 import { Box } from "@mui/material";
 import type { ReactNode } from "react";
-import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 
 /** Inline SVG social icon — 16×16, filled with currentColor. */
 export function SocialIcon({ children, label }: Readonly<{ children: ReactNode; label: string }>): ReactNode {
@@ -12,7 +11,6 @@ export function SocialIcon({ children, label }: Readonly<{ children: ReactNode; 
       href="#"
       aria-label={label}
       sx={theme => ({
-        ...focusVisibleRingSx,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -33,6 +31,11 @@ export function SocialIcon({ children, label }: Readonly<{ children: ReactNode; 
           opacity: 1,
           // Soft copper glow ring riding alongside the existing border/color shift.
           boxShadow: `0 0 10px color-mix(in srgb, ${theme.palette.secondary.main} 45%, transparent)`,
+        },
+        // Keyboard parity with the hover affordance — crisp copper ring.
+        "&:focus-visible": {
+          outline: "2px solid var(--mui-palette-secondary-main)",
+          outlineOffset: 2,
         },
       })}
     >

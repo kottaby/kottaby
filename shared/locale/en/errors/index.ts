@@ -37,10 +37,14 @@ export const errorsEn: ErrorsLabels = {
     idempotencyKeyRequired: "A request idempotency key is required. Please retry the request.",
     paymentReferenceConflict: "This payment was already used for another subscription. Please start a new payment.",
     paymentAmountMismatch: "The payment amount did not match the plan price, so the payment was not applied.",
+    planPriceShapeInvalid: "The plan price must be a non-negative amount with at most two decimal places.",
+    planPriceOutOfRange: "The plan price exceeds the supported amount range.",
   },
   applicantNotFound: "Teacher application not found.",
   applicantCooldownActive: "You can re-apply for teacher verification after {cooldownUntil}.",
   applicantStatusCorrupt: "Your application status could not be read. Please contact support.",
+  applicantAlreadyCertified:
+    "You are already certified. Verification purchases are no longer available for this account.",
   adminUsers: {
     userNotFound: "User not found.",
     userAlreadyDeleted: "This user has already been deleted.",
@@ -82,6 +86,7 @@ export const errorsEn: ErrorsLabels = {
   homeworkRequiresReport: "A session report must be submitted before homework can be created.",
   teacherInActiveSession: "This teacher is currently in an active session and is unavailable.",
   teacherNotFound: "The selected teacher was not found.",
+  subscriptionExpired: "Your subscription has expired.",
   insufficientBalance: "Your balance is insufficient for this request.",
   idempotencyKeyRequired: "A request idempotency key is required. Please retry the request.",
   invalidSessionIntent: "The requested session intent is not valid for this request.",
@@ -105,4 +110,9 @@ export const errorsEn: ErrorsLabels = {
   disputeResolutionMismatch: "This resolution is not allowed for the dispute in its current escrow state.",
   partialRefundAmountInvalid:
     "Enter a valid partial refund amount (greater than zero, less than the session fee, with up to 2 decimal places).",
+  withdrawalRequestNotFound: "The requested withdrawal was not found.",
+  withdrawalNotPending: "This withdrawal request is no longer pending.",
+  invalidAdjustmentAmount: "Enter a valid adjustment amount (a positive value with up to 2 decimal places).",
+  adjustmentReasonRequired: "An adjustment reason is required and cannot be empty.",
+  invalidAdjustmentDirection: "The adjustment direction must be either credit or debit.",
 };

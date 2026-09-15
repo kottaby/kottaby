@@ -6,3 +6,4 @@
  * directly.
  */
 export * from "./applicant-lifecycle.service";
+export * from "./verification-purchase.service";

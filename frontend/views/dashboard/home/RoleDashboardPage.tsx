@@ -5,6 +5,8 @@ import { withPageAuth } from "@/frontend/lib/auth/withPageAuth";
 import { DashboardView } from "@/frontend/views/dashboard";
 import { HandshakeCodeCard, PendingParentLinkRequestsCard } from "@/frontend/views/students/dashboard";
 import { ApplicantStatusCard } from "@/frontend/views/teachers/dashboard";
+import { getTranslations } from "@/shared/locale/server";
+import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
 
 /**
  * Shared role-gated dashboard page factory.
@@ -63,7 +65,9 @@ function resolveStatusSlot(role: UserRole): React.ReactNode {
   }
 }
 
-/** Metadata helper for role dashboard pages. */
-export function roleDashboardMetadata(): Metadata {
-  return { title: "Kottaby Academy" };
+/** Metadata helper for role dashboard pages — brand title follows the active locale. */
+export async function roleDashboardMetadata(): Promise<Metadata> {
+  const locale = await getLocaleFromCookie();
+  const t = getTranslations(locale).dashboardTranslations;
+  return { title: t.title };
 }

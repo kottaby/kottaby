@@ -15,14 +15,13 @@ import {
   type MyApplicantProfileQuery_myApplicantProfile,
 } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
-import type { StatusTone } from "@/frontend/views/teachers/dashboard/ApplicantStatusShell";
+import { AttemptsRow, PromptPanel, type StatusTone } from "@/frontend/views/teachers/dashboard/ApplicantStatusShell";
 import {
-  AttemptsRow,
   CertifiedNarrative,
   CooldownZone,
   CorruptStatusNotice,
   EligibleZone,
-  PromptPanel,
+  PendingZone,
 } from "@/frontend/views/teachers/dashboard/ApplicantStatusZones";
 import type { ApplicantLabels } from "@/shared/locale/types/applicant";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
@@ -59,13 +58,17 @@ interface ResolvedStatusBody {
  * reaches the wire). The `switch` over a same-type enum mirrors the
  * established `ProfileView.getRoleLabel` precedent; the default arm stays
  * defensive-corrupt rather than crashing or claiming anything false.
+ * `onPurchaseIntent` opens the verification-purchase dialog and is wired
+ * ONLY into the purchasable branches (pending prompt + eligible re-apply);
+ * the active-cooldown branch keeps its intentionally DISABLED CTA.
  */
 export function resolveStatusBody(
   status: ApplicantStatus,
   profile: MyApplicantProfileQuery_myApplicantProfile,
   t: ApplicantLabels,
   te: ErrorsLabels,
-  locale: string
+  locale: string,
+  onPurchaseIntent: () => void
 ): ResolvedStatusBody {
   switch (status) {
     case ApplicantStatus.Pending:
@@ -74,7 +77,9 @@ export function resolveStatusBody(
         chipIcon: PendingIcon,
         tone: "pending",
         accent: palette => palette.status.pendingContainer,
-        content: <PromptPanel>{t.pendingPrompt}</PromptPanel>,
+        content: (
+          <PendingZone promptText={t.pendingPrompt} purchaseLabel={t.purchaseCta} onPurchaseIntent={onPurchaseIntent} />
+        ),
       };
     case ApplicantStatus.InEvaluation:
       return {
@@ -118,13 +123,22 @@ export function resolveStatusBody(
           content: null,
         };
       }
-      // Eligible re-application affordance (purchase route not wired yet).
+      // Eligible re-application affordance — opens the purchase dialog.
+      // The CHIP stays in the failed family (warning tone — the lifecycle
+      // status is still a failure); the positive eligibility news lives in
+      // the EligibleZone copy below, never on the status chip itself.
       return {
         chipLabel: t.statusFailed,
         chipIcon: ErrorIcon,
-        tone: "success",
-        accent: palette => palette.success.main,
-        content: <EligibleZone eligibleText={t.eligibleToReapply} reapplyLabel={t.reapplyCta} />,
+        tone: "warning",
+        accent: palette => palette.warning.main,
+        content: (
+          <EligibleZone
+            eligibleText={t.eligibleToReapply}
+            reapplyLabel={t.reapplyCta}
+            onPurchaseIntent={onPurchaseIntent}
+          />
+        ),
       };
     case ApplicantStatus.Passed:
       // Explicit truthfulness branch instead of fall-through.

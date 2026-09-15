@@ -19,7 +19,10 @@
  * (`markNotificationRead`, `markAllNotificationsRead`);
  * `subscription-purchase.mutation.ts` wires the student purchase mutation
  * (`purchaseSubscription`); `user.mutation.ts` wires the caller-scoped
- * profile mutations (`updateMyLocale`).
+ * profile mutations (`updateMyLocale`);
+ * `verification-plan-purchase.mutation.ts` wires the teacher-applicant
+ * verification purchase mutation (`purchaseVerificationPlan` — inputless;
+ * identity from the session, plan resolved server-side).
  */
 import "./auth.mutation";
 import "./admin";
@@ -30,3 +33,4 @@ import "./parents";
 import "./plan-catalog.mutation";
 import "./subscription-purchase.mutation";
 import "./user.mutation";
+import "./verification-plan-purchase.mutation";

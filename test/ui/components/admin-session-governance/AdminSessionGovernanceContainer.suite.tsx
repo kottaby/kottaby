@@ -40,10 +40,11 @@
  * stamps recomputed through the scaffold's `expectedStamp` oracle and the
  * reschedule instants recomputed through the dialog's own token converter.
  *
- * Idempotency capture: a capturing `ApolloLink` wraps the `MockLink` (the
- * broadcast compose-send precedent) and records the `x-idempotency-key`
- * context header each cancel operation carries — the same context the real
- * authLink merges into the outgoing HTTP headers.
+ * Idempotency capture: the shared `renderWithKeyCapture` scaffold wraps the
+ * `MockLink` with a capturing `ApolloLink` (the broadcast compose-send
+ * precedent) and records the `x-idempotency-key` context header each cancel
+ * operation carries — the same context the real authLink merges into the
+ * outgoing HTTP headers.
  *
  * Preload parity: the `test:ui:components` preload chain (test-env →
  * happydom → translation-preload → next-dynamic-mock) is owned by the
@@ -52,9 +53,7 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { ApolloLink } from "@apollo/client";
-import { MockLink } from "@apollo/client/testing";
-import { MockedProvider } from "@apollo/client/testing/react";
+import type { MockLink } from "@apollo/client/testing";
 import { cleanup, fireEvent, type RenderResult, waitFor, within } from "@testing-library/react";
 import { type AdminSessionListFilterInput, SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import {
@@ -90,12 +89,12 @@ import {
   muiLabelPattern,
   PAST_END_ISO,
   PAST_START_ISO,
+  renderWithKeyCapture,
   renderWithMocks,
   sessionSuiteLabels,
   snackbarSeverityClass,
   warmSessionSuiteNamespaces,
 } from "@/test/ui/components/helpers";
-import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 
 // ---------------------------------------------------------------------------
 // Eager namespace warming (missing-key drift surfaces at LOAD, not in an arm)
@@ -346,37 +345,18 @@ function renderGovernance(mocks: ReadonlyArray<MockLink.MockedResponse>, locale:
   return renderWithMocks(<AdminSessionGovernanceContainer />, mocks, locale);
 }
 
-/** Assertion-free read of a mutation operation's `x-idempotency-key` header. */
-function contextIdempotencyKey(operation: ApolloLink.Operation): string | null {
-  const headers: unknown = operation.getContext().headers;
-  if (typeof headers !== "object" || headers === null) {
-    return null;
-  }
-  const value = Object.entries(headers).find(([key]) => key === "x-idempotency-key")?.[1];
-  return typeof value === "string" ? value : null;
-}
-
 /**
- * Renders the container with the idempotency key captured at the LINK tier:
- * a capturing `ApolloLink` wraps the `MockLink` and records the header each
- * mutation operation carries (the broadcasts compose-send precedent).
+ * Renders the container with the idempotency key captured at the LINK tier
+ * through the shared `renderWithKeyCapture` scaffold (the broadcasts
+ * compose-send precedent, extracted so every mutating suite consumes it
+ * once).
  */
 function renderGovernanceWithCapture(
   mocks: ReadonlyArray<MockLink.MockedResponse>,
   locale: AppLocale,
   onOperationSent: (idempotencyKey: string | null) => void
 ): RenderResult {
-  const capture = new ApolloLink((operation, forward) => {
-    onOperationSent(contextIdempotencyKey(operation));
-    return forward(operation);
-  });
-  const link = ApolloLink.from([capture, new MockLink([...mocks])]);
-  return renderWithWrapper(
-    <MockedProvider link={link}>
-      <AdminSessionGovernanceContainer />
-    </MockedProvider>,
-    { locale }
-  );
+  return renderWithKeyCapture(<AdminSessionGovernanceContainer />, mocks, locale, onOperationSent);
 }
 
 /** Waits for a settled row and resolves it (the populated-arm prologue). */

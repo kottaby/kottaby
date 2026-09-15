@@ -1,4 +1,5 @@
 export * from "./adminBroadcasts";
+export * from "./adminFinance";
 export * from "./adminSessionGovernance";
 export * from "./adminStudents";
 export * from "./adminTeachers";
@@ -6,6 +7,7 @@ export * from "./adminUsers";
 export * from "./analytics";
 export * from "./applicant";
 export * from "./auth";
+export * from "./checkout";
 export * from "./common";
 export * from "./dashboard";
 export * from "./define-namespace";

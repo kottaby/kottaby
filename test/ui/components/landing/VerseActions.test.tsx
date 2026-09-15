@@ -40,7 +40,8 @@ describe("VerseActions", () => {
       fireEvent.click(copyButton);
     });
 
-    // Status text flips to the localized "copied" confirmation.
+    // Status text and button aria-label flip to the localized "copied" confirmation.
     expect(screen.getByText(labels.verseCopied)).toBeDefined();
+    expect(screen.getByRole("button", { name: labels.verseCopied })).toBeDefined();
   });
 });

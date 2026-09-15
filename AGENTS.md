@@ -68,6 +68,8 @@ bun run check:unused           # Unused files/exports/deps scan; exit 0 = clean 
 bun run db                      # Database actions via scripts/dbActions/ (generate, push, migrate, seed, studio — reset & cleanGenerate disabled by repo policy)
 ```
 
+**Important Reference:** the Paymob gateway integration (endpoints, HMAC discipline, env matrix, callback channels, reconciliation) is documented canonically in `docs/billing/paymob-gateway.md`.
+
 ## Architecture Layers
 
 The codebase follows strict layer separation. Each layer has its own `AGENTS.md` with detailed rules.

@@ -15,6 +15,7 @@
 import { ContentCopyOutlined as CopyIcon } from "@mui/icons-material";
 import { IconButton, Tooltip } from "@mui/material";
 import type { ReactNode } from "react";
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 
 interface DirectoryCopyEmailButtonProps {
   readonly email: string;
@@ -48,6 +49,7 @@ export function DirectoryCopyEmailButton({
           onCopy();
         }}
         sx={theme => ({
+          ...focusVisibleRingSx,
           // ≥44px touch target via transparent padding; the icon stays
           // visually 20px. flexShrink: 0 keeps the email at its full
           // available width instead of squeezing under the icon.

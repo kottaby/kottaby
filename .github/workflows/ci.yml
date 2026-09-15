@@ -90,6 +90,14 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Dependency vulnerability scan (osv-scanner)
+        id: osv_scan
+        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        with:
+          scan-args: |-
+            --lockfile=./bun.lock
+            --format=table
+
       - name: Type check (tsgo)
         id: tsgo
         run: bun tsgo

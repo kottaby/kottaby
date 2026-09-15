@@ -37,6 +37,10 @@ interface SubscriptionPurchaseErrorsLabels {
   readonly paymentReferenceConflict: string;
   /** Settlement quarantine: the provider's claimed amount/currency did not match the stored payment (no write applied). */
   readonly paymentAmountMismatch: string;
+  /** Purchase reject: the plan price is not a non-negative decimal amount with at most two fraction digits → ValidationError (VALIDATION, gateway cents guard). */
+  readonly planPriceShapeInvalid: string;
+  /** Purchase reject: the plan price's cent value exceeds the supported amount range → ValidationError (VALIDATION, gateway cents guard). */
+  readonly planPriceOutOfRange: string;
 }
 
 export interface ErrorsLabels {
@@ -79,6 +83,12 @@ export interface ErrorsLabels {
   readonly applicantCooldownActive: string;
   /** Fail-closed deny when an applicants row status cannot be interpreted as a known ApplicantStatus. */
   readonly applicantStatusCorrupt: string;
+  /**
+   * Terminal purchase deny for `ValidationError("APPLICANT_ALREADY_CERTIFIED", …)`.
+   * Certification (`passed`) closes the verification-purchase surface for the
+   * account — generic copy only; no identifiers may enter this message.
+   */
+  readonly applicantAlreadyCertified: string;
   /**
    * Admin-user-management domain failures surfaced to operators through the
    * `errors` namespace. Each leaf is a self-contained sentence (no key echo)
@@ -170,6 +180,8 @@ export interface ErrorsLabels {
   readonly teacherInActiveSession: string;
   /** "The selected teacher was not found." — teacher lookup miss on booking (dedicated key, not the generic `notFound`). */
   readonly teacherNotFound: string;
+  /** Expiry reject — the caller's subscription validity window has ended, so the booking cannot be funded by it. */
+  readonly subscriptionExpired: string;
   /** Balance reject — the caller's lane balances cannot cover the booking fee. */
   readonly insufficientBalance: string;
   /** Missing `X-Idempotency-Key` header on an idempotent write surface. */
@@ -219,6 +231,16 @@ export interface ErrorsLabels {
   readonly disputeResolutionMismatch: string;
   /** Validation reject — a partial-refund amount is missing, malformed (not a decimal string with up to 2 fractions), non-positive, or not strictly below the session fee. */
   readonly partialRefundAmountInvalid: string;
+  /** "The requested withdrawal was not found." — admin settlement lookup miss on a teacher_transaction id → NotFoundError. */
+  readonly withdrawalRequestNotFound: string;
+  /** "This withdrawal request is no longer pending." — settlement reject once the row was already approved or rejected → ConflictError. */
+  readonly withdrawalNotPending: string;
+  /** "Enter a valid adjustment amount (a positive value with up to 2 decimal places)." — pre-DB manual wallet-adjustment amount reject → ValidationError. */
+  readonly invalidAdjustmentAmount: string;
+  /** "An adjustment reason is required and cannot be empty." — pre-DB manual wallet-adjustment reason reject → ValidationError. */
+  readonly adjustmentReasonRequired: string;
+  /** "The adjustment direction must be either credit or debit." — fail-closed manual wallet-adjustment direction reject (a non-GraphQL caller passing a non-member direction) → ValidationError. */
+  readonly invalidAdjustmentDirection: string;
 }
 
 export type ErrorMessageKey = {

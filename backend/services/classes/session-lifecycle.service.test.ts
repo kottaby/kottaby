@@ -1440,6 +1440,7 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
     const allowedSpecifiers: ReadonlySet<string> = new Set([
       "@/backend/db/repo",
       "@/backend/enum/audit/audit-action-type.enum",
+      "@/backend/enum/billing/subscription-credit-lane.enum",
       "@/backend/enum/scheduling/dispute-resolution.enum",
       "@/backend/enum/scheduling/held-balance-lane.enum",
       "@/backend/enum/scheduling/session-intent.enum",
@@ -1499,6 +1500,7 @@ describe("SessionLifecycleService — transactional flows (runInRollback)", () =
         "SessionRepository",
         "SessionRequestIdempotencyRepository",
         "StudentRepository",
+        "SubscriptionRepository",
         "TeacherRepository",
         "UserRepository",
         "WalletRepository",

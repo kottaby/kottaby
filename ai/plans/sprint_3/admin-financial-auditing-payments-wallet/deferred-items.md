@@ -16,7 +16,7 @@ Tracks all work deferred from one task to another so nothing is lost. Seeded at 
 
 | ID | Deferred Item | Source Task | Target Task | Status | Verified By | Notes |
 |---|---|---|---|---|---|---|
-| D1 | Verify the duplicate drizzle dirs `20260907182426_custom_4-student-payments-status-transition` / `20260908103411_custom_4-student-payments-status-transition` hold identical payloads before adding `custom_5-teacher-transaction-settlement` | planning | 2.1 | ❌ Blocked | — | Pre-existing repo anomaly; Task 2.1 documents payload comparison in its outcome |
+| D1 | Verify the duplicate drizzle dirs `20260907182426_custom_4-student-payments-status-transition` / `20260908103411_custom_4-student-payments-status-transition` hold identical payloads before adding `custom_5-teacher-transaction-settlement` | planning | 2.1 | ✅ Done | Task 2.1 outcome (2026-09-12) | Comment-only drift (migration.sql lines 51-54); SQL payloads identical (diff with comments stripped = empty); snapshots identical; both dirs in `.custom-migrations.json` appliedFolders; both applied cleanly on fresh `kottaby_test` |
 
 ---
 
@@ -38,9 +38,11 @@ Tracks all work deferred from one task to another so nothing is lost. Seeded at 
 
 ## Enforcement
 
-Final gate (Task 6.1) runs:
+Final gate (Task 6.1) runs a **row-scoped** grep that only counts ledger-table item rows
+carrying a Blocked/Partial status — the status-legend definitions and this command itself
+must never count:
 
 ```bash
-grep -c "❌\|⚠️" ai/plans/sprint_3/admin-financial-auditing-payments-wallet/deferred-items.md
+grep -cE "^\| D[0-9]+ .*(❌|⚠️)" ai/plans/sprint_3/admin-financial-auditing-payments-wallet/deferred-items.md
 # Expected: 0 — D1 must be ✅ by Task 2.1's outcome
 ```

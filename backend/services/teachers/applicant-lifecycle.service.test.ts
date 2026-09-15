@@ -21,7 +21,8 @@
  * Coverage map:
  *  - Tier 1 (branch/stmt, full-branch coverage on new logic): profile null path +
  *    pending / in_evaluation / failed(active|expired|null) / passed shapes;
- *    guard allow / block / missing-row; reapplication success / missing-row.
+ *    guard allow / block / missing-row / already-certified; reapplication
+ *    success / missing-row.
  *  - Tier 2 (boundary): cooldownUntil NULL ⇒ allowed; future ⇒ blocked with
  *    code APPLICANT_COOLDOWN_ACTIVE and message asserted against the
  *    TRANSLATED template (anchor prefix/suffix + formatted timestamp
@@ -505,6 +506,134 @@ describe("ApplicantLifecycleService.assertCanPurchaseVerification", () => {
       expect(errorB.message.includes(markerA)).toBe(false);
       expect(errorA.message.includes("@test.local")).toBe(false);
       expect(errorB.message.includes("@test.local")).toBe(false);
+    });
+  });
+});
+
+describe("ApplicantLifecycleService.assertCanPurchaseVerification — certified rejection (APPLICANT_ALREADY_CERTIFIED)", () => {
+  // ─── Tier 1: branch/statement ───────────────────────────────────────
+
+  test("rejects a passed applicant with ValidationError APPLICANT_ALREADY_CERTIFIED + byte-equal localized message + one log", async () => {
+    await runInRollback(async tx => {
+      const locale = "en";
+      const user = await createTestUser(tx, { role: "teacher" });
+      await createTestApplicant(tx, user.id, { status: ApplicantStatus.Passed });
+
+      const logSpy = silenceDomainLog();
+      try {
+        const error = await expectRepoError(() =>
+          ApplicantLifecycleService.assertCanPurchaseVerification(user.id, locale, tx)
+        );
+
+        expect(error).toBeInstanceOf(ValidationError);
+        assertErrorCode(error, "APPLICANT_ALREADY_CERTIFIED");
+        // Byte-equality with the TRANSLATED literal — never the key name.
+        expect(error.message).toBe(getServerTranslations(locale).errorsTranslations.applicantAlreadyCertified);
+
+        // This domain rejection WAS logged, with canonical context.
+        expect(logSpy).toHaveBeenCalledTimes(1);
+        const [, ctxArg] = logSpy.mock.calls[0] ?? [];
+        expect(ctxArg).toMatchObject({
+          code: "APPLICANT_ALREADY_CERTIFIED",
+          entity: "applicants",
+          entityId: user.id,
+          locale,
+        });
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+  });
+
+  test("an in_evaluation applicant still resolves silently — only `passed` is terminal for the surface", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx, { role: "teacher" });
+      await createTestApplicant(tx, user.id, { status: ApplicantStatus.InEvaluation, cooldownUntil: null });
+
+      const logSpy = silenceDomainLog();
+      try {
+        const allowed = await ApplicantLifecycleService.assertCanPurchaseVerification(user.id, "en", tx);
+        expect(allowed).toBeUndefined();
+        expect(logSpy).toHaveBeenCalledTimes(0);
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+  });
+
+  // ─── Tier 2: boundary — branch order + unicode identity ────────────
+
+  test("a passed applicant with an ACTIVE cooldown is denied by the cooldown arm (time-gated deny wins)", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx, { role: "teacher" });
+      const future = new Date(Date.now() + FUTURE_COOLDOWN_OFFSET_MS);
+      await createTestApplicant(tx, user.id, { status: ApplicantStatus.Passed, cooldownUntil: future });
+
+      const logSpy = silenceDomainLog();
+      try {
+        const error = await expectRepoError(() =>
+          ApplicantLifecycleService.assertCanPurchaseVerification(user.id, "en", tx)
+        );
+
+        // The certified arm sits AFTER the cooldown arm — the active
+        // cooldown fires first and carries the re-apply moment.
+        assertErrorCode(error, "APPLICANT_COOLDOWN_ACTIVE");
+        expect(logSpy).toHaveBeenCalledTimes(1);
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+  });
+
+  test("certified denial resolves distinctly per locale with zero identity leakage for a unicode-named applicant", async () => {
+    await runInRollback(async tx => {
+      const unicodeName = "أحمد بن عبد الله 🌙 世界";
+      const arUser = await createTestUser(tx, { role: "teacher", fullName: unicodeName });
+      const enUser = await createTestUser(tx, { role: "teacher", fullName: unicodeName });
+      await createTestApplicant(tx, arUser.id, { status: ApplicantStatus.Passed });
+      await createTestApplicant(tx, enUser.id, { status: ApplicantStatus.Passed });
+
+      const arError = await expectRepoError(() =>
+        ApplicantLifecycleService.assertCanPurchaseVerification(arUser.id, "ar", tx)
+      );
+      const enError = await expectRepoError(() =>
+        ApplicantLifecycleService.assertCanPurchaseVerification(enUser.id, "en", tx)
+      );
+
+      assertErrorCode(arError, "APPLICANT_ALREADY_CERTIFIED");
+      assertErrorCode(enError, "APPLICANT_ALREADY_CERTIFIED");
+      expect(arError.message).toBe(getServerTranslations("ar").errorsTranslations.applicantAlreadyCertified);
+      expect(enError.message).toBe(getServerTranslations("en").errorsTranslations.applicantAlreadyCertified);
+      expect(arError.message).not.toBe(enError.message);
+
+      // The unicode name is user data — it must never leak into the denial.
+      expect(arError.message.includes(unicodeName)).toBe(false);
+      expect(enError.message.includes(unicodeName)).toBe(false);
+    });
+  });
+
+  // ─── Tier 3: chaos — determinism across repeated denials ──────────
+
+  test("rapid repeated certified denials are deterministic (12 parallel rejects share ONE message)", async () => {
+    await runInRollback(async tx => {
+      const user = await createTestUser(tx, { role: "teacher" });
+      await createTestApplicant(tx, user.id, { status: ApplicantStatus.Passed });
+
+      const settled = await Promise.allSettled(
+        Array.from({ length: 12 }, () => ApplicantLifecycleService.assertCanPurchaseVerification(user.id, "en", tx))
+      );
+
+      const deniedMessages = settled.map(outcome => {
+        if (outcome.status !== "rejected") throw new Error(`expected rejection, got ${outcome.status}`);
+        const reason = outcome.reason;
+        if (!(reason instanceof ValidationError)) throw new Error("expected a ValidationError denial");
+        assertErrorCode(reason, "APPLICANT_ALREADY_CERTIFIED");
+        return reason.message;
+      });
+      expect(deniedMessages).toHaveLength(12);
+      // Deterministic: identical locale+row ⇒ byte-identical messages.
+      expect(new Set(deniedMessages).size).toBe(1);
+      expect(deniedMessages[0]).toBe(getServerTranslations("en").errorsTranslations.applicantAlreadyCertified);
     });
   });
 });

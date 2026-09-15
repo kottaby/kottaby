@@ -19,10 +19,17 @@ import { type DirectoryTone, toneColors } from "@/frontend/views/admin/users/uti
 interface TonalChipProps {
   readonly tone: DirectoryTone;
   readonly label: string;
+  /**
+   * Outlined lane — transparent fill with a `tone.main` border/text instead
+   * of the container pair. Lets one surface run TWO chip families (e.g. the
+   * wallet ledger's outlined type chips over filled status chips) without
+   * hue collisions between the dark container pairs.
+   */
+  readonly outlined?: boolean;
 }
 
 /** Small pill chip painted from a M3 container/`on<Color>Container` pair. */
-export function TonalChip({ tone, label }: TonalChipProps): ReactNode {
+export function TonalChip({ tone, label, outlined = false }: TonalChipProps): ReactNode {
   return (
     <Chip
       size="small"
@@ -33,8 +40,9 @@ export function TonalChip({ tone, label }: TonalChipProps): ReactNode {
           height: 26,
           borderRadius: "999px",
           fontWeight: 600,
-          bgcolor: colors.bg,
-          color: colors.fg,
+          ...(outlined
+            ? { bgcolor: "transparent", border: `1px solid ${colors.dot}`, color: colors.dot }
+            : { bgcolor: colors.bg, color: colors.fg }),
           flexShrink: 0,
         };
       }}

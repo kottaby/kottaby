@@ -31,6 +31,7 @@ import { AdminTeachers } from "@/shared/locale/namespaces/adminTeachers";
 import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
 import { Applicant } from "@/shared/locale/namespaces/applicant";
 import { Auth } from "@/shared/locale/namespaces/auth";
+import { Checkout } from "@/shared/locale/namespaces/checkout";
 import { Common } from "@/shared/locale/namespaces/common";
 import { Dashboard } from "@/shared/locale/namespaces/dashboard";
 import { Errors } from "@/shared/locale/namespaces/errors";
@@ -99,6 +100,10 @@ for (const translations of [arMessages, enMessages]) {
   // incoming queue + parent outgoing section) surface missing-key drift at
   // preload time.
   ParentLink.getLabels(translations);
+  // Warm the Checkout handle so the purchase-funnel suites (plan catalog /
+  // payment result / my subscriptions) surface missing-key drift at preload
+  // time.
+  Checkout.getLabels(translations);
   // Warm the admin-directory handles (users / students / teachers) so the
   // admin mobile-card + empty-state suites surface missing-key drift at
   // preload time.

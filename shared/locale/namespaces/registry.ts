@@ -5,6 +5,7 @@
  * no import statements in `index.ts`).
  */
 import { AdminBroadcasts } from "@/shared/locale/namespaces/adminBroadcasts";
+import { AdminFinance } from "@/shared/locale/namespaces/adminFinance";
 import { AdminSessionGovernance } from "@/shared/locale/namespaces/adminSessionGovernance";
 import { AdminStudents } from "@/shared/locale/namespaces/adminStudents";
 import { AdminTeachers } from "@/shared/locale/namespaces/adminTeachers";
@@ -12,6 +13,7 @@ import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
 import { Analytics } from "@/shared/locale/namespaces/analytics";
 import { Applicant } from "@/shared/locale/namespaces/applicant";
 import { Auth } from "@/shared/locale/namespaces/auth";
+import { Checkout } from "@/shared/locale/namespaces/checkout";
 import { Common } from "@/shared/locale/namespaces/common";
 import { Dashboard } from "@/shared/locale/namespaces/dashboard";
 import { Errors } from "@/shared/locale/namespaces/errors";
@@ -26,6 +28,7 @@ import { Wallet } from "@/shared/locale/namespaces/wallet";
 
 export const namespaces = {
   AdminBroadcasts,
+  AdminFinance,
   AdminSessionGovernance,
   AdminStudents,
   AdminTeachers,
@@ -33,6 +36,7 @@ export const namespaces = {
   Analytics,
   Applicant,
   Auth,
+  Checkout,
   Common,
   Dashboard,
   Errors,

@@ -30,6 +30,7 @@ export const planCatalogQueryDocument: TypedDocumentNode<PlanCatalogQuery> = gql
       deactivatedAt
       createdAt
       updatedAt
+      balanceLane
     }
   }
 `;

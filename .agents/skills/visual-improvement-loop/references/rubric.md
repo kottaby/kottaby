@@ -37,6 +37,7 @@ If the run includes a dark pass (only when the app supports it — record `dark:
 
 - READY = average ≥ 9.5
 - NEEDS FIXES otherwise. The orchestrator may accept a final LOW-only list as accepted debt, and only when every item is recorded in the outcome with BOTH: (a) why it cannot reach 10 (platform limitation, content-length variance, etc.), and (b) why that is acceptable (no impact on task success or perceived quality). Anything that degrades perceived quality is NOT cosmetic — it goes to a fix wave regardless of its severity label.
+- Calibration note (observed 2026-09-13): VLM inspectors score in integer steps and reserve 10 for "flawless" — totals plateau ≈9.0–9.2 even on surfaces whose every reported finding was fixed or DOM-disproven. When residuals are LOW-only, mutually contradictory across passes, or pixel-disproven, adjudicate via the accepted-debt clause instead of looping indefinitely on inspector noise.
 
 ## Output contract from each inspector
 
@@ -48,3 +49,12 @@ Verdict: READY | NEEDS FIXES
 ```
 
 Findings must be actionable blind: name the exact element, describe the defect precisely, and propose a fix kind. An inspector must verify claims with a `region` crop before reporting them; otherwise keep quiet about it. If the image is a blank/error/login page, report that and stop.
+
+## DOM arbitration of disputed findings (orchestrator rule)
+
+VLM inspectors hallucinate label text (especially Arabic) and estimate sizes/alignment that pixels
+cannot prove. Before acting on any disputed finding — and before accepting any READY score that
+rests on a dismissed finding — arbitrate with DOM ground truth via `agent-browser eval`: computed
+styles (`letterSpacing`, `minHeight`, `textAlign`), `getBoundingClientRect` for sizes/centering,
+Range client-rects for bidi/line ordering, and the translation source for copy claims. Record the
+measurement in the outcome; a finding disproven by DOM evidence is dismissed, not accepted debt.

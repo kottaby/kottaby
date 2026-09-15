@@ -102,6 +102,7 @@ const TEARDOWN_ALLOWLIST_PATHS = [
   "test/ui/e2e/admin-session-governance.e2e.test.ts",
   "test/workflows/admin/admin-session-governance.journey.test.ts",
   "test/workflows/admin/audit-trail.journey.test.ts",
+  "test/workflows/billing/admin-financial-auditing.journey.test.ts",
   "test/workflows/helpers/journey-cleanup.ts",
   "test/workflows/sessions/post-confirmation-dispute.journey.test.ts",
 ] as const;

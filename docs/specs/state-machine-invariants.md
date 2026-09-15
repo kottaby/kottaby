@@ -151,6 +151,22 @@ stateDiagram-v2
 | INV-B7 | A trial credit is granted at most once per student record. Enforced structurally by the `trial_granted_at` marker column (nullable timestamp, set server-side on first grant) and the guarded single conditional `UPDATE students SET balance_trial = balance_trial + <count>, trial_granted_at = now() WHERE id = <studentId> AND trial_granted_at IS NULL RETURNING id` atomic statement. The `trial_granted_at IS NULL` predicate IS the atomicity mechanism — no advisory lock and no `SELECT FOR UPDATE` is required, because the predicate evaluation and the column mutation share one SQL statement (TOCTOU window = 0). A second grant attempt matches zero rows, returns an empty `RETURNING` set, and the service converts that into a localized `ConflictError` with `extensions.code = "CONFLICT"`. |
 | INV-B8 | Session allowance consumption decrements `balance_trial` BEFORE any paid intent lane (`balance_hifz` / `balance_tajweed` / `balance_reviews`). When `balance_trial > 0`, the trial is decremented first and the paid lane is untouched; only when the trial has been exhausted does the existing paid-lane escrow rule (decision B.4) apply. The decrement MUST use the same single-guarded-UPDATE atomicity pattern: `UPDATE students SET balance_trial = balance_trial - 1 WHERE id = ? AND balance_trial > 0` returning a row count, with a separate conditional UPDATE on the paid lane if and only if the trial decrement returned zero rows. This preserves INV-B5 segregation and keeps trial-vs-paid analytics clean. |
 
+> **Implementation reference (subscription expiry — INV-B3 enforcement):** the `active → expired`
+> transition now HAS a producer — the externally-triggered expiry sweep (`SubscriptionExpiryService.expireDue`
+> behind the fail-closed cron route `GET /api/cron/expire-subscriptions`): a guarded single-statement
+> batch UPDATE (`WHERE status = 'active' AND end_date IS NOT NULL AND end_date <= now`, replay-safe,
+> zero rows = no-op), so the A.9 `Expired` state above is a written state, not a derived label. The
+> INV-B3 zeroing semantic as shipped is **conditional lane zeroing**: the expired subscription's
+> credited lane is zeroed only when no other `active` (post-flip, in-window) or `pending`
+> subscription of the same student covers that lane — one guarded UPDATE inside the sweep
+> transaction; the conservative direction is under-revoke only (Revoke-Never-Wrongly), and the
+> residual shared-lane gap of the flat per-student balance model is recorded with a
+> per-subscription attribution ledger as the future refinement. `balance_trial` is structurally
+> exempt (the zeroing write has no trial-lane member), and the booking path denies an expired,
+> uncovered lane with `SUBSCRIPTION_EXPIRED` while a past-window-not-yet-swept lane still books
+> (the window-vs-status lag is closed by the sweep). Full contract:
+> [`docs/billing/subscription-validity-window-expiry.md`](../billing/subscription-validity-window-expiry.md).
+
 ---
 
 ## 5. Wallet & Transaction Lifecycle
@@ -176,7 +192,7 @@ stateDiagram-v2
 | INV-W2 | `wallet.total_earning` must be >= 0 (check constraint). |
 | INV-W3 | Each teacher has exactly one wallet (`teacher_id` is unique on `wallet`). |
 | INV-W4 | An `earning` transaction is created only upon dual confirmation of session completion. |
-| INV-W5 | A `withdrawal` transaction starts as `pending` and transitions to `completed` (Admin approves) or `failed` (Admin rejects). |
+| INV-W5 | A `withdrawal` transaction starts as `pending` and transitions to `completed` (Admin approves) or `failed` (Admin rejects). **✅ IMPLEMENTED (guarded settlement + trigger amendment):** settlement runs through the single guarded repo UPDATE (`WHERE id = ? AND type = 'withdrawal' AND status = 'pending'` — `WalletRepository.settleWithdrawalOnce`), and the amended `prevent_teacher_transaction_update()` DB guard (migration `custom_5-teacher-transaction-settlement`) permits ONLY that flip with every other column frozen (null-safe `IS NOT DISTINCT FROM`; `updated_at` moves via `$onUpdate`) — approve settles the request-time debit to `completed`, reject settles to `failed` AND restores the reserved balance; re-settling a decided row, any other column/transition, and `DELETE` all raise. Implemented and documented in [`docs/billing/admin-financial-auditing.md`](../billing/admin-financial-auditing.md). |
 | INV-W6 | Financial records (`student_payments`, `teacher_transaction`) are immutable once created. Corrections via new adjustment transactions only. |
 | INV-W7 | An `earning` transaction is linked to a `session_id`; a `withdrawal` or `bonus` transaction may have a null `session_id`. |
 | INV-W8 | `teacher_transaction.amount` must be >= 0 (check constraint). |

@@ -287,15 +287,25 @@ route). Fail-closed stages:
    whose `sessionCount` exceeds the `MAX_SESSION_COUNT` credit ceiling of 1,000,000 (an
    over-ceiling credit would overflow the lane's int4 balance at the credit step)) →
    `activatePendingOnce` (zero rows ⇒ `{ processed: true, replayed:
-   true }` — no credit, no second notification) → `markPaidOnce` → `creditLaneBalance(studentId,
+   true }` — no credit, no second notification) → `markPaidOnce` (the verified event's
+   `providerTransactionId`, when the gateway carries one, is recorded in the SAME guarded
+   statement — the one-time NULL → value allowance the immutability trigger admits on
+   `provider_transaction_id`) → `creditLaneBalance(studentId,
    plan.balanceLane, plan.sessionCount, tx)` → confirmation notification row persisted in-tx
    (copy composed in the RECIPIENT's persisted locale — the users row's `locale`, falling back to
    the platform default when unset; the webhook has no session locale) →
    receipts published strictly AFTER the unit resolves (publish failure degrades to one structured
    log — it never rolls back settlement).
-4. **`failed` path:** one guarded decision write; the subscription stays `pending` (no credit, no
-   notification). A late `confirmed` after `failed` yields zero rows from the guard and acks
-   `{ processed: false }` — reject-and-log, never a silent upgrade, never an error storm.
+4. **`failed` path — one transaction:** the guarded decision write (with the same one-time
+   `providerTransactionId` recording when the event carries one) and, when the write decided the
+   payment, the FAILURE notification row persisted in-tx — same `payment_confirmation` kind,
+   subscription pointer, recipient-locale composition, and idempotency-key treatment as the
+   confirmed copy; only the title/body copy differs (the failure copy names the attempted plan and
+   the not-activated outcome). Receipts publish strictly post-commit. The subscription stays
+   `pending` (no credit) — operator follow-up owns it. Zero rows ⇒ the payment was already decided:
+   `{ processed: true, replayed: true }` with no second notification. A late `confirmed` after
+   `failed` yields zero rows from the guard and acks `{ processed: false }` — reject-and-log, never
+   a silent upgrade, never an error storm.
 
 ### Lane crediting rules
 
@@ -306,8 +316,11 @@ route). Fail-closed stages:
 - Crediting a NULL lane column is a no-op (inherited convention — no `COALESCE`); the service's
   NULL-lane quarantine ensures this case never carries financial weight (the delivery acks
   `{ processed: false }` before any credit runs).
-- The activation emits are deliberately keyless: the `activatePendingOnce` zero-row arbiter already
-  guarantees the credit and the notification run exactly once per subscription.
+- The activation emits carry the idempotency key `payment:<providerTransactionId>:confirmation`
+  whenever the verified event carries a provider transaction reference — a belt-and-braces dedupe
+  on top of the primary arbiter (the zero-row guards already guarantee the credit and the
+  notification run exactly once per payment). Events without a provider reference stay keyless;
+  the guarded transition alone owns their dedupe.
 
 ### Subscription window semantics
 
@@ -366,10 +379,19 @@ All three are registered in the typed env snapshot registry; `resetPaymentGatewa
   neutrally by the mock) and `failed` payments with `pending` subscriptions are the operator
   follow-up backlog; the ledger trigger means fixes are compensating rows or guarded transitions,
   never edits.
-- **Teacher verification purchase:** verification-plan purchase rides this exact flow —
-  no special-casing. The verification plan is looked up from the catalog (active-only; title
-  `"New Teacher Verification & Evaluation Plan"`, `reviews` lane) and the confirmed callback credits
-  the reviews lane like any other plan.
+- **Teacher verification purchase (shipped contract):** verification purchases reuse this
+  pipeline through a DEDICATED zero-argument mutation `purchaseVerificationPlan` — the student
+  `purchaseSubscription` stays student-scoped and untouched. The plan is resolved server-side
+  from the ACTIVE catalog by the shared title constant (`"New Teacher Verification & Evaluation
+  Plan"`, 5 sessions) — no plan id ever crosses the wire; identity comes from the session. The
+  pipeline deltas that make applicant purchases representable on this schema: `student_payments.student_id`
+  is NULLABLE (a verification payment's owner is the subscription's generic `user_id` — there is
+  no `students` row for an applicant), the payment junction insert is deliberately skipped, the
+  applicant status flip (`pending|failed → in_evaluation`) commits atomically inside the purchase
+  transaction, and activation SKIPS the lane credit when the purchaser is an applicant (students
+  row present → credit exactly as before; neither row → the existing corruption abort). The
+  5-session grant is enforced by the booking flow off the ACTIVE subscription, not by lane
+  credit. Full contract: `docs/teachers/verification-plan-purchase.md`.
 
 ### Testing notes (binding for any suite touching this surface)
 

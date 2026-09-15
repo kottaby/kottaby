@@ -84,6 +84,20 @@ function nonEmptyLabelOf(localeMap: ErrorsLabels, key: string, localeName: strin
   return value;
 }
 
+/** Every `{name}` ICU placeholder occurring in a template, deduplicated + sorted. */
+function icuPlaceholdersOf(template: string): string[] {
+  const seen = new Set<string>();
+  const placeholder = /\{([A-Za-z]\w*)\}/g;
+  let match = placeholder.exec(template);
+  while (match !== null) {
+    if (typeof match[1] === "string") {
+      seen.add(match[1]);
+    }
+    match = placeholder.exec(template);
+  }
+  return [...seen].toSorted((a, b) => a.localeCompare(b));
+}
+
 /**
  * Walks a locale map depth-first and throws on the first violation: any leaf
  * that is not a non-empty string. Grouped sub-blocks (object-valued slots)
@@ -167,6 +181,50 @@ describe("session-report/homework service keys — pinned in BOTH locales", () =
     // Key must be part of the COMPILE-TIME schema too — Reflect-only
     // additions (untyped holes) are prohibited by the ErrorsLabels contract.
     expect(Object.hasOwn(errorsEn, key)).toBe(true);
+  });
+});
+
+// ─── Applicant-lifecycle domain-service key pins ───────────────────────────
+
+/**
+ * The `errors` keys minted for the applicant-lifecycle service surface
+ * (profile + purchase-guard + re-application denials). Like the
+ * session-report inventory above, these are consumed by the domain service
+ * through `getServerTranslations(locale).errorsTranslations`, so the
+ * route-source discovery cannot see them — they are pinned here in BOTH
+ * locales (removing a key from both maps simultaneously still fails).
+ */
+const APPLICANT_LIFECYCLE_KEYS = [
+  "applicantNotFound",
+  "applicantCooldownActive",
+  "applicantStatusCorrupt",
+  "applicantAlreadyCertified",
+] as const;
+
+// ===========================================================================
+describe("applicant-lifecycle service keys — pinned in BOTH locales", () => {
+  test("the domain inventory is exhaustive (no silent drift on the pinned applicant keys)", () => {
+    const pinned = new Set<string>(APPLICANT_LIFECYCLE_KEYS);
+    for (const key of Object.keys(errorsAr)) {
+      if (key.startsWith("applicant")) {
+        expect(pinned.has(key)).toBe(true);
+      }
+    }
+  });
+
+  test.each([...APPLICANT_LIFECYCLE_KEYS])("domain key `%s` resolves non-empty in BOTH ar and en maps", key => {
+    expect(nonEmptyLabelOf(errorsAr, key, "ar").length).toBeGreaterThan(0);
+    expect(nonEmptyLabelOf(errorsEn, key, "en").length).toBeGreaterThan(0);
+    // Key must be part of the COMPILE-TIME schema too — Reflect-only
+    // additions (untyped holes) are prohibited by the ErrorsLabels contract.
+    expect(Object.hasOwn(errorsEn, key)).toBe(true);
+  });
+
+  test("applicantAlreadyCertified carries ZERO ICU placeholders in BOTH locales", () => {
+    // The certified denial is a flat copy consumed verbatim by every
+    // caller — no interpolation slot may ever slip into either locale.
+    expect(icuPlaceholdersOf(nonEmptyLabelOf(errorsAr, "applicantAlreadyCertified", "ar"))).toEqual([]);
+    expect(icuPlaceholdersOf(nonEmptyLabelOf(errorsEn, "applicantAlreadyCertified", "en"))).toEqual([]);
   });
 });
 

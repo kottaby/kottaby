@@ -37,10 +37,13 @@ export const errorsAr: ErrorsLabels = {
     idempotencyKeyRequired: "مفتاح منع تكرار الطلب مفقود. يرجى إعادة المحاولة.",
     paymentReferenceConflict: "هذه الدفعة مرتبطة بالفعل باشتراك آخر. يرجى بدء دفعة جديدة.",
     paymentAmountMismatch: "لم يتطابق مبلغ الدفعة مع سعر الخطة، لذلك لم تُطبَّق الدفعة.",
+    planPriceShapeInvalid: "يجب أن يكون سعر الخطة مبلغاً غير سالب بحد أقصى خانتين عشريتين.",
+    planPriceOutOfRange: "يتجاوز سعر الخطة النطاق المدعوم للمبلغ.",
   },
   applicantNotFound: "لم يتم العثور على طلب التقديم كمعلم قرآن.",
   applicantCooldownActive: "يمكنك إعادة التقديم للتحقق كمعلم قرآن بعد {cooldownUntil}.",
   applicantStatusCorrupt: "تعذر قراءة حالة طلبك. يرجى التواصل مع فريق الدعم.",
+  applicantAlreadyCertified: "أنت معتمد بالفعل كمعلم قرآن. لم تعد عمليات شراء التوثيق متاحة لهذا الحساب.",
   adminUsers: {
     userNotFound: "لم يتم العثور على المستخدم.",
     userAlreadyDeleted: "تم حذف هذا المستخدم بالفعل.",
@@ -81,6 +84,7 @@ export const errorsAr: ErrorsLabels = {
   homeworkRequiresReport: "يجب إرسال تقرير الجلسة قبل إنشاء الواجب.",
   teacherInActiveSession: "هذا المعلم في جلسة نشطة حالياً وهو غير متاح.",
   teacherNotFound: "لم يتم العثور على المعلم المحدد.",
+  subscriptionExpired: "انتهت صلاحية اشتراكك.",
   insufficientBalance: "رصيدك غير كافٍ لإتمام هذا الطلب.",
   idempotencyKeyRequired: "مفتاح منع تكرار الطلب مفقود. يرجى إعادة المحاولة.",
   invalidSessionIntent: "غرض الجلسة المطلوب غير صالح.",
@@ -104,4 +108,9 @@ export const errorsAr: ErrorsLabels = {
   disputeResolutionMismatch: "لا يُسمح بهذا القرار للنزاع في حالة الضمان الحالية.",
   partialRefundAmountInvalid:
     "أدخل مبلغ استرداد جزئي صالحاً (أكبر من صفر وأقل من رسوم الجلسة، بخانتين عشريتين كحد أقصى).",
+  withdrawalRequestNotFound: "لم يتم العثور على طلب السحب المطلوب.",
+  withdrawalNotPending: "طلب السحب هذا لم يعد قيد الانتظار.",
+  invalidAdjustmentAmount: "أدخل مبلغ تعديل صالحاً (قيمة موجبة بخانتين عشريتين كحد أقصى).",
+  adjustmentReasonRequired: "سبب التعديل مطلوب ولا يمكن تركه فارغاً.",
+  invalidAdjustmentDirection: "يجب أن يكون اتجاه التعديل إما إضافة أو خصم.",
 };

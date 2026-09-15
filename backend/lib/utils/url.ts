@@ -5,7 +5,7 @@
 /**
  * Replaces credentials (user:password) in a URL string with `***` for safe logging.
  *
- * Returns the original string when it is not a parseable URL.
+ * Falls back to regex-based userinfo sanitization if URL parsing fails.
  *
  * @example
  * sanitizeUrlCredentials("postgresql://postgres:secret@localhost:5432/kottaby")
@@ -23,6 +23,6 @@ export function sanitizeUrlCredentials(url: string | undefined): string {
     }
     return parsed.toString();
   } catch {
-    return url;
+    return url.replace(/:\/\/([^/@\s]+)@/g, "://***@");
   }
 }

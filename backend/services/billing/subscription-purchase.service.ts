@@ -75,6 +75,12 @@ import { ConflictError, isPgUniqueViolation, NotFoundError, ValidationError } fr
 import { logger } from "@/backend/lib/logger";
 import { getPaymentGateway } from "@/backend/services/billing/payment-gateway/payment-gateway.factory";
 import { MAX_INTERVAL_DAYS, MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
+import {
+  assertPlanUnchangedSinceCheckout,
+  isCarryableIdempotencyKey,
+  isPositiveSafeId,
+} from "@/backend/services/billing/purchase-guards.helpers";
+import { buildCheckoutBillingInput } from "@/backend/services/billing/subscription-purchase.helpers";
 import { assertActorGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
 import type {
   DBQueryExecutor,
@@ -90,9 +96,6 @@ import type {
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
 
-/** The idempotency claim column's maximum key length (varchar(128) backstop). */
-const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
-
 /**
  * The client-safe conflict copy for an internal row-mapping breach — the
  * activation service's `abortActivation` discipline mirrored: the exact
@@ -102,24 +105,10 @@ const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
  */
 const PAYMENT_PROCESSING_CONFLICT_MESSAGE = "Payment could not be processed.";
 
-/** The localized errors bundle shape consumed by every flow in this file. */
-type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
-
-/** Positive safe-integer guard for caller-supplied identifiers (no casts). */
-function isPositiveSafeId(value: number): boolean {
-  return Number.isSafeInteger(value) && value > 0;
-}
-
 /**
- * The carryable-key check: a claimable idempotency key is present and
- * within the claim column's length. An absent key is a validation reject
- * BEFORE any database work (the claim insert would otherwise fail on a
- * NOT NULL or an over-length value deep inside the transaction). The key
- * is never trimmed — an opaque value is carried verbatim.
+ * The localized errors bundle shape consumed by every flow in this file.
  */
-function isCarryableIdempotencyKey(key: string | null): key is string {
-  return key !== null && key.length > 0 && key.length <= MAX_IDEMPOTENCY_KEY_LENGTH;
-}
+type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
 
 /**
  * The subscription-status vocabulary, widened to plain strings: the stored
@@ -376,39 +365,6 @@ async function insertPendingSubscription(
 }
 
 /**
- * Re-compares the FRESH in-transaction plan row against the price/currency
- * the gateway checkout was created with (both carried verbatim from the
- * pre-checkout plan read). An admin price or currency change between the
- * checkout creation and this transaction would otherwise commit a pending
- * pair whose stored amount disagrees with the amount the provider actually
- * charged — a settlement guaranteed to quarantine. The mismatch is the
- * generic localized validation denial (machine code `PLAN_PRICE_CHANGED`,
- * field `planId`) thrown BEFORE any row write, so the transaction rolls
- * back with nothing to release.
- *
- * The abandoned checkout session needs no compensation inside this flow:
- * the built-in mock provider is stateless (a checkout is a pure descriptor
- * mint — no provider-side session exists to void). A stateful provider
- * integration owns its own abandoned-session compensation out-of-band.
- */
-function assertPlanUnchangedSinceCheckout(
-  freshPlan: PlanSelectType,
-  checkoutAmount: string,
-  checkoutCurrency: string,
-  t: ErrorsTranslations
-): void {
-  if (freshPlan.price === checkoutAmount && freshPlan.currency === checkoutCurrency) {
-    return;
-  }
-  logger.logDomainError("Subscription purchase rejected: plan price or currency changed during checkout", {
-    code: "PLAN_PRICE_CHANGED",
-    entity: "plans",
-    entityId: freshPlan.id,
-  });
-  throw new ValidationError(t.validation, [{ field: "planId", code: "PLAN_PRICE_CHANGED", message: t.validation }]);
-}
-
-/**
  * The purchase transaction body — the fixed, never reordered write order
  * (active-plan + lane re-validation → checkout-value re-comparison →
  * governance re-assertion → savepoint-bracketed idempotency claim →
@@ -431,8 +387,8 @@ async function purchaseInTx(
   // The checkout was priced from the PRE-transaction plan read; the pair is
   // only committable when the fresh row still agrees with it. Thrown before
   // ANY row write — the rollback discards the checkout session with zero
-  // rows written (see the helper's docblock on session compensation).
-  assertPlanUnchangedSinceCheckout(activePlan, checkoutAmount, checkoutCurrency, t);
+  // rows written (see the shared guard's docblock on session compensation).
+  assertPlanUnchangedSinceCheckout("Subscription purchase", activePlan, checkoutAmount, checkoutCurrency, t);
 
   // Governance re-assertion INSIDE the transaction: the pre-checkout check
   // read the actor before the gateway round-trip, so a caller deleted,
@@ -576,13 +532,18 @@ export namespace SubscriptionPurchaseService {
     // network boundary. The amount/currency pair is the plan row's own,
     // carried verbatim; the client cannot influence either. Both values are
     // captured here so the in-transaction body can re-compare them against
-    // the fresh plan row before committing anything.
-    const gateway = getPaymentGateway(locale);
-    const checkout = await gateway.createCheckout({
+    // the fresh plan row before committing anything. The special reference
+    // is the purchase-claim key itself: the provider echoes it back on
+    // every callback and fulfillment resolves the pending pair by it, so
+    // the claim and the provider order share one correlation identity. The
+    // billing identity derives server-side from the purchaser's user row.
+    const checkout = await getPaymentGateway(locale).createCheckout({
       studentId: studentUserId,
       planId: plan.id,
       amount: plan.price,
       currency: plan.currency,
+      specialReference: idempotencyKey,
+      billing: await buildCheckoutBillingInput(studentUserId, t, outerTx),
     });
 
     return withTransaction(outerTx, tx =>

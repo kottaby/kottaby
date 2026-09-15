@@ -76,6 +76,12 @@ Enum subscription_status {
   suspended
 }
 
+Enum subscription_credit_lane {
+  hifz
+  tajweed
+  reviews
+}
+
 Enum link_status {
   pending
   confirmed
@@ -217,9 +223,11 @@ Table teacher {
 
 Table students {
   id                  integer      [pk]
-  balance_hifz        integer      [default: 0, note: 'الحفظ والتسميع']
-  balance_reviews     integer      [default: 0, note: 'المراجعات']
-  balance_tajweed     integer      [default: 0, note: 'التجويد']
+  balance_hifz        integer      [default: 0, check: `balance_hifz >= 0`, note: 'الحفظ والتسميع (students_balance_hifz_check)']
+  balance_reviews     integer      [default: 0, check: `balance_reviews >= 0`, note: 'المراجعات (students_balance_reviews_check)']
+  balance_tajweed     integer      [default: 0, check: `balance_tajweed >= 0`, note: 'التجويد (students_balance_tajweed_check)']
+  balance_trial       integer      [not null, default: 0, check: `balance_trial >= 0`, note: 'Trial credits (students_balance_trial_check)']
+  trial_granted_at    timestamp    [note: 'When the trial credits were granted']
   primary_language    varchar(100)
   another_language    varchar(100)
   handshake_code      varchar(50)  [unique, not null, note: 'A.3: Unique code for parent linking']
@@ -259,6 +267,7 @@ Table subscriptions {
   indexes {
     user_id
     plan_id
+    payment_reference [unique, note: 'subscriptions_payment_reference_unique: partial unique index WHERE payment_reference IS NOT NULL']
   }
 }
 
@@ -281,6 +290,7 @@ Table plans {
   price          decimal(10,2) [not null, check: `price >= 0`]
   currency       char(3)       [not null, default: 'EGP']
   interval_days  integer       [not null, check: `interval_days > 0`]
+  balance_lane   subscription_credit_lane [note: 'Lane credited on activation; NULL lanes fail closed (PLAN_LANE_UNCONFIGURED quarantine)']
   is_active      boolean       [not null, default: true, note: 'INV-PC1: Deactivated plans are hidden from public catalog']
   deactivated_at timestamp     [note: 'INV-PC1: Null when active; populated on deactivation']
   created_at     timestamp     [default: `now()`]

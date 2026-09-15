@@ -9,6 +9,7 @@
 - **Service-layer `.types.ts` files are prohibited.** All types live in `backend/types/`. If a service file contains both types and runtime code, split: types → `backend/types/`, runtime → stays in the service layer with a non-`.types` filename (e.g., `.helpers.ts`, `.constants.ts`).
 - **Batch Service Methods for DataLoader**: Services that are called from GraphQL field resolvers MUST expose batch versions of single-entity lookup methods to support Pothos DataLoader batching. Batch methods accept `ids: string[]` and return `Map<string, T | null>`.
 - **Single-writer discipline**: where a domain designates a single writer service for a table or record, consumers (resolvers, sibling services, read surfaces) import that owning service by reference — never the repository or table directly. Composition seams accept the caller's `outerTx` as the FINAL parameter so composed writes join the caller's transaction; guard/governance pre-checks run before the transaction opens. For write-once tables, arbitrate duplicates with the table's UNIQUE constraint (catch the 23505 cause-chain → typed conflict) instead of a pre-check SELECT, which races and leaks.
+- **External gateways**: provider-specific integration facts (endpoints, HMAC verification, env keys, reconciliation) are documented in `docs/billing/paymob-gateway.md` — consult it before touching `backend/services/billing/payment-gateway/`.
 - **Shared helpers**: when multiple service files share identical helper functions (auth preludes, config upserts, insert payload builders, session creators), extract them into `shared/` modules under the owning domain rather than duplicating.
 - **Cache fail-open & permission ordering**: hot read paths may use the entity cache, but all cache reads and invalidation calls MUST wrap provider errors in `try/catch` and fall through gracefully to the underlying data source without crashing caller requests. Permission gating (`assert*`, `hasPermission`, ...) MUST run BEFORE cache lookups — authorization checks stay outside cached reads so unauthorized users never receive cached payloads or execute cache queries.
 
@@ -43,3 +44,7 @@ Run integration smokes with `bun run test:integration` (parallel runner). Each i
 ## Linting Rules
 
 - NEVER use `oxlint-disable` comments — fix the root cause.
+
+## Reference Docs
+
+- Subscription expiry sweep (`SubscriptionExpiryService.expireDue` — one-transaction cohort sweep, conditional lane zeroing, counts-only): `docs/billing/subscription-validity-window-expiry.md`

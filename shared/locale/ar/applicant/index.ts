@@ -16,4 +16,11 @@ export const applicantAr: ApplicantLabels = {
   inEvaluationHint: "يشمل التقييم خمس جلسات للتلاوة قبل إصدار القرار النهائي.",
   coldStartCertifiedTitle: "اكتمل اعتمادك كمعلم قرآن",
   coldStartCertifiedBody: "تهانينا! أنت الآن معلم قرآن معتمد، وقد فُتحت لك جميع أقسام التعليم في لوحة التحكم.",
+  purchaseCta: "شراء خطة التوثيق",
+  purchaseDialogTitle: "شراء خطة التوثيق والتقييم",
+  purchasePlanLine: "{title} — {price} {currency} / {sessions} جلسات / {days} يوماً",
+  purchaseConfirmCta: "تأكيد الشراء",
+  purchaseCancelCta: "إلغاء",
+  purchaseSuccess: "تم إرسال طلب الشراء بنجاح.",
+  purchaseGenericError: "تعذّر إتمام عملية الشراء. يرجى المحاولة مرة أخرى.",
 };
