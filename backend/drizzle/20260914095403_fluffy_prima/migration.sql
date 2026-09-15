@@ -1,0 +1,2 @@
+ALTER TABLE "student_payments" ALTER COLUMN "student_id" DROP NOT NULL;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "subscriptions_active_end_date_idx" ON "subscriptions" ("end_date") WHERE "status" = 'active';

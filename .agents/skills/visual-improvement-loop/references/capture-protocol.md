@@ -75,3 +75,14 @@ The orchestrator NEVER calls ReadMediaFile on screenshots in its own loop. Image
 - `agent-browser snapshot -i -c` — interactive a11y tree: proves headings, fields, per-row actions, checkmarks.
 - `agent-browser console --level error` — error log check before each capture round.
 - `agent-browser network requests --filter "<pattern>"` — GraphQL traffic proof when mutation flows matter.
+
+## Eval + daemon + memory gotchas (added 2026-09-14)
+
+- Long multi-statement `eval` strings (arrow IIFE + many statements) can throw
+  `SyntaxError: Unexpected identifier` despite being valid JS — rewrite as comma-joined `var`
+  statements without braces and retry; bisect the string before blaming the page.
+- A crashed browser daemon (`Resource temporarily unavailable` after 5 retries) poisons the reused
+  session name: kill the daemons AND switch to a FRESH session name before continuing.
+- In memory-tight sandboxes the full component suite OOM-kills silently mid-run (exit 137, zero
+  fail lines, lock released normally) — run the affected component files targeted (same preloads)
+  and free dev-server memory first.

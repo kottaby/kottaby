@@ -53,4 +53,27 @@ export interface ApplicantLabels {
   readonly coldStartCertifiedTitle: string;
   /** Notification body emitted alongside `coldStartCertifiedTitle` — pure copy, no identifiers. */
   readonly coldStartCertifiedBody: string;
+  /** Pending-branch purchase call-to-action button label (opens the purchase confirmation dialog). */
+  readonly purchaseCta: string;
+  /** Purchase confirmation-dialog title. */
+  readonly purchaseDialogTitle: string;
+  /**
+   * One-line plan descriptor rendered inside the purchase confirmation
+   * dialog. ICU placeholders expand in the FIXED order
+   * `(title, price, currency, sessions, days)` from the title-matched
+   * planCatalog row; the parity test pins the ORDER in both locales.
+   */
+  readonly purchasePlanLine: string;
+  /** Purchase confirmation-dialog confirm button label. */
+  readonly purchaseConfirmCta: string;
+  /** Purchase confirmation-dialog cancel button label (also the close icon's accessible label). */
+  readonly purchaseCancelCta: string;
+  /** Success notice raised after the purchase mutation settles successfully. */
+  readonly purchaseSuccess: string;
+  /**
+   * Generic failure notice for every unmapped purchase rejection code —
+   * also the missing-plan error posture inside the dialog. Raw server
+   * messages are never echoed through it.
+   */
+  readonly purchaseGenericError: string;
 }
