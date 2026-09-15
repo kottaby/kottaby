@@ -9,7 +9,9 @@
 #
 # ONLY run while the server is STOPPED (pglite data dir is exclusive).
 set -u
-cd /home/z/my-project
+# Guard the cd: a failure here must never let the destructive removal below
+# run against the caller's current directory.
+cd /home/z/my-project || exit 1
 
 rm -rf db/pglite
 

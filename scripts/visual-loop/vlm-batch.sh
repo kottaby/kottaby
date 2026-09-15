@@ -29,7 +29,9 @@ Screen context: $2" -i "$IMG" -o "/tmp/vlm-out-$NAME.json" >/dev/null 2>&1; then
 import json, sys
 try:
     d=json.load(open('/tmp/vlm-out-$NAME.json'))
-    c=d['choices'][0]['message']['content'] if isinstance(d,dict) and 'choices' in d else str(d)
+    c=d['choices'][0]['message']['content'] if isinstance(d,dict) and d.get('choices') else None
+    if not isinstance(c, str) or not c.strip():
+        raise ValueError('empty or missing completion content')
     open('$OUT/$NAME.txt','w').write('=== $1 ===\n'+c)
     print(c.split(chr(10))[0][:100])
 except Exception as e:

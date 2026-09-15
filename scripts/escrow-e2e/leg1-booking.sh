@@ -25,7 +25,10 @@ echo "TEACHER_ID=$TEACHER_ID"
 cat > $E2E/.payload-book1.json << EOF
 {"query":"mutation Book(\$input: CreateSessionInput!) { createSession(input: \$input) { id status fee feeHeld intent teacherId } }","variables":{"input":{"intent":"Hifz","teacherId":"$TEACHER_ID"}}}
 EOF
-IDEMPOTENCY_KEY=vlm-escrow-book-$(date +%s) \
+# Assign on its own line: a command-prefixed assignment is applied only after
+# the parent shell expands the curl arguments, so with `set -u` the header
+# expansion below would abort (or reuse a stale preexisting value).
+IDEMPOTENCY_KEY="vlm-escrow-book-$(date +%s)"
 curl -s -X POST http://127.0.0.1:3000/api/graphql \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $(cat $E2E/.token-sA)" \

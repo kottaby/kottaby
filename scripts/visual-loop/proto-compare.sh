@@ -34,7 +34,9 @@ Implementation spec scope: $4" -i "$P/$1" -i "$S/$2" -o "/tmp/vlm-cmp-$NAME.json
 import json, sys
 try:
     d=json.load(open('/tmp/vlm-cmp-$NAME.json'))
-    c=d['choices'][0]['message']['content'] if isinstance(d,dict) and 'choices' in d else str(d)
+    c=d['choices'][0]['message']['content'] if isinstance(d,dict) and d.get('choices') else None
+    if not isinstance(c, str) or not c.strip():
+        raise ValueError('empty or missing completion content')
     open('$OUT/$NAME.txt','w').write('=== $1 vs $2 ===\n'+c)
     print(c[:180].replace(chr(10),' | '))
 except Exception as e:
