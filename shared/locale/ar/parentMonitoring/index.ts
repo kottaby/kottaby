@@ -155,7 +155,7 @@ export const parentMonitoringAr: ParentMonitoringLabels = {
   statProgressRows: "صفوف التقدم",
   statCoverageAreas: "المناطق المغطاة",
   statActiveTrack: "المسار النشط",
-  statLastActivity: "آخر نشاط",
+  statEnrolledSince: "تاريخ الالتحاق",
   evaluationsSummaryHeading: "نظرة عامة على التقييمات",
   statTotalEvaluations: "إجمالي التقييمات",
   statAverageScore: "متوسط الدرجة",

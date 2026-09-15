@@ -142,7 +142,7 @@ export const parentMonitoringEn: ParentMonitoringLabels = {
   statProgressRows: "Progress Rows",
   statCoverageAreas: "Areas Covered",
   statActiveTrack: "Active Track",
-  statLastActivity: "Last Activity",
+  statEnrolledSince: "Enrolled Since",
   evaluationsSummaryHeading: "Evaluations Overview",
   statTotalEvaluations: "Total Evaluations",
   statAverageScore: "Average Score",

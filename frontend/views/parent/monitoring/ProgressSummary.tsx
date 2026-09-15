@@ -16,15 +16,15 @@ function computeProgressStats(
   readonly rowCount: number;
   readonly jadidValue: string;
   readonly madiValue: string;
-  readonly linkDate: string;
+  readonly enrolledSince: string;
 } {
   const rowCount = progress.progressRowCount;
   const jadidValue =
     progress.latestJadidPosition !== null ? formatSurahJuzRef(progress.latestJadidPosition.surahJuz) : "—";
   const madiValue =
     progress.latestMadiPosition !== null ? formatSurahJuzRef(progress.latestMadiPosition.surahJuz) : "—";
-  const linkDate = formatApplicantDate(progress.child.createdAt, locale);
-  return { rowCount, jadidValue, madiValue, linkDate };
+  const enrolledSince = formatApplicantDate(progress.child.createdAt, locale);
+  return { rowCount, jadidValue, madiValue, enrolledSince };
 }
 
 export function ProgressSummary({
@@ -63,8 +63,8 @@ export function ProgressSummary({
         />
         <SharedStatCard
           icon={<BookmarkBorderOutlined fontSize="small" />}
-          value={stats.linkDate}
-          label={labels.statLastActivity}
+          value={stats.enrolledSince}
+          label={labels.statEnrolledSince}
           color="info"
         />
       </Box>

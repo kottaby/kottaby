@@ -172,7 +172,7 @@ const MANDATED_KEYS = [
   "statProgressRows",
   "statCoverageAreas",
   "statActiveTrack",
-  "statLastActivity",
+  "statEnrolledSince",
   // Evaluations summary
   "evaluationsSummaryHeading",
   "statTotalEvaluations",

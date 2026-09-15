@@ -281,7 +281,7 @@ export interface ParentMonitoringLabels {
   /** Label for the active track stat (Jadid or Madi). */
   readonly statActiveTrack: string;
   /** Label for the last activity date stat. */
-  readonly statLastActivity: string;
+  readonly statEnrolledSince: string;
 
   // ─── Evaluations tab summary card ─────────────────────────────────────
   /** Section heading for the evaluations summary card. */
