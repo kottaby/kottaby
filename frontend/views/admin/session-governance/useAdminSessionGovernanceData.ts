@@ -74,17 +74,45 @@ function summarizeStatusCounts(
   rows: readonly AdminSessionsQuery_adminSessions_items[] | undefined
 ): StatusSummaryCounts {
   const effectiveRows = rows ?? [];
-  const counts = new Map<SessionStatus, number>();
+  let scheduled = 0;
+  let started = 0;
+  let completed = 0;
+  let cancelled = 0;
+  let disputed = 0;
+  let needsAttention = 0;
+
+  // Single-pass O(n) loop with direct switch-case and flag increment.
+  // Avoids Map heap allocations, lookup overhead, and a second array iteration via .filter().
   for (const row of effectiveRows) {
-    counts.set(row.status, (counts.get(row.status) ?? 0) + 1);
+    if (row.needsAttention) {
+      needsAttention += 1;
+    }
+    switch (row.status) {
+      case SessionStatus.Scheduled:
+        scheduled += 1;
+        break;
+      case SessionStatus.Started:
+        started += 1;
+        break;
+      case SessionStatus.Completed:
+        completed += 1;
+        break;
+      case SessionStatus.Cancelled:
+        cancelled += 1;
+        break;
+      case SessionStatus.Disputed:
+        disputed += 1;
+        break;
+    }
   }
+
   return {
-    scheduled: counts.get(SessionStatus.Scheduled) ?? 0,
-    started: counts.get(SessionStatus.Started) ?? 0,
-    completed: counts.get(SessionStatus.Completed) ?? 0,
-    cancelled: counts.get(SessionStatus.Cancelled) ?? 0,
-    disputed: counts.get(SessionStatus.Disputed) ?? 0,
-    needsAttention: effectiveRows.filter(row => row.needsAttention).length,
+    scheduled,
+    started,
+    completed,
+    cancelled,
+    disputed,
+    needsAttention,
   };
 }
 
