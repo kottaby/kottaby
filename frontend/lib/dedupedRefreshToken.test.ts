@@ -94,11 +94,21 @@ describe("dedupedRefreshToken", () => {
     const testError = new Error("Refresh failed");
     rejectPromise(testError);
 
-    expect(promise1).rejects.toThrow("Refresh failed");
-    expect(promise2).rejects.toThrow("Refresh failed");
+    let err1: unknown;
+    let err2: unknown;
+    try {
+      await promise1;
+    } catch (e) {
+      err1 = e;
+    }
+    try {
+      await promise2;
+    } catch (e) {
+      err2 = e;
+    }
 
-    // Wait for promises to settle in microtask queue
-    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(err1).toBe(testError);
+    expect(err2).toBe(testError);
 
     // After failure settles, next call should attempt fn again
     let nextCallCount = 0;
