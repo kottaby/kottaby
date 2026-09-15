@@ -7,7 +7,10 @@ import { students } from "@/backend/db/schema/students/students";
 /**
  * Student payments table (`student_payments`).
  *
- * Records every payment a student makes. `subscription_id` is the ledger
+ * Records every payment made against a subscription: a student's payment
+ * (`student_id` set) or a purchase by a user without a `students` row
+ * (`student_id` NULL — the owning subscription's generic `user_id` is the
+ * owner of record for those ledger entries). `subscription_id` is the ledger
  * row's FROZEN identity: once a payment points at a subscription, no UPDATE
  * may re-point it — deleting a subscription that still has ledger rows
  * raises the immutable-ledger guard (the FK's `set null` action would have
@@ -48,9 +51,11 @@ export const studentPayments = pgTable(
   "student_payments",
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-    studentId: integer("student_id")
-      .notNull()
-      .references(() => students.id, { onDelete: "restrict" }),
+    // Nullable owner — the purchasing student's id, or NULL for payments
+    // whose owner is the subscription's generic user (`subscriptions.user_id`)
+    // instead of a `students` row. The restrict FK and the `student_id` index
+    // apply identically to NULL-owner rows.
+    studentId: integer("student_id").references(() => students.id, { onDelete: "restrict" }),
     subscriptionId: integer("subscription_id").references(() => subscriptions.id, {
       onDelete: "set null",
     }),

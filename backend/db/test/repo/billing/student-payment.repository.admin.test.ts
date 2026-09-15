@@ -25,6 +25,10 @@
  *    literally and NOT widen the match).
  *  - Ordering: newest-first (id DESC).
  *  - Pagination: limit/offset slicing + honest empty page beyond range.
+ *  - NULL-owner rows: a ledger payment with a NULL student owner is
+ *    excluded from count AND list CONSISTENTLY (totalCount == listed
+ *    length) on both executor branches — the count mirrors the listing's
+ *    students INNER-join semantics.
  *  - Raw branch: the no-tx `queryDb` fast path resolves the same joined
  *    rows against a committed fixture.
  */
@@ -34,15 +38,24 @@ import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/backend/db";
 import { StudentPaymentRepository } from "@/backend/db/repo";
+import { plans } from "@/backend/db/schema/billing/plans";
 import { studentPayments } from "@/backend/db/schema/billing/student-payments";
+import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { students } from "@/backend/db/schema/students/students";
 import { users } from "@/backend/db/schema/users/users";
-import { createTestStudent, createTestStudentPayment, createTestUser } from "@/backend/db/test/entity-setup";
+import {
+  createTestPlan,
+  createTestStudent,
+  createTestStudentPayment,
+  createTestSubscription,
+  createTestUser,
+} from "@/backend/db/test/entity-setup";
 import { type DBTransaction, runInRollback } from "@/backend/db/test/test-utils";
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
+import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { escapeLikeWildcards } from "@/backend/lib/db/escape-like-wildcards";
-import type { NormalizedAdminPaymentFilters } from "@/backend/types";
+import type { NormalizedAdminPaymentFilters, StudentPaymentSelectType } from "@/backend/types";
 import { withImmutabilityTriggersSuspended } from "@/test/helpers/db-cleanup";
 
 /** Shared `now` timestamp per test body (timestamp consistency rule). */
@@ -84,6 +97,43 @@ async function createStudentWithPayment(
     createdAt: new Date(now.getTime() + index * 1_000),
   });
   return { studentUserId: user.id, studentId: student.id, paymentId: payment.id };
+}
+
+/** Fixture bundle for one NULL-owner verification-style payment (no `students` row). */
+interface NullOwnerPaymentFixture {
+  studentUserId: number;
+  userFullName: string;
+  planId: number;
+  subscriptionId: number;
+  payment: StudentPaymentSelectType;
+}
+
+/**
+ * Creates a purchaser WITHOUT a `students` row + plan + pending subscription
+ * + pending payment with a NULL student owner — the ledger shape of a
+ * purchase whose owner of record is the subscription's generic `user_id`
+ * (the same NULL-owner pattern the logic suite's createNullOwnerPaymentPair
+ * helper pins).
+ */
+async function createNullOwnerPayment(tx: DBTransaction): Promise<NullOwnerPaymentFixture> {
+  const userFullName = `Null Owner ${randomUUID().slice(0, 8)}`;
+  const user = await createTestUser(tx, { role: "teacher", fullName: userFullName });
+  const plan = await createTestPlan(tx);
+  const subscription = await createTestSubscription(tx, user.id, plan.id, {
+    status: SubscriptionStatus.Pending,
+  });
+  const payment = await StudentPaymentRepository.insertPayment(
+    {
+      studentId: null,
+      subscriptionId: subscription.id,
+      amount: plan.price,
+      currency: plan.currency,
+      paymentGateway: PaymentGateway.Mock,
+      status: PaymentStatus.Pending,
+    },
+    tx
+  );
+  return { studentUserId: user.id, userFullName, planId: plan.id, subscriptionId: subscription.id, payment };
 }
 
 describe("StudentPaymentRepository.listForAdminAudit — join resolution", () => {
@@ -314,6 +364,45 @@ describe("StudentPaymentRepository.listForAdminAudit — name search", () => {
   });
 });
 
+describe("StudentPaymentRepository admin audit — NULL-owner ledger rows (count/list parity)", () => {
+  test("a NULL-owner payment is excluded from BOTH count and list (totalCount == listed length)", async () => {
+    await runInRollback(async tx => {
+      const owned = await createStudentWithPayment(tx, 0);
+      const nullOwner = await createNullOwnerPayment(tx);
+
+      const rows = await StudentPaymentRepository.listForAdminAudit(noFilters(), 500, 0, tx);
+      const total = await StudentPaymentRepository.countForAdminAudit(noFilters(), tx);
+
+      expect(nullOwner.payment.studentId).toBeNull();
+      expect(rows).toHaveLength(total);
+      expect(rows.map(row => row.id)).toContain(owned.paymentId);
+      expect(rows.map(row => row.id)).not.toContain(nullOwner.payment.id);
+      for (const row of rows) {
+        expect(row.studentId).not.toBeNull();
+      }
+    });
+  });
+
+  test("with studentNameSearch set, count and list still agree and the NULL-owner row stays excluded", async () => {
+    await runInRollback(async tx => {
+      const marker = randomUUID().slice(0, 8);
+      const hit = await createStudentWithPayment(tx, 0, { fullName: `Null Owner Probe ${marker}` });
+      await createNullOwnerPayment(tx);
+
+      const filters: NormalizedAdminPaymentFilters = {
+        ...noFilters(),
+        studentNameSearch: `%${escapeLikeWildcards(marker)}%`,
+      };
+      const rows = await StudentPaymentRepository.listForAdminAudit(filters, 50, 0, tx);
+      const total = await StudentPaymentRepository.countForAdminAudit(filters, tx);
+
+      expect(total).toBe(1);
+      expect(rows).toHaveLength(total);
+      expect(rows.map(row => row.id)).toEqual([hit.paymentId]);
+    });
+  });
+});
+
 describe("StudentPaymentRepository.listForAdminAudit — ordering & pagination", () => {
   test("rows come back newest-first (id DESC)", async () => {
     await runInRollback(async tx => {
@@ -362,18 +451,29 @@ describe("StudentPaymentRepository.listForAdminAudit — ordering & pagination",
 describe("StudentPaymentRepository.listForAdminAudit — non-transactional raw branch (committed fixture)", () => {
   const committedUserIds: number[] = [];
   const committedPaymentIds: number[] = [];
+  const committedSubscriptionIds: number[] = [];
+  const committedPlanIds: number[] = [];
   let committedStudentId = 0;
+  let committedNullOwnerPaymentId = 0;
+  let committedNullOwnerUserFullName = "";
 
   afterAll(async () => {
-    // FK-dependency order: the immutable ledger row FIRST (restrict-bound
-    // to students), under trigger suspension — a plain DELETE raises from
-    // the immutability trigger. Then the identity rows (students first,
-    // then users, whose students FK cascades but is deleted explicitly for
-    // determinism).
+    // FK-dependency order: the immutable ledger rows FIRST (restrict-bound
+    // to students/subscriptions), under trigger suspension — a plain DELETE
+    // raises from the immutability trigger. Then the subscriptions (their
+    // users/plans FKs are restrict), the plans, and finally the identity
+    // rows (students first, then users, whose students FK cascades but is
+    // deleted explicitly for determinism).
     if (committedPaymentIds.length > 0) {
       await withImmutabilityTriggersSuspended(["student_payments"], () =>
         db.delete(studentPayments).where(inArray(studentPayments.id, committedPaymentIds))
       );
+    }
+    if (committedSubscriptionIds.length > 0) {
+      await db.delete(subscriptions).where(inArray(subscriptions.id, committedSubscriptionIds));
+    }
+    if (committedPlanIds.length > 0) {
+      await db.delete(plans).where(inArray(plans.id, committedPlanIds));
     }
     await Promise.all(
       committedUserIds.map(async userId => {
@@ -383,7 +483,11 @@ describe("StudentPaymentRepository.listForAdminAudit — non-transactional raw b
     );
     committedPaymentIds.length = 0;
     committedUserIds.length = 0;
+    committedSubscriptionIds.length = 0;
+    committedPlanIds.length = 0;
     committedStudentId = 0;
+    committedNullOwnerPaymentId = 0;
+    committedNullOwnerUserFullName = "";
   });
 
   test("commits the fixture bundle first (pool-visible rows)", async () => {
@@ -409,6 +513,22 @@ describe("StudentPaymentRepository.listForAdminAudit — non-transactional raw b
     });
   });
 
+  test("commits the NULL-owner bundle (pool-visible rows)", async () => {
+    await runInRollback(async tx => {
+      const committed = await db.transaction(async poolTx => createNullOwnerPayment(poolTx));
+      committedUserIds.push(committed.studentUserId);
+      committedPlanIds.push(committed.planId);
+      committedSubscriptionIds.push(committed.subscriptionId);
+      committedPaymentIds.push(committed.payment.id);
+      committedNullOwnerPaymentId = committed.payment.id;
+      committedNullOwnerUserFullName = committed.userFullName;
+      expect(committedNullOwnerPaymentId).toBeGreaterThan(0);
+      expect(committed.payment.studentId).toBeNull();
+      // tx is intentionally unused — same pool-path posture as above.
+      tx.select();
+    });
+  });
+
   test("resolves the same joined rows via queryDb when no tx is supplied", async () => {
     expect(committedStudentId).toBeGreaterThan(0);
     const fullName = `Raw Branch ${rawBranchMarker}`;
@@ -425,5 +545,27 @@ describe("StudentPaymentRepository.listForAdminAudit — non-transactional raw b
     expect(rows[0]?.studentId).toBe(committedStudentId);
     expect(rows[0]?.studentName).toBe(fullName);
     expect(rows[0]?.amount).toBe("100.00");
+  });
+
+  test("raw branch: count and list agree with a committed NULL-owner row present (no search)", async () => {
+    expect(committedNullOwnerPaymentId).toBeGreaterThan(0);
+    const rows = await StudentPaymentRepository.listForAdminAudit(noFilters(), 500, 0);
+    const total = await StudentPaymentRepository.countForAdminAudit(noFilters());
+
+    expect(rows).toHaveLength(total);
+    expect(rows.map(row => row.id)).not.toContain(committedNullOwnerPaymentId);
+  });
+
+  test("raw branch: a name search matching only the NULL-owner owner yields an empty page on BOTH surfaces", async () => {
+    expect(committedNullOwnerUserFullName.length).toBeGreaterThan(0);
+    const filters: NormalizedAdminPaymentFilters = {
+      ...noFilters(),
+      studentNameSearch: `%${escapeLikeWildcards(committedNullOwnerUserFullName)}%`,
+    };
+    const rows = await StudentPaymentRepository.listForAdminAudit(filters, 50, 0);
+    const total = await StudentPaymentRepository.countForAdminAudit(filters);
+
+    expect(total).toBe(0);
+    expect(rows).toEqual([]);
   });
 });

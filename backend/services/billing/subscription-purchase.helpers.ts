@@ -15,11 +15,6 @@ import type { getServerTranslations } from "@/shared/locale/server-graphql";
 /** The localized errors bundle shape consumed by the purchase flows. */
 type ErrorsTranslations = ReturnType<typeof getServerTranslations>["errorsTranslations"];
 
-/** Positive safe-integer guard for caller-supplied identifiers (no casts). */
-export function isPositiveSafeId(value: number): boolean {
-  return Number.isSafeInteger(value) && value > 0;
-}
-
 /**
  * Loads the acting student's user row and derives the checkout billing
  * identity from it — the recorded name, email, and phone, server-side

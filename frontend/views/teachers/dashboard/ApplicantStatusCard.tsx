@@ -2,7 +2,7 @@
 
 import { useQuery } from "@apollo/client/react";
 import { Alert, Typography } from "@mui/material";
-import type { ReactNode } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import type { MyApplicantProfileQuery_myApplicantProfile } from "@/frontend/graphql/generated/gql/graphql";
 import { myApplicantProfileQueryDocument } from "@/frontend/graphql/sharedDocuments";
@@ -15,6 +15,7 @@ import {
   StatusShell,
 } from "@/frontend/views/teachers/dashboard/ApplicantStatusShell";
 import { CertifiedBranch } from "@/frontend/views/teachers/dashboard/ApplicantStatusZones";
+import { VerificationPurchaseDialog } from "@/frontend/views/teachers/dashboard/VerificationPurchaseDialog";
 import { Applicant, Errors, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 /**
@@ -35,17 +36,20 @@ import { Applicant, Errors, useAppLocale, useAppTranslation } from "@/shared/loc
  * | 2 | error code `UNAUTHORIZED` / `FORBIDDEN` | shared `PermissionDeniedFallback` — never bare `null` |
  * | 3 | any other transport error | inline `Alert` carrying `errors.internalServerError` |
  * | 4 | `myApplicantProfile === null` (one answer for never-applied + certified) | certified summary + informational teaching-surfaces hint |
- * | 5 | `Pending` | pending chip + awaiting-purchase prompt (purchase flow not yet implemented) |
+ * | 5 | `Pending` | pending chip + awaiting-purchase prompt + purchase CTA (opens the dialog) |
  * | 6 | `InEvaluation` | info chip + attempt counter + progress hint |
  * | 7 | `Failed` + `cooldownActive` | warning chip + `{cooldownUntil}` expanded via {@link formatApplicantDate} + DISABLED re-apply CTA; `eligibleToReapply` deliberately suppressed — the truthful message is WHEN re-application unlocks |
- * | 8 | `Failed` + `canPurchaseVerification` | success affordance + ENABLED re-apply CTA (intentional no-op until the purchase route ships) |
+ * | 8 | `Failed` + `canPurchaseVerification` | success affordance + ENABLED re-apply CTA (opens the dialog) |
  * | 9 | `Passed` (explicit truthfulness branch) | passed chip + certified-summary narrative |
  * | — | unknown status value (defensive; server fails closed) | inline `Alert` carrying `errors.applicantStatusCorrupt` — never crashes |
  *
- * The enabled re-apply CTA is an informational AFFORDANCE only: it renders
- * truthful localized copy with a ≥44px hit area but navigates nowhere until
- * the verification purchase surface exists; no branch claims an action the
- * product cannot perform yet.
+ * The purchasable branches (5 + 8) open the mounted
+ * `VerificationPurchaseDialog`; the dialog owns the purchase mutation, its
+ * idempotency-key lifecycle, the localized outcome notices and the success
+ * / cooldown-denial profile refetch (the SAME `myApplicantProfile` query
+ * handle this card reads — the flip re-renders the branch in place). The
+ * cooldown branch (7) keeps its intentionally disabled CTA while the server
+ * says `canPurchaseVerification === false`.
  *
  * MUI v9 discipline: `sx`-only styling (no direct style props), colors
  * exclusively through `theme.palette.*` callbacks, `*Outlined` icons only,
@@ -62,7 +66,12 @@ export function ApplicantStatusCard(): ReactNode {
   const t = useAppTranslation(Applicant);
   const te = useAppTranslation(Errors);
   const locale = useAppLocale();
-  const { data, loading, error } = useQuery(myApplicantProfileQueryDocument);
+  const { data, loading, error, refetch } = useQuery(myApplicantProfileQueryDocument);
+  // Purchase-dialog state — opened by the purchasable branch CTAs (5 + 8);
+  // the dialog itself owns the mutation + outcome notices + profile refetch.
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const openPurchase = useCallback(() => setPurchaseOpen(true), []);
+  const closePurchase = useCallback(() => setPurchaseOpen(false), []);
 
   // Branch 1 — in flight: skeleton placeholder announces busy semantics.
   if (loading) {
@@ -99,16 +108,19 @@ export function ApplicantStatusCard(): ReactNode {
     return <CertifiedBranch t={t} showHint />;
   }
 
-  const resolved = resolveStatusBody(profile.status, profile, t, te, locale);
+  const resolved = resolveStatusBody(profile.status, profile, t, te, locale, openPurchase);
 
   return (
-    <StatusShell accent={resolved.accent}>
-      <BranchHeaderRow chip={<StatusChip label={resolved.chipLabel} Icon={resolved.chipIcon} tone={resolved.tone} />}>
-        <Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>
-          {t.statusCardTitle}
-        </Typography>
-      </BranchHeaderRow>
-      {resolved.content}
-    </StatusShell>
+    <>
+      <StatusShell accent={resolved.accent}>
+        <BranchHeaderRow chip={<StatusChip label={resolved.chipLabel} Icon={resolved.chipIcon} tone={resolved.tone} />}>
+          <Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>
+            {t.statusCardTitle}
+          </Typography>
+        </BranchHeaderRow>
+        {resolved.content}
+      </StatusShell>
+      <VerificationPurchaseDialog open={purchaseOpen} onClose={closePurchase} refetchProfile={refetch} />
+    </>
   );
 }

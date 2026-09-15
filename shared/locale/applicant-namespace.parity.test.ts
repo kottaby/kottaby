@@ -14,7 +14,13 @@
  *      the timestamp is the ONLY interpolated value (no other user
  *      data enters the reject copy) and its NAME must stay identical ar/en so
  *      consumers can expand it uniformly.
- *   3. REGISTRY WIRING — the `Applicant` handle is registered in
+ *   3. PURCHASE PLAN-LINE PLACEHOLDER PIN — the purchase dialog descriptor
+ *      `applicant.purchasePlanLine` carries EXACTLY the five placeholders
+ *      `{title} {price} {currency} {sessions} {days}` and in that exact
+ *      FIRST-OCCURRENCE ORDER in BOTH locales (the dialog expands them
+ *      positionally from the title-matched planCatalog row); the six
+ *      placeholder-free purchase keys are pinned interpolation-free.
+ *   4. REGISTRY WIRING — the `Applicant` handle is registered in
  *      `shared/locale/namespaces/index.ts` with the conventional
  *      `<ns>.<ns>` id and its getter resolves to the composed bundle slice.
  *
@@ -43,6 +49,19 @@ const APPLICANT_ERROR_KEYS = ["applicantNotFound", "applicantCooldownActive", "a
 
 const COOLDOWN_PLACEHOLDER = "cooldownUntil";
 
+/** Purchase keys that must stay interpolation-free (dialog chrome + notices + zone CTA). */
+const PURCHASE_PLACEHOLDER_FREE_KEYS = [
+  "purchaseCta",
+  "purchaseDialogTitle",
+  "purchaseConfirmCta",
+  "purchaseCancelCta",
+  "purchaseSuccess",
+  "purchaseGenericError",
+] as const;
+
+/** The pinned FIRST-OCCURRENCE order of `purchasePlanLine` placeholders. */
+const PURCHASE_PLAN_LINE_PLACEHOLDER_ORDER = ["title", "price", "currency", "sessions", "days"] as const;
+
 /** Number of times the literal `{name}` placeholder occurs in a template (no dedup). */
 function icuPlaceholderOccurrenceCount(template: string, name: string): number {
   return template.split(`{${name}}`).length - 1;
@@ -50,16 +69,24 @@ function icuPlaceholderOccurrenceCount(template: string, name: string): number {
 
 /** Every `{name}` ICU placeholder occurring in a template, deduplicated + sorted. */
 function icuPlaceholdersOf(template: string): string[] {
+  return icuPlaceholderSequenceOf(template).toSorted((a, b) => a.localeCompare(b));
+}
+
+/** Every `{name}` ICU placeholder in FIRST-OCCURRENCE order (deduplicated, no sorting). */
+function icuPlaceholderSequenceOf(template: string): string[] {
   const seen = new Set<string>();
+  const sequence: string[] = [];
   const placeholder = /\{([A-Za-z]\w*)\}/g;
   let match = placeholder.exec(template);
   while (match !== null) {
-    if (typeof match[1] === "string") {
-      seen.add(match[1]);
+    const name = match[1];
+    if (typeof name === "string" && !seen.has(name)) {
+      seen.add(name);
+      sequence.push(name);
     }
     match = placeholder.exec(template);
   }
-  return [...seen].toSorted((a, b) => a.localeCompare(b));
+  return sequence;
 }
 
 /** Reads one non-empty-string value slot off a locale map — throws otherwise. */
@@ -140,6 +167,35 @@ describe("cooldown placeholder pin — {cooldownUntil} only, identical name in B
       }
     }
   });
+});
+
+// ===========================================================================
+describe("purchase plan-line placeholder pin — fixed (title, price, currency, sessions, days) order in BOTH locales", () => {
+  test("applicant.purchasePlanLine carries exactly the five pinned placeholders in the pinned order in BOTH locales", () => {
+    for (const [localeName, localeMap] of [
+      ["ar", applicantAr],
+      ["en", applicantEn],
+    ] as const) {
+      const template = nonEmptyLabelOf(localeMap, "purchasePlanLine", localeName);
+
+      // Placeholder NAME sequence is exactly the five pinned tokens in the
+      // pinned first-occurrence order (set + order in one pin).
+      expect(icuPlaceholderSequenceOf(template)).toEqual([...PURCHASE_PLAN_LINE_PLACEHOLDER_ORDER]);
+      // ...each occurring exactly once.
+      const occurrences = PURCHASE_PLAN_LINE_PLACEHOLDER_ORDER.map(name =>
+        icuPlaceholderOccurrenceCount(template, name)
+      );
+      expect(occurrences.every(count => count === 1)).toBe(true);
+    }
+  });
+
+  test.each([...PURCHASE_PLACEHOLDER_FREE_KEYS])(
+    "purchase key `%s` carries ZERO ICU placeholders in BOTH locales",
+    key => {
+      expect(icuPlaceholdersOf(nonEmptyLabelOf(applicantAr, key, "ar"))).toEqual([]);
+      expect(icuPlaceholdersOf(nonEmptyLabelOf(applicantEn, key, "en"))).toEqual([]);
+    }
+  );
 });
 
 // ===========================================================================

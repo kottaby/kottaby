@@ -1,7 +1,7 @@
 "use client";
 
 import type { SvgIconComponent } from "@mui/icons-material";
-import { Card, CardContent, Chip, Skeleton, Stack } from "@mui/material";
+import { Box, Card, CardContent, Chip, Skeleton, Stack, Typography } from "@mui/material";
 import type { Palette } from "@mui/material/styles";
 import type { ReactNode } from "react";
 
@@ -127,5 +127,49 @@ export function LoadingSkeleton(): ReactNode {
         <Skeleton variant="rectangular" sx={{ height: 44, width: 170, borderRadius: 2 }} />
       </CardContent>
     </Card>
+  );
+}
+
+interface PanelProps {
+  readonly children: ReactNode;
+  readonly icon?: ReactNode;
+}
+
+/** Tinted body panel echoing the prototypes' inner copy bubble. */
+export function PromptPanel({ children, icon }: Readonly<PanelProps>): ReactNode {
+  return (
+    <Box
+      sx={theme => ({
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 1.5,
+        p: 2,
+        borderRadius: 2,
+        bgcolor: theme.palette.primaryContainer,
+        color: theme.palette.onPrimaryContainer,
+      })}
+    >
+      {icon}
+      <Typography variant="body2">{children}</Typography>
+    </Box>
+  );
+}
+
+interface AttemptsRowProps {
+  readonly attemptCountLabel: string;
+  readonly attempts: number;
+}
+
+/** Verification-attempts counter — label/value pair mirrored by flex wrap. */
+export function AttemptsRow({ attemptCountLabel, attempts }: Readonly<AttemptsRowProps>): ReactNode {
+  return (
+    <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 1 }}>
+      <Typography variant="overline" sx={theme => ({ color: theme.palette.text.secondary })}>
+        {attemptCountLabel}
+      </Typography>
+      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+        {attempts}
+      </Typography>
+    </Box>
   );
 }

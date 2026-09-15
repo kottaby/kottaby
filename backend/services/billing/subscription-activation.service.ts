@@ -31,9 +31,13 @@
  *      event's provider transaction reference in the SAME guarded
  *      statement when one is present (the one-time NULL → value allowance
  *      the immutability trigger admits, so the auditable provider link is
- *      written exactly when the decision is) — the full
- *      `sessionCount` is credited to the plan's lane, and the
- *      `payment_confirmation` notification is persisted in the SAME
+ *      written exactly when the decision is) — and the credit follows the
+ *      purchaser's owner row: a `students` row is credited the full
+ *      `sessionCount` on the plan's lane, an `applicants` row (a
+ *      verification purchase) skips the lane credit intentionally — the
+ *      purchased session grant is enforced by the booking flow off the
+ *      active subscription — and neither row fails the unit closed, before
+ *      the `payment_confirmation` notification is persisted in the SAME
  *      transaction — its copy composed in the RECIPIENT's persisted locale
  *      (the users row's `locale`, falling back to `defaultLocale` when the
  *      user never chose one — the session-request-notification convention).
@@ -88,20 +92,14 @@
  * remains the exactly-once arbiter either way.
  */
 
-import {
-  PlanRepository,
-  StudentPaymentRepository,
-  StudentRepository,
-  SubscriptionRepository,
-  UserRepository,
-} from "@/backend/db/repo";
+import { PlanRepository, StudentPaymentRepository, SubscriptionRepository, UserRepository } from "@/backend/db/repo";
 import { PaymentStatus } from "@/backend/enum/billing/payment-status.enum";
-import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
 import { ConflictError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { MAX_INTERVAL_DAYS, MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
+import { applyActivationCredit } from "@/backend/services/billing/subscription-activation-credit.helpers";
 import { NotificationEngine, type NotificationEngineCallOptions } from "@/backend/services/notifications";
 import { resolveBroadcastClaimCache } from "@/backend/services/notifications/redis-claim-cache";
 import type {
@@ -227,45 +225,6 @@ const PAYMENT_PAID: string = PaymentStatus.Paid;
 const PAYMENT_FAILED: string = PaymentStatus.Failed;
 
 /**
- * The lane vocabulary, widened to plain strings for the same stored-union
- * comparison treatment.
- */
-const LANE_HIFZ: string = SubscriptionCreditLane.Hifz;
-const LANE_TAJWEED: string = SubscriptionCreditLane.Tajweed;
-const LANE_REVIEWS: string = SubscriptionCreditLane.Reviews;
-
-/**
- * Maps the plan row's stored balance-lane value onto the strongly-typed enum
- * the credit primitive requires — FAIL-CLOSED over the closed pg-enum
- * vocabulary. The mapper maps every writable member explicitly (hifz,
- * tajweed, reviews — never a cast), and the default is an unreachable
- * invariant breach (vocabulary drift between the DB enum and this code)
- * that aborts the activation unit closed — the tx rolls back, nothing is
- * credited — instead of silently crediting a DIFFERENT lane than the plan
- * designated (loud over silent-wrong; the same exhaustive discipline as
- * `plan.pothos.ts`'s lane mapper). Unreachable through the pgEnum.
- */
-function subscriptionCreditLaneOf(
-  lane: PlanSelectType["balanceLane"] & string,
-  correlation: { readonly reference: string; readonly subscriptionId: number; readonly planId: number }
-): SubscriptionCreditLane {
-  switch (lane) {
-    case LANE_HIFZ:
-      return SubscriptionCreditLane.Hifz;
-    case LANE_TAJWEED:
-      return SubscriptionCreditLane.Tajweed;
-    case LANE_REVIEWS:
-      return SubscriptionCreditLane.Reviews;
-    default:
-      // Unreachable through the pgEnum — fail the unit closed.
-      return abortActivation("stored plan balance lane is not a member of the closed credit-lane vocabulary", {
-        ...correlation,
-        storedLane: lane,
-      });
-  }
-}
-
-/**
  * What a decision-path transaction resolved to: a terminal non-processing
  * answer, an idempotent replay ack, or the unpublished delivery receipt of a
  * freshly committed decision (confirmed activation or failed decision).
@@ -346,13 +305,13 @@ async function emitPaymentNotificationForRecipient(
 /**
  * The confirmed-delivery transaction body — fixed write order
  * (path-selection read → plan read + lane quarantine → guarded activation →
- * guarded payment decision (with the provider-reference recording) → lane
- * credit → in-tx notification persist), executed on the caller's
- * transaction. Any failure rolls the whole unit back: the subscription
- * stays pending and the gateway's retry re-classifies against the settled
- * state. The unconfigured-lane quarantine is the one mutation-free early
- * exit: no write precedes the plan read, so the unit ends with
- * `{ processed: false }` and nothing committed.
+ * guarded payment decision (with the provider-reference recording) →
+ * purchaser-owner credit decision → in-tx notification persist), executed
+ * on the caller's transaction. Any failure rolls the whole unit back: the
+ * subscription stays pending and the gateway's retry re-classifies against
+ * the settled state. The unconfigured-lane quarantine is the one
+ * mutation-free early exit: no write precedes the plan read, so the unit
+ * ends with `{ processed: false }` and nothing committed.
  */
 async function settleConfirmedDelivery(
   subscription: SubscriptionSelectType,
@@ -448,29 +407,11 @@ async function settleConfirmedDelivery(
     });
   }
 
-  // The lane credit — the full session count, relative accumulation on the
-  // plan's designated lane, same transaction. Zero rows ⇒ the student row
-  // vanished (unreachable through the FK restrict) — fail closed.
-  const credited = await StudentRepository.creditLaneBalance(
-    subscription.userId,
-    // Fail-closed lane resolution — an unknown stored lane aborts the
-    // unit closed instead of crediting a lane the plan never designated.
-    subscriptionCreditLaneOf(plan.balanceLane, {
-      reference: event.reference,
-      subscriptionId: subscription.id,
-      planId: plan.id,
-    }),
-    plan.sessionCount,
-    tx
-  );
-  if (credited === null) {
-    // The FK restrict makes a vanished student unreachable — fail closed.
-    abortActivation("student row vanished before the lane credit", {
-      reference: event.reference,
-      subscriptionId: subscription.id,
-      studentId: subscription.userId,
-    });
-  }
+  // The purchaser-owner credit decision — classified by the PERSISTED
+  // payment owner (the ledger row's student_id): the student owner is
+  // credited, the verification purchase (NULL owner) skips the credit, and
+  // a corrupted pair fails closed.
+  await applyActivationCredit(subscription, payment, plan, event.reference, tx);
 
   // Persist-first notification — the row commits with the activation; the
   // copy is the confirmed pair composed in the recipient's locale.

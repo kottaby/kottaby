@@ -184,3 +184,27 @@ AGENTS.md and `.agents/instructions/` files are hand-curated; runs NEVER update 
 - Chromium withholds `SameSite=Strict` injected cookies from the FIRST top-level navigation (about:blank initiator); curl succeeds and the failure mimics a server auth bug. Inject `SameSite=Lax` in capture rigs, or warm the origin with one same-origin navigation before the guarded URL. → landed: `references/capture-protocol.md` (Production-build rig fallback).
 - When a sandbox's dev server never hydrates (`__next_f` empty, React fiber absent, zero app-initiated fetches), `next build --experimental-build-mode compile` + `next start` is the fallback rig: hydration-correct, memory-stable, and immune to PGlite single-data-dir worker aborts. → landed: `references/capture-protocol.md`.
 - Multi-shot harnesses must key login per credential pair (per-shot email/password keys); a per-invocation login captured the populated parent's state for the empty-state shot. → landed: `references/capture-protocol.md`.
+### 2026-09-14 — verification-plan-purchase-5-sessions (visual-improvement-loop run)
+
+- agent-browser `eval` with LONG multi-statement JS (arrow IIFE + many statements) intermittently
+  throws `SyntaxError: Unexpected identifier` on strings that are valid JS and that shorter variants
+  of the same shape execute fine — rewrite as comma-joined `var` statements without braces/IIFE and
+  it runs. Bisect the string before blaming the page. → landed: `references/capture-protocol.md`
+  (snapshot-text gotchas, updated in this change).
+- Browser-daemon crash (`Resource temporarily unavailable` after 5 retries) POISONS the reused
+  session name — subsequent commands fail until daemons are killed AND a FRESH session name is
+  used. → landed: `references/capture-protocol.md` (Sessions & auth, updated in this change).
+- Component suites in memory-tight sandboxes OOM-kill silently mid-run (exit 137, zero fail lines,
+  lock released) after N files — run the affected component files TARGETED (same preloads) instead
+  of the alphabetical full-suite, and free the dev-server memory first. → landed:
+  `references/capture-protocol.md` (batch discipline, updated in this change).
+- Prototype-comparison inspectors score the implementation against the prototype's FULL fancy scope
+  (roadmaps, resource grids, audio players) and return low "impl structure" scores even when the
+  implementation is exactly spec-scoped — the spec-wins rule must be restated IN the comparator
+  prompt (implementation is judged on its spec's scope; richer prototype ideas are recorded as
+  user-decision candidates, never silently implemented). → landed: `references/prototype-compare.md`
+  (rules section, updated in this change).
+- Lifecycle-status chips must stay lifecycle-semantic even when the branch news is positive:
+  failed-ELIGIBLE kept a success-toned chip because eligibility reads as good news — the eligibility
+  copy lives in the zone body; the chip stays in the failed (warning) family. → promoted:
+  `references/fix-patterns.md` (new row, updated in this change).

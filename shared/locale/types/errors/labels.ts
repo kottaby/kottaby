@@ -84,6 +84,12 @@ export interface ErrorsLabels {
   /** Fail-closed deny when an applicants row status cannot be interpreted as a known ApplicantStatus. */
   readonly applicantStatusCorrupt: string;
   /**
+   * Terminal purchase deny for `ValidationError("APPLICANT_ALREADY_CERTIFIED", …)`.
+   * Certification (`passed`) closes the verification-purchase surface for the
+   * account — generic copy only; no identifiers may enter this message.
+   */
+  readonly applicantAlreadyCertified: string;
+  /**
    * Admin-user-management domain failures surfaced to operators through the
    * `errors` namespace. Each leaf is a self-contained sentence (no key echo)
    * consumed by admin services via property access on the localized bundle:

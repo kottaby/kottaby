@@ -379,10 +379,19 @@ All three are registered in the typed env snapshot registry; `resetPaymentGatewa
   neutrally by the mock) and `failed` payments with `pending` subscriptions are the operator
   follow-up backlog; the ledger trigger means fixes are compensating rows or guarded transitions,
   never edits.
-- **Teacher verification purchase:** verification-plan purchase rides this exact flow —
-  no special-casing. The verification plan is looked up from the catalog (active-only; title
-  `"New Teacher Verification & Evaluation Plan"`, `reviews` lane) and the confirmed callback credits
-  the reviews lane like any other plan.
+- **Teacher verification purchase (shipped contract):** verification purchases reuse this
+  pipeline through a DEDICATED zero-argument mutation `purchaseVerificationPlan` — the student
+  `purchaseSubscription` stays student-scoped and untouched. The plan is resolved server-side
+  from the ACTIVE catalog by the shared title constant (`"New Teacher Verification & Evaluation
+  Plan"`, 5 sessions) — no plan id ever crosses the wire; identity comes from the session. The
+  pipeline deltas that make applicant purchases representable on this schema: `student_payments.student_id`
+  is NULLABLE (a verification payment's owner is the subscription's generic `user_id` — there is
+  no `students` row for an applicant), the payment junction insert is deliberately skipped, the
+  applicant status flip (`pending|failed → in_evaluation`) commits atomically inside the purchase
+  transaction, and activation SKIPS the lane credit when the purchaser is an applicant (students
+  row present → credit exactly as before; neither row → the existing corruption abort). The
+  5-session grant is enforced by the booking flow off the ACTIVE subscription, not by lane
+  credit. Full contract: `docs/teachers/verification-plan-purchase.md`.
 
 ### Testing notes (binding for any suite touching this surface)
 

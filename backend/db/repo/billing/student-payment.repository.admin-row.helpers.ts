@@ -77,10 +77,17 @@ function toAdminPaymentGatewayEnum(gateway: PgPaymentGateway): PaymentGateway {
   return mapped;
 }
 
-/** The admin-audit projection row: raw pgEnum values narrowed to the canonical enums. */
+/**
+ * Narrows one joined admin-audit row to the canonical TS-enum shape. The
+ * student owner rides in as nullable (the widened ledger column) but cannot
+ * be null in a row that survived the `students` INNER join — reaching null
+ * means a broken join contract, so it raises loudly instead of rendering an
+ * owner-less row (the same hard-error posture as the pgEnum narrowers
+ * above).
+ */
 export function toAdminPaymentRow(row: {
   id: number;
-  studentId: number;
+  studentId: number | null;
   subscriptionId: number | null;
   amount: string;
   currency: string;
@@ -91,8 +98,14 @@ export function toAdminPaymentRow(row: {
   updatedAt: Date;
   studentName: string;
 }): AdminStudentPaymentRow {
+  if (row.studentId === null) {
+    throw new ConflictError(
+      "StudentPaymentRepository: admin audit row has no student owner — the students inner join makes this unreachable"
+    );
+  }
   return {
     ...row,
+    studentId: row.studentId,
     status: toAdminPaymentStatusEnum(row.status),
     paymentGateway: toAdminPaymentGatewayEnum(row.paymentGateway),
   };

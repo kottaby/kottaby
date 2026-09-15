@@ -28,8 +28,17 @@ export interface NormalizedAdminPaymentFilters {
  * email is never wired). The lifecycle columns are re-typed to their
  * canonical TypeScript enums (the raw `$inferSelect` projection carries the
  * pgEnum string-literal unions, which the GraphQL enum refs cannot match).
+ *
+ * `studentId` stays non-null: the ledger column itself is nullable (a
+ * payment's owner may be the owning subscription's generic user instead of
+ * a student), but this view resolves every row through an INNER join on
+ * `students`, so owner-less rows are structurally excluded from the
+ * listing — the repository mapper enforces that invariant at the boundary.
  */
-export interface AdminStudentPaymentRow extends Omit<StudentPaymentSelectType, "status" | "paymentGateway"> {
+export interface AdminStudentPaymentRow
+  extends Omit<StudentPaymentSelectType, "status" | "paymentGateway" | "studentId"> {
+  /** Resolved student owner — non-null by the view's inner-join contract. */
+  studentId: number;
   studentName: string;
   status: PaymentStatus;
   paymentGateway: PaymentGateway;
