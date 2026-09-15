@@ -33,38 +33,38 @@
 
 ---
 
-- [ ] 1. **Service & Repository Suite Re-Runs (escrow/credit/refund proof)**
-  - [ ] 1.1 Run `bun run test/scripts/run-test.ts backend/services/classes/session-lifecycle.service.test.ts` — assert green; confirm escrow cases present: hold-at-booking (:394), insufficient-balance rollback (:470), fee boundary (:1109), settle-credits-once (:2396), replay zero-writes (:2439, :2469), double-cancel single refund (:1363), sweep/arbitration refunds (:2522, :2572, :1791).
-  - [ ] 1.2 Run `bun run test/scripts/run-test.ts backend/services/billing/wallet.service.test.ts` — assert green; confirm lazy-ensure (:102), ledger ordering (:132), insufficient-funds zero-commit (:208), exact-balance guard (:237), validation matrix (:251), governance deny (:295).
-  - [ ] 1.3 Run `bun run test/scripts/run-test.ts backend/db/test/repo/classes/session.repository.test.ts` — assert green; confirm guarded primitives: cancel-clears-hold (:490), double-cancel single winner (:1430), confirm-vs-sweep races (:1582, :1617), sweep idempotence (:1552), escrow-consumed-by-earning (:1256).
-  - [ ] 1.QL/SEC/SR/IV — no files modified; audit the cited guards at their `path:line` (incl. the localized error keys of REQ-0.5 at `shared/locale/en/errors/index.ts:85`, `shared/locale/ar/errors/index.ts:84`); record suite outputs + observed test names in `outcome/1.x-suites-outcome.md`.
+- [x] 1. **Service & Repository Suite Re-Runs (escrow/credit/refund proof)**
+  - [x] 1.1 Run `bun run test/scripts/run-test.ts backend/services/classes/session-lifecycle.service.test.ts` — assert green; confirm escrow cases present: hold-at-booking (:394), insufficient-balance rollback (:470), fee boundary (:1109), settle-credits-once (:2396), replay zero-writes (:2439, :2469), double-cancel single refund (:1363), sweep/arbitration refunds (:2522, :2572, :1791).
+  - [x] 1.2 Run `bun run test/scripts/run-test.ts backend/services/billing/wallet.service.test.ts` — assert green; confirm lazy-ensure (:102), ledger ordering (:132), insufficient-funds zero-commit (:208), exact-balance guard (:237), validation matrix (:251), governance deny (:295).
+  - [x] 1.3 Run `bun run test/scripts/run-test.ts backend/db/test/repo/classes/session.repository.test.ts` — assert green; confirm guarded primitives: cancel-clears-hold (:490), double-cancel single winner (:1430), confirm-vs-sweep races (:1582, :1617), sweep idempotence (:1552), escrow-consumed-by-earning (:1256).
+  - [x] 1.QL/SEC/SR/IV — no files modified; audit the cited guards at their `path:line` (incl. the localized error keys of REQ-0.5 at `shared/locale/en/errors/index.ts:85`, `shared/locale/ar/errors/index.ts:84`); record suite outputs + observed test names in `outcome/1.x-suites-outcome.md`.
   - _Requirements: REQ-0, REQ-0.5, REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-7_
 
 ---
 
-- [ ] 2. **Journey Re-Runs (cross-actor escrow arcs)**
-  - [ ] 2.1 Run `bun run test/scripts/run-test.ts test/workflows/sessions/session-dual-confirmation.journey.test.ts` — assert green; confirm: wallet-less teacher start (:348), hold at booking (:363), settle credits exactly the fee once (:451), replay/foreign zero-writes (:492), sweep refund to same lane (:561), confirm-vs-sweep single financial outcome (:620).
-  - [ ] 2.2 Run `bun run test/scripts/run-test.ts test/workflows/sessions/session-lifecycle.journey.test.ts` — assert green; confirm trial-first binding (:369, :402), idempotent replay (:492), cancel refunds exactly once (:611), completed-cancel denial (:645).
-  - [ ] 2.3 Run `bun run test/scripts/run-test.ts test/workflows/sessions/session-lifecycle-denials.journey.test.ts` — assert green; confirm zero-balance denial with zero writes + funded retry (:236), uncertified-teacher denial with balances untouched (:200).
-  - [ ] 2.QL/SEC/SR/IV — journeys are committed-fixture suites; confirm zero-residue afterAll probes pass (no orphaned `teacher_transaction`/`wallet` rows); record in `outcome/2.x-journeys-outcome.md`.
+- [x] 2. **Journey Re-Runs (cross-actor escrow arcs)**
+  - [x] 2.1 Run `bun run test/scripts/run-test.ts test/workflows/sessions/session-dual-confirmation.journey.test.ts` — assert green; confirm: wallet-less teacher start (:348), hold at booking (:363), settle credits exactly the fee once (:451), replay/foreign zero-writes (:492), sweep refund to same lane (:561), confirm-vs-sweep single financial outcome (:620).
+  - [x] 2.2 Run `bun run test/scripts/run-test.ts test/workflows/sessions/session-lifecycle.journey.test.ts` — assert green; confirm trial-first binding (:369, :402), idempotent replay (:492), cancel refunds exactly once (:611), completed-cancel denial (:645).
+  - [x] 2.3 Run `bun run test/scripts/run-test.ts test/workflows/sessions/session-lifecycle-denials.journey.test.ts` — assert green; confirm zero-balance denial with zero writes + funded retry (:236), uncertified-teacher denial with balances untouched (:200).
+  - [x] 2.QL/SEC/SR/IV — journeys are committed-fixture suites; confirm zero-residue afterAll probes pass (no orphaned `teacher_transaction`/`wallet` rows); record in `outcome/2.x-journeys-outcome.md`.
   - _Requirements: REQ-1, REQ-2, REQ-3, REQ-4, REQ-5 (Journeys A/B/C), REQ-7_
 
 ---
 
-- [ ] 3. **GraphQL Pins, Traceability Matrix & Reconciliation Record**
-  - [ ] 3.1 Run GraphQL suites (`bun run test:graphql` scoped, or run-test.ts equivalents): `backend/graphql/test/session-lifecycle-mutations.test.ts`, `schema-surface.test.ts`, `sdl-static-assertions.test.ts` — assert green AND assert SDL delta = zero (no new fields/types introduced by this plan).
-  - [ ] 3.2 Build the traceability matrix in `outcome/3.2-traceability-outcome.md`: every ticket AC (both tickets, `docs/planning/TICKETS.md:1716-1747` and `:1765-1793`) → REQ → code `path:line` → test citation. Zero unmapped ACs. Prose-only claims are rejected — every row needs a grep-verifiable citation.
-  - [ ] 3.3 Write the reconciliation record `outcome/3.3-reconciliation-outcome.md` covering: hold-as-debit ruling (supersedes ticket wording), unit-lane vs EGP-fee two-sided model, dispute-from-`completed` divergence (dual-confirmation plan D-2), idempotency-key deferral D1.
-  - [ ] 3.QL/SEC/SR/IV — citations re-grepped after writing; instruction files for `outcome/` content per repo-root AGENTS.md.
+- [x] 3. **GraphQL Pins, Traceability Matrix & Reconciliation Record**
+  - [x] 3.1 Run GraphQL suites (`bun run test:graphql` scoped, or run-test.ts equivalents): `backend/graphql/test/session-lifecycle-mutations.test.ts`, `schema-surface.test.ts`, `sdl-static-assertions.test.ts` — assert green AND assert SDL delta = zero (no new fields/types introduced by this plan).
+  - [x] 3.2 Build the traceability matrix in `outcome/3.2-traceability-outcome.md`: every ticket AC (both tickets, `docs/planning/TICKETS.md:1716-1747` and `:1765-1793`) → REQ → code `path:line` → test citation. Zero unmapped ACs. Prose-only claims are rejected — every row needs a grep-verifiable citation.
+  - [x] 3.3 Write the reconciliation record `outcome/3.3-reconciliation-outcome.md` covering: hold-as-debit ruling (supersedes ticket wording), unit-lane vs EGP-fee two-sided model, dispute-from-`completed` divergence (dual-confirmation plan D-2), idempotency-key deferral D1.
+  - [x] 3.QL/SEC/SR/IV — citations re-grepped after writing; instruction files for `outcome/` content per repo-root AGENTS.md.
   - _Requirements: REQ-6, REQ-7_
 
 ---
 
-- [ ] 4. **Knowledge Propagation & Closure**
-  - [ ] 4.1 Read ALL outcome files; synthesize the escrow/ledger invariants.
-  - [ ] 4.2 Create `docs/billing/escrow-and-wallet-crediting.md` — canonical reference: hold-as-debit semantics, settle/release/race matrix, INV-W1/W2/W3/W4/W7/W8 + INV-B4/INV-S3 mapping to schema + code citations, deferral pointers (D1/D2), and the dependent-ticket boundary hand-offs (Withdrawal, Re-Evaluation Deduction, Financial Safety Verification). Follow the docs file structure (Why / Pattern / Rules / What NOT to do / Rollout Summary / Related Documents).
-  - [ ] 4.3 Deferred-items gate: run `grep -c "❌\|⚠️" deferred-items.md` — expected raw output is **3** (rows D1, D2, and the Status Legend line), i.e. zero ❌/⚠️ rows whose Target Task is inside this plan; D1/D2 target external tickets and are exempt per the ledger's gate rule. Record the grep output in `outcome/4.x-knowledge-propagation-outcome.md`.
-  - [ ] 4.QL (sub-loop on `docs/billing/escrow-and-wallet-crediting.md`) / SEC / SR / IV — docs conventions per root AGENTS.md (no summary-file sprawl: this is canonical domain documentation, not a plan report).
+- [x] 4. **Knowledge Propagation & Closure**
+  - [x] 4.1 Read ALL outcome files; synthesize the escrow/ledger invariants.
+  - [x] 4.2 Create `docs/billing/escrow-and-wallet-crediting.md` — canonical reference: hold-as-debit semantics, settle/release/race matrix, INV-W1/W2/W3/W4/W7/W8 + INV-B4/INV-S3 mapping to schema + code citations, deferral pointers (D1/D2), and the dependent-ticket boundary hand-offs (Withdrawal, Re-Evaluation Deduction, Financial Safety Verification). Follow the docs file structure (Why / Pattern / Rules / What NOT to do / Rollout Summary / Related Documents).
+  - [x] 4.3 Deferred-items gate: run `grep -c "❌\|⚠️" deferred-items.md` — expected raw output is **3** (rows D1, D2, and the Status Legend line), i.e. zero ❌/⚠️ rows whose Target Task is inside this plan; D1/D2 target external tickets and are exempt per the ledger's gate rule. Record the grep output in `outcome/4.x-knowledge-propagation-outcome.md`.
+  - [x] 4.QL (sub-loop on `docs/billing/escrow-and-wallet-crediting.md`) / SEC / SR / IV — docs conventions per root AGENTS.md (no summary-file sprawl: this is canonical domain documentation, not a plan report).
   - _Requirements: REQ-6, REQ-7, REQ-8_
 
 ---
