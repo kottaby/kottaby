@@ -16,7 +16,7 @@ fi
 cd "$K"
 # pglite holds the data dir in-process — server must own db/pglite exclusively.
 setsid nohup env NODE_OPTIONS='--max-old-space-size=2048' \
-  bun --env-file=.env run dev --port "$PORT" -H 0.0.0.0 \
+  bun --env-file=.env run dev --port "$PORT" -H 127.0.0.1 \
   > "$K/visual-loop-server.log" 2>&1 < /dev/null &
 
 for i in $(seq 1 90); do

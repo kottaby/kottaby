@@ -17,7 +17,7 @@ cd "$K"
 setsid nohup env NODE_ENV=production NODE_OPTIONS='--max-old-space-size=1024' \
   NEXT_DIST_DIR=.next-test-prod IS_DEMO=true TEST_SERVER=1 \
   AUTH_COOKIE_SECURE=false DISABLE_RATE_LIMITING=true \
-  bun --env-file=.env run next start -p "$PORT" -H 0.0.0.0 \
+  bun --env-file=.env run next start -p "$PORT" -H 127.0.0.1 \
   > "$K/visual-prod-server.log" 2>&1 < /dev/null &
 
 for i in $(seq 1 30); do

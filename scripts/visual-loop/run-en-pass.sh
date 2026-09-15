@@ -98,3 +98,5 @@ shot sAd 390 844 "http://127.0.0.1:3000/admin/session-governance" "08-admin-gove
 fi
 
 echo "=== STAGE $STAGE DONE ok=$ok fail=$fail ==="
+# CI gate: any failed capture must fail the pass.
+[ "$fail" -eq 0 ] || exit 1

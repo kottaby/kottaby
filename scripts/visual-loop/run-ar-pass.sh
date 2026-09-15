@@ -30,3 +30,5 @@ agent-browser --session arT cookies set NEXT_LOCALE ar --domain 127.0.0.1 >/dev/
 shot arT 390 844 "http://127.0.0.1:3000/wallet" "09-wallet-ar-mobile.png" "محفظتي" "25.00"
 
 echo "=== AR PASS DONE ok=$ok fail=$fail ==="
+# CI gate: any failed capture must fail the pass.
+[ "$fail" -eq 0 ] || exit 1

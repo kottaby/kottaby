@@ -114,7 +114,8 @@ shared/locale/**/*.js
 # Python cache
 __pycache__/
 
-.tools# Visual-loop / escrow-e2e runtime artifacts (tokens, payloads)
+.tools
+# Visual-loop / escrow-e2e runtime artifacts (tokens, payloads)
 scripts/escrow-e2e/.token-*
 scripts/escrow-e2e/.payload-*
 scripts/escrow-e2e/.session-*

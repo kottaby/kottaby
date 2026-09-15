@@ -37,4 +37,6 @@ done < <(sed -n "${START},${END}p" "$LIST")
 echo "=== warm batch $BATCH/$TOTAL: lines $START-$END ==="
 LINT_MAX_OLD_SPACE_MB=2867 LINT_QUEUE_CONCURRENCY=1 GOMAXPROCS=1 GOGC=25 \
   bun run scripts/lint-service.ts --type-aware "${ARGS[@]}"
-echo "=== warm batch $BATCH EXIT=$? ==="
+STATUS=$?
+echo "=== warm batch $BATCH EXIT=$STATUS ==="
+exit $STATUS

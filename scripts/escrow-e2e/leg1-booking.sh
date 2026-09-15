@@ -5,6 +5,7 @@ export PATH=/home/z/pgroot/usr/lib/postgresql/17/bin:$PATH
 K=/home/z/my-project
 E2E=$K/scripts/escrow-e2e
 OUT=$K/download/escrow-e2e
+mkdir -p "$OUT"
 
 
 # 1. Start server (or reuse if up)
@@ -28,7 +29,7 @@ IDEMPOTENCY_KEY=vlm-escrow-book-$(date +%s) \
 curl -s -X POST http://127.0.0.1:3000/api/graphql \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $(cat $E2E/.token-sA)" \
-  -H "X-Idempotency-Key: vlm-escrow-book-1" \
+  -H "X-Idempotency-Key: $IDEMPOTENCY_KEY" \
   -d @$E2E/.payload-book1.json --max-time 60 | tee $OUT/01-create-session-response.json | python3 -m json.tool
 
 SESSION_ID=$(python3 -c "import json; print(json.load(open('$OUT/01-create-session-response.json'))['data']['createSession']['id'])")

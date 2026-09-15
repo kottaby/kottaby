@@ -6,11 +6,19 @@
 set -u
 EMAIL="$1"; PASS="$2"; SESSION="$3"
 K=/home/z/my-project
+mkdir -p "$K/download/escrow-e2e"
 
 JAR=$(mktemp)
-RESP=$(curl -s -c "$JAR" -X POST http://127.0.0.1:3000/api/graphql \
+# JSON-encode the credentials so quotes/backslashes in email or password
+# cannot break the outer JSON body or the GraphQL string literals.
+PAYLOAD=$(python3 -c '
+import json, os
+query = "mutation { login(email: " + json.dumps(os.environ["LOGIN_EMAIL"]) + ", password: " + json.dumps(os.environ["LOGIN_PASS"]) + ") { accessToken refreshToken } }"
+print(json.dumps({"query": query}))
+')
+RESP=$(LOGIN_EMAIL="$EMAIL" LOGIN_PASS="$PASS" curl -s -c "$JAR" -X POST http://127.0.0.1:3000/api/graphql \
   -H "Content-Type: application/json" \
-  -d "{\"query\":\"mutation { login(email: \\\"$EMAIL\\\", password: \\\"$PASS\\\") { accessToken refreshToken } }\"}" \
+  -d "$PAYLOAD" \
   --max-time 60) || true
 
 if [ -z "$RESP" ]; then echo "LOGIN FAILED: empty response (server down?)"; exit 1; fi
