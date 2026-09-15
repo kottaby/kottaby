@@ -1,11 +1,11 @@
 # Tasks: DEV2-005 — Verification Plan Purchase (5 Sessions)
 
-> **Date**: 2026-09-11 · **Plan directory**: `ai/plans/sprint_1/verification-plan-purchase-5-sessions/`
-> **Specs**: `./specs.md` · **Design**: `./plan.md` · **Ledger**: `./deferred-items.md` · **Outcome**: `./outcome/`
+> **Date**: 2026-09-11 · **Plan directory**: this directory (under `ai/finished_plans/sprint_1/`; moved from `ai/plans/` on completion)
+> **Specs**: `./specs.md` · **Design**: `./plan.md` · Ledger and outcome files removed at close-out
 
 ## Non-Negotiable Execution Protocol (every task)
 
-1. Read ALL files in `ai/plans/sprint_1/verification-plan-purchase-5-sessions/outcome/` before starting.
+1. Read ALL files in the plan's `outcome/` directory before starting (removed at close-out).
 2. After ANY file edit: `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` → exit 0 (progressive tsgo → oxlint → biome → lint:type-aware → duplicates; auto-prints the applicable AGENTS.md + .agents/instructions files — read them).
 3. Semantic self-review before `[x]`: tenancy filters, no read-then-write without atomicity, no unbounded module state, env-config keys registered, enums as value imports, no cross-layer imports, no noisy comments, no plan-artifact references in code/JSDoc.
 4. Write `outcome/<task-id>-outcome.md`; flip the checkbox here.
@@ -48,7 +48,7 @@
 ## Phase 1.5 — Plan Review Gate (MANDATORY)
 
 - [x] 1.5 Review the complete plan (specs/plan/tasks) with the `@plan-review` checklist; fix all violations; record in `outcome/plan-review-R1.md`
-  - Verdict + findings ledger live in `ai/plans/sprint_1/verification-plan-purchase-5-sessions/outcome/plan-review-R1.md`.
+  - Verdict + findings ledger lived in `outcome/plan-review-R1.md` (removed at close-out).
   - _Requirements: REQ-0_
 
 ---
@@ -178,7 +178,7 @@
 ## Phase 6/7 — Final Gate & Knowledge Propagation
 
 - [x] 12. **Final quality gate + deferred-items enforcement**
-  - `grep -c "❌\|⚠️" ai/plans/sprint_1/verification-plan-purchase-5-sessions/deferred-items.md` → resolve or reclassify (D2/D3/D4 are cross-ticket coordination notes — mark ✅ once the explicit hand-off notes exist in this plan's outcome files and `docs/` references are updated by Task 13).
+  - `grep -c "❌\|⚠️" deferred-items.md` (removed at close-out) → resolve or reclassify (D2/D3/D4 are cross-ticket coordination notes — mark ✅ once the explicit hand-off notes exist in this plan's outcome files and `docs/` references are updated by Task 13).
   - Baseline comparison vs Task 0 counts → document deltas.
   - `bun quality-gate` green.
   - _Requirements: REQ-0.5, REQ-9_

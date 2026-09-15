@@ -1,7 +1,8 @@
 # Design: DEV2-005 — Verification Plan Purchase (5 Sessions)
 
-> **Date**: 2026-09-11 · **Plan directory**: `ai/plans/sprint_1/verification-plan-purchase-5-sessions/`
-> **Specs**: `ai/plans/sprint_1/verification-plan-purchase-5-sessions/specs.md` · **Tasks**: `ai/plans/sprint_1/verification-plan-purchase-5-sessions/tasks.md` · **Ledger**: `ai/plans/sprint_1/verification-plan-purchase-5-sessions/deferred-items.md` · **Outcome**: `ai/plans/sprint_1/verification-plan-purchase-5-sessions/outcome/`
+> **Date**: 2026-09-11 · **Plan directory**: this directory (under `ai/finished_plans/sprint_1/`; moved from `ai/plans/` on completion)
+> **Specs**: `specs.md` (this directory) · **Tasks**: `tasks.md` (this directory)
+> Outcome files and the deferred-items ledger (with prototype/ artifacts) were removed at close-out; the delivery evidence lives in the closed issue #135 and PR #161.
 
 ## 1. Overview
 
@@ -334,7 +335,7 @@ Mechanics: extend `shared/locale/types/{errors,applicant}/index.ts`, `shared/loc
 
 ## 11. Outcome & Knowledge Transfer Protocol
 
-- BEFORE any task: read all files in `ai/plans/sprint_1/verification-plan-purchase-5-sessions/outcome/`.
+- BEFORE any task: read all files in the plan's `outcome/` directory (removed at close-out).
 - AFTER each task: write `outcome/<task-id>-outcome.md`; flip the checkbox in `tasks.md`.
 - Final task: consolidate learnings into `docs/teachers/verification-plan-purchase.md` and rewrite the stale consumer-guidance paragraph at `docs/billing/subscription-purchase.md:369-372` (D3 ruling). Rule files (AGENTS.md / `.agents/instructions/`) are NOT touched (hand-curated only).
 

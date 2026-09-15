@@ -2,12 +2,11 @@
 
 > **Date**: 2026-09-11 (Sprint 1)
 > **Target Ticket**: `DEV2-005 — Verification Plan Purchase (5 Sessions)` (`docs/planning/TICKETS.md:679-716`)
-> **Plan directory**: `ai/plans/sprint_1/verification-plan-purchase-5-sessions/`
-> **Specs path**: `ai/plans/sprint_1/verification-plan-purchase-5-sessions/specs.md`
-> **Design path**: `ai/plans/sprint_1/verification-plan-purchase-5-sessions/plan.md`
-> **Tasks path**: `ai/plans/sprint_1/verification-plan-purchase-5-sessions/tasks.md`
-> **Deferred-items ledger**: `ai/plans/sprint_1/verification-plan-purchase-5-sessions/deferred-items.md`
-> **Outcome directory**: `ai/plans/sprint_1/verification-plan-purchase-5-sessions/outcome/`
+> **Plan directory**: this directory (under `ai/finished_plans/sprint_1/`; moved from `ai/plans/` on completion)
+> **Specs path**: this file
+> **Design path**: `plan.md` (this directory)
+> **Tasks path**: `tasks.md` (this directory)
+> **Deferred-items ledger / Outcome directory**: removed at close-out
 > **Blocked By (both FINISHED)**: DEV2-004 (`ai/finished_plans/sprint_1/teacher-applicant-registration-applicant/`), DEV1-006 (`ai/finished_plans/sprint_1/subscription-purchase-payment-gateway/`)
 > **Decision Refs (ticket)**: B.8/C.2 (`subscriptions.user_id` generic), FR-3.2, FR-3.3; normative text in `docs/specs/open-decisions-and-gaps.md:105-121,193-197` and `docs/specs/functional-requirements.md:91-99`
 
@@ -92,7 +91,7 @@ Every EXISTING claim below was verified in code; ABSENT items are gaps this plan
 
 #### Acceptance Criteria
 1. WHEN implementation begins THEN the executing agent SHALL record baseline counts (`bun tsgo`, `bun biome:check`, `bun run scripts/lint-service.ts --json --id baseline`) into `outcome/0-baseline-outcome.md`.
-2. WHEN any task starts THEN the agent SHALL read ALL files in `ai/plans/sprint_1/verification-plan-purchase-5-sessions/outcome/` first.
+2. WHEN any task starts THEN the agent SHALL read ALL files in the plan's `outcome/` directory first (removed at close-out).
 3. WHEN any task finishes THEN the agent SHALL write `outcome/<task-id>-outcome.md` and flip the task checkbox `[ ]` → `[x]` in `tasks.md`.
 4. WHEN any file is modified THEN the agent SHALL run `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` to exit code 0 (progressive tsgo → oxlint → biome → lint:type-aware → duplicates), and complete the semantic-review checklist (race conditions, env-config, dead code, cross-layer imports, enums) before marking the subtask done.
 5. WHEN work is deferred THEN the item SHALL be logged in `deferred-items.md` with source/target task; plan completion REQUIRES zero `❌`/`⚠️` rows.
