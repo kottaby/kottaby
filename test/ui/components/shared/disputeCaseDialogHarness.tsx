@@ -35,8 +35,9 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import type { MockLink } from "@apollo/client/testing";
-import { cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, type Screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
+import type { TeacherDisputeCaseQuery_teacherDisputeCase } from "@/frontend/graphql/generated/gql/graphql";
 import {
   DisputeResolution,
   SessionIntent,
@@ -45,17 +46,15 @@ import {
   type StudentDisputeCaseQuery_studentDisputeCase,
   SurahJuzRef,
 } from "@/frontend/graphql/generated/gql/graphql";
-import type { TeacherDisputeCaseQuery_teacherDisputeCase } from "@/frontend/graphql/generated/gql/graphql";
 import { studentDisputeCaseQueryDocument, teacherDisputeCaseQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";
-import type { AppLocale } from "@/shared/locale/AppLocale";
 import {
   componentSuiteLocales,
   expectedStamp,
   liveScreen,
   renderWithMocks,
-  sessionSuiteLabels,
   type SessionSuiteLabels,
+  sessionSuiteLabels,
 } from "@/test/ui/components/helpers";
 
 // ---------------------------------------------------------------------------
@@ -82,7 +81,7 @@ const RECITATION_DESCRIPTION = "Memorization check with tajweed correction.";
 
 /** The dispute-case session row fixture (surface-neutral structure, suite-bound data). */
 export function disputeCaseSessionFixture(
-  data: DisputeCaseFixtureData,
+  data: DisputeCaseFixtureData
 ): StudentDisputeCaseQuery_studentDisputeCase["session"] {
   return {
     id: data.sessionId,
@@ -112,7 +111,7 @@ export function disputeCaseSessionFixture(
 /** The participant-owned artifact payloads (surface-neutral; suite-bound rating). */
 export function disputeCaseArtifactsFixture(
   data: DisputeCaseFixtureData,
-  rating: number,
+  rating: number
 ): {
   report: StudentDisputeCaseQuery_studentDisputeCase["report"];
   homework: StudentDisputeCaseQuery_studentDisputeCase["homework"];
@@ -154,7 +153,7 @@ export function disputeCaseArtifactsFixture(
 
 /** The resolved-decision session override (status + outcome + note + stamps). */
 export function resolvedSessionOverride(
-  data: DisputeCaseFixtureData,
+  data: DisputeCaseFixtureData
 ): Partial<StudentDisputeCaseQuery_studentDisputeCase> {
   return {
     session: {
@@ -172,14 +171,10 @@ export function resolvedSessionOverride(
 // Mocks (document-parameterized — one wire document per surface)
 
 /** Both participant case documents (the harness binds one per surface). */
-type ParticipantCaseDocument =
-  | typeof studentDisputeCaseQueryDocument
-  | typeof teacherDisputeCaseQueryDocument;
+type ParticipantCaseDocument = typeof studentDisputeCaseQueryDocument | typeof teacherDisputeCaseQueryDocument;
 
 /** The union of both participant wire envelopes. */
-type ParticipantCaseEnvelope =
-  | StudentDisputeCaseQuery_studentDisputeCase
-  | TeacherDisputeCaseQuery_teacherDisputeCase;
+type ParticipantCaseEnvelope = StudentDisputeCaseQuery_studentDisputeCase | TeacherDisputeCaseQuery_teacherDisputeCase;
 
 /** Single-operation case mock answering the surface document with one envelope. */
 function caseMock(
@@ -187,7 +182,7 @@ function caseMock(
   document: ParticipantCaseDocument,
   rootKey: "studentDisputeCase" | "teacherDisputeCase",
   payload: ParticipantCaseEnvelope,
-  options?: { readonly delay?: number },
+  options?: { readonly delay?: number }
 ): MockLink.MockedResponse {
   return {
     request: { query: document, variables: { id: sessionId } },
@@ -205,11 +200,7 @@ function pendingCaseMock(sessionId: string, document: ParticipantCaseDocument): 
 }
 
 /** Single-operation mock denying the caller at the scope layer (raw `extensions.code`). */
-function deniedCaseError(
-  sessionId: string,
-  document: ParticipantCaseDocument,
-  code: string,
-): MockLink.MockedResponse {
+function deniedCaseError(sessionId: string, document: ParticipantCaseDocument, code: string): MockLink.MockedResponse {
   return {
     request: { query: document, variables: { id: sessionId } },
     result: {
@@ -237,14 +228,9 @@ export interface ParticipantDisputeCaseSuiteContext {
   readonly counterpartyLabel: (t: SessionSuiteLabels["t"]) => string;
   readonly ratingLabel: (t: SessionSuiteLabels["t"]) => string;
   /** The settled test's perspective tail (e.g. owner-tone non-leak pins). */
-  readonly settledPerspectiveAssertions?: (
-    t: SessionSuiteLabels["t"],
-    screen: ReturnType<typeof liveScreen>,
-  ) => void;
+  readonly settledPerspectiveAssertions?: (t: SessionSuiteLabels["t"], screen: Screen) => void;
   /** The surface's envelope builder (neutral fixtures + surface identity). */
-  readonly fixture: (
-    overrides?: Partial<StudentDisputeCaseQuery_studentDisputeCase>,
-  ) => ParticipantCaseEnvelope;
+  readonly fixture: (overrides?: Partial<StudentDisputeCaseQuery_studentDisputeCase>) => ParticipantCaseEnvelope;
 }
 
 /**
@@ -255,8 +241,7 @@ export interface ParticipantDisputeCaseSuiteContext {
  */
 export function registerParticipantDisputeCaseSuite(ctx: ParticipantDisputeCaseSuiteContext): void {
   const screen = liveScreen;
-  const caseDocument =
-    ctx.surface === "student" ? studentDisputeCaseQueryDocument : teacherDisputeCaseQueryDocument;
+  const caseDocument = ctx.surface === "student" ? studentDisputeCaseQueryDocument : teacherDisputeCaseQueryDocument;
   const rootKey = ctx.surface === "student" ? ("studentDisputeCase" as const) : ("teacherDisputeCase" as const);
   const tid = (suffix: string) => `${ctx.surface}-dispute-case-${suffix}`;
 
@@ -267,7 +252,11 @@ export function registerParticipantDisputeCaseSuite(ctx: ParticipantDisputeCaseS
 
     describe(`${ctx.describeTitle} (${locale === "ar" ? "RTL/arabic" : "LTR/english"})`, () => {
       test("query in flight renders the aria-busy skeleton — no fabricated section shells", () => {
-        renderWithMocks(ctx.element(() => {}), [pendingCaseMock(ctx.data.sessionId, caseDocument)], locale);
+        renderWithMocks(
+          ctx.element(() => {}),
+          [pendingCaseMock(ctx.data.sessionId, caseDocument)],
+          locale
+        );
 
         const skeleton = screen.getByTestId(tid("loading"));
         expect(skeleton.getAttribute("aria-busy")).toBe("true");
@@ -279,7 +268,11 @@ export function registerParticipantDisputeCaseSuite(ctx: ParticipantDisputeCaseS
       });
 
       test("FORBIDDEN renders the shared permission fallback — the participant gate stays server-owned", async () => {
-        renderWithMocks(ctx.element(() => {}), [deniedCaseError(ctx.data.sessionId, caseDocument, "FORBIDDEN")], locale);
+        renderWithMocks(
+          ctx.element(() => {}),
+          [deniedCaseError(ctx.data.sessionId, caseDocument, "FORBIDDEN")],
+          locale
+        );
 
         await waitFor(() => {
           expect(screen.getByText(te.forbiddenRole)).toBeDefined();
@@ -292,7 +285,7 @@ export function registerParticipantDisputeCaseSuite(ctx: ParticipantDisputeCaseS
         renderWithMocks(
           ctx.element(() => {}),
           [deniedCaseError(ctx.data.sessionId, caseDocument, "INTERNAL_SERVER_ERROR")],
-          locale,
+          locale
         );
 
         await waitFor(() => {
@@ -307,7 +300,7 @@ export function registerParticipantDisputeCaseSuite(ctx: ParticipantDisputeCaseS
         renderWithMocks(
           ctx.element(() => {}),
           [caseMock(ctx.data.sessionId, caseDocument, rootKey, ctx.fixture())],
-          locale,
+          locale
         );
 
         await waitFor(() => {
@@ -356,7 +349,7 @@ export function registerParticipantDisputeCaseSuite(ctx: ParticipantDisputeCaseS
         renderWithMocks(
           ctx.element(() => {}),
           [caseMock(ctx.data.sessionId, caseDocument, rootKey, ctx.fixture(resolvedSessionOverride(ctx.data)))],
-          locale,
+          locale
         );
 
         await waitFor(() => {
@@ -374,8 +367,15 @@ export function registerParticipantDisputeCaseSuite(ctx: ParticipantDisputeCaseS
       test("honest empty states — absent artifacts render ONLY the localized empty copy, nothing fabricated", async () => {
         renderWithMocks(
           ctx.element(() => {}),
-          [caseMock(ctx.data.sessionId, caseDocument, rootKey, ctx.fixture({ report: null, homework: null, recitation: null }))],
-          locale,
+          [
+            caseMock(
+              ctx.data.sessionId,
+              caseDocument,
+              rootKey,
+              ctx.fixture({ report: null, homework: null, recitation: null })
+            ),
+          ],
+          locale
         );
 
         await waitFor(() => {
@@ -397,7 +397,7 @@ export function registerParticipantDisputeCaseSuite(ctx: ParticipantDisputeCaseS
             closed = true;
           }),
           [caseMock(ctx.data.sessionId, caseDocument, rootKey, ctx.fixture())],
-          locale,
+          locale
         );
 
         await waitFor(() => {

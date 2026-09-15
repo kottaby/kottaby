@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@apollo/client/react";
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack } from "@mui/material";
 import type { ReactNode } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import type { StudentDisputeCaseQuery, TeacherDisputeCaseQuery } from "@/frontend/graphql/generated/gql/graphql";
@@ -13,9 +13,10 @@ import {
   DisputeCaseLoadingSkeleton,
 } from "@/frontend/views/shared/disputes/DisputeCasePrimitives";
 import {
+  ParticipantCaseSessionFacts,
   type ParticipantCaseView,
-  ParticipantCaseBundleSections,
 } from "@/frontend/views/shared/disputes/ParticipantCaseBundleView";
+import { ParticipantCaseDecisionSections } from "@/frontend/views/shared/disputes/ParticipantCaseDecision";
 import { Common, Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 /**
@@ -56,36 +57,35 @@ export type ParticipantDisputeCaseSurface = "student" | "teacher";
 /**
  * Normalizes either participant wire envelope into the surface-agnostic
  * case view (the two envelopes differ only in WHICH counterparty name they
- * resolve server-side).
+ * resolve server-side). The wire shape itself is the discriminator — the
+ * `in` narrowing keeps the projection assertion-free.
  */
 function projectParticipantCase(
-  surface: ParticipantDisputeCaseSurface,
-  data: StudentDisputeCaseQuery | TeacherDisputeCaseQuery | undefined,
+  data: StudentDisputeCaseQuery | TeacherDisputeCaseQuery | undefined
 ): ParticipantCaseView | undefined {
-  if (surface === "student") {
-    const studentCase = (data as StudentDisputeCaseQuery | undefined)?.studentDisputeCase;
-    return studentCase === undefined
-      ? undefined
-      : {
-          session: studentCase.session,
-          counterpartyName: studentCase.teacherName,
-          counterpartyId: studentCase.session.teacherId,
-          report: studentCase.report,
-          homework: studentCase.homework,
-          recitation: studentCase.recitation,
-        };
+  if (data === undefined) {
+    return undefined;
   }
-  const teacherCase = (data as TeacherDisputeCaseQuery | undefined)?.teacherDisputeCase;
-  return teacherCase === undefined
-    ? undefined
-    : {
-        session: teacherCase.session,
-        counterpartyName: teacherCase.studentName,
-        counterpartyId: teacherCase.session.studentId,
-        report: teacherCase.report,
-        homework: teacherCase.homework,
-        recitation: teacherCase.recitation,
-      };
+  if ("studentDisputeCase" in data) {
+    const studentCase = data.studentDisputeCase;
+    return {
+      session: studentCase.session,
+      counterpartyName: studentCase.teacherName,
+      counterpartyId: studentCase.session.teacherId,
+      report: studentCase.report,
+      homework: studentCase.homework,
+      recitation: studentCase.recitation,
+    };
+  }
+  const teacherCase = data.teacherDisputeCase;
+  return {
+    session: teacherCase.session,
+    counterpartyName: teacherCase.studentName,
+    counterpartyId: teacherCase.session.studentId,
+    report: teacherCase.report,
+    homework: teacherCase.homework,
+    recitation: teacherCase.recitation,
+  };
 }
 
 interface ParticipantDisputeCaseDialogProps {
@@ -141,20 +141,28 @@ export function ParticipantDisputeCaseDialog({
   } else if (!active.data) {
     body = <DisputeCaseLoadingSkeleton surface={surface} testId={tid("loading")} />;
   } else {
-    const caseView = projectParticipantCase(surface, active.data);
+    const caseView = projectParticipantCase(active.data);
     body =
       caseView === undefined ? (
         <DisputeCaseLoadingSkeleton surface={surface} testId={tid("loading")} />
       ) : (
-        <ParticipantCaseBundleSections
-          surface={surface}
-          caseView={caseView}
-          t={t}
-          locale={locale}
-          counterpartyLabelText={surface === "student" ? t.studentCaseTeacherLabel : t.teacherCaseStudentLabel}
-          reportTitleText={surface === "student" ? t.studentCaseReportTitle : t.teacherCaseReportTitle}
-          ratingLabelText={surface === "student" ? t.studentCaseRatingLabel : t.teacherCaseRatingLabel}
-        />
+        <Stack sx={{ gap: 3 }}>
+          <ParticipantCaseSessionFacts
+            surface={surface}
+            caseView={caseView}
+            t={t}
+            locale={locale}
+            counterpartyLabelText={surface === "student" ? t.studentCaseTeacherLabel : t.teacherCaseStudentLabel}
+          />
+          <ParticipantCaseDecisionSections
+            surface={surface}
+            caseView={caseView}
+            t={t}
+            locale={locale}
+            reportTitleText={surface === "student" ? t.studentCaseReportTitle : t.teacherCaseReportTitle}
+            ratingLabelText={surface === "student" ? t.studentCaseRatingLabel : t.teacherCaseRatingLabel}
+          />
+        </Stack>
       );
   }
 
