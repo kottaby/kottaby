@@ -405,6 +405,12 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 
 - **NEVER add `oxlint-disable` comments** — fix the root cause.
 
+## Important References
+
+Canonical domain docs that consolidate engineering knowledge beyond what individual files reveal. Read these before working in their domain.
+
+- [Parent Monitoring Portal](docs/parents/monitoring-portal.md) — read-only parent portal: requireLinkedChild gate, five SDL queries, constant-403 denial oracle.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

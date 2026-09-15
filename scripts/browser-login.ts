@@ -250,7 +250,7 @@ function writeArtifacts(
     path: cookie.path,
     httpOnly: cookie.httpOnly,
     secure: cookie.secure,
-    sameSite: "Lax" as const,
+    sameSite: "Strict" as const,
     ...(cookie.expires > 0 ? { expires: cookie.expires } : {}),
   }));
   writeFileSync(playwrightPath, JSON.stringify(playwrightCookies, null, 2), { mode: 0o600 });
@@ -298,6 +298,7 @@ async function injectIntoAgentBrowser(
     const args = ["cookies", "set", cookie.name, cookie.value, "--url", baseUrl];
     if (cookie.httpOnly) args.push("--httpOnly");
     if (cookie.secure) args.push("--secure");
+    args.push("--sameSite", "Strict");
     if (cookie.expires > 0) args.push("--expires", String(cookie.expires));
     return runAgentBrowser(args, session);
   });

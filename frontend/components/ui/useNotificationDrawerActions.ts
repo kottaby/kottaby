@@ -45,9 +45,11 @@ interface NotificationDrawerActions {
  *
  * Row activation: mark read when unread (fire-and-forget — the cache
  * restyles the row) and close; the row IS a real anchor (Link) whose href
- * resolves through `resolveNotificationRoute` — parent-link-request rows
- * deep-link to the student decision route, every other entity falls through
- * to the feed page — so navigation is native, no router call. Mark-one /
+ * resolves through `resolveNotificationRoute` — session-completion rows
+ * deep-link to the student sessions route by their notification TYPE,
+ * parent-link-request rows deep-link to the student decision route by their
+ * entity pointer, and every other row falls through to the feed page — so
+ * navigation is native, no router call. Mark-one /
  * mark-all run through the shared `useNotificationMarkActions` hook
  * so the count decrement and the stale-window sweep
  * behave IDENTICALLY to the feed page.

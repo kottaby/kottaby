@@ -73,3 +73,13 @@ JSON.stringify({
     .filter((b) => !b.textContent.trim()).length,
 })
 ```
+
+## Manual eval fallbacks (observed 2026-09-13)
+
+- **Mixed digit-script claims** ("Arabic-Indic vs Latin numerals are mixed"): one DOM eval decides —
+  `Array.from(new Set(Array.from(document.querySelector("main").textContent).filter(c => /[0-9\u0660-\u0669]/.test(c))))`.
+  Both VLM claims of mixed formats in one run were all-Latin hallucinations; the eval returned a
+  single-script inventory each time. Run this BEFORE touching any numeral formatting.
+- **Toast/overlay overlap claims**: probe `document.querySelectorAll(".MuiSnackbar-root")` rects
+  against the header rect. One such claim survived repeated passes ("toast overlaps the title") while
+  zero snackbar nodes existed in the DOM at all.

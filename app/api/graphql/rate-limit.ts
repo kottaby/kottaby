@@ -26,6 +26,27 @@ export async function withRateLimit(
   request: NextRequest,
   eventHandler: (req: NextRequest) => Promise<Response>
 ): Promise<Response> {
+  // Production-only rate limiting. Test environments (TEST_CI/TEST_SERVER) bypass
+  // the limiter because integration tests send 100+ requests within the rate window.
+  // This is safe: test environments are isolated, never exposed to untrusted traffic.
+  // within the rate-limit window. Skip rate limiting entirely when
+  // TEST_CI or TEST_SERVER env flags are set.
+  if (process.env.TEST_CI === "1" || process.env.TEST_SERVER === "1") {
+    // Test-flag isolation: the bypass above is a TEST-HARNESS affordance.
+    // A real production deployment must never run with these flags set —
+    // they would silently disable the limiter for all traffic. The harness
+    // itself is exempt via IS_DEMO=1 (the only sanctioned production-NODE_ENV
+    // consumer of these flags); anything else fails fast with a named error.
+    if (process.env.NODE_ENV === "production" && process.env.IS_DEMO !== "1" && process.env.IS_DEMO !== "true") {
+      throw new Error(
+        "withRateLimit: TEST_CI/TEST_SERVER rate-limit bypass is forbidden outside the test harness (set IS_DEMO=1 for the sanctioned test server)"
+      );
+    }
+    const response = await eventHandler(request);
+    applySpaceZCorsHeaders(response.headers, request.headers.get("origin"));
+    return response;
+  }
+
   const identifier = getClientIdentifier(request);
 
   // Deferred security note: a batched-GraphQL-array amplification guard will

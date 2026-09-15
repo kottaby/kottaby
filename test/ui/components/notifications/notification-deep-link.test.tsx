@@ -9,6 +9,11 @@
  *   `STUDENT_LINK_REQUESTS_ROUTE` decision route (the anchor href IS the
  *   router target — rows are real `next/link` anchors, navigation is native,
  *   no router call) and row activation still closes the drawer;
+ *   a `session_completion` row anchors EXACTLY to the shared
+ *   `STUDENT_SESSIONS_ROUTE` sessions route — resolved from the row's
+ *   notification TYPE (emitters persist the plain
+ *   `relatedEntityType: "session"` table pointer), and a `session` pointer
+ *   on a DIFFERENT type never routes there;
  *   an UNKNOWN related entity type falls through UNCHANGED to the
  *   `/notifications` feed page (the pre-deep-link hard anchor, pinned by the
  *   notification-drawer suite) — render succeeds with no router errors and
@@ -43,7 +48,11 @@ import {
   myNotificationsQueryDocument,
   myUnreadNotificationCountQueryDocument,
 } from "@/frontend/graphql/sharedDocuments";
-import { resolveNotificationRoute, STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/lib/notification-route-resolution";
+import {
+  resolveNotificationRoute,
+  STUDENT_LINK_REQUESTS_ROUTE,
+  STUDENT_SESSIONS_ROUTE,
+} from "@/frontend/lib/notification-route-resolution";
 import { createApolloCache } from "@/frontend/providers/apollo/apolloCache";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
@@ -86,6 +95,8 @@ const FIXED_ISO = "2026-08-29T12:00:00.000Z";
 const LINK_REQUEST_ROW_TITLE = "drawer-deeplink-link-request";
 const UNKNOWN_ENTITY_ROW_TITLE = "drawer-deeplink-unknown-entity";
 const PARENT_DECISION_ROW_TITLE = "drawer-deeplink-parent-decision";
+const SESSION_COMPLETION_ROW_TITLE = "drawer-deeplink-session-completion";
+const SESSION_POINTER_OTHER_TYPE_ROW_TITLE = "drawer-deeplink-session-pointer-other-type";
 
 /**
  * Fixture row type — the codegen row PLUS `__typename` (MockLink passes
@@ -147,6 +158,28 @@ const PARENT_DECISION_ROW = drawerRow({
   // decision route. The bare literal pins the backend wire value.
   type: NotificationType.ParentLinkRequest,
   relatedEntityType: "parent_link_request_decision",
+});
+
+const SESSION_COMPLETION_ROW = drawerRow({
+  id: "304",
+  title: SESSION_COMPLETION_ROW_TITLE,
+  type: NotificationType.SessionCompletion,
+  // REALISTIC emitter shape: session-completion emitters persist the plain
+  // table pointer "session" as the related-entity discriminator — the deep
+  // link resolves from the row's notification TYPE, never from this varchar.
+  relatedEntityType: "session",
+  relatedEntityId: 4103,
+});
+
+const SESSION_POINTER_OTHER_TYPE_ROW = drawerRow({
+  id: "305",
+  title: SESSION_POINTER_OTHER_TYPE_ROW_TITLE,
+  // The SAME "session" table pointer as the completion row, but a DIFFERENT
+  // notification type (the evaluation/report kind) — the pointer alone must
+  // never route to /student/sessions (no entity-keyed session route exists).
+  type: NotificationType.EvaluationResult,
+  relatedEntityType: "session",
+  relatedEntityId: 4104,
 });
 
 /** The drawer's single inbox window (mirrors `DRAWER_PAGE_SIZE`). */
@@ -244,6 +277,35 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
       expect(webSocketConstructions).toBe(0);
     });
 
+    test("a session_completion row anchors EXACTLY to the shared student sessions route", async () => {
+      renderDrawer([countMock(0), listMock([SESSION_COMPLETION_ROW])], locale);
+
+      const row = await waitFor(() => screen.getByText(SESSION_COMPLETION_ROW_TITLE).closest("a"));
+      if (row === null) {
+        throw new Error("row anchor must render (the row IS a Link anchor)");
+      }
+      // The anchor href IS the router target — the same single-sourced
+      // constant the student nav entry points at.
+      expect(row.getAttribute("href")).toBe(STUDENT_SESSIONS_ROUTE);
+      // Frozen-value pin: the constant must KEEP the exact route string the
+      // page's `withPageAuth` guard and the nav entry target.
+      expect(row.getAttribute("href")).toBe("/student/sessions");
+      expect(webSocketConstructions).toBe(0);
+    });
+
+    test("a 'session' entity pointer with a DIFFERENT notification type does NOT route to the sessions list", async () => {
+      renderDrawer([countMock(0), listMock([SESSION_POINTER_OTHER_TYPE_ROW])], locale);
+
+      const row = await waitFor(() => screen.getByText(SESSION_POINTER_OTHER_TYPE_ROW_TITLE).closest("a"));
+      if (row === null) {
+        throw new Error("row anchor must render (the row IS a Link anchor)");
+      }
+      // Type-first resolution: only the session_completion TYPE maps to the
+      // sessions route — the bare "session" table pointer never does.
+      expect(row.getAttribute("href")).toBe("/notifications");
+      expect(webSocketConstructions).toBe(0);
+    });
+
     test("a PARENT-audience decision row falls through to the notifications feed (issue #99)", async () => {
       renderDrawer([countMock(0), listMock([PARENT_DECISION_ROW])], locale);
 
@@ -264,7 +326,9 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
 
 describe("resolveNotificationRoute (drawer route-resolution seam)", () => {
   test("maps the backend parent_link_request entity type to the shared route constant", () => {
-    expect(resolveNotificationRoute(BackendNotificationType.ParentLinkRequest)).toBe(STUDENT_LINK_REQUESTS_ROUTE);
+    expect(
+      resolveNotificationRoute(NotificationType.ParentLinkRequest, BackendNotificationType.ParentLinkRequest)
+    ).toBe(STUDENT_LINK_REQUESTS_ROUTE);
     expect(STUDENT_LINK_REQUESTS_ROUTE).toBe("/student/link-requests");
   });
 
@@ -273,12 +337,53 @@ describe("resolveNotificationRoute (drawer route-resolution seam)", () => {
     // (pinned above) deep-links; the parent decision + expiry refinement
     // values MISS the map and land on the feed. The values are the backend
     // wire contract (`parent-link-request.helpers.ts`) pinned here verbatim.
-    expect(resolveNotificationRoute("parent_link_request_decision")).toBe("/notifications");
-    expect(resolveNotificationRoute("parent_link_request_expiry")).toBe("/notifications");
+    expect(resolveNotificationRoute(NotificationType.ParentLinkRequest, "parent_link_request_decision")).toBe(
+      "/notifications"
+    );
+    expect(resolveNotificationRoute(NotificationType.ParentLinkRequest, "parent_link_request_expiry")).toBe(
+      "/notifications"
+    );
+  });
+
+  test("maps every deep-linked row to its single-sourced route (table-driven)", () => {
+    // Lookup-table rows — the [type, pointer] pair is the resolver's KEY
+    // domain, enum members never `===` comparison targets. The completion
+    // row resolves at the TYPE stage (its pointer is the plain table name
+    // "session"); the parent-link row resolves at the entity-pointer stage.
+    const routeByRow: ReadonlyArray<readonly [NotificationType, string | null, string]> = [
+      [NotificationType.SessionCompletion, "session", STUDENT_SESSIONS_ROUTE],
+      [NotificationType.ParentLinkRequest, BackendNotificationType.ParentLinkRequest, STUDENT_LINK_REQUESTS_ROUTE],
+    ];
+    for (const [type, pointer, expectedRoute] of routeByRow) {
+      expect(resolveNotificationRoute(type, pointer)).toBe(expectedRoute);
+    }
+    // Frozen-value pins: the constants must KEEP the exact route strings the
+    // guard/nav/CTA consumers already anchor to.
+    expect(STUDENT_SESSIONS_ROUTE).toBe("/student/sessions");
+  });
+
+  test("unmapped types and pointers STILL fall through to the feed page (table-driven fallback preservation)", () => {
+    // Realistic fallback pairs — the fall-through is the designed safe
+    // default for every notification kind without a student surface, for
+    // the free-string misses (issue #99 refinements, out-of-vocabulary
+    // values), for the plain "session" table pointer carried by a
+    // NON-completion type, and for the absent pointer.
+    const fallbackRows: ReadonlyArray<readonly [NotificationType, string | null]> = [
+      [NotificationType.SystemBroadcast, null],
+      [NotificationType.SystemBroadcast, "unknown_entity_type"],
+      [NotificationType.ParentLinkRequest, "parent_link_request_decision"],
+      [NotificationType.ParentLinkRequest, "parent_link_request_expiry"],
+      [NotificationType.EvaluationResult, "session"],
+      [NotificationType.SessionRequest, "session"],
+      [NotificationType.SessionCancellation, "session"],
+    ];
+    for (const [type, pointer] of fallbackRows) {
+      expect(resolveNotificationRoute(type, pointer)).toBe("/notifications");
+    }
   });
 
   test("unknown and absent pointers fall through to the feed page (unchanged default)", () => {
-    expect(resolveNotificationRoute("unknown_entity_type")).toBe("/notifications");
-    expect(resolveNotificationRoute(null)).toBe("/notifications");
+    expect(resolveNotificationRoute(NotificationType.SystemBroadcast, "unknown_entity_type")).toBe("/notifications");
+    expect(resolveNotificationRoute(NotificationType.SystemBroadcast, null)).toBe("/notifications");
   });
 });

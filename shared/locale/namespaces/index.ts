@@ -16,6 +16,7 @@ export * from "./handshakeCode";
 export * from "./landing";
 export * from "./notifications";
 export * from "./parentLink";
+export * from "./parentMonitoring";
 export * from "./plans";
 export * from "./recitation";
 export * from "./registry";

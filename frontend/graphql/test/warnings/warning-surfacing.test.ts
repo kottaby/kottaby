@@ -327,6 +327,10 @@ const MUTATION_SURFACE_INVENTORY_QUERY_DOCUMENT: DocumentNode = gql`
  * `rejectWithdrawal` and `adjustTeacherWallet` each resolve to the canonical
  * `TeacherTransaction` payload with every denial riding `errors[]`, so they
  * are warning-incapable like the drift-guard entries enumerated above.
+ * Refreshed for teacher evaluation submission: `submitTeacherEvaluation`
+ * resolves to the canonical `Evaluation` payload (denials ride `errors[]`,
+ * never a partial-success wrapper), so it is warning-incapable like the
+ * session-report and recitation mutations enumerated above.
  *
  * Refreshed for the teacher verification plan purchase: `purchaseVerificationPlan`
  * resolves to the canonical `PurchaseSubscriptionPayload` (inputless — identity
@@ -371,6 +375,7 @@ const KNOWN_LIVE_MUTATION_FIELDS = [
   "setSessionRecitation",
   "startSession",
   "submitSessionReport",
+  "submitTeacherEvaluation",
   "updateMyLocale",
   "updatePlan",
 ];

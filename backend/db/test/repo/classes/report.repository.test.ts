@@ -337,11 +337,11 @@ describe("ReportRepository — transactional paths (runInRollback)", () => {
 
   const repoSource = readFileSync(join(import.meta.dir, "../../../repo/classes/report.repository.ts"), "utf8");
 
-  test("source: executor discipline — one pool-fallback write, two queryDb reads, tx last on every signature", () => {
+  test("source: executor discipline — one pool-fallback write, four queryDb reads, tx last on every signature", () => {
     expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(1);
-    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(2);
+    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(4);
     const signatures = repoSource.match(/export async function [a-zA-Z]+\([^)]*\)/g) ?? [];
-    expect(signatures).toHaveLength(3);
+    expect(signatures).toHaveLength(5);
     for (const signature of signatures) {
       const flattened = signature.replace(/\s+/g, " ").replace(/ \)/g, ")").trim();
       expect(flattened.endsWith("tx?: DBTransaction)") || flattened.endsWith("tx?: DBQueryExecutor)")).toBe(true);
@@ -350,12 +350,23 @@ describe("ReportRepository — transactional paths (runInRollback)", () => {
 
   test("source: bound parameters only, no wildcard select, no prepared statements, no SQL line comments", () => {
     expect(repoSource.includes("session_id = $1")).toBe(true);
-    expect(repoSource.includes("SELECT *")).toBe(false);
+    // Parent-scoped tenancy predicate (fused into the INNER JOIN's ON clause)
+    // — surfaces in the standalone list+count SQL the same way it does in the
+    // home-work pair, proving the cross-student leak guard lives in source.
+    expect(repoSource.includes("s.student_id = $1")).toBe(true);
+    // The `SELECT *` prohibition is scoped to actual SQL — the JSDoc text
+    // `no \`SELECT *\`` would false-positive a naive `includes` check, so
+    // the regex anchors on the SQL shape `SELECT * FROM`.
+    expect(/SELECT \* FROM/i.test(repoSource)).toBe(false);
     expect(repoSource.includes(".prepare(")).toBe(false);
     expect(repoSource.includes("sql.placeholder")).toBe(false);
     expect(repoSource.includes("inArray")).toBe(false);
     expect(repoSource.includes("sql.raw")).toBe(false);
     expect(repoSource.includes("--")).toBe(false);
+    // Newest-session-first ordering with NULLS LAST (scheduled-but-not-started
+    // sessions pin after live sessions) and the id DESC deterministic tiebreak.
+    expect(repoSource.includes("DESC NULLS LAST, r.id DESC")).toBe(true);
+    expect(repoSource.includes("desc(reports.id)")).toBe(true);
   });
 
   test("source: no i18n, no logger, no console, one namespace, no plan-artifact references", () => {

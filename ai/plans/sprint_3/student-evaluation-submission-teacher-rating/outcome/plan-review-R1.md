@@ -37,3 +37,14 @@ Reviewers independently re-verified the evidence base: **all sampled path:line c
 4. Testing + traceability + anti-patterns: **PASS** (after V2 fix)
 
 **Gate status: CLEARED.** R2 is required only if implementation reveals spec↔code drift (task 0.2).
+
+---
+
+## Implementation-time re-verification (R2 — drift resolved)
+
+> **Date:** 2026-09-12 · **Executor:** Phase 0 Baseline Subagent (tasks 0.1–0.2) · **Trigger:** task 0.2 light drift check
+
+- **Finding (first pass):** all three R1 fixes were present except one residual V3 citation — `tasks.md:58` (task 1.1) still cited the `evaluations.ts` header doc-comment as `(:6-19)`, the exact pre-fix value this review flagged (live span is `:6-20`; the file's doc-comment closes with `*/` on line 20). Every other V3 target (`specs.md` inventory rows 1/4 → `:21-48`/`:6-20`, REQ-003 AC4 → `:6-20`; `plan.md` D1 → `:21-48`, §2.2 → `:6-20`) was already correct, and `tasks.md` 1.1's `(:42-47)` constraint-block ref was verified accurate against the live file. Classified as a stale plan-internal citation, **not** spec↔code drift; the implementing subagent stopped per the 0.2 protocol and escalated instead of self-clearing the gate or authoring a full R2 review.
+- **Fix applied:** orchestrator corrected the one character (`:6-19` → `:6-20` at `tasks.md:58`).
+- **Re-verification (post-fix):** V1 present (`tasks.md:95` — `insertOnce(values: Pick<EvaluationInsertType, "evaluatedId" | "evaluatorId" | "sessionId" | "score">, tx)` with `report.repository.ts:54` precedent); V2 present (`tasks.md:110` — "Registry extension (required first)" + `helpers.self-test.test.ts` extension); V3 clean — zero `:6-19`/`:21-47` refs remain anywhere in `tasks.md`, and `:21-48`/`:6-20` stand in `specs.md` + `plan.md`. (Note: `tasks.md` 1.1 never cited the `:21-48` table span — its only V3 target was the doc-comment ref, now correct.)
+- **Verdict: GATE CLEARED — proceeding to Phase 1.**

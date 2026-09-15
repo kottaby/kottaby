@@ -9,5 +9,7 @@
  *  - The top-level `backend/graphql/query/index.ts` imports THIS barrel;
  *    `gqlSchema.ts` imports that top-level barrel exactly once.
  *  - `applicant.query.ts` registers `myApplicantProfile`.
+ *  - `student-evaluation.query.ts` registers `myTeacherEvaluations`.
  */
 import "./applicant.query";
+import "./student-evaluation.query";

@@ -11,6 +11,8 @@ export interface StudentSessionDialogSlots {
   readonly cancelDialogSessionId: string | null;
   /** Id of the session whose dispute dialog is open (`null` = closed). */
   readonly disputeDialogSessionId: string | null;
+  /** Id of the session whose rate dialog is open (`null` = closed). */
+  readonly rateDialogSessionId: string | null;
   /** Full per-row slot book — dispute + confirm CTAs disable per row. */
   readonly inFlightSlots: InFlightSlots;
   readonly openCancelDialog: (sessionId: string) => void;
@@ -23,6 +25,10 @@ export interface StudentSessionDialogSlots {
   readonly claimConfirmSlot: (sessionId: string) => void;
   /** Releases the row's `confirm` slot (every confirm outcome). */
   readonly clearConfirmSlot: (sessionId: string) => void;
+  /** Opens the rate dialog slot (re-keyed per session id). */
+  readonly openRateDialog: (sessionId: string) => void;
+  /** Closes the rate dialog slot (every terminal rate outcome). */
+  readonly closeRateDialog: () => void;
 }
 
 /**
@@ -30,13 +36,16 @@ export interface StudentSessionDialogSlots {
  * student sessions container — the row whose dispute dialog is open holds
  * the `dispute` slot, disabling its dispute CTA behind the modal while its
  * mutation runs; the confirm mutation (container-owned, no dialog) books
- * the `confirm` slot for its own row.
+ * the `confirm` slot for its own row; the rate dialog (dialog-owned
+ * mutation, like the cancel dialog) books only its single dialog slot.
  */
 export function useStudentSessionDialogSlots(): StudentSessionDialogSlots {
   // Cancel-dialog owner (single dialog slot, re-keyed per session id).
   const [cancelDialogSessionId, setCancelDialogSessionId] = useState<string | null>(null);
   // Dispute-dialog owner (single dialog slot, re-keyed per id).
   const [disputeDialogSessionId, setDisputeDialogSessionId] = useState<string | null>(null);
+  // Rate-dialog owner (single dialog slot, re-keyed per id).
+  const [rateDialogSessionId, setRateDialogSessionId] = useState<string | null>(null);
   // Per-row in-flight slots (immutable slot book — see the module docblock).
   const [inFlightSlots, setInFlightSlots] = useState<InFlightSlots>({});
 
@@ -68,9 +77,18 @@ export function useStudentSessionDialogSlots(): StudentSessionDialogSlots {
     setInFlightSlots(prev => removeInFlightAction(prev, sessionId, "confirm"));
   }, []);
 
+  const openRateDialog = useCallback((sessionId: string): void => {
+    setRateDialogSessionId(sessionId);
+  }, []);
+
+  const closeRateDialog = useCallback((): void => {
+    setRateDialogSessionId(null);
+  }, []);
+
   return {
     cancelDialogSessionId,
     disputeDialogSessionId,
+    rateDialogSessionId,
     inFlightSlots,
     openCancelDialog,
     closeCancelDialog,
@@ -78,5 +96,7 @@ export function useStudentSessionDialogSlots(): StudentSessionDialogSlots {
     closeDisputeDialog,
     claimConfirmSlot,
     clearConfirmSlot,
+    openRateDialog,
+    closeRateDialog,
   };
 }

@@ -228,6 +228,29 @@ describe("mapGraphQLErrorByCode — pure branch table", () => {
     expect(action.tone).toBe("error");
   });
 
+  test("row EVALUATION_SESSION_NOT_COMPLETED → gate-reject notice with its own denial copy", () => {
+    const action = mapped("EVALUATION_SESSION_NOT_COMPLETED", mutationContext);
+    expect(action.kind).toBe("notice");
+    expect(action.noticeKind).toBe("conflict");
+    expect(shownCopyOf(action)).toBe(labels.evaluationSessionNotCompleted);
+    expect(action.tone).toBe("error");
+    expect(action.retryable).toBe(false);
+  });
+
+  test("row EVALUATION_ALREADY_SUBMITTED → write-once rejection as neutral info notice", () => {
+    const action = mapped("EVALUATION_ALREADY_SUBMITTED", mutationContext);
+    expect(action.kind).toBe("notice");
+    expect(action.noticeKind).toBe("conflict");
+    expect(shownCopyOf(action)).toBe(labels.evaluationAlreadySubmitted);
+    // The rating EXISTS — the outcome equals what the caller asked for, so
+    // the surface tone is informational, never an error treatment.
+    expect(action.tone).toBe("info");
+    expect(action.retryable).toBe(false);
+    // The success-equivalent flag stays exclusive to DUPLICATE_REQUEST
+    // (idempotent-replay semantics — not the same contract).
+    expect(action.duplicateSuccessEquivalent).toBeUndefined();
+  });
+
   test("row DUPLICATE_REQUEST → success-equivalent idempotent notice (docs/IDEMPOTENCY.md §3)", () => {
     const action = mapped("DUPLICATE_REQUEST", mutationContext);
     expect(action.kind).toBe("notice");

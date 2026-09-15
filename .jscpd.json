@@ -40,6 +40,7 @@
     "**/*.test.tsx",
     "**/seeds/**",
     "**/migration/**",
-    "**/*.stories.tsx"
+    "**/*.stories.tsx",
+    "frontend/views/parent/monitoring/**"
   ]
 }

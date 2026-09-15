@@ -11,6 +11,7 @@
  */
 
 export * from "./home-work.repository";
+export * from "./progress.repository";
 export * from "./recitation.repository";
 export * from "./report.repository";
 export * from "./session.repository";

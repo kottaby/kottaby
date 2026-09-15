@@ -27,7 +27,7 @@ import {
   PaymentsOutlined as WalletIcon,
 } from "@mui/icons-material";
 import { UserRole } from "@/frontend/graphql/generated/gql/graphql";
-import { STUDENT_LINK_REQUESTS_ROUTE } from "@/frontend/lib/notification-route-resolution";
+import { STUDENT_LINK_REQUESTS_ROUTE, STUDENT_SESSIONS_ROUTE } from "@/frontend/lib/notification-route-resolution";
 import { dashboardEn } from "@/shared/locale/en/dashboard";
 import type { DashboardLabels } from "@/shared/locale/types/dashboard";
 import type { HandshakeCodeLabels } from "@/shared/locale/types/handshakeCode";
@@ -102,6 +102,12 @@ function isDashboardLabelKey(key: NavLabelKey): key is keyof DashboardLabels {
  * Canonical retargets:
  *  - Sessions → `/student/sessions` / `/teacher/sessions` (a
  *    RETARGET of the former shared `/sessions` catch-all link)
+ *  - Parent Children → `/parent/children` (a RETARGET of the former
+ *    shared `/children` catch-all link; the parent portal root ships
+ *    at the role-scoped route)
+ *  - Student Sessions → the shared `STUDENT_SESSIONS_ROUTE` constant
+ *    (the nav and the session-completion notification deep-link never
+ *    drift)
  *  - Student Plans → `/student/plans` (a pure ADD to the student list:
  *    the student-guarded catalog page ships at the route; the `plans`
  *    label key is shared with the admin entry — both `DashboardLabels`-owned)
@@ -120,7 +126,9 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
   [UserRole.Student]: [
     { route: "/student/dashboard", labelKey: "dashboard", Icon: DashboardIcon },
     { route: "/notifications", labelKey: "notifications", Icon: NotificationsIcon },
-    { route: "/student/sessions", labelKey: "sessions", Icon: SessionsIcon },
+    // Same single-sourced constant as the session-completion notification
+    // deep link (the surface where the Rate action lives).
+    { route: STUDENT_SESSIONS_ROUTE, labelKey: "sessions", Icon: SessionsIcon },
     // Targets the student-guarded plan catalog at
     // `app/(dashboard)/student/plans/page.tsx` — browse + purchase CTA.
     { route: "/student/plans", labelKey: "plans", Icon: PlansIcon },
@@ -140,7 +148,7 @@ const NAV_ITEMS_BY_ROLE: Record<UserRole, readonly DashboardNavItem[]> = {
   [UserRole.Parent]: [
     { route: "/parent/dashboard", labelKey: "dashboard", Icon: DashboardIcon },
     { route: "/notifications", labelKey: "notifications", Icon: NotificationsIcon },
-    { route: "/children", labelKey: "children", Icon: ChildrenIcon },
+    { route: "/parent/children", labelKey: "children", Icon: ChildrenIcon },
     { route: "/parent/handshake", labelKey: "navLinkMyChild", Icon: LinkChildIcon },
     { route: "/profile", labelKey: "profile", Icon: ProfileIcon },
   ],

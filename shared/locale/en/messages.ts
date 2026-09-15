@@ -15,6 +15,7 @@ import { handshakeCodeEn } from "@/shared/locale/en/handshakeCode";
 import { landingEn } from "@/shared/locale/en/landing";
 import { notificationsEn } from "@/shared/locale/en/notifications";
 import { parentLinkEn } from "@/shared/locale/en/parentLink";
+import { parentMonitoringEn } from "@/shared/locale/en/parentMonitoring";
 import { plansEn } from "@/shared/locale/en/plans";
 import { recitationEn } from "@/shared/locale/en/recitation";
 import { sessionsEn } from "@/shared/locale/en/sessions";
@@ -42,5 +43,6 @@ export const enMessages: Translations = {
   notificationsTranslations: notificationsEn,
   handshakeCodeTranslations: handshakeCodeEn,
   parentLinkTranslations: parentLinkEn,
+  parentMonitoringTranslations: parentMonitoringEn,
   analyticsTranslations: analyticsEn,
 };

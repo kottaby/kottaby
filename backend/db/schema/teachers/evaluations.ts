@@ -1,17 +1,30 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { session } from "@/backend/db/schema/classes/session";
 import { users } from "@/backend/db/schema/users/users";
 
 /**
  * Evaluations table (`evaluations`).
  *
- * Records a certified sheikh's evaluation of a candidate. The
+ * Write-once record shared by two flows:
+ *
+ * 1. Applicant evaluation — a certified sheikh evaluates a teacher
+ *    candidate. These records have `session_id = NULL` (the evaluation is
+ *    standalone, not tied to a session).
+ * 2. Student→teacher session rating — a student rates their teacher after a
+ *    fully completed session. `session_id` links the rated session and
+ *    `score` stores `rating × 20` (whole stars 1–5 map to 20–100 on the
+ *    table's 0–100 scale). `evaluations_session_evaluator_unique` enforces
+ *    at most one rating per (session, evaluator) pair — a duplicate insert
+ *    is rejected by the database's unique violation rather than a
+ *    pre-check. NULL `session_id` values are treated as distinct by
+ *    PostgreSQL unique semantics, so applicant evaluations are unaffected.
+ *
  * `evaluated_id` is the person being evaluated (cascade delete — their
- * evaluations disappear with them); `evaluator_id` is the certified sheikh
- * submitting the evaluation (restrict delete — cannot remove a sheikh who
- * still has evaluations on record). `session_id` is nullable and set to NULL
- * on session deletion (the evaluation survives as a standalone record).
+ * evaluations disappear with them); `evaluator_id` is the user submitting
+ * the evaluation (restrict delete — cannot remove a user who still has
+ * evaluations on record). `session_id` is nullable and set to NULL on
+ * session deletion (the evaluation survives as a standalone record).
  *
  * `score` is an integer in [0, 100] (nullable); 80% is the pass threshold.
  * Soft-delete is via `is_deleted`/`deleted_at` (no hard delete).
@@ -44,5 +57,6 @@ export const evaluations = pgTable(
     index("evaluations_evaluated_id_idx").on(t.evaluatedId),
     index("evaluations_evaluator_id_idx").on(t.evaluatorId),
     index("evaluations_session_id_idx").on(t.sessionId),
+    unique("evaluations_session_evaluator_unique").on(t.sessionId, t.evaluatorId),
   ]
 );
