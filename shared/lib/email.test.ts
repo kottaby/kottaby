@@ -40,7 +40,7 @@ describe("isValidEmail — Tier 1: Branch Completeness", () => {
     const local = "a".repeat(100);
     const domain = `${"b".repeat(150)}.com`; // total length = 100 + 1 + 154 = 255
     const email = `${local}@${domain}`;
-    expect(email.length).toBe(255);
+    expect(email).toHaveLength(255);
     expect(isValidEmail(email)).toBe(false);
   });
 
@@ -94,7 +94,7 @@ describe("isValidEmail — Tier 2: Boundary Conditions", () => {
     const domainPart = "b".repeat(185);
     const domain = `${domainPart}.com`; // 189 chars
     const email = `${local}@${domain}`;
-    expect(email.length).toBe(254);
+    expect(email).toHaveLength(254);
     expect(isValidEmail(email)).toBe(true);
   });
 
