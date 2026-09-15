@@ -3,6 +3,7 @@
 import { Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { SessionMetaCell } from "@/frontend/components/ui/sessionList";
+import { DisputeCaseHomeworkBlock, DisputeCaseRecitationBlock, DisputeCaseReportBlock } from "@/frontend/views/shared/disputes/DisputeCasePrimitives";
 import type {
   AdminDisputeCaseQuery_adminDisputeCase,
   AdminDisputeCaseQuery_adminDisputeCase_homework,
@@ -63,34 +64,6 @@ function CaseSection({
   );
 }
 
-/** Ayah-range value line — verbatim numbers with the em-dash for unset leaves. */
-function homeworkRangeText(from: number | null, to: number | null): string {
-  return `${from ?? NO_VALUE_PLACEHOLDER} – ${to ?? NO_VALUE_PLACEHOLDER}`;
-}
-
-/** One homework block (current or revision): label over the verbatim evidence line. */
-function HomeworkBlock({
-  label,
-  homework,
-  rangeFromKey,
-}: Readonly<{
-  label: string;
-  homework: AdminDisputeCaseQuery_adminDisputeCase_homework;
-  rangeFromKey: "current" | "revision";
-}>): ReactNode {
-  const from = rangeFromKey === "current" ? homework.currentFromAyah : homework.revisionFromAyah;
-  const to = rangeFromKey === "current" ? homework.currentToAyah : homework.revisionToAyah;
-  const grade = rangeFromKey === "current" ? homework.currentGrade : homework.revisionGrade;
-  const surahJuz = rangeFromKey === "current" ? homework.currentSurahJuz : homework.revisionSurahJuz;
-
-  return (
-    <SessionMetaCell
-      label={label}
-      value={`${homeworkRangeText(from, to)} · ${grade ?? NO_VALUE_PLACEHOLDER} · ${surahJuz ?? NO_VALUE_PLACEHOLDER}`}
-    />
-  );
-}
-
 /** The report / homework / recitation sections of the case-review dialog. */
 export function AdminDisputeCaseArtifacts({ disputeCase, t }: Readonly<AdminDisputeCaseArtifactsProps>): ReactNode {
   const report: AdminDisputeCaseQuery_adminDisputeCase_report | null = disputeCase.report;
@@ -106,12 +79,11 @@ export function AdminDisputeCaseArtifacts({ disputeCase, t }: Readonly<AdminDisp
         testId="admin-dispute-case-report"
       >
         {report === null ? null : (
-          <Stack sx={{ gap: 1.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {report.teacherNotes}
-            </Typography>
-            <SessionMetaCell label={t.caseReviewRatingLabel} value={report.studentRatingByTeacher.toString()} />
-          </Stack>
+          <DisputeCaseReportBlock
+            notes={report.teacherNotes}
+            rating={report.studentRatingByTeacher}
+            ratingLabel={t.caseReviewRatingLabel}
+          />
         )}
       </CaseSection>
       <CaseSection
@@ -122,8 +94,8 @@ export function AdminDisputeCaseArtifacts({ disputeCase, t }: Readonly<AdminDisp
       >
         {homework === null ? null : (
           <Stack sx={{ gap: 1.5, flexDirection: "row", flexWrap: "wrap" }}>
-            <HomeworkBlock label={t.caseReviewHomeworkCurrentLabel} homework={homework} rangeFromKey="current" />
-            <HomeworkBlock label={t.caseReviewHomeworkRevisionLabel} homework={homework} rangeFromKey="revision" />
+            <DisputeCaseHomeworkBlock label={t.caseReviewHomeworkCurrentLabel} homework={homework} rangeFromKey="current" />
+            <DisputeCaseHomeworkBlock label={t.caseReviewHomeworkRevisionLabel} homework={homework} rangeFromKey="revision" />
           </Stack>
         )}
       </CaseSection>
@@ -133,16 +105,7 @@ export function AdminDisputeCaseArtifacts({ disputeCase, t }: Readonly<AdminDisp
         emptyText={t.caseReviewEmptyRecitation}
         testId="admin-dispute-case-recitation"
       >
-        {recitation === null ? null : (
-          <Stack sx={{ gap: 0.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {recitation.name}
-            </Typography>
-            <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>
-              {recitation.description ?? NO_VALUE_PLACEHOLDER}
-            </Typography>
-          </Stack>
-        )}
+        {recitation === null ? null : <DisputeCaseRecitationBlock recitation={recitation} />}
       </CaseSection>
     </Stack>
   );

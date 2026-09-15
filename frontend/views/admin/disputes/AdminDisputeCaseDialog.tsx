@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@apollo/client/react";
-import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Stack } from "@mui/material";
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Stack } from "@mui/material";
 import type { ReactNode } from "react";
 import { PermissionDeniedFallback } from "@/frontend/components/ui/PermissionDeniedFallback";
 import type { AdminDisputeCaseQuery } from "@/frontend/graphql/generated/gql/graphql";
@@ -11,6 +11,7 @@ import { mapGraphQLErrorByCode, normalizeGraphQLErrorCode } from "@/frontend/pro
 import { AdminDisputeCaseArtifacts } from "@/frontend/views/admin/disputes/AdminDisputeCaseArtifacts";
 import { AdminDisputeCaseAuditTrail } from "@/frontend/views/admin/disputes/AdminDisputeCaseAuditTrail";
 import { AdminDisputeCaseSessionFacts } from "@/frontend/views/admin/disputes/AdminDisputeCaseSessionFacts";
+import { DisputeCaseErrorSlot } from "@/frontend/views/shared/disputes/DisputeCasePrimitives";
 import { Common, Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 /**
@@ -67,11 +68,7 @@ export function AdminDisputeCaseDialog({ sessionId, open, onClose }: Readonly<Ad
       action?.kind === "permission-fallback" || action?.kind === "auth-recovery" ? (
         <PermissionDeniedFallback />
       ) : (
-        <Stack data-testid="admin-dispute-case-error" sx={{ py: 4 }}>
-          <Alert severity="error" variant="outlined">
-            {t.genericError}
-          </Alert>
-        </Stack>
+        <DisputeCaseErrorSlot testId="admin-dispute-case-error" message={t.genericError} />
       );
   } else if (!data) {
     body = <AdminDisputeCaseLoading />;

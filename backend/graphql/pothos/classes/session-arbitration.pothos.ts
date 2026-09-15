@@ -1,37 +1,34 @@
 /**
- * AdminDisputeCasePothosObject — the single canonical GraphQL object for the
- * admin's dispute case-review read (the evidence bundle behind an
- * arbitration decision) — and TeacherDisputeCasePothosObject, the
- * participant-side bundle the session's own teacher reads.
+ * Dispute-family Pothos objects — the dispute-case read envelopes (the
+ * evidence bundles behind arbitration decisions and their participant
+ * mirrors) plus the admin queue/analytics projections.
  *
  * Single Canonical Object Type Pattern (`backend/graphql/AGENTS.md`):
- *  - Backed EXCLUSIVELY by the canonical `AdminDisputeCaseReturnType` from
+ *  - Backed EXCLUSIVELY by the canonical `*ReturnType` shapes from
  *    `@/backend/types` — no local type definitions here. There is NO
  *    business logic in this module.
- *  - It is a compound READ envelope (the sanctioned wrapper exception): it
- *    reuses the existing canonical entity objects — `Session`,
- *    `SessionReport`, `SessionHomeWork`, `SessionRecitation`, and
- *    `AdminAuditLogEntry` — by reference; every member entity keeps exactly
- *    one GraphQL object type and this module registers no duplicate of any
- *    of them. The envelope itself is an embedded value object with NO `id`
- *    (the normalizable entities are its members).
+ *  - Compound READ envelopes (the sanctioned wrapper exception): they reuse
+ *    the existing canonical entity objects — `Session`, `SessionReport`,
+ *    `SessionHomeWork`, `SessionRecitation`, and `AdminAuditLogEntry` — by
+ *    reference; every member entity keeps exactly one GraphQL object type
+ *    and this module registers no duplicate of any of them. The envelopes
+ *    themselves are embedded value objects with NO `id` (the normalizable
+ *    entities are their members). The shared artifact passthroughs come
+ *    from `disputeCaseArtifactFields` (the family's field factory).
  *  - Absent artifacts surface as honest `null`s (`report`, `homework`,
  *    `recitation` are nullable): a session whose report, homework, or
  *    recitation record was never produced renders no fabricated
- *    placeholder. The `auditTrail` list is non-nullable and resolves to an
- *    empty list when the session has no trail rows yet.
+ *    placeholder.
  *
  * Consumed by the arbitration query resolver module, whose import
- * transitively registers the type through the `gqlSchema.ts` side-effect
+ * transitively registers the types through the `gqlSchema.ts` side-effect
  * chain.
  */
 
 import { AdminAuditLogEntryPothosObject } from "@/backend/graphql/pothos/admin/audit-trail.pothos";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import { SessionHomeWorkPothosObject } from "@/backend/graphql/pothos/classes/home-work.pothos";
-import { SessionRecitationPothosObject } from "@/backend/graphql/pothos/classes/recitation.pothos";
-import { SessionReportPothosObject } from "@/backend/graphql/pothos/classes/report.pothos";
 import { SessionPothosObject } from "@/backend/graphql/pothos/classes/session.pothos";
+import { disputeCaseArtifactFields } from "@/backend/graphql/pothos/shared/disputeCaseFieldHelpers";
 import type {
   AdminDisputeAnalyticsReturnType,
   AdminDisputeCaseReturnType,
@@ -44,43 +41,17 @@ import type {
 /**
  * The canonical `AdminDisputeCase` GraphQL object. The producer is
  * `SessionArbitrationService.getAdminDisputeCase` (the admin-gated case
- * read); every field is a passthrough of the composed bundle.
+ * read); every field is a passthrough of the composed bundle. The
+ * session-scoped audit trail is the admin governance surface (newest
+ * first, the trail service's largest single page — a session's arbitration
+ * history is bounded by its own lifecycle); non-nullable list, an empty
+ * trail is the honest empty state.
  */
 export const AdminDisputeCasePothosObject = gqlSchemaBuilder
   .objectRef<AdminDisputeCaseReturnType>("AdminDisputeCase")
   .implement({
     fields: t => ({
-      // The disputed session's full row (dispute reason, stamps, fee, hold
-      // marker) through the canonical `Session` object — `Session!`.
-      session: t.field({
-        type: SessionPothosObject,
-        resolve: parent => parent.session,
-      }),
-      // The teacher's post-session report — honest `null` when none was
-      // submitted.
-      report: t.field({
-        type: SessionReportPothosObject,
-        nullable: true,
-        resolve: parent => parent.report,
-      }),
-      // The session's homework record — honest `null` when none was
-      // produced.
-      homework: t.field({
-        type: SessionHomeWorkPothosObject,
-        nullable: true,
-        resolve: parent => parent.homework,
-      }),
-      // The session's recitation record — honest `null` when none was
-      // recorded.
-      recitation: t.field({
-        type: SessionRecitationPothosObject,
-        nullable: true,
-        resolve: parent => parent.recitation,
-      }),
-      // The session-scoped audit trail entries (newest first, the trail
-      // service's largest single page — a session's arbitration history is
-      // bounded by its own lifecycle). Non-nullable list; an empty trail is
-      // the honest empty state.
+      ...disputeCaseArtifactFields(t),
       auditTrail: t.field({
         type: [AdminAuditLogEntryPothosObject],
         resolve: parent => [...parent.auditTrail],
@@ -107,44 +78,14 @@ export const AdminDisputeCasePothosObject = gqlSchemaBuilder
  * predicate lives service-side); every field is a passthrough of the
  * composed bundle. The audit trail is deliberately ABSENT — the trail is
  * the admin governance surface, so this envelope reuses only the
- * participant-owned entity objects (`Session`, `SessionReport`,
- * `SessionHomeWork`, `SessionRecitation`), each still registered exactly
- * once repo-wide.
+ * participant-owned entity objects, each still registered exactly once
+ * repo-wide. The student display name is resolved server-side.
  */
 export const TeacherDisputeCasePothosObject = gqlSchemaBuilder
   .objectRef<TeacherDisputeCaseReturnType>("TeacherDisputeCase")
   .implement({
     fields: t => ({
-      // The session's full row (dispute reason, stamps, fee, hold marker)
-      // through the canonical `Session` object — `Session!`.
-      session: t.field({
-        type: SessionPothosObject,
-        resolve: parent => parent.session,
-      }),
-      // The teacher's own post-session report — honest `null` when none
-      // was submitted.
-      report: t.field({
-        type: SessionReportPothosObject,
-        nullable: true,
-        resolve: parent => parent.report,
-      }),
-      // The session's homework record — honest `null` when none was
-      // produced.
-      homework: t.field({
-        type: SessionHomeWorkPothosObject,
-        nullable: true,
-        resolve: parent => parent.homework,
-      }),
-      // The session's recitation record — honest `null` when none was
-      // recorded.
-      recitation: t.field({
-        type: SessionRecitationPothosObject,
-        nullable: true,
-        resolve: parent => parent.recitation,
-      }),
-      // The student display name resolved server-side — honest `null`
-      // when the user row is unreachable (the view falls back to the
-      // numeric identity).
+      ...disputeCaseArtifactFields(t),
       studentName: t.field({
         type: "String",
         nullable: true,
@@ -167,36 +108,7 @@ export const StudentDisputeCasePothosObject = gqlSchemaBuilder
   .objectRef<StudentDisputeCaseReturnType>("StudentDisputeCase")
   .implement({
     fields: t => ({
-      // The session's full row (dispute reason, stamps, fee, hold marker)
-      // through the canonical `Session` object — `Session!`.
-      session: t.field({
-        type: SessionPothosObject,
-        resolve: parent => parent.session,
-      }),
-      // The teacher's authored post-session report — honest `null` when
-      // none was submitted.
-      report: t.field({
-        type: SessionReportPothosObject,
-        nullable: true,
-        resolve: parent => parent.report,
-      }),
-      // The session's homework record — honest `null` when none was
-      // produced.
-      homework: t.field({
-        type: SessionHomeWorkPothosObject,
-        nullable: true,
-        resolve: parent => parent.homework,
-      }),
-      // The session's recitation record — honest `null` when none was
-      // recorded.
-      recitation: t.field({
-        type: SessionRecitationPothosObject,
-        nullable: true,
-        resolve: parent => parent.recitation,
-      }),
-      // The teacher display name resolved server-side — honest `null`
-      // when the user row is unreachable (the view falls back to the
-      // numeric identity).
+      ...disputeCaseArtifactFields(t),
       teacherName: t.field({
         type: "String",
         nullable: true,
