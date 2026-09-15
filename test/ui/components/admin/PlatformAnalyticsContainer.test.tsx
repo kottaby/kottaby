@@ -449,8 +449,8 @@ describe("PlatformAnalyticsContainer (en / LTR)", () => {
     // error dropped, no snapshot on screen).
     let reattempt: Promise<unknown> = Promise.resolve();
     await act(async () => {
-      // v4 replacement for the deprecated reFetchObservableQueries(): re-observe
-      // every active query, the same surface the 120s poll's refresh uses.
+      // Re-observe every active query using refetchQueries, matching the
+      // surface the 120s poll's refresh uses.
       reattempt = client.refetchQueries({ include: "active" });
     });
 

@@ -2,7 +2,7 @@
 
 import { NotificationsOutlined } from "@mui/icons-material";
 import { Box, Skeleton, Stack, Typography } from "@mui/material";
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import type { MyNotificationsQuery_myNotifications_items } from "@/frontend/graphql/generated/gql/graphql";
 import { NotificationRow } from "@/frontend/views/notifications/feed";
 import type { NotificationsLabels } from "@/shared/locale/types/notifications";
@@ -35,7 +35,13 @@ const NO_PENDING_IDS: readonly string[] = [];
  * feed title) and `aria-busy` while a sweep/refetch runs so assistive tech
  * can follow the transition.
  */
-export function NotificationList({
+/**
+ * Bolt Performance Optimization:
+ * Wrapped NotificationList in React.memo to prevent re-rendering the entire list when
+ * parent container state changes (such as snackbar state or pagination metadata)
+ * unless the notification items, handlers, or busy status actually change.
+ */
+export const NotificationList = memo(function NotificationList({
   items,
   labels,
   locale,
@@ -71,7 +77,7 @@ export function NotificationList({
       ))}
     </Box>
   );
-}
+});
 
 interface NotificationSkeletonListProps {
   /** Skeleton row count (defaults to one page worth of visual rows). */

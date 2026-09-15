@@ -96,9 +96,11 @@ export function AdminTeachersSurface(): ReactNode {
 
   // The count badge is an INACTIVE-tab affordance: while the admin reads
   // the queue the pagination footer already shows the total, so the badge
-  // would be redundant. It reflects the queue's CURRENT total (which is
-  // the unfiltered total unless filters were set while the tab was open).
-  const showApplicantsBadge = activeTab !== "applicants" && applicants.total > 0;
+  // would be redundant. It counts PENDING applicants only (issue #144) —
+  // the search-aware, status-filter-independent aggregate the queue
+  // already fetches for the quick-filter chips (no second query).
+  const pendingCount = applicants.statusCounts?.pending ?? 0;
+  const showApplicantsBadge = activeTab !== "applicants" && pendingCount > 0;
 
   return (
     <Stack spacing={3} sx={{ p: { xs: 2, md: 3 } }}>
@@ -107,7 +109,7 @@ export function AdminTeachersSurface(): ReactNode {
       <AdminTeachersTabStrip
         labels={labels}
         activeTab={activeTab}
-        applicantsBadge={showApplicantsBadge ? applicants.total : null}
+        applicantsBadge={showApplicantsBadge ? pendingCount : null}
         onChangeTab={setActiveTab}
       />
 

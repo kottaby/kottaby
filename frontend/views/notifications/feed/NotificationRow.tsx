@@ -2,7 +2,7 @@
 
 import { NotificationsOutlined } from "@mui/icons-material";
 import { Box, Chip, Stack, Typography } from "@mui/material";
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import type { MyNotificationsQuery_myNotifications_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { NotificationRowMarkReadAction, NotificationRowTypeAvatar } from "@/frontend/views/notifications/ui";
@@ -66,7 +66,12 @@ interface NotificationRowProps {
  * mark-read action is offered; read rows render un-tinted with no dot and
  * no action.
  */
-export function NotificationRow({
+/**
+ * Bolt Performance Optimization:
+ * Wrapped NotificationRow in React.memo to prevent unnecessary re-renders of unchanged
+ * notification rows when sibling rows update or parent container state changes.
+ */
+export const NotificationRow = memo(function NotificationRow({
   notification,
   labels,
   locale,
@@ -165,4 +170,4 @@ export function NotificationRow({
       ) : null}
     </Box>
   );
-}
+});

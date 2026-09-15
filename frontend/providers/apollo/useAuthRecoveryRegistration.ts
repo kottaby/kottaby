@@ -80,9 +80,8 @@ export function useAuthRecoveryRegistration(
       return;
     }
     // Re-issue all active observable queries with the fresh token loaded
-    // into React memory by `updateAuthToken`. Apollo's `refetchObservableQueries`
-    // (typo preserved from Apollo's API name) re-runs every active watchQuery
-    // against the new authLink state.
+    // into React memory by `updateAuthToken`. `apolloClient.refetchQueries({ include: "active" })`
+    // re-runs every active watchQuery against the new authLink state.
     void apolloClient.refetchQueries({ include: "active" }).catch((error: unknown) => {
       logger.warn({ caller: "useAuthRecoveryRegistration" }, "[AuthRecovery] refetchQueries failed", error);
     });

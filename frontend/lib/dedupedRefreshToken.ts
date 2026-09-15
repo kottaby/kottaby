@@ -35,10 +35,14 @@ export function dedupedRefreshToken<T>(fn: () => Promise<T>): Promise<T> {
   }
   const promise = fn();
   inflight = promise;
-  void promise.finally(() => {
-    if (inflight === promise) {
-      inflight = null;
-    }
-  });
+  void promise
+    .finally(() => {
+      if (inflight === promise) {
+        inflight = null;
+      }
+    })
+    .catch(() => {
+      // Ignore rejection in cleanup chain; caller handles the original promise rejection.
+    });
   return promise;
 }

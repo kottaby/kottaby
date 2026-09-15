@@ -28,7 +28,7 @@ export function routeApolloLinkError(
   // return a Promise. handleAuthError performs its own redirect + log
   // side-effects synchronously-after-await; Apollo will treat the
   // operation as having an error in the meantime, but recovery is
-  // signaled by reFetchObservableQueries rather than by suppressing
+  // signaled by authRecovery.reFetch() rather than by suppressing
   // the per-operation error.
   void handleAuthError(error, operation.operationName);
 

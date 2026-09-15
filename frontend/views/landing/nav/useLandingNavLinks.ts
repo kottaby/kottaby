@@ -23,6 +23,19 @@ export interface LandingNavLink {
   readonly href: string;
 }
 
+/**
+ * Anchors hidden in desktop nav to prevent overflow at 1200-1366px screen widths.
+ * Module constant: stable identity avoids allocating a new Set on every hook execution / re-render.
+ */
+const DESKTOP_NAV_HIDDEN: ReadonlySet<string> = new Set([
+  "#verse",
+  "#app",
+  "#contact",
+  "#resources",
+  "#roles",
+  "#testimonials",
+]);
+
 /** Localized nav anchor list for the top bar and mobile drawer. */
 export function useLandingNavLinks(): {
   readonly navLinks: readonly LandingNavLink[];
@@ -53,8 +66,7 @@ export function useLandingNavLinks(): {
   // 10-link set still clipped by 30px. Hidden anchors stay in the mobile
   // drawer and remain reachable by scroll (#verse = page top, #app = bottom,
   // #contact = footer column + newsletter CTA).
-  const desktopNavHidden = new Set(["#verse", "#app", "#contact", "#resources", "#roles", "#testimonials"]);
-  const desktopNavLinks = navLinks.filter(l => !desktopNavHidden.has(l.href));
+  const desktopNavLinks = navLinks.filter(l => !DESKTOP_NAV_HIDDEN.has(l.href));
 
   return { navLinks, desktopNavLinks };
 }
