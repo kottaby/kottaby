@@ -51,7 +51,7 @@ export function disputeCaseArtifactFields(
   t: ObjectFieldBuilder<
     GqlSchemaTypes,
     AdminDisputeCaseReturnType | TeacherDisputeCaseReturnType | StudentDisputeCaseReturnType
-  >,
+  >
 ) {
   return {
     // The disputed session's full row (dispute reason, stamps, fee, hold

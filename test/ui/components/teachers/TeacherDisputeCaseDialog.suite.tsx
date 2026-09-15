@@ -26,9 +26,9 @@ import type { ReactElement } from "react";
 import type { TeacherDisputeCaseQuery_teacherDisputeCase } from "@/frontend/graphql/generated/gql/graphql";
 import { TeacherDisputeCaseDialog } from "@/frontend/views/teacher/disputes/TeacherDisputeCaseDialog";
 import {
+  type DisputeCaseFixtureData,
   disputeCaseArtifactsFixture,
   disputeCaseSessionFixture,
-  type DisputeCaseFixtureData,
   type ParticipantDisputeCaseSuiteContext,
   registerParticipantDisputeCaseSuite,
 } from "@/test/ui/components/shared/disputeCaseDialogHarness";
@@ -59,7 +59,7 @@ const RATING = 5;
 
 /** Deterministic case payload builder mirroring the teacher bundle envelope. */
 function caseFixture(
-  overrides?: Partial<TeacherDisputeCaseQuery_teacherDisputeCase>,
+  overrides?: Partial<TeacherDisputeCaseQuery_teacherDisputeCase>
 ): TeacherDisputeCaseQuery_teacherDisputeCase {
   return {
     session: disputeCaseSessionFixture(DATA),

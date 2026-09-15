@@ -2,14 +2,17 @@
 
 import { Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { SessionMetaCell } from "@/frontend/components/ui/sessionList";
-import { DisputeCaseHomeworkBlock, DisputeCaseRecitationBlock, DisputeCaseReportBlock } from "@/frontend/views/shared/disputes/DisputeCasePrimitives";
 import type {
   AdminDisputeCaseQuery_adminDisputeCase,
   AdminDisputeCaseQuery_adminDisputeCase_homework,
   AdminDisputeCaseQuery_adminDisputeCase_recitation,
   AdminDisputeCaseQuery_adminDisputeCase_report,
 } from "@/frontend/graphql/generated/gql/graphql";
+import {
+  DisputeCaseHomeworkBlock,
+  DisputeCaseRecitationBlock,
+  DisputeCaseReportBlock,
+} from "@/frontend/views/shared/disputes/DisputeCasePrimitives";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 /**
@@ -23,9 +26,6 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  *
  * MUI v9 discipline: `sx`-only styling, colors through `theme.palette.*`.
  */
-
-/** Typographic placeholder for nullable payload values (NOT locale copy). */
-const NO_VALUE_PLACEHOLDER = "—";
 
 interface AdminDisputeCaseArtifactsProps {
   /** The settled case payload (its three nullable evidence artifacts). */
@@ -94,8 +94,16 @@ export function AdminDisputeCaseArtifacts({ disputeCase, t }: Readonly<AdminDisp
       >
         {homework === null ? null : (
           <Stack sx={{ gap: 1.5, flexDirection: "row", flexWrap: "wrap" }}>
-            <DisputeCaseHomeworkBlock label={t.caseReviewHomeworkCurrentLabel} homework={homework} rangeFromKey="current" />
-            <DisputeCaseHomeworkBlock label={t.caseReviewHomeworkRevisionLabel} homework={homework} rangeFromKey="revision" />
+            <DisputeCaseHomeworkBlock
+              label={t.caseReviewHomeworkCurrentLabel}
+              homework={homework}
+              rangeFromKey="current"
+            />
+            <DisputeCaseHomeworkBlock
+              label={t.caseReviewHomeworkRevisionLabel}
+              homework={homework}
+              rangeFromKey="revision"
+            />
           </Stack>
         )}
       </CaseSection>
