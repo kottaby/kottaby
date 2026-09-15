@@ -63,18 +63,26 @@ function tileColors(theme: Theme, tone: TileTone): TileColors {
   }
 }
 
-interface StatusRowProps {
+interface StatusRowTile {
   readonly icon: ReactNode;
-  readonly tileTone: TileTone;
-  readonly label: string;
-  readonly subLine?: string | null;
-  readonly chipTone: DetailTone;
-  readonly chipLabel: string;
-  /** Hairline between rows — absent on the first row. */
-  readonly hasTopDivider: boolean;
+  readonly tone: TileTone;
 }
 
-function StatusRow({ icon, tileTone, label, subLine, chipTone, chipLabel, hasTopDivider }: StatusRowProps): ReactNode {
+interface StatusRowChip {
+  readonly tone: DetailTone;
+  readonly label: string;
+}
+
+interface StatusRowProps {
+  readonly tile: StatusRowTile;
+  readonly label: string;
+  readonly subLine?: string | null;
+  readonly chip: StatusRowChip;
+  /** Hairline between rows — absent on the first row. */
+  readonly hasTopDivider?: boolean;
+}
+
+function StatusRow({ tile, label, subLine, chip, hasTopDivider = false }: StatusRowProps): ReactNode {
   return (
     <Stack
       direction="row"
@@ -88,7 +96,7 @@ function StatusRow({ icon, tileTone, label, subLine, chipTone, chipLabel, hasTop
       <Box
         aria-hidden
         sx={theme => {
-          const colors = tileColors(theme, tileTone);
+          const colors = tileColors(theme, tile.tone);
           return {
             width: 40,
             height: 40,
@@ -102,7 +110,7 @@ function StatusRow({ icon, tileTone, label, subLine, chipTone, chipLabel, hasTop
           };
         }}
       >
-        {icon}
+        {tile.icon}
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="body2" sx={{ fontWeight: 500 }}>
@@ -114,13 +122,13 @@ function StatusRow({ icon, tileTone, label, subLine, chipTone, chipLabel, hasTop
           </Typography>
         )}
       </Box>
-      <DetailTonalChip tone={chipTone} label={chipLabel} />
+      <DetailTonalChip tone={chip.tone} label={chip.label} />
     </Stack>
   );
 }
 
 /** Yes/No chip for a boolean student flag (success lane when true). */
-function booleanChip(flag: boolean, booleanValues: BooleanValues): { tone: DetailTone; label: string } {
+function booleanChip(flag: boolean, booleanValues: BooleanValues): StatusRowChip {
   return flag ? { tone: "success", label: booleanValues.yes } : { tone: "neutral", label: booleanValues.no };
 }
 
@@ -140,36 +148,27 @@ export function StudentStatusCard({ student, labels }: StudentStatusCardProps): 
       <DetailCardTitle icon={<SchoolIcon />} title={labels.detail.student} />
       <Box>
         <StatusRow
-          icon={<ParentLinkIcon />}
-          tileTone="secondary"
+          tile={{ icon: <ParentLinkIcon />, tone: "secondary" }}
           label={labels.detail.studentFields.hasParentLink}
-          chipTone={parentLink.tone}
-          chipLabel={parentLink.label}
-          hasTopDivider={false}
+          chip={parentLink}
         />
         <StatusRow
-          icon={<SubscriptionIcon />}
-          tileTone="primary"
+          tile={{ icon: <SubscriptionIcon />, tone: "primary" }}
           label={labels.detail.studentFields.hasActiveSubscription}
-          chipTone={subscription.tone}
-          chipLabel={subscription.label}
+          chip={subscription}
           hasTopDivider
         />
         <StatusRow
-          icon={<TrialIcon />}
-          tileTone="warning"
+          tile={{ icon: <TrialIcon />, tone: "warning" }}
           label={labels.detail.studentStatus.trialStatus}
           subLine={trialSubLine}
-          chipTone="warning"
-          chipLabel={labels.detail.studentStatus.trialChip}
+          chip={{ tone: "warning", label: labels.detail.studentStatus.trialChip }}
           hasTopDivider
         />
         <StatusRow
-          icon={<TagIcon />}
-          tileTone="neutral"
+          tile={{ icon: <TagIcon />, tone: "neutral" }}
           label={labels.detail.studentFields.handshakeCode}
-          chipTone="neutral"
-          chipLabel={student.handshakeCode}
+          chip={{ tone: "neutral", label: student.handshakeCode }}
           hasTopDivider
         />
       </Box>
