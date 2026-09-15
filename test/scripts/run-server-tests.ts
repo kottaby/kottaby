@@ -745,6 +745,7 @@ async function main(): Promise<void> {
       cwd: process.cwd(),
       env: {
         ...buildDbEnv(),
+        ...(isPgliteProvider ? { DB_PROVIDER: "pglite" } : {}),
         KOTTABY_TEST_RUNNER_OK: "1",
         GRAPHQL_TEST_PORT: String(port),
         TEST_SERVER_PORT: String(port),

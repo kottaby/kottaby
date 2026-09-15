@@ -1,5 +1,5 @@
 {
-  "manifestHash": "81bcb56fce7d888c6d236ecc6386389773550f932c1c356c00148c2b1ca6f386",
+  "manifestHash": "b7478abfdf621cd75c8eb79a436bc1c790f1289fdbdbfcc2b08e561b3d68e4f6",
   "manifest": [
     {
       "file": "2-functions.sql",
@@ -12,6 +12,10 @@
     {
       "file": "4-student-payments-status-transition.sql",
       "sha256": "c5d41b4d406064759e25edbd309c4186d9b5b077fd60feb1f6131fe6c823446c"
+    },
+    {
+      "file": "5-session-columns-patch.sql",
+      "sha256": "41dc448c3309eea0c9888ca046758a1daa3142ceee5be1bcf90f97c912de2fa5"
     },
     {
       "file": "5-student-payments-provider-transaction.sql",
@@ -29,6 +33,7 @@
     "20260908103411_custom_4-student-payments-status-transition",
     "20260911175854_custom_5-student-payments-provider-transaction",
     "20260912091422_custom_5-teacher-transaction-settlement",
-    "20260914064155_custom_5-teacher-transaction-settlement"
+    "20260914064155_custom_5-teacher-transaction-settlement",
+    "20260915091059_custom_5-session-columns-patch"
   ]
 }

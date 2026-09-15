@@ -1,6 +1,10 @@
 "use client";
 
-import { ContentCopy as CopyIcon, Share as ShareIcon } from "@mui/icons-material";
+import {
+  CheckOutlined as CheckIcon,
+  ContentCopyOutlined as CopyIcon,
+  ShareOutlined as ShareIcon,
+} from "@mui/icons-material";
 import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
@@ -46,14 +50,14 @@ export function VerseActions(): ReactNode {
         <IconButton
           onClick={handleCopy}
           size="small"
-          aria-label={t.verseCopy}
+          aria-label={copied ? t.verseCopied : t.verseCopy}
           sx={{
             ...focusVisibleRingSx,
             color: "var(--mui-palette-secondary-light)",
             "&:hover": { bgcolor: "color-mix(in srgb, var(--mui-palette-secondary-light) 15%, transparent)" },
           }}
         >
-          <CopyIcon sx={{ fontSize: 18 }} />
+          {copied ? <CheckIcon sx={{ fontSize: 18 }} /> : <CopyIcon sx={{ fontSize: 18 }} />}
         </IconButton>
       </Tooltip>
       <Typography
