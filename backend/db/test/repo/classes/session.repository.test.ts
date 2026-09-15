@@ -2323,10 +2323,22 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       "session.confirmedByStudentAt",
       "session.confirmationDeadline",
       "session.confirmedByTeacherAt",
+      // The arbitration family's state/outcome predicates: the enum members
+      // and the schema column objects they compare SQL-side (never rendered
+      // caller values).
+      "SessionStatus.Disputed",
+      "session.status",
+      "session.resolvedAt",
+      "session.resolutionOutcome",
+      "DisputeResolution.Cancel",
+      "DisputeResolution.Complete",
+      "DisputeResolution.PartialRefund",
+      "DisputeResolution.Refund",
+      "DisputeResolution.Uphold",
       "cutoff",
       "now",
     ]);
-    expect(interpolations).toHaveLength(26);
+    expect(interpolations).toHaveLength(39);
     for (const interpolation of interpolations) {
       expect(ALLOWED.has(interpolation)).toBe(true);
     }
@@ -2392,16 +2404,16 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
 
   test("source: executor discipline — reads fall back to queryDb, writes to the pool, tx last on every signature", () => {
     expect(repoSource.includes("const executor = tx ?? db;")).toBe(true);
-    expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(15);
+    expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(16);
     expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(13);
-    // Thirty exported methods (each namespace read method plus its
+    // Thirty-one exported methods (each namespace read method plus its
     // one-to-one sibling implementation, the report-gate lock, the report
     // wave-context read, and the post-confirmation dispute trio), every one
     // ending in tx (LAST param).
     // Exactly ONE takes it REQUIRED — the report-gate lock (a FOR UPDATE
     // read taken outside a transaction releases when the statement ends
-    // and protects nothing); the other twenty-nine keep the optional tx.
-    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(30);
+    // and protects nothing); the other thirty keep the optional tx.
+    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(31);
     expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(19);
     expect(repoSource.match(/tx: DBTransaction/g) ?? []).toHaveLength(1);
   });
