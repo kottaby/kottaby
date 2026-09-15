@@ -63,7 +63,7 @@ describe("getRecitationLabel", () => {
 
   test("covers all values defined in RecitationReading enum", () => {
     const enumValues = Object.values(RecitationReading);
-    expect(expectedMappings.length).toBe(enumValues.length);
+    expect(expectedMappings).toHaveLength(enumValues.length);
   });
 
   test("returns the input string as fallback for unknown reading enum/string", () => {
@@ -93,7 +93,7 @@ describe("getRecitationDescription", () => {
 
   test("covers all values defined in RecitationReading enum", () => {
     const enumValues = Object.values(RecitationReading);
-    expect(expectedMappings.length).toBe(enumValues.length);
+    expect(expectedMappings).toHaveLength(enumValues.length);
   });
 
   test("returns empty string as fallback for unknown reading enum/string", () => {
