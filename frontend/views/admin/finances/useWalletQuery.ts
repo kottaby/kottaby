@@ -86,9 +86,8 @@ export function useAdminTeacherWallet(
     adminTeacherWalletQueryDocument,
     // `skipToken` (NOT `skip: boolean`) — the token form forces the
     // `standby` fetch policy, and standby watchers are excluded from every
-    // refetch path (`refetchQueries` / `refetchObservableQueries` skip
-    // them), so the `"0"` sentinel variables can never reach the network
-    // while no teacher is picked.
+    // refetch path (`refetchQueries` skips them), so the `"0"` sentinel
+    // variables can never reach the network while no teacher is picked.
     teacherId === null ? skipToken : { fetchPolicy: "cache-and-network" as const, variables }
   );
 
