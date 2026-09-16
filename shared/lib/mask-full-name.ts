@@ -40,9 +40,7 @@ function getGraphemeSegmenter(): Intl.Segmenter | null {
   if (typeof Intl.Segmenter !== "function") {
     return null;
   }
-  if (!cachedSegmenter) {
-    cachedSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-  }
+  cachedSegmenter ??= new Intl.Segmenter(undefined, { granularity: "grapheme" });
   return cachedSegmenter;
 }
 

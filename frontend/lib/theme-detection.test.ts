@@ -12,8 +12,11 @@ import { afterEach, beforeEach, describe, expect, type Mock, spyOn, test } from 
 import { setThemePreference } from "@/frontend/lib/theme-detection";
 
 describe("setThemePreference — theme preference persistence", () => {
-  const originalWindow = globalThis.window;
-  const originalDocument = globalThis.document;
+  // Runtime reality: `window`/`document` are DELETED in SSR-safety cases below,
+  // so capture them as possibly-undefined even though lib.dom types them as
+  // always-present (keeps the afterEach guards type-honest).
+  const originalWindow: typeof globalThis.window | undefined = globalThis.window;
+  const originalDocument: typeof globalThis.document | undefined = globalThis.document;
 
   let mockLocalStorageStore: Record<string, string>;
   let setItemSpy: Mock<(key: string, value: string) => void>;
@@ -59,7 +62,7 @@ describe("setThemePreference — theme preference persistence", () => {
   });
 
   afterEach(() => {
-    if (originalWindow !== undefined) {
+    if (originalWindow) {
       Object.defineProperty(globalThis, "window", {
         value: originalWindow,
         configurable: true,
@@ -69,7 +72,7 @@ describe("setThemePreference — theme preference persistence", () => {
       Reflect.deleteProperty(globalThis, "window");
     }
 
-    if (originalDocument !== undefined) {
+    if (originalDocument) {
       Object.defineProperty(globalThis, "document", {
         value: originalDocument,
         configurable: true,
