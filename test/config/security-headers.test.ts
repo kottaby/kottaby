@@ -17,6 +17,7 @@ describe("Security Headers Configuration", () => {
       expect(headersMap.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
       expect(headersMap.get("Permissions-Policy")).toBe("camera=(), microphone=(), geolocation=()");
       expect(headersMap.get("X-XSS-Protection")).toBe("0");
+      expect(headersMap.get("Strict-Transport-Security")).toBe("max-age=63072000; includeSubDomains; preload");
     }
   });
 });

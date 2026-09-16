@@ -70,6 +70,10 @@ const nextConfig: NextConfig = {
             key: "X-XSS-Protection",
             value: "0",
           },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
         ],
       },
     ];
