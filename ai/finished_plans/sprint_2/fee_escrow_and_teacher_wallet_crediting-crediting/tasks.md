@@ -1,7 +1,6 @@
 # Tasks — Fee Escrow & Teacher Wallet Crediting (Close-the-Loop Verification)
 
-**Plan Directory:** `ai/plans/sprint_2/Fee Escrow & Teacher Wallet Crediting-crediting/`
-**Outcome Directory:** `ai/plans/sprint_2/Fee Escrow & Teacher Wallet Crediting-crediting/outcome/`
+**Plan Directory:** `ai/finished_plans/sprint_2/fee_escrow_and_teacher_wallet_crediting-crediting/`
 **Requirements:** `specs.md` · **Design:** `plan.md` · **Tickets:** `docs/planning/TICKETS.md:1704-1796` · **Sprint:** 2
 
 ---
