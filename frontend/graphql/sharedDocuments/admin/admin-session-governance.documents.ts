@@ -74,6 +74,7 @@ export const adminSessionsQueryDocument: TypedDocumentNode<AdminSessionsQuery, A
         disputeReason
         disputedAt
         resolutionNote
+        resolutionOutcome
         resolvedAt
         needsAttention
       }
@@ -112,6 +113,7 @@ export const adminSessionQueryDocument: TypedDocumentNode<AdminSessionQuery, Adm
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
       needsAttention
     }
@@ -151,6 +153,7 @@ export const adminSessionRescheduleMutationDocument: TypedDocumentNode<
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
       needsAttention
     }
@@ -189,6 +192,7 @@ export const adminSessionCancelMutationDocument: TypedDocumentNode<
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
       needsAttention
     }
@@ -227,6 +231,7 @@ export const adminSessionReassignMutationDocument: TypedDocumentNode<
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
       needsAttention
     }
@@ -265,6 +270,7 @@ export const adminSessionJoinMutationDocument: TypedDocumentNode<
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
       needsAttention
     }

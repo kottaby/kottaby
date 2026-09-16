@@ -43,26 +43,37 @@
  * provenance lane intact — the same-lane refund that completes the
  * arbitration is the CALLER's follow-up write on the same transaction
  * (the identical shape `cancelSession` composes), driven by the returned
- * row's recorded lane.
+ * row's recorded lane. The dispute surface is two-generation: rows whose
+ * fee is still held dispute from a live state and resolve with the
+ * shipped CANCEL/COMPLETE pair, while consumed-escrow rows (dual-confirmed
+ * completions whose fee was already earned) dispute through the
+ * student-only post-confirmation entry and resolve through the
+ * consumed-generation completion leg — both generations share the
+ * `disputed` state and are discriminated everywhere by `fee_held` inside
+ * the write predicates themselves, never by a prior read.
  *
  * File layout: the standalone-capable read machinery (shared predicate
  * builders, the select-column shape, the list/count/probe reads) lives in
  * the sibling `session.repository.helpers.ts` module (extracted verbatim);
  * the joined wave-context read lives in the sibling
  * `session.repository.wave.helpers.ts` module (extracted verbatim); the
- * guarded write transitions stay in this file, their shared
+ * post-confirmation dispute primitives live in the sibling
+ * `session.repository.arbitration.helpers.ts` module (same extraction
+ * pattern). The guarded write transitions stay in this file, their shared
  * participant live-state predicate factored into the module-level
  * `buildLiveParticipantTransitionPredicate` builder. Every read
  * method is a one-to-one delegation wrapper, so the public API (names,
  * signatures, behavior) is unchanged.
  */
 
-import { and, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
+import * as arbitrationImpl from "@/backend/db/repo/classes/session.repository.arbitration.helpers";
 import * as sessionRepositoryImpl from "@/backend/db/repo/classes/session.repository.helpers";
 import * as sessionRepositoryWaveImpl from "@/backend/db/repo/classes/session.repository.wave.helpers";
 import { session } from "@/backend/db/schema/classes/session";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
+import type { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import type {
   AdminSessionDetail,
@@ -280,17 +291,46 @@ export namespace SessionRepository {
   export async function resolveDisputeCancelOnce(
     id: number,
     resolutionNote: string | null,
+    resolutionOutcome: DisputeResolution,
     tx?: DBTransaction
   ): Promise<SessionSelectType | null> {
     const now = new Date();
     const executor = tx ?? db;
     const rows = await executor
       .update(session)
-      .set({ status: SessionStatus.Cancelled, feeHeld: false, resolutionNote, resolvedAt: now, updatedAt: now })
+      .set({
+        status: SessionStatus.Cancelled,
+        feeHeld: false,
+        resolutionNote,
+        resolutionOutcome,
+        resolvedAt: now,
+        updatedAt: now,
+      })
       .where(and(eq(session.id, id), eq(session.status, SessionStatus.Disputed)))
       .returning();
     return rows[0] ?? null;
   }
+
+  /**
+   * Opens a post-confirmation dispute exactly once (the student-only entry
+   * for the consumed escrow generation): a single guarded UPDATE whose
+   * predicate requires row identity, the caller being the session's
+   * student, the row `completed` with the student's dual-confirmation stamp
+   * written, AND the escrow already consumed — the held generation (fees
+   * still frozen) and the teacher-confirmed-only rows inside their
+   * confirmation window are structurally unreachable, as is any replay
+   * against a row already disputed. Writes the dispute reason and the
+   * dispute stamp from one captured instant. The escrow columns and the
+   * completion stamps are deliberately untouched: opening the dispute
+   * records intent only, and every financial write belongs to the
+   * arbitration outcome that later resolves it.
+   *
+   * @returns The updated row, or `null` when zero rows matched (unknown
+   *          id, non-participant caller, wrong state, missing student
+   *          stamp, or a row whose fee is still held — the caller
+   *          classifies via the arbitration probe).
+   */
+  export const openPostConfirmationDisputeOnce = arbitrationImpl.openPostConfirmationDisputeOnce;
 
   /**
    * Resolves a disputed session into `completed` exactly once (the admin
@@ -313,6 +353,7 @@ export namespace SessionRepository {
   export async function resolveDisputeCompleteOnce(
     id: number,
     resolutionNote: string | null,
+    resolutionOutcome: DisputeResolution,
     tx?: DBTransaction
   ): Promise<SessionSelectType | null> {
     const now = new Date();
@@ -324,6 +365,7 @@ export namespace SessionRepository {
         feeHeld: false,
         endedAt: now,
         resolutionNote,
+        resolutionOutcome,
         resolvedAt: now,
         updatedAt: now,
       })
@@ -331,6 +373,29 @@ export namespace SessionRepository {
       .returning();
     return rows[0] ?? null;
   }
+
+  /**
+   * Resolves a consumed-escrow dispute into `completed` exactly once (the
+   * arbitration completion leg shared by the REFUND, PARTIAL REFUND, and
+   * UPHELD outcomes): a single guarded UPDATE whose predicate requires row
+   * identity, the disputed state, AND the consumed escrow — a held-
+   * generation dispute is structurally unreachable (its own resolutions
+   * are the CANCEL/COMPLETE pair above), and a row already resolved
+   * matches zero rows, so an outcome can never commit twice. Writes the
+   * resolution note and stamp from one captured instant and returns the
+   * arbitration probe projection (both participants, the fee, the hold
+   * marker, the provenance lane, the student's dual-confirmation stamp) so
+   * the caller composes the outcome's financial legs — the wallet
+   * reversal and the same-lane credit — on the SAME transaction without a
+   * re-read. No financial write is part of this method, and the original
+   * completion stamps are deliberately preserved (the meeting ended once).
+   *
+   * @returns The probe-shaped row, or `null` when zero rows matched
+   *          (unknown id, a row no longer disputed, or a disputed row
+   *          whose fee is still held — the caller classifies via the
+   *          arbitration probe).
+   */
+  export const resolveConsumedDisputeOnce = arbitrationImpl.resolveConsumedDisputeOnce;
 
   /**
    * Cold-path probe: reads the minimal classification projection (identity
@@ -349,6 +414,23 @@ export namespace SessionRepository {
   ): Promise<SessionTransitionProbeRowType | null> {
     return sessionRepositoryImpl.findTransitionProbe(id, tx);
   }
+
+  /**
+   * Arbitration classification probe: the escrow-focused column projection
+   * (identity + lifecycle state + both participants + the fee, the hold
+   * marker, the permanent provenance lane, and the student's dual-
+   * confirmation stamp) — the transition probe's financial twin, read by
+   * the arbitration surface to classify a row into its dispute generation
+   * and to drive the outcome legs. A `null` lane on a returned probe means
+   * no fee was ever held (the never-held defensive case; the caller's
+   * lane-credit leg becomes a no-op). Like every probe, it is
+   * classification-only — it never gates or influences any write.
+   *
+   * @returns The eight-column projection, or `null` when the id is
+   *          unknown.
+   */
+  export const findArbitrationProbe = arbitrationImpl.findArbitrationProbe;
+  export const getDisputeAnalyticsCounts = arbitrationImpl.getDisputeAnalyticsCounts;
 
   /**
    * Report-gate row lock: takes the `FOR UPDATE` lock on the session row
@@ -699,40 +781,11 @@ export namespace SessionRepository {
     return sessionRepositoryImpl.guardCancelPreTerminal(sessionId, tx);
   }
 
-  /**
-   * Admin teacher-reassignment guard: a single guarded UPDATE whose
-   * predicate requires row identity, the row still being `scheduled`, and
-   * the row's owning teacher being DIFFERENT from the candidate — the only
-   * state in which the owning teacher may be swapped (an in-progress or
-   * finished meeting has its teacher fixed, and a disputed row belongs to
-   * arbitration). The different-teacher fold is fail-closed: a same-teacher
-   * call (a no-op swap) matches zero rows like any other ineligible state —
-   * the eligibility-fold pattern — so the caller's transition probe
-   * classifies it as the state conflict with zero writes, never as a
-   * silent success. Writes ONLY the replacement teacher id plus the audit
-   * stamp from one captured instant — the candidate's certification is the
-   * CALLER's pre-write assertion (the fused certification re-assertion
-   * shape of `completeSessionOnce` is the lifecycle's own pattern for
-   * writes that cannot tolerate the gap).
-   *
-   * @returns The updated row, or `null` when zero rows matched (unknown id,
-   *          a row no longer `scheduled`, or a same-teacher candidate —
-   *          the caller classifies via the transition probe).
-   */
   export async function guardReassignTeacher(
     sessionId: number,
     newTeacherId: number,
     tx?: DBTransaction
   ): Promise<SessionSelectType | null> {
-    const now = new Date();
-    const executor = tx ?? db;
-    const rows = await executor
-      .update(session)
-      .set({ teacherId: newTeacherId, updatedAt: now })
-      .where(
-        and(eq(session.id, sessionId), eq(session.status, SessionStatus.Scheduled), ne(session.teacherId, newTeacherId))
-      )
-      .returning();
-    return rows[0] ?? null;
+    return arbitrationImpl.guardReassignTeacher(sessionId, newTeacherId, tx);
   }
 }

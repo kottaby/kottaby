@@ -2,90 +2,88 @@
 
 import { FormControl, FormControlLabel, Radio, RadioGroup, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { DisputeResolution } from "@/frontend/graphql/generated/gql/graphql";
-import type { SessionsLabels } from "@/shared/locale/types/sessions";
+import type { DisputeResolution } from "@/frontend/graphql/generated/gql/graphql";
+import type { ResolveDisputeOutcomeOption } from "@/frontend/views/admin/disputes/resolveDisputeOutcomeOptions";
 
 /**
  * ResolveDisputeOptionGroup — the arbitration decision radios of the
- * `ResolveDisputeDialog` (R-104 semantics, localized helper texts; the
- * server behavior per outcome is documented on the dialog). Extracted
- * verbatim from the dialog for the `max-lines-per-function` budget;
- * behavior is unchanged.
+ * `ResolveDisputeDialog`, driven entirely by the OFFERED outcome list of
+ * the row's escrow class (localized helper texts; the server behavior per
+ * outcome is documented on the dialog).
  *
- * | Radio          | Server behavior on submit |
- * |----------------|---------------------------|
- * | `Cancel`       | the session is cancelled and any held fee is refunded to its original balance lane (the SAME same-lane primitive `cancelSession` uses, inside the arbitration transaction) |
- * | `Complete`     | the session is completed and its fee hold is consumed — only sessions that actually started can be completed (server `VALIDATION` otherwise) |
+ * | Escrow class (`feeHeld`) | Offered outcomes | Server behavior |
+ * |--------------------------|------------------|-----------------|
+ * | `true` (held)            | `Cancel`, `Complete` | `Cancel` cancels the session and refunds any held fee to its original balance lane (the SAME same-lane primitive `cancelSession` uses, inside the arbitration transaction); `Complete` completes the session and consumes the fee hold — only sessions that actually started can be completed (server `VALIDATION` otherwise) |
+ * | `false` (consumed)       | `Refund`, `PartialRefund`, `Uphold` | `Refund` returns the whole fee to the student and debits the teacher's wallet; `PartialRefund` moves only the validated amount (the dialog owns that field); `Uphold` leaves the completed session standing with zero financial writes |
+ *
+ * The selection handler passes EVERY picked value through AS-IS — there is
+ * NO fallback reclassification. A wire value that matches none of the
+ * offered options (unreachable: the radio values come from `options`
+ * themselves) is ignored, never silently coerced into a legal outcome.
  */
 
+// The outcome vocabulary lives in the sibling non-component module (fast
+// refresh: this file exports components only); the option TYPE stays
+// reachable from this module's public surface.
+export type { ResolveDisputeOutcomeOption } from "@/frontend/views/admin/disputes/resolveDisputeOutcomeOptions";
+
 interface ResolveDisputeOptionGroupProps {
+  /** The outcomes OFFERED for this row's escrow class — rendered in order, nothing else. */
+  readonly options: readonly ResolveDisputeOutcomeOption[];
   /** Chosen resolution — `null` means nothing chosen (arbitration has NO default). */
   readonly value: DisputeResolution | null;
-  /** Selection intent — the dialog owns the state; unknown wire strings fall back to Cancel. */
+  /** Selection intent — the dialog owns the state; every offered value passes through as-is. */
   readonly onChange: (next: DisputeResolution) => void;
-  /** Localized sessions-namespace labels (the decision vocabulary). */
-  readonly t: SessionsLabels;
+  /** The fieldset's accessible name (the dialog's decision vocabulary). */
+  readonly groupLabel: string;
 }
 
 /** The arbitration decision radios — EXACTLY ONE terminal outcome. */
-export function ResolveDisputeOptionGroup({ value, onChange, t }: Readonly<ResolveDisputeOptionGroupProps>): ReactNode {
+export function ResolveDisputeOptionGroup({
+  options,
+  value,
+  onChange,
+  groupLabel,
+}: Readonly<ResolveDisputeOptionGroupProps>): ReactNode {
   return (
     <FormControl component="fieldset">
-      {/* The fieldset's accessible name is the dialog's own decision
-          vocabulary — the banner in the dialog already explains the
-          semantics. */}
       <RadioGroup
-        aria-label={t.resolveDisputeTitle}
+        aria-label={groupLabel}
         value={value ?? ""}
         onChange={event => {
-          const wireValue = event.target.value;
-          // MUI radios hand back a plain wire string — compare against the
-          // enum member's string VALUE (string-vs-string), keeping the
-          // whitelist shape: anything unknown falls back to Cancel.
-          onChange(
-            wireValue === DisputeResolution.Complete.toString() ? DisputeResolution.Complete : DisputeResolution.Cancel
-          );
+          // MUI radios hand back a plain wire string — match it against the
+          // OFFERED options (string-vs-string) and hand the picked value
+          // through unchanged. No whitelist collapse: an unoffered value is
+          // dropped, never rewritten into a legal outcome.
+          const picked = options.find(option => option.value.toString() === event.target.value);
+          if (picked) {
+            onChange(picked.value);
+          }
         }}
         sx={{ gap: 1 }}
       >
-        <Stack
-          sx={theme => ({
-            gap: 0.25,
-            p: 2,
-            borderRadius: 2,
-            border: "1px solid",
-            borderColor: theme.palette.outlineVariant,
-          })}
-        >
-          <FormControlLabel
-            value={DisputeResolution.Cancel}
-            control={<Radio data-testid="resolve-dispute-radio-cancel" />}
-            label={t.resolutionCancelLabel}
-            sx={{ "& .MuiFormControlLabel-label": { fontWeight: 600 } }}
-          />
-          <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary })}>
-            {t.resolutionCancelHelper}
-          </Typography>
-        </Stack>
-        <Stack
-          sx={theme => ({
-            gap: 0.25,
-            p: 2,
-            borderRadius: 2,
-            border: "1px solid",
-            borderColor: theme.palette.outlineVariant,
-          })}
-        >
-          <FormControlLabel
-            value={DisputeResolution.Complete}
-            control={<Radio data-testid="resolve-dispute-radio-complete" />}
-            label={t.resolutionCompleteLabel}
-            sx={{ "& .MuiFormControlLabel-label": { fontWeight: 600 } }}
-          />
-          <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary })}>
-            {t.resolutionCompleteHelper}
-          </Typography>
-        </Stack>
+        {options.map(option => (
+          <Stack
+            key={option.value}
+            sx={theme => ({
+              gap: 0.25,
+              p: 2,
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: theme.palette.outlineVariant,
+            })}
+          >
+            <FormControlLabel
+              value={option.value}
+              control={<Radio data-testid={`resolve-dispute-radio-${option.value.toLowerCase()}`} />}
+              label={option.label}
+              sx={{ "& .MuiFormControlLabel-label": { fontWeight: 600 } }}
+            />
+            <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary })}>
+              {option.helper}
+            </Typography>
+          </Stack>
+        ))}
       </RadioGroup>
     </FormControl>
   );

@@ -88,18 +88,26 @@ interface NotificationDrawerListProps {
   readonly items: readonly MyNotificationsQuery_myNotifications_items[];
   /** Row activation: mark read when unread, then close the drawer. */
   readonly onOpenNotification: (item: MyNotificationsQuery_myNotifications_items) => void;
+  /** The viewer's wire role — scopes the session-row deep-link matrix. */
+  readonly userRole: string | null;
 }
 
 /**
  * The settled rows list. Row anatomy follows the prototype: unread dot +
  * bold title + end-aligned locale-formatted timestamp + 2-line-clamped body.
  * Each row IS a real anchor whose href resolves through
- * `resolveNotificationRoute(relatedEntityType)` — entity-type-keyed deep
- * links (parent-link rows land on the student decision route); unknown or
- * absent entity types fall through to the notifications feed page. Either
- * way navigation is native — no router call.
+ * `resolveNotificationRoute(relatedEntityType, type, userRole)` —
+ * entity-type-keyed deep links (parent-link rows land on the student
+ * decision route; session rows land per the type+role matrix — the admin
+ * console for disputes, each participant's own session list) and unknown or
+ * absent pointers fall through to the notifications feed page. Either way
+ * navigation is native — no router call.
  */
-function NotificationDrawerList({ items, onOpenNotification }: Readonly<NotificationDrawerListProps>): ReactNode {
+function NotificationDrawerList({
+  items,
+  onOpenNotification,
+  userRole,
+}: Readonly<NotificationDrawerListProps>): ReactNode {
   const t = useAppTranslation(Notifications);
   const locale = useAppLocale();
   return (
@@ -108,7 +116,7 @@ function NotificationDrawerList({ items, onOpenNotification }: Readonly<Notifica
         <ListItemButton
           key={item.id}
           component={Link}
-          href={resolveNotificationRoute(item.relatedEntityType)}
+          href={resolveNotificationRoute(item.relatedEntityType, item.type, userRole)}
           divider={index < items.length - 1}
           onClick={() => onOpenNotification(item)}
           sx={{ ...focusVisibleRingSx, alignItems: "flex-start", gap: 1.5, px: 2, py: 1.5 }}
@@ -177,6 +185,8 @@ interface NotificationDrawerBodyProps {
   readonly items: readonly MyNotificationsQuery_myNotifications_items[];
   /** Row activation callback (mark read when unread, then close). */
   readonly onOpenNotification: (item: MyNotificationsQuery_myNotifications_items) => void;
+  /** The viewer's wire role — scopes the session-row deep-link matrix. */
+  readonly userRole: string | null;
 }
 
 /**
@@ -190,6 +200,7 @@ export function NotificationDrawerBody({
   onRetry,
   items,
   onOpenNotification,
+  userRole,
 }: Readonly<NotificationDrawerBodyProps>): ReactNode {
   if (initialLoading) {
     return <NotificationDrawerSkeleton />;
@@ -200,5 +211,5 @@ export function NotificationDrawerBody({
   if (items.length === 0) {
     return <NotificationDrawerEmpty />;
   }
-  return <NotificationDrawerList items={items} onOpenNotification={onOpenNotification} />;
+  return <NotificationDrawerList items={items} onOpenNotification={onOpenNotification} userRole={userRole} />;
 }

@@ -642,8 +642,8 @@ export namespace SessionLifecycleService {
 
       const resolved =
         resolution === DisputeResolution.Cancel
-          ? await SessionRepository.resolveDisputeCancelOnce(sessionId, resolutionNote, tx)
-          : await SessionRepository.resolveDisputeCompleteOnce(sessionId, resolutionNote, tx);
+          ? await SessionRepository.resolveDisputeCancelOnce(sessionId, resolutionNote, resolution, tx)
+          : await SessionRepository.resolveDisputeCompleteOnce(sessionId, resolutionNote, resolution, tx);
       if (resolved === null) {
         throw await rejectTransitionMiss("adminResolve", sessionId, adminId, tx, t);
       }

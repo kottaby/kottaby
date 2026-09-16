@@ -184,4 +184,53 @@ export namespace UserRepository {
     }
     return locales;
   }
+
+  /**
+   * Batch display-name lookup for a set of user ids — the read the admin
+   * dispute queue uses to render participant names without per-row probes.
+   *
+   * Follows the repo batch-lookup convention: the returned `Map` is
+   * pre-initialized with EVERY requested id mapped to `null`, then filled
+   * from the matched rows — an id with no user row stays `null` and the
+   * view falls back to the numeric identity. Empty input returns an empty
+   * map without executing a statement.
+   *
+   * @returns `Map<userId, fullName | null>` — exactly one entry per
+   *          requested id, present-or-not.
+   */
+  export async function findNamesByIds(
+    userIds: readonly number[],
+    tx?: DBQueryExecutor
+  ): Promise<Map<number, string | null>> {
+    const names = new Map<number, string | null>();
+    for (const id of userIds) {
+      names.set(id, null);
+    }
+    if (userIds.length === 0) {
+      return names;
+    }
+    if (tx && isDBTransaction(tx)) {
+      // Transactional read — Drizzle select on the supplied executor.
+      // `inArray` with a PLAIN array (never `sql.placeholder`) per the repo
+      // prepared-statement rule.
+      const rows = await tx
+        .select({ id: users.id, fullName: users.fullName })
+        .from(users)
+        .where(inArray(users.id, [...userIds]));
+      for (const row of rows) {
+        names.set(row.id, row.fullName);
+      }
+      return names;
+    }
+    // Non-transactional read — raw SQL via queryDb (Neon HTTP fast path);
+    // `= ANY($1)` binds the id array as a single parameterized value.
+    const result = await queryDb<{ id: number; fullName: string }>(
+      'SELECT id, full_name AS "fullName" FROM users WHERE id = ANY($1)',
+      [[...userIds]]
+    );
+    for (const row of result.rows) {
+      names.set(row.id, row.fullName);
+    }
+    return names;
+  }
 }

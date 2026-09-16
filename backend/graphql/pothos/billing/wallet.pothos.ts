@@ -54,6 +54,8 @@ function toTransactionType(type: TeacherTransactionSelectType["type"]): Transact
       return TransactionType.Withdrawal;
     case "bonus":
       return TransactionType.Bonus;
+    case "arbitration_reversal":
+      return TransactionType.ArbitrationReversal;
   }
   const exhaustive: never = type;
   throw new Error(`Unexpected transaction type: ${String(exhaustive)}`);

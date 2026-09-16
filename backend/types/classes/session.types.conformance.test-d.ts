@@ -74,6 +74,7 @@ v({
   disputeReason: null,
   disputedAt: null,
   resolutionNote: null,
+  resolutionOutcome: null,
   resolvedAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),

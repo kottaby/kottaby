@@ -35,7 +35,7 @@
  *    `TransactionStatus` enum members, never string literals.
  */
 
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import * as walletRepositoryAdminImpl from "@/backend/db/repo/billing/wallet.repository.admin.helpers";
 import { debitWithLedgerRow } from "@/backend/db/repo/billing/wallet.repository.shared-writer";
@@ -169,6 +169,84 @@ export namespace WalletRepository {
     tx?: DBTransaction
   ): Promise<TeacherTransactionSelectType | null> {
     return debitWithLedgerRow(insert, TransactionStatus.Pending, "WalletRepository.debitForWithdrawalOnce", tx);
+  }
+
+  /**
+   * The guarded balance debit shared by both debit primitives: ONE UPDATE
+   * whose predicate carries the funds guard (`balance >= amount`) and whose
+   * SET clause touches ONLY the balance and the audit stamp —
+   * `total_earning` is deliberately untouched (a debit spends the balance;
+   * it never rewrites the gross lifetime earnings counter). The DB-side
+   * `wallet_balance_check >= 0` CHECK is the concurrent-overdraw backstop
+   * behind the predicate.
+   *
+   * @returns Whether the debit landed — `false` means zero rows matched
+   *          (insufficient funds; the caller classifies).
+   */
+  async function guardedBalanceDebit(walletId: number, amount: string, tx?: DBTransaction): Promise<boolean> {
+    const executor = tx ?? db;
+    const debited = await executor
+      .update(wallet)
+      .set({ balance: sql`${wallet.balance} - ${amount}`, updatedAt: new Date() })
+      .where(and(eq(wallet.id, walletId), gte(wallet.balance, amount)))
+      .returning({ id: wallet.id });
+    return debited.length > 0;
+  }
+
+  /**
+   * The arbitration reversal debit slice (the consumed-dispute outcomes'
+   * teacher leg), on the caller's transaction: debits the wallet `balance`
+   * by exactly `amount` via ONE guarded UPDATE FIRST — the funds guard
+   * lives in the statement's predicate (`balance >= amount`), the same
+   * composition ruling the shared `debitWithLedgerRow` writer owns — and,
+   * only after the guard holds, inserts ONE `completed`
+   * `arbitration_reversal` ledger row keyed to the disputed session through
+   * the ledger's session FK so the reversal stays traceable end to end.
+   * The amount is a decimal STRING bound verbatim (never re-parsed or
+   * re-rounded — money discipline; the decimal columns own the
+   * two-fraction storage). `total_earning` is deliberately untouched (a
+   * reversal claws back the balance; it never rewrites the gross lifetime
+   * earnings counter). The debit runs strictly BEFORE the ledger INSERT, so
+   * a missed debit returns `null` with ZERO writes — no orphan ledger row
+   * is ever live inside the caller's transaction, and no rollback is needed
+   * to clean one up. A nonexistent wallet id also surfaces as `null` (the
+   * caller's insufficient-funds classification) rather than a FK violation,
+   * because the funds guard misses before any row is written.
+   *
+   * @returns The inserted ledger row, or `null` when the guarded UPDATE
+   *     matched zero rows (insufficient funds — the caller classifies and
+   *     fails the transaction).
+   */
+  export async function debitForArbitrationOnce(
+    insert: {
+      readonly walletId: number;
+      readonly sessionId: number;
+      readonly amount: string;
+      readonly description: string;
+    },
+    tx?: DBTransaction
+  ): Promise<TeacherTransactionSelectType | null> {
+    const executor = tx ?? db;
+    const debited = await guardedBalanceDebit(insert.walletId, insert.amount, tx);
+    if (!debited) {
+      return null;
+    }
+    const ledgerRows = await executor
+      .insert(teacherTransaction)
+      .values({
+        walletId: insert.walletId,
+        sessionId: insert.sessionId,
+        description: insert.description,
+        amount: insert.amount,
+        type: TransactionType.ArbitrationReversal,
+        status: TransactionStatus.Completed,
+      })
+      .returning();
+    const ledger = ledgerRows[0];
+    if (!ledger) {
+      throw new Error("WalletRepository.debitForArbitrationOnce: ledger INSERT returned zero rows");
+    }
+    return ledger;
   }
 
   /**

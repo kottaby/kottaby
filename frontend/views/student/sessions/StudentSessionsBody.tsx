@@ -13,6 +13,7 @@ import {
   SessionsEmptyBranch,
   SessionsRowList,
 } from "@/frontend/views/student/sessions/sessionBodyBranches";
+import type { SessionRowRole } from "@/frontend/views/student/sessions/sessionRowPresentation";
 import type { InFlightSlots } from "@/frontend/views/student/sessions/studentSessionInFlightSlots";
 import { studentActionsForSession } from "@/frontend/views/student/sessions/useStudentSessionConfirm";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
@@ -31,6 +32,19 @@ interface StudentSessionsBodyProps {
   readonly inFlightSlots: InFlightSlots;
   /** Confirm-CTA intent — the container owns the mutation. */
   readonly onConfirm: (sessionId: string) => void;
+  /**
+   * The row-owner role token supplied by the student container (the
+   * student surface constant) — scopes the rows' dispute affordance matrix.
+   */
+  readonly role: SessionRowRole;
+  /**
+   * Case-detail intent — forwarded to every row (the row renders the
+   * "Case details" affordance only while it carries dispute history).
+   * The student surface supplies it (the filing participant's own case
+   * dialog — `StudentDisputeCaseDialog` lives in the container's slot);
+   * omitted surfaces (none today) simply render no affordance.
+   */
+  readonly onCaseIntent?: (sessionId: string) => void;
   readonly t: SessionsLabels;
 }
 
@@ -52,6 +66,8 @@ export function StudentSessionsBody({
   disputeInFlightSlots,
   inFlightSlots,
   onConfirm,
+  role,
+  onCaseIntent,
   t,
 }: Readonly<StudentSessionsBodyProps>): ReactNode {
   if (loading && data === undefined) {
@@ -97,7 +113,9 @@ export function StudentSessionsBody({
       onCancelIntent={onCancelIntent}
       onDisputeIntent={onDisputeIntent}
       disputeInFlightSlots={disputeInFlightSlots}
+      role={role}
       actionsFor={session => studentActionsForSession(session, { t, inFlightSlots, onConfirm })}
+      onCaseIntent={onCaseIntent}
     />
   );
 }

@@ -1,20 +1,24 @@
 "use client";
 
-import { Alert, Stack } from "@mui/material";
+import { FindInPageOutlined as CaseIcon } from "@mui/icons-material";
+import { Alert, Button, Stack, Tooltip } from "@mui/material";
 import type { ReactNode } from "react";
 import { SessionRowCardShell } from "@/frontend/components/ui/sessionList";
 import type { MyStudentSessionsQuery_myStudentSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 import { SessionRowActions } from "@/frontend/views/student/sessions/SessionRowActions";
 import { SessionRowCancelReason } from "@/frontend/views/student/sessions/SessionRowCancelReason";
+import { SessionRowDisputeReason } from "@/frontend/views/student/sessions/SessionRowDisputeReason";
 import { SessionRowHeader } from "@/frontend/views/student/sessions/SessionRowHeader";
 import { SessionRowLifecycleCtas } from "@/frontend/views/student/sessions/SessionRowLifecycleCtas";
 import { SessionRowMeta } from "@/frontend/views/student/sessions/SessionRowMeta";
+import { SessionRowResolutionNote } from "@/frontend/views/student/sessions/SessionRowResolutionNote";
 import type { SessionRowAction } from "@/frontend/views/student/sessions/sessionRowAction";
 import {
   CANCELLABLE_STATUSES,
-  DISPUTABLE_STATUSES,
   DISPUTED_STATUS,
+  isDisputable,
   NO_VALUE_PLACEHOLDER,
+  type SessionRowRole,
   STATUS_LABEL_KEY,
 } from "@/frontend/views/student/sessions/sessionRowPresentation";
 import { Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
@@ -44,7 +48,7 @@ import { Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
  * row a pure affordance. `alertMessage` renders the row-scoped inline alert
  * the container raises (e.g. `SESSION_INVALID_TRANSITION` rejections).
  *
- * Role seam (4.3): the optional `actions` prop adds lifecycle CTAs BESIDE the
+ * Role seam: the optional `actions` prop adds lifecycle CTAs BESIDE the
  * Cancel button without forking the row — the teacher container passes
  * Start (`Scheduled`) / Complete (`Started`) descriptors, each carrying its
  * own in-flight `disabled` state; the student container passes the
@@ -55,6 +59,16 @@ import { Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
  * `TeacherSessionRow` wrapper was rejected because the Cancel CTA lives
  * INSIDE this row's action stack — the wrapper would have to duplicate the
  * meta/actions layout to sit next to it.
+ *
+ * Dispute-role seam: the row owner's `role` token scopes the dispute
+ * affordance through `isDisputable` — pre-completion rows stay disputable
+ * for BOTH surfaces, while the post-confirmation escalation (completed +
+ * student-confirmed + hold consumed) renders only on the student surface
+ * (the shared disputable-status set itself stays unwidened, so teacher
+ * rows never render the post-confirmation CTA). The token is a
+ * UI-affordance scope supplied by each surface's container (mounted behind
+ * that role's server-side page guard); the server re-validates ownership
+ * and the state matrix on every dispute mutation.
  *
  * Confirm-state display: the row renders the student-confirmation
  * meta cell whenever the stamp is set (dual-confirmation visibility for
@@ -69,7 +83,9 @@ import { Sessions, useAppLocale, useAppTranslation } from "@/shared/locale";
  * Composition (this file): the card shell + alert + the footer band; the
  * header band lives in `SessionRowHeader.tsx`, the meta band + pending pill
  * in `SessionRowMeta.tsx`, the cancel-reason line in
- * `SessionRowCancelReason.tsx`, the caller CTAs in `SessionRowActions.tsx`
+ * `SessionRowCancelReason.tsx`, the participant dispute lines
+ * (reason + arbitration outcome) in `SessionRowDisputeReason.tsx` /
+ * `SessionRowResolutionNote.tsx`, the caller CTAs in `SessionRowActions.tsx`
  * and the dispute/cancel CTAs in `SessionRowLifecycleCtas.tsx`.
  *
  * MUI v9 discipline: `sx`-only styling, theme-palette colors through
@@ -101,8 +117,23 @@ interface SessionRowProps {
    * book, cron-r2 D9-bis mechanism extended with the `dispute` kind).
    */
   readonly disputeDisabled?: boolean;
+  /**
+   * The row owner's role token (each surface's container constant) —
+   * scopes the dispute affordance matrix via `isDisputable`.
+   */
+  readonly role: SessionRowRole;
   /** Extra lifecycle CTAs (teacher Start/Complete); the student path omits it. */
   readonly actions?: ReadonlyArray<SessionRowAction>;
+  /**
+   * Case-detail intent — the container owns the case-dialog slot. When
+   * supplied AND the row carries dispute history (`disputeReason` set —
+   * open OR already-arbitrated, the claimed reason stays part of the case
+   * story), the row renders the "Case details" read affordance beside the
+   * dispute evidence lines. The student surface omits the prop entirely
+   * (its dispute story lives on the row lines); the teacher surface passes
+   * it so its rows open the participant-side case dialog.
+   */
+  readonly onCaseIntent?: (sessionId: string) => void;
 }
 
 /** One session list card: status chip + intent title + fee/deadline/created meta. */
@@ -112,7 +143,9 @@ export function SessionRow({
   onCancelIntent,
   onDisputeIntent,
   disputeDisabled = false,
+  role,
   actions,
+  onCaseIntent,
 }: Readonly<SessionRowProps>): ReactNode {
   const t = useAppTranslation(Sessions);
   const locale = useAppLocale();
@@ -121,7 +154,7 @@ export function SessionRow({
   const statusLabel = statusLabelKey in t ? t[statusLabelKey] : session.status;
   const isCancellable = session.status in CANCELLABLE_STATUSES;
   const isDisputed = session.status in DISPUTED_STATUS;
-  const disputeIntent = session.status in DISPUTABLE_STATUSES && onDisputeIntent !== undefined ? onDisputeIntent : null;
+  const disputeIntent = isDisputable(session, role) && onDisputeIntent !== undefined ? onDisputeIntent : null;
   const intentText = session.intent ?? NO_VALUE_PLACEHOLDER;
 
   return (
@@ -144,8 +177,45 @@ export function SessionRow({
         }}
       >
         <SessionRowMeta session={session} locale={locale} />
+        {session.disputeReason !== null && session.disputedAt !== null ? (
+          <SessionRowDisputeReason
+            sessionId={session.id}
+            reason={session.disputeReason}
+            disputedAt={session.disputedAt}
+            locale={locale}
+          />
+        ) : null}
+        {session.resolvedAt !== null && (session.resolutionOutcome !== null || session.resolutionNote !== null) ? (
+          <SessionRowResolutionNote
+            sessionId={session.id}
+            outcome={session.resolutionOutcome}
+            note={session.resolutionNote}
+            resolvedAt={session.resolvedAt}
+            locale={locale}
+          />
+        ) : null}
         {session.cancelReason !== null ? (
           <SessionRowCancelReason sessionId={session.id} reason={session.cancelReason} />
+        ) : null}
+        {onCaseIntent !== undefined && session.disputeReason !== null ? (
+          <Tooltip title={t.teacherCaseTitle} placement="top">
+            <Button
+              variant="text"
+              color="primary"
+              size="small"
+              startIcon={<CaseIcon fontSize="small" />}
+              onClick={() => onCaseIntent(session.id)}
+              data-testid={`session-case-action-${session.id}`}
+              sx={{
+                minHeight: { xs: 44, sm: 36 },
+                px: 2,
+                alignSelf: { xs: "stretch", sm: "auto" },
+                justifyContent: { xs: "center", sm: "flex-end" },
+              }}
+            >
+              {t.teacherCaseCta}
+            </Button>
+          </Tooltip>
         ) : null}
         <SessionRowActions actions={actions} sessionId={session.id} />
         <SessionRowLifecycleCtas

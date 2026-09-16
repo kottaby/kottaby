@@ -3,7 +3,12 @@
 import { useQuery } from "@apollo/client/react";
 import { Stack } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
-import { adminDisputedSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
+import {
+  adminDisputeAnalyticsQueryDocument,
+  adminDisputedSessionsQueryDocument,
+} from "@/frontend/graphql/sharedDocuments";
+import { AdminDisputeAnalyticsCard } from "@/frontend/views/admin/disputes/AdminDisputeAnalyticsCard";
+import { AdminDisputeCaseDialog } from "@/frontend/views/admin/disputes/AdminDisputeCaseDialog";
 import { AdminDisputesBody } from "@/frontend/views/admin/disputes/AdminDisputesBody";
 import { AdminDisputesChrome } from "@/frontend/views/admin/disputes/AdminDisputesChrome";
 import { AdminDisputesNoticeSnackbar } from "@/frontend/views/admin/disputes/AdminDisputesNoticeSnackbar";
@@ -39,6 +44,10 @@ import { Sessions, useAppTranslation } from "@/shared/locale";
  * ghost-page step-back guard · `SESSION_NOT_FOUND` /
  * `SESSION_INVALID_TRANSITION` → error snackbar, row stays ·
  * `VALIDATION` / `FORBIDDEN` / masked → error snackbar, dialog stays open).
+ * The dialog's outcome vocabulary + amount gate are class-aware: the row's
+ * `feeHeld`/`fee` travel from THIS container's settled queue payload. The
+ * row-level "Review case" affordance opens {@link AdminDisputeCaseDialog}
+ * — the read-only evidence bundle (`adminDisputeCase`) for that session.
  * Query-context errors classify through the SINGLE `mapGraphQLErrorByCode`
  * table (`frontend/providers/apollo/error-link.map.ts`) — never the server
  * `message`.
@@ -69,6 +78,8 @@ export function AdminDisputesContainer(): ReactNode {
 
   // Arbitration-dialog owner (single dialog slot, re-keyed per session id).
   const [resolveDialogSessionId, setResolveDialogSessionId] = useState<string | null>(null);
+  // Case-review-dialog owner (single dialog slot, re-keyed per session id).
+  const [caseDialogSessionId, setCaseDialogSessionId] = useState<string | null>(null);
 
   const { data, loading, error } = useQuery(adminDisputedSessionsQueryDocument, {
     variables: {
@@ -77,6 +88,16 @@ export function AdminDisputesContainer(): ReactNode {
       offset: (page - 1) * ADMIN_DISPUTES_PAGE_SIZE,
     },
   });
+
+  // The analytics snapshot rides its OWN query (zero arguments — the
+  // unfiltered all-time aggregate): it never re-keys with the queue's
+  // pagination, and its failure degrades to "no card" below without
+  // touching the queue's own error branch.
+  const {
+    data: analyticsData,
+    loading: analyticsLoading,
+    error: analyticsError,
+  } = useQuery(adminDisputeAnalyticsQueryDocument);
 
   const totalCount = data?.adminDisputedSessions.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / ADMIN_DISPUTES_PAGE_SIZE));
@@ -89,6 +110,14 @@ export function AdminDisputesContainer(): ReactNode {
     setResolveDialogSessionId(null);
   }, []);
 
+  const openCaseDialog = useCallback((sessionId: string): void => {
+    setCaseDialogSessionId(sessionId);
+  }, []);
+
+  const closeCaseDialog = useCallback((): void => {
+    setCaseDialogSessionId(null);
+  }, []);
+
   // Ghost-page step-back arm — functional update keeps the callback stable;
   // the guard in `useAdminDisputesNotice` only fires when page > 1, so the
   // clamp is defensive only.
@@ -98,6 +127,14 @@ export function AdminDisputesContainer(): ReactNode {
 
   const { notice, dismissNotice, handleResolved, handleSessionMissing, handleInvalidTransition, onFailure } =
     useAdminDisputesNotice({ data, page, closeResolveDialog, stepToPreviousPage });
+
+  // The arbitration dialog renders ONLY while its row is settled in the
+  // queue payload — the escrow class + fee the dialog's outcome vocabulary
+  // and amount gate branch on travel straight from THIS query's data.
+  const resolveDialogSession =
+    resolveDialogSessionId === null
+      ? null
+      : (data?.adminDisputedSessions.items.find(item => item.session.id === resolveDialogSessionId)?.session ?? null);
 
   const handlePageChange = useCallback(
     (nextPage: number): void => {
@@ -109,6 +146,12 @@ export function AdminDisputesContainer(): ReactNode {
   return (
     <Stack data-testid="admin-disputes-view" sx={{ gap: 3 }}>
       <AdminDisputesChrome title={t.adminDisputesPageTitle} countLine={t.adminDisputesCountLine(totalCount)} />
+      <AdminDisputeAnalyticsCard
+        analytics={analyticsData?.adminDisputeAnalytics ?? null}
+        loading={analyticsLoading}
+        hasError={analyticsError !== undefined}
+        t={t}
+      />
       <AdminDisputesBody
         loading={loading}
         error={error}
@@ -116,20 +159,32 @@ export function AdminDisputesContainer(): ReactNode {
         page={page}
         totalPages={totalPages}
         resolveDialogSessionId={resolveDialogSessionId}
+        caseDialogSessionId={caseDialogSessionId}
         onPageChange={handlePageChange}
         onResolveIntent={openResolveDialog}
+        onReviewIntent={openCaseDialog}
         t={t}
       />
-      {resolveDialogSessionId !== null ? (
+      {resolveDialogSession !== null ? (
         <ResolveDisputeDialog
-          key={resolveDialogSessionId}
-          sessionId={resolveDialogSessionId}
+          key={resolveDialogSession.id}
+          sessionId={resolveDialogSession.id}
+          feeHeld={resolveDialogSession.feeHeld}
+          fee={resolveDialogSession.fee}
           open
           onClose={closeResolveDialog}
           onResolved={handleResolved}
           onSessionMissing={handleSessionMissing}
           onInvalidTransition={handleInvalidTransition}
           onFailure={onFailure}
+        />
+      ) : null}
+      {caseDialogSessionId !== null ? (
+        <AdminDisputeCaseDialog
+          key={caseDialogSessionId}
+          sessionId={caseDialogSessionId}
+          open
+          onClose={closeCaseDialog}
         />
       ) : null}
       <AdminDisputesNoticeSnackbar notice={notice} onDismiss={dismissNotice} />

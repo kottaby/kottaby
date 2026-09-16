@@ -27,6 +27,12 @@ interface NotificationDrawerProps {
   readonly open: boolean;
   /** Close callback (Escape, click-away, row navigation, footer link). */
   readonly onClose: () => void;
+  /**
+   * The viewer's wire role (`user.role`), scoping the row deep-links
+   * (session rows route per role); `null`/absent falls through to the feed
+   * page exactly as the pre-deep-link anchors did.
+   */
+  readonly userRole?: string | null;
 }
 
 /**
@@ -64,7 +70,12 @@ interface NotificationDrawerProps {
  * toolbar's control cluster never moves across the start/end axis), with MUI
  * clamping the panel flush to the viewport margin under RTL.
  */
-export function NotificationDrawer({ anchorEl, open, onClose }: Readonly<NotificationDrawerProps>): ReactNode {
+export function NotificationDrawer({
+  anchorEl,
+  open,
+  onClose,
+  userRole = null,
+}: Readonly<NotificationDrawerProps>): ReactNode {
   const t = useAppTranslation(Notifications);
 
   // Memoized so `useQuery` sees a stable variables identity across re-renders.
@@ -159,6 +170,7 @@ export function NotificationDrawer({ anchorEl, open, onClose }: Readonly<Notific
           onRetry={handleRetry}
           items={items}
           onOpenNotification={handleOpenNotification}
+          userRole={userRole}
         />
       </Box>
       <Divider />

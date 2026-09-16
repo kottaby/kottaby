@@ -12,8 +12,102 @@ import { NotificationType } from "@/backend/enum/notifications/notification-type
  */
 export const STUDENT_LINK_REQUESTS_ROUTE = "/student/link-requests";
 
+/** The admin arbitration console — the landing surface for dispute rows. */
+export const ADMIN_DISPUTES_ROUTE = "/disputes";
+
+/** The student's session list — the landing surface for student session rows. */
+export const STUDENT_SESSIONS_ROUTE = "/student/sessions";
+
+/** The teacher's session list — the landing surface for teacher session rows. */
+export const TEACHER_SESSIONS_ROUTE = "/teacher/sessions";
+
 /** Fallback row target — the notifications feed page (the unchanged default). */
 const NOTIFICATIONS_FEED_ROUTE = "/notifications";
+
+/**
+ * The session-entity pointer every session-family emitter persists (backend
+ * `session-request-notification.service.ts` /
+ * `session-request-notification.governance.ts` /
+ * `session-report-notification.service.ts` /
+ * `session-dispute-notification.service.ts` all write the same literal —
+ * pinned here because no shared backend constant exists for it).
+ */
+const SESSION_ENTITY_TYPE = "session";
+
+/**
+ * The wire role vocabulary — EXACTLY the codegen `UserRole` values. Declared
+ * as a string union so this leaf stays import-light; the conformance against
+ * the generated enum is pinned in the deep-link suite (every member listed).
+ */
+type WireRole = "Admin" | "Parent" | "Student" | "Teacher";
+
+/**
+ * The wire notification-type vocabulary — EXACTLY the codegen
+ * `NotificationType` values (PascalCase). String-union form for the same
+ * leaf-import discipline; conformance pinned in the deep-link suite.
+ */
+const WIRE_NOTIFICATION_TYPES = [
+  "EvaluationResult",
+  "ParentLinkRequest",
+  "PaymentConfirmation",
+  "SessionCancellation",
+  "SessionCompletion",
+  "SessionDisputeOpened",
+  "SessionDisputeResolved",
+  "SessionRequest",
+  "SystemBroadcast",
+] as const;
+
+/** Narrowing guard for the caller-supplied wire type (untrusted runtime shape). */
+function isWireNotificationType(value: string): value is WireNotificationType {
+  return (WIRE_NOTIFICATION_TYPES as readonly string[]).includes(value);
+}
+
+type WireNotificationType =
+  | "EvaluationResult"
+  | "ParentLinkRequest"
+  | "PaymentConfirmation"
+  | "SessionCancellation"
+  | "SessionCompletion"
+  | "SessionDisputeOpened"
+  | "SessionDisputeResolved"
+  | "SessionRequest"
+  | "SystemBroadcast";
+
+/** Narrowing guard for the caller-supplied wire role (untrusted runtime shape). */
+function isWireRole(value: string | null | undefined): value is WireRole {
+  return value === "Admin" || value === "Parent" || value === "Student" || value === "Teacher";
+}
+
+/**
+ * The session-family deep-link matrix: `notificationType` → `role` → route.
+ * A missing outer key (a session row whose type carries no routing contract)
+ * or a missing inner cell (an audience the wave never reaches) resolves to
+ * `undefined` and the resolver falls through to the feed page — the matrix
+ * NEVER fabricates a route.
+ *
+ * Audiences (backend emitters):
+ *  - `SessionDisputeOpened` reaches ONLY the admin cohort → the arbitration
+ *    console; students/teachers never receive it (no cells for them).
+ *  - `SessionDisputeResolved` reaches the two participants; a defensive
+ *    admin cell routes to the console too (admins reviewing history land
+ *    where the queue lives), while parents get none.
+ *  - `SessionCompletion` / `SessionCancellation` / `SessionRequest` reach
+ *    the participants → each role's own session list.
+ */
+const SESSION_ROUTES_BY_TYPE_AND_ROLE: Readonly<
+  Partial<Record<WireNotificationType, Readonly<Partial<Record<WireRole, string>>>>>
+> = {
+  SessionDisputeOpened: { Admin: ADMIN_DISPUTES_ROUTE },
+  SessionDisputeResolved: {
+    Admin: ADMIN_DISPUTES_ROUTE,
+    Student: STUDENT_SESSIONS_ROUTE,
+    Teacher: TEACHER_SESSIONS_ROUTE,
+  },
+  SessionCompletion: { Student: STUDENT_SESSIONS_ROUTE, Teacher: TEACHER_SESSIONS_ROUTE },
+  SessionCancellation: { Student: STUDENT_SESSIONS_ROUTE, Teacher: TEACHER_SESSIONS_ROUTE },
+  SessionRequest: { Student: STUDENT_SESSIONS_ROUTE, Teacher: TEACHER_SESSIONS_ROUTE },
+};
 
 /**
  * `relatedEntityType` → deep-link route. The persisted `related_entity_type`
@@ -37,14 +131,41 @@ const NOTIFICATION_ROUTE_BY_ENTITY_TYPE: Readonly<Record<string, string | undefi
 };
 
 /**
- * Resolve a drawer row's navigation target from its related-entity pointer.
- * Known entity types deep-link to their decision surface; every UNKNOWN or
- * absent pointer falls through UNCHANGED to the notifications feed page (the
- * pre-deep-link hard anchor) — never throws, never mis-routes.
+ * Resolve a drawer/feed row's navigation target from its related-entity
+ * pointer, its notification type, and the viewer's role.
+ *
+ * Resolution order (first hit wins):
+ *  1. the parent-link entity map (`parent_link_request` → the student
+ *     decision route — role-independent, only students receive those rows);
+ *  2. the session matrix (session entity + known type + known role → the
+ *     role's route);
+ *  3. the feed-page fall-through — UNKNOWN or absent pointers, unknown
+ *     types, unknown roles, and matrix misses ALL land here. Never throws,
+ *     never mis-routes.
+ *
+ * The optional `notificationType` / `role` keep the original single-argument
+ * call sites compiling: without them only rule 1 can ever hit, which is
+ * exactly the pre-deep-link behavior.
  */
-export function resolveNotificationRoute(relatedEntityType: string | null): string {
+export function resolveNotificationRoute(
+  relatedEntityType: string | null,
+  notificationType?: string | null,
+  role?: string | null
+): string {
   if (relatedEntityType === null) {
     return NOTIFICATIONS_FEED_ROUTE;
   }
-  return NOTIFICATION_ROUTE_BY_ENTITY_TYPE[relatedEntityType] ?? NOTIFICATIONS_FEED_ROUTE;
+  const parentLinkRoute = NOTIFICATION_ROUTE_BY_ENTITY_TYPE[relatedEntityType];
+  if (parentLinkRoute !== undefined) {
+    return parentLinkRoute;
+  }
+  if (
+    relatedEntityType === SESSION_ENTITY_TYPE &&
+    notificationType != null &&
+    isWireNotificationType(notificationType) &&
+    isWireRole(role)
+  ) {
+    return SESSION_ROUTES_BY_TYPE_AND_ROLE[notificationType]?.[role] ?? NOTIFICATIONS_FEED_ROUTE;
+  }
+  return NOTIFICATIONS_FEED_ROUTE;
 }

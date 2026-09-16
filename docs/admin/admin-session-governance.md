@@ -102,6 +102,8 @@ Two admin roads over the same rows stay strictly independent:
 
 Both enforce the SAME governance-clean admin gate and therefore the same byte-identical denial split. Never widen this surface's predicates to "helpfully" touch a disputed row; never add a second write path for a transition.
 
+The arbitration surface's single-write-path ruling now covers **both dispute generations**: a disputed row's escrow class (`fee_held`) selects the legal outcome vocabulary on the same `resolveSessionDispute` entry — held rows (`fee_held = true`) resolve through `Cancel | Complete` (the pre-completion semantics, byte-stable, owned by the session lifecycle), consumed rows (`fee_held = false`) through `Refund | PartialRefund | Uphold` with their financial reversal. Cross-family submissions are rejected with `disputeResolutionMismatch` before any write, and every arbitration write re-asserts the row's escrow class inside its own transaction — the classification discipline of §2 generalizes unchanged. The canonical reference for the arbitration side of this boundary is `docs/sessions/dispute-arbitration.md`.
+
 ## 10. Testing posture
 
 - **Four tiers** at the repo/service/GraphQL-wire layers: Tier 1 (shape + schema contracts, SDL pins, codegen-sync), Tier 2 (boundaries — page windows, reason cap, charset rejection, idempotency key shape), Tier 3 (chaos on committed fixtures through the production transaction path — concurrent cancel vs completion, retry-doubles, interrupted mutations rolling back to pre-state), Tier 4 (security — non-admin role matrices, byte-identical 401/403, zero-write denials, oracle-safety).

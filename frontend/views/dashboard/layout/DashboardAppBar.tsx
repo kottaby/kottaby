@@ -166,8 +166,10 @@ export function DashboardAppBar({ onMenuClick, showMenuButton }: Readonly<Dashbo
 
           {/* Notifications bell — unread badge linked to the inbox
               (mounted here so every authenticated role sees it; the shell
-              socket maintains the cached count, REQ-063c/065/067) */}
-          <NotificationUnreadBadge />
+              socket maintains the cached count, REQ-063c/065/067). The
+              viewer's role threads down so the drawer's session rows
+              deep-link to the role's own surface. */}
+          <NotificationUnreadBadge userRole={user?.role ?? null} />
 
           {/* User identity + sign-out (authenticated only) — extracted to
               `DashboardAppBarUserMenu`. */}

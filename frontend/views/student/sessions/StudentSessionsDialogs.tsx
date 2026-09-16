@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { CancelSessionConfirmDialog } from "@/frontend/views/student/sessions/CancelSessionConfirmDialog";
 import { SessionDisputeConfirmDialog } from "@/frontend/views/student/sessions/SessionDisputeConfirmDialog";
+import type { SessionDisputeMutationProps } from "@/frontend/views/student/sessions/sessionDisputeMutations";
 
 interface StudentSessionsDialogsProps {
   /** Id of the session whose cancel dialog is open (`null` = not mounted). */
@@ -18,6 +19,14 @@ interface StudentSessionsDialogsProps {
   readonly onInvalidTransition: (sessionId: string) => void;
   readonly onDuplicateReplay: () => void;
   readonly onCancelFailure: (message: string) => void;
+  /**
+   * The dispute-dialog's mutation binding (document + result accessor) —
+   * the caller picks the dispute generation per its surface: the student
+   * container resolves the arm from the disputed row (post-confirmation vs
+   * held-escrow); the teacher container keeps the shipped held-escrow
+   * binding byte-stable.
+   */
+  readonly disputeMutation: SessionDisputeMutationProps;
   /** Dispute-dialog outcome arms — see the container's wiring docblock. */
   readonly onDisputed: (sessionId: string) => void;
   readonly onDisputeSessionMissing: (sessionId: string) => void;
@@ -41,6 +50,7 @@ export function StudentSessionsDialogs({
   onInvalidTransition,
   onDuplicateReplay,
   onCancelFailure,
+  disputeMutation,
   onDisputed,
   onDisputeSessionMissing,
   onDisputeInvalidTransition,
@@ -67,6 +77,8 @@ export function StudentSessionsDialogs({
           sessionId={disputeDialogSessionId}
           open
           onClose={onCloseDisputeDialog}
+          mutationDocument={disputeMutation.mutationDocument}
+          resultAccessor={disputeMutation.resultAccessor}
           onDisputed={onDisputed}
           onSessionMissing={onDisputeSessionMissing}
           onInvalidTransition={onDisputeInvalidTransition}

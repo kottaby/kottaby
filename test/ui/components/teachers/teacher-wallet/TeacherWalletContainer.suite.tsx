@@ -177,6 +177,24 @@ const UPDATED_WALLET = walletFixture({
   ],
 });
 
+/** A ledger mixing an earning with an arbitration reversal (CR-4 type). */
+const REVERSAL_LEDGER: readonly TransactionFixture[] = [
+  transactionFixture({
+    id: "906",
+    amount: "25.00",
+    description: "Session #9006 earning (dual confirmation)",
+  }),
+  transactionFixture({
+    id: "905",
+    amount: "10.00",
+    description: "Dispute refund reversal — Session #9005",
+    type: TransactionType.ArbitrationReversal,
+    status: TransactionStatus.Completed,
+    createdAt: WITHDRAWAL_ISO,
+    updatedAt: WITHDRAWAL_ISO,
+  }),
+];
+
 // ---------------------------------------------------------------------------
 // Mock builders
 
@@ -367,6 +385,59 @@ for (const locale of componentSuiteLocales) {
       // Bonus row: + sign (the bonus prefix is + per the display contract).
       expect(screen.getByTestId("wallet-ledger-row-903-amount").textContent).toBe("+10.00");
       expect(screen.getByText(t.typeBonus)).toBeDefined();
+    });
+
+    test("branch 5b — arbitration-reversal row: gavel avatar, negative signed amount, reversal label, present-type-only chips", async () => {
+      renderWallet([walletQueryMock(walletFixture({ transactions: REVERSAL_LEDGER }))], locale);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wallet-balance-card-value").textContent).toBe(BALANCE);
+      });
+
+      // The reversal row: DEBIT sign (same prefix contract as withdrawal),
+      // the dedicated reversal label, completed chip, localized stamp.
+      expect(screen.getByTestId("wallet-ledger-row-905-amount").textContent).toBe("-10.00");
+      expect(screen.getByText(t.typeArbitrationReversal)).toBeDefined();
+      expect(screen.getByTestId("wallet-ledger-row-905-status").textContent).toContain(t.statusCompleted);
+      expect(
+        screen.getByText(`Dispute refund reversal — Session #9005 · ${expectedStamp(WITHDRAWAL_ISO, locale)}`)
+      ).toBeDefined();
+      // The gavel avatar disambiguates the clawback from a self-initiated
+      // payout (MUI stamps every icon with its own name testid).
+      expect(screen.getByTestId("GavelOutlinedIcon")).toBeDefined();
+
+      // Filter chips: All + ONLY the types present on the page — a zero-row
+      // type renders NO dead chip (withdrawal/bonus are absent here).
+      expect(screen.getByTestId("wallet-ledger-filter-all").textContent).toContain(t.filterAll);
+      expect(screen.getByTestId("wallet-ledger-filter-Earning")).toBeDefined();
+      expect(screen.getByTestId("wallet-ledger-filter-ArbitrationReversal")).toBeDefined();
+      expect(screen.queryByTestId("wallet-ledger-filter-Withdrawal")).toBeNull();
+      expect(screen.queryByTestId("wallet-ledger-filter-Bonus")).toBeNull();
+    });
+
+    test("branch 5c — ledger type filter: selecting a type narrows the list, All restores it (pure client-side, no refetch)", async () => {
+      renderWallet([walletQueryMock(walletFixture({ transactions: REVERSAL_LEDGER }))], locale);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wallet-balance-card-value").textContent).toBe(BALANCE);
+      });
+      expect(screen.getByTestId("wallet-ledger-row-905")).toBeDefined();
+      expect(screen.getByTestId("wallet-ledger-row-906")).toBeDefined();
+
+      // Select the reversal chip → only the reversal row remains visible.
+      fireEvent.click(screen.getByTestId("wallet-ledger-filter-ArbitrationReversal"));
+      expect(screen.getByTestId("wallet-ledger-row-905")).toBeDefined();
+      expect(screen.queryByTestId("wallet-ledger-row-906")).toBeNull();
+
+      // Back to All → the full page returns (no wire traffic — the only
+      // mock is the query; a refetch would surface an unmatched-mock error).
+      fireEvent.click(screen.getByTestId("wallet-ledger-filter-all"));
+      expect(screen.getByTestId("wallet-ledger-row-905")).toBeDefined();
+      expect(screen.getByTestId("wallet-ledger-row-906")).toBeDefined();
+
+      // The pressed state follows the selection (aria-pressed contract).
+      expect(screen.getByTestId("wallet-ledger-filter-all").getAttribute("aria-pressed")).toBe("true");
+      expect(screen.getByTestId("wallet-ledger-filter-ArbitrationReversal").getAttribute("aria-pressed")).toBe("false");
     });
 
     test("branch 6 — withdrawal dialog: opens with the live balance hint, submit gated while empty, dismisses cleanly", async () => {
