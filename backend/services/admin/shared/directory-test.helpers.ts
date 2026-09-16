@@ -213,14 +213,18 @@ export function registerPaginationValidationContract(config: {
 export function expectListedItem<T extends { id: number }>(page: { items: readonly T[] }, id: number): T {
   const found = page.items.find(item => item.id === id);
   expect(found).not.toBeUndefined();
-  return found as T;
+  if (found === undefined) {
+    throw new Error("expectListedItem: the item was not listed (expect() above reports the detail)");
+  }
+  return found;
 }
 
 /** Asserts the export rows carry EXACTLY the given ids (order-insensitive). */
-export function expectExportRowIds(envelope: ExportEnvelope, expectedIds: number[]): void {
-  expect(envelope.rows.map(row => (row as { id: number }).id).toSorted((a, b) => a - b)).toEqual(
-    expectedIds.toSorted((a, b) => a - b)
-  );
+export function expectExportRowIds<T extends { id: number }>(
+  envelope: { rows: readonly T[] },
+  expectedIds: number[]
+): void {
+  expect(envelope.rows.map(row => row.id).toSorted((a, b) => a - b)).toEqual(expectedIds.toSorted((a, b) => a - b));
 }
 
 /**

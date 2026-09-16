@@ -70,9 +70,9 @@ import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import * as arbitrationImpl from "@/backend/db/repo/classes/session.repository.arbitration.helpers";
 import * as sessionRepositoryImpl from "@/backend/db/repo/classes/session.repository.helpers";
+import * as sessionRepositoryLifecycleImpl from "@/backend/db/repo/classes/session.repository.lifecycle.helpers";
 import * as sessionRepositoryWaveImpl from "@/backend/db/repo/classes/session.repository.wave.helpers";
 import { session } from "@/backend/db/schema/classes/session";
-import { teacher } from "@/backend/db/schema/teachers/teacher";
 import type { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import type {
@@ -190,21 +190,7 @@ export namespace SessionRepository {
     teacherId: number,
     tx?: DBTransaction
   ): Promise<SessionSelectType | null> {
-    const now = new Date();
-    const executor = tx ?? db;
-    const rows = await executor
-      .update(session)
-      .set({ status: SessionStatus.Completed, endedAt: now, confirmedByTeacherAt: now, updatedAt: now })
-      .where(
-        and(
-          eq(session.id, id),
-          eq(session.teacherId, teacherId),
-          eq(session.status, SessionStatus.Started),
-          sql`EXISTS (SELECT 1 FROM ${teacher} WHERE ${eq(teacher.id, session.teacherId)} AND ${eq(teacher.isApproved, true)})`
-        )
-      )
-      .returning();
-    return rows[0] ?? null;
+    return sessionRepositoryLifecycleImpl.completeSessionOnce(id, teacherId, tx);
   }
 
   /**

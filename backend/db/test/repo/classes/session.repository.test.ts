@@ -2252,6 +2252,7 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     join(import.meta.dir, "../../../repo/classes/session.repository.helpers.ts"),
     join(import.meta.dir, "../../../repo/classes/session.repository.wave.helpers.ts"),
     join(import.meta.dir, "../../../repo/classes/session.repository.arbitration.helpers.ts"),
+    join(import.meta.dir, "../../../repo/classes/session.repository.lifecycle.helpers.ts"),
   ];
   const repoSource = REPO_FILES.map(file => readFileSync(file, "utf8")).join("\n");
 
@@ -2395,14 +2396,14 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     expect(repoSource.includes("const executor = tx ?? db;")).toBe(true);
     expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(16);
     expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(13);
-    // Thirty-two exported methods across the namespace + its three one-to-one
+    // Thirty-three exported methods across the namespace + its four one-to-one
     // sibling implementation modules (the report-gate lock, the report
     // wave-context read, the post-confirmation dispute trio, and the merged
     // escrow lane), every one ending in tx (LAST param).
     // Exactly ONE takes it REQUIRED — the report-gate lock (a FOR UPDATE
     // read taken outside a transaction releases when the statement ends
-    // and protects nothing); the other thirty-one keep the optional tx.
-    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(32);
+    // and protects nothing); the other thirty-two keep the optional tx.
+    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(33);
     expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(19);
     expect(repoSource.match(/tx: DBTransaction/g) ?? []).toHaveLength(1);
   });
