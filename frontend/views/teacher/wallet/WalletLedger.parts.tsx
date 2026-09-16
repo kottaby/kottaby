@@ -95,13 +95,13 @@ export function WalletLedgerRows({
 }>): ReactNode {
   return (
     <List data-testid="wallet-ledger" disablePadding>
-      {visible.map((row, index) => {
+      {rows.map((row, index) => {
         const visual = ledgerRowVisual(row.type);
         return (
           <ListItem
             key={row.id}
             data-testid={`wallet-ledger-row-${row.id}`}
-            divider={index < visible.length - 1}
+            divider={index < rows.length - 1}
             secondaryAction={
               <Stack spacing={0.5} sx={{ alignItems: "flex-end" }}>
                 <Typography
