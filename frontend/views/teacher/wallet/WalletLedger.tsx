@@ -15,33 +15,15 @@
  * of fabricating rows.
  */
 
-import {
-  Avatar,
-  Chip,
-  Divider,
-  List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
-  Paper,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { Divider, Paper, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import type { MyWalletQuery_myWallet_transactions } from "@/frontend/graphql/generated/gql/graphql";
 import { TransactionType as WireTransactionType } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
-import {
-  amountTone,
-  avatarTone,
-  ledgerRowVisual,
-  ledgerStatusColor,
-  ledgerStatusLabel,
-  ledgerTypeLabel,
-  signedAmount,
-} from "@/frontend/views/teacher/wallet/walletLedgerVisuals";
+import { WalletLedgerFilterBar, WalletLedgerRows } from "@/frontend/views/teacher/wallet/WalletLedger.parts";
+import { ledgerRowVisual, ledgerTypeLabel } from "@/frontend/views/teacher/wallet/walletLedgerVisuals";
 import type { WalletLabels } from "@/shared/locale/types/wallet";
 
 export interface WalletLedgerProps {
@@ -106,38 +88,12 @@ export function WalletLedger({ transactions, locale, t }: Readonly<WalletLedgerP
         </Typography>
       </Stack>
       <Divider />
-      <Stack
-        direction="row"
-        role="group"
-        aria-label={t.ledgerTitle}
-        data-testid="wallet-ledger-filter"
-        spacing={0.75}
-        sx={theme => ({
-          px: 2.5,
-          py: 1.25,
-          flexWrap: "wrap",
-          gap: 0.75,
-          rowGap: 1,
-          bgcolor: theme.palette.surfaceContainerLow,
-        })}
-      >
-        {filterChips.map(chip => (
-          <Chip
-            key={chip.key}
-            data-testid={`wallet-ledger-filter-${chip.key}`}
-            label={`${chip.label} (${chip.count})`}
-            aria-pressed={filter === chip.key}
-            onClick={() => setFilter(chip.key)}
-            color={filter === chip.key ? "primary" : "default"}
-            variant={filter === chip.key ? "filled" : "outlined"}
-            size="small"
-            sx={{
-              fontVariantNumeric: "tabular-nums",
-              ...(filter === chip.key ? {} : { bgcolor: "transparent" }),
-            }}
-          />
-        ))}
-      </Stack>
+      <WalletLedgerFilterBar
+        chips={filterChips}
+        activeKey={filter}
+        onChange={next => setFilter(next as WireTransactionType | "all")}
+        label={t.ledgerTitle}
+      />
       <Divider />
       {visible.length === 0 ? (
         <SessionsEmptyState
@@ -147,58 +103,7 @@ export function WalletLedger({ transactions, locale, t }: Readonly<WalletLedgerP
           body={t.ledgerFilteredEmpty}
         />
       ) : (
-        <List data-testid="wallet-ledger" disablePadding>
-          {visible.map((row, index) => {
-            const visual = ledgerRowVisual(row.type);
-            return (
-              <ListItem
-                key={row.id}
-                data-testid={`wallet-ledger-row-${row.id}`}
-                divider={index < visible.length - 1}
-                secondaryAction={
-                  <Stack spacing={0.5} sx={{ alignItems: "flex-end" }}>
-                    <Typography
-                      data-testid={`wallet-ledger-row-${row.id}-amount`}
-                      sx={theme => ({
-                        fontWeight: 700,
-                        fontVariantNumeric: "tabular-nums",
-                        color: amountTone(row.type, theme.palette),
-                      })}
-                    >
-                      {signedAmount(row)}
-                    </Typography>
-                    <Chip
-                      data-testid={`wallet-ledger-row-${row.id}-status`}
-                      label={ledgerStatusLabel(row.status, t)}
-                      color={ledgerStatusColor(row.status)}
-                      size="small"
-                      variant="outlined"
-                    />
-                  </Stack>
-                }
-                sx={{ pr: { xs: 14, sm: 16 } }}
-              >
-                <ListItemAvatar>
-                  <Avatar variant="rounded" sx={theme => ({ borderRadius: 2, ...avatarTone(row.type, theme.palette) })}>
-                    <visual.Icon fontSize="small" />
-                  </Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={ledgerTypeLabel(row.type, t)}
-                  secondary={
-                    row.description === null
-                      ? formatApplicantDate(row.createdAt, locale)
-                      : `${row.description} · ${formatApplicantDate(row.createdAt, locale)}`
-                  }
-                  slotProps={{
-                    primary: { variant: "body2", sx: { fontWeight: 600 } },
-                    secondary: { variant: "caption" },
-                  }}
-                />
-              </ListItem>
-            );
-          })}
-        </List>
+        <WalletLedgerRows rows={visible} locale={locale} t={t} />
       )}
     </Paper>
   );
