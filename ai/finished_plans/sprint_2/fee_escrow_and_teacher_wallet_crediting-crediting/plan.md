@@ -1,7 +1,6 @@
 # Design — Fee Escrow & Teacher Wallet Crediting (Close-the-Loop Verification)
 
-**Plan Directory:** `ai/plans/sprint_2/Fee Escrow & Teacher Wallet Crediting-crediting/`
-**Outcome Directory:** `ai/plans/sprint_2/Fee Escrow & Teacher Wallet Crediting-crediting/outcome/`
+**Plan Directory:** `ai/finished_plans/sprint_2/fee_escrow_and_teacher_wallet_crediting-crediting/`
 **Requirements:** `specs.md` (same directory) · **Tickets:** `docs/planning/TICKETS.md:1704-1796` · **Sprint:** 2
 
 ---
@@ -13,7 +12,7 @@
 | Version | 1.0 |
 | Date | 2026-09-11 |
 | Status | Design complete — verification-scoped |
-| Companion | `specs.md`, `tasks.md`, `deferred-items.md` |
+| Companion | `specs.md`, `tasks.md` |
 
 ---
 
