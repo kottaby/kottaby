@@ -12,7 +12,7 @@ import {
   NO_VALUE_PLACEHOLDER,
 } from "@/frontend/views/shared/disputes/DisputeCasePrimitives";
 import type { ParticipantCaseView } from "@/frontend/views/shared/disputes/ParticipantCaseBundleView";
-import { resolutionOutcomeLabel } from "@/frontend/views/student/sessions/SessionRowResolutionNote";
+import { resolutionOutcomeLabel } from "@/frontend/views/shared/disputes/resolution-outcome-label";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
 

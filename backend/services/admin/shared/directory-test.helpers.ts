@@ -106,6 +106,9 @@ interface PageEnvelope {
   items: readonly unknown[];
 }
 
+/** The envelope slice the page-slice/empty asserts read (named alias — no inline union). */
+type PageSliceKeys = "total" | "pageCount" | "items";
+
 /**
  * Asserts the page-envelope echo: requested page/pageSize round-trip plus
  * an honestly populated total/pageCount floor (≥ `totalMin`, default 1).
@@ -123,7 +126,7 @@ export function expectPageEnvelopeEcho(
 
 /** Asserts one page slice: honest total, ceiling pageCount, exact item count. */
 function expectPageSlice(
-  page: Pick<PageEnvelope, "total" | "pageCount" | "items">,
+  page: Pick<PageEnvelope, PageSliceKeys>,
   expected: { total: number; pageCount: number; items: number }
 ): void {
   expect(page.total).toBe(expected.total);
@@ -132,7 +135,7 @@ function expectPageSlice(
 }
 
 /** Asserts the honest empty listing envelope (items [], total 0, pageCount 0). */
-function expectHonestEmptyListing(page: Pick<PageEnvelope, "total" | "pageCount" | "items">): void {
+function expectHonestEmptyListing(page: Pick<PageEnvelope, PageSliceKeys>): void {
   expect(page.items).toEqual([]);
   expect(page.total).toBe(0);
   expect(page.pageCount).toBe(0);
@@ -244,7 +247,7 @@ export function registerPaginationCountingContract(config: {
     filters: { search: string },
     page: number,
     pageSize: number
-  ) => Promise<Pick<PageEnvelope, "total" | "pageCount" | "items">>;
+  ) => Promise<Pick<PageEnvelope, PageSliceKeys>>;
 }): void {
   test("pageCount is the ceiling of total ÷ pageSize", async () => {
     await runInRollback(async tx => {

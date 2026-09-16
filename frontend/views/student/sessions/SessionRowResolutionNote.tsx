@@ -5,9 +5,9 @@ import { Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { DisputeResolution as WireDisputeResolution } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { resolutionOutcomeLabel } from "@/frontend/views/shared/disputes/resolution-outcome-label";
 import { Sessions, useAppTranslation } from "@/shared/locale";
 import type { AppLocale } from "@/shared/locale/AppLocale";
-import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 interface SessionRowResolutionNoteProps {
   /** Row identity (testid suffix). */
@@ -23,31 +23,6 @@ interface SessionRowResolutionNoteProps {
   readonly resolvedAt: string;
   /** Active request locale — drives the date formatter. */
   readonly locale: AppLocale;
-}
-
-/**
- * Pure wire→label map for the persisted arbitration outcome. Exhaustive
- * over the `DisputeResolution` wire enum with a `never` guard; `null`
- * (a resolved row that predates the stored outcome) falls back to the
- * honest generic "Resolved" label — never fabricated copy.
- */
-export function resolutionOutcomeLabel(outcome: WireDisputeResolution | null, t: SessionsLabels): string {
-  switch (outcome) {
-    case WireDisputeResolution.Cancel:
-      return t.outcomeCancel;
-    case WireDisputeResolution.Complete:
-      return t.outcomeComplete;
-    case WireDisputeResolution.Refund:
-      return t.outcomeRefund;
-    case WireDisputeResolution.PartialRefund:
-      return t.outcomePartialRefund;
-    case WireDisputeResolution.Uphold:
-      return t.outcomeUphold;
-    case null:
-      return t.outcomeUnrecorded;
-  }
-  const exhaustive: never = outcome;
-  throw new Error(`Unexpected resolution outcome: ${String(exhaustive)}`);
 }
 
 /**
