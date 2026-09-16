@@ -220,10 +220,7 @@ export function expectListedItem<T extends { id: number }>(page: { items: readon
 }
 
 /** Asserts the export rows carry EXACTLY the given ids (order-insensitive). */
-export function expectExportRowIds<T extends { id: number }>(
-  envelope: { rows: readonly T[] },
-  expectedIds: number[]
-): void {
+export function expectExportRowIds(envelope: { rows: readonly { id: number }[] }, expectedIds: number[]): void {
   expect(envelope.rows.map(row => row.id).toSorted((a, b) => a - b)).toEqual(expectedIds.toSorted((a, b) => a - b));
 }
 
