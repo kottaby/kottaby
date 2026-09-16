@@ -57,6 +57,7 @@ const TRANSACTION_TYPE_BY_PG_VALUE: Record<PgTransactionType, TransactionType | 
   earning: TransactionType.Earning,
   withdrawal: TransactionType.Withdrawal,
   bonus: TransactionType.Bonus,
+  arbitration_reversal: TransactionType.ArbitrationReversal,
 };
 
 const TRANSACTION_STATUS_BY_PG_VALUE: Record<PgTransactionStatus, TransactionStatus | undefined> = {
