@@ -8,12 +8,12 @@
  * zeros) rides the same components.
  */
 
-import type { SvgIconComponent } from "@mui/icons-material";
 import {
   CancelOutlined as CancelIcon,
   CheckCircleOutlined as CompleteIcon,
   CallSplitOutlined as PartialRefundIcon,
   AssignmentReturnOutlined as RefundIcon,
+  type SvgIconComponent,
   GavelOutlined as UpholdIcon,
 } from "@mui/icons-material";
 import { Card, Chip, Skeleton, Stack, Typography } from "@mui/material";

@@ -16,10 +16,11 @@
  */
 
 import { Divider, Paper, Stack, Typography } from "@mui/material";
-import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
-import type { MyWalletQuery_myWallet_transactions } from "@/frontend/graphql/generated/gql/graphql";
-import { TransactionType as WireTransactionType } from "@/frontend/graphql/generated/gql/graphql";
+import { type ReactNode, useMemo, useState } from "react";
+import {
+  type MyWalletQuery_myWallet_transactions,
+  TransactionType as WireTransactionType,
+} from "@/frontend/graphql/generated/gql/graphql";
 import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
 import { WalletLedgerFilterBar, WalletLedgerRows } from "@/frontend/views/teacher/wallet/WalletLedger.parts";
 import { ledgerRowVisual, ledgerTypeLabel } from "@/frontend/views/teacher/wallet/walletLedgerVisuals";

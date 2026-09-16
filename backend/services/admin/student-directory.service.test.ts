@@ -145,7 +145,7 @@ describe("AdminStudentDirectoryService.list — filter normalization", () => {
         admin.id,
         tx
       );
-      expectListedItem(page, student.id);
+      expect(expectListedItem(page, student.id)).not.toBeUndefined();
     });
   });
 
@@ -274,6 +274,7 @@ describe("AdminStudentDirectoryService.exportAll — export-all envelope", () =>
       // The export envelope reports the FULL filtered count — exactly the
       // count the listing query would report across all pages.
       expectExportEnvelope(envelope, { total: 2, rows: 2 });
+      expect(envelope.truncated).toBe(false);
       expectExportRowIds(envelope, [linked.id, unlinked.id]);
       const found = envelope.rows.find(row => row.id === linked.id);
       expect(found?.name).toContain("DirStudentExport");
@@ -302,6 +303,7 @@ describe("AdminStudentDirectoryService.exportAll — export-all envelope", () =>
         tx
       );
       expectExportEnvelope(envelope, { total: 1, rows: 1 });
+      expect(envelope.truncated).toBe(false);
       expect(envelope.rows[0]?.id).toBe(linked.id);
     });
   });
@@ -316,6 +318,7 @@ describe("AdminStudentDirectoryService.exportAll — export-all envelope", () =>
         tx
       );
       expectExportEnvelope(envelope, { total: 0, rows: 0 });
+      expect(envelope.truncated).toBe(false);
     });
   });
 });

@@ -219,8 +219,13 @@ export function expectListedItem<T extends { id: number }>(page: { items: readon
   return found;
 }
 
+/** The row-bearing view the export-ids assert needs. */
+interface ExportRowEnvelope {
+  readonly rows: readonly { id: number }[];
+}
+
 /** Asserts the export rows carry EXACTLY the given ids (order-insensitive). */
-export function expectExportRowIds(envelope: { rows: readonly { id: number }[] }, expectedIds: number[]): void {
+export function expectExportRowIds(envelope: ExportRowEnvelope, expectedIds: number[]): void {
   expect(envelope.rows.map(row => row.id).toSorted((a, b) => a - b)).toEqual(expectedIds.toSorted((a, b) => a - b));
 }
 

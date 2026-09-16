@@ -554,15 +554,18 @@ describe("anonymous callers — UNAUTHORIZED byte-identical to the arbitration r
       variables: { id: sessionOracleId, reason: "anonymous probe" },
     });
     expectDenialIdenticalToReference(opened.error, "UNAUTHORIZED", reference, "openPostConfirmationDispute");
+    expect(opened.error).toBeDefined();
 
     const caseRead = await testClient.query({
       query: ADMIN_DISPUTE_CASE_DOC,
       variables: { id: sessionOracleId },
     });
     expectDenialIdenticalToReference(caseRead.error, "UNAUTHORIZED", reference, "adminDisputeCase");
+    expect(caseRead.error).toBeDefined();
 
     const analyticsRead = await testClient.query({ query: ADMIN_DISPUTE_ANALYTICS_DOC });
     expectDenialIdenticalToReference(analyticsRead.error, "UNAUTHORIZED", reference, "adminDisputeAnalytics");
+    expect(analyticsRead.error).toBeDefined();
   });
 });
 
@@ -588,6 +591,7 @@ describe("non-admin roles — FORBIDDEN byte-identical to the arbitration refere
         variables: { id: sessionOracleId },
       });
       expectDenialIdenticalToReference(caseRead.error, "FORBIDDEN", reference, "adminDisputeCase");
+      expect(caseRead.error).toBeDefined();
     });
   }
 });
@@ -601,6 +605,7 @@ describe("openPostConfirmationDispute — student predicate, oracle collapse, ex
       variables: { id: sessionWrongStateId, reason: "too early" },
     });
     expectMutationError(result.error, "SESSION_INVALID_TRANSITION");
+    expect(result.error).toBeDefined();
   });
 
   test("the row's own teacher → SESSION_NOT_FOUND (oracle collapse: teacher is not the student)", async () => {
@@ -609,6 +614,7 @@ describe("openPostConfirmationDispute — student predicate, oracle collapse, ex
       variables: { id: sessionOracleId, reason: "the teacher cannot use the student entry" },
     });
     expectMutationError(result.error, "SESSION_NOT_FOUND");
+    expect(result.error).toBeDefined();
   });
 
   test("foreign student → SESSION_NOT_FOUND (indistinguishable from a nonexistent id)", async () => {
@@ -617,6 +623,7 @@ describe("openPostConfirmationDispute — student predicate, oracle collapse, ex
       variables: { id: sessionOracleId, reason: "not mine" },
     });
     expectMutationError(result.error, "SESSION_NOT_FOUND");
+    expect(result.error).toBeDefined();
   });
 
   test("nonexistent id → SESSION_NOT_FOUND (the oracle pair of the foreign denial)", async () => {
@@ -625,6 +632,7 @@ describe("openPostConfirmationDispute — student predicate, oracle collapse, ex
       variables: { id: "999999999", reason: "nowhere" },
     });
     expectMutationError(result.error, "SESSION_NOT_FOUND");
+    expect(result.error).toBeDefined();
   });
 
   test("owner student happy path → Disputed with the reason persisted, escrow untouched", async () => {
@@ -645,6 +653,7 @@ describe("openPostConfirmationDispute — student predicate, oracle collapse, ex
       variables: { id: sessionOracleId, reason: "a second submission must never win" },
     });
     expectMutationError(result.error, "SESSION_INVALID_TRANSITION");
+    expect(result.error).toBeDefined();
   });
 
   test("whitespace-only reason → VALIDATION (pre-DB reason guard)", async () => {
@@ -653,6 +662,7 @@ describe("openPostConfirmationDispute — student predicate, oracle collapse, ex
       variables: { id: sessionOracleId, reason: "   " },
     });
     expectMutationError(result.error, "VALIDATION");
+    expect(result.error).toBeDefined();
   });
 });
 
@@ -684,6 +694,7 @@ describe("adminDisputeCase — the admin case-review read", () => {
   test("unknown id → SESSION_NOT_FOUND (localized not-found denial)", async () => {
     const result = await admin.query({ query: ADMIN_DISPUTE_CASE_DOC, variables: { id: "999999999" } });
     expectMutationError(result.error, "SESSION_NOT_FOUND");
+    expect(result.error).toBeDefined();
   });
 });
 
@@ -702,6 +713,7 @@ describe("teacherDisputeCase — the session's own teacher's case read", () => {
       variables: { id: sessionOracleId },
     });
     expectDenialIdenticalToReference(caseRead.error, "UNAUTHORIZED", reference, "teacherDisputeCase");
+    expect(caseRead.error).toBeDefined();
   });
 
   test("student and parent callers → FORBIDDEN byte-identical to the arbitration reference (teacher-role scope)", async () => {
@@ -724,6 +736,7 @@ describe("teacherDisputeCase — the session's own teacher's case read", () => {
     // covers both caller shapes in this one cell).
     for (const { reference, caseRead } of callerPairs) {
       expectDenialIdenticalToReference(caseRead.error, "FORBIDDEN", reference, "teacherDisputeCase");
+      expect(caseRead.error).toBeDefined();
     }
   });
 
@@ -750,11 +763,13 @@ describe("teacherDisputeCase — the session's own teacher's case read", () => {
   test("non-participant teacher → SESSION_NOT_FOUND (oracle collapse, indistinguishable from a nonexistent id)", async () => {
     const result = await teacherT2.query({ query: TEACHER_DISPUTE_CASE_DOC, variables: { id: sessionOracleId } });
     expectMutationError(result.error, "SESSION_NOT_FOUND");
+    expect(result.error).toBeDefined();
   });
 
   test("unknown id → SESSION_NOT_FOUND (the oracle pair of the non-participant denial)", async () => {
     const result = await teacherT.query({ query: TEACHER_DISPUTE_CASE_DOC, variables: { id: "999999999" } });
     expectMutationError(result.error, "SESSION_NOT_FOUND");
+    expect(result.error).toBeDefined();
   });
 });
 
@@ -773,6 +788,7 @@ describe("studentDisputeCase — the session's own student's case read (the fili
       variables: { id: sessionOracleId },
     });
     expectDenialIdenticalToReference(caseRead.error, "UNAUTHORIZED", reference, "studentDisputeCase");
+    expect(caseRead.error).toBeDefined();
   });
 
   test("teacher and parent callers → FORBIDDEN byte-identical to the arbitration reference (student-role scope)", async () => {
@@ -795,6 +811,7 @@ describe("studentDisputeCase — the session's own student's case read (the fili
     // covers both caller shapes in this one cell).
     for (const { reference, caseRead } of callerPairs) {
       expectDenialIdenticalToReference(caseRead.error, "FORBIDDEN", reference, "studentDisputeCase");
+      expect(caseRead.error).toBeDefined();
     }
   });
 
@@ -822,11 +839,13 @@ describe("studentDisputeCase — the session's own student's case read (the fili
   test("non-participant student → SESSION_NOT_FOUND (oracle collapse, indistinguishable from a nonexistent id)", async () => {
     const result = await studentB.query({ query: STUDENT_DISPUTE_CASE_DOC, variables: { id: sessionOracleId } });
     expectMutationError(result.error, "SESSION_NOT_FOUND");
+    expect(result.error).toBeDefined();
   });
 
   test("unknown id → SESSION_NOT_FOUND (the oracle pair of the non-participant denial)", async () => {
     const result = await studentA.query({ query: STUDENT_DISPUTE_CASE_DOC, variables: { id: "999999999" } });
     expectMutationError(result.error, "SESSION_NOT_FOUND");
+    expect(result.error).toBeDefined();
   });
 });
 
@@ -842,6 +861,7 @@ describe("resolveSessionDispute — held-family values ride the shipped held-esc
       variables: { id: sessionHeldMismatchId, resolution: "Refund" },
     });
     expectMutationError(result.error, "VALIDATION");
+    expect(result.error).toBeDefined();
     const item = firstWireItem(result.error, "VALIDATION");
     expect(item.message).toBe(expectedCopy("disputeResolutionMismatch"));
 
@@ -861,6 +881,7 @@ describe("resolveSessionDispute — held-family values ride the shipped held-esc
       variables: { id: sessionHeldCompleteId, resolution: "Complete" },
     });
     expectMutationError(result.error, "VALIDATION");
+    expect(result.error).toBeDefined();
     const item = firstWireItem(result.error, "VALIDATION");
     // The GENERIC validation copy — NOT the classification-mismatch one —
     // proves the held-family value reached the shipped service (which owns
@@ -925,6 +946,7 @@ describe("resolveSessionDispute — consumed-family values ride the arbitration 
       variables: { id: sessionAmountId, resolution: "PartialRefund", partialAmount: "0" },
     });
     expectMutationError(result.error, "VALIDATION");
+    expect(result.error).toBeDefined();
     const item = firstWireItem(result.error, "VALIDATION");
     expect(item.message).toBe(expectedCopy("partialRefundAmountInvalid"));
   });
@@ -935,6 +957,7 @@ describe("resolveSessionDispute — consumed-family values ride the arbitration 
       variables: { id: sessionAmountId, resolution: "Uphold", partialAmount: "1.00" },
     });
     expectMutationError(result.error, "VALIDATION");
+    expect(result.error).toBeDefined();
     const item = firstWireItem(result.error, "VALIDATION");
     expect(item.message).toBe(expectedCopy("partialRefundAmountInvalid"));
   });
@@ -976,6 +999,7 @@ describe("adversarial probes — privilege boundaries, family crossings, amount 
       variables: { id: sessionWrongStateId, reason: "the arbiter cannot use the student entry" },
     });
     expectMutationError(result.error, "SESSION_NOT_FOUND");
+    expect(result.error).toBeDefined();
   });
 
   test("Complete on a consumed-escrow dispute → the arbitration service's classification-mismatch denial (row untouched)", async () => {
@@ -984,6 +1008,7 @@ describe("adversarial probes — privilege boundaries, family crossings, amount 
       variables: { id: sessionAmountId, resolution: "Complete" },
     });
     expectMutationError(result.error, "VALIDATION");
+    expect(result.error).toBeDefined();
     const item = firstWireItem(result.error, "VALIDATION");
     expect(item.message).toBe(expectedCopy("disputeResolutionMismatch"));
   });
@@ -994,6 +1019,7 @@ describe("adversarial probes — privilege boundaries, family crossings, amount 
       variables: { id: sessionAmountId, resolution: "Cancel" },
     });
     expectMutationError(result.error, "VALIDATION");
+    expect(result.error).toBeDefined();
     const item = firstWireItem(result.error, "VALIDATION");
     expect(item.message).toBe(expectedCopy("disputeResolutionMismatch"));
   });
@@ -1004,6 +1030,7 @@ describe("adversarial probes — privilege boundaries, family crossings, amount 
       variables: { id: sessionHeldMismatchId, resolution: "PartialRefund" },
     });
     expectMutationError(result.error, "VALIDATION");
+    expect(result.error).toBeDefined();
     const item = firstWireItem(result.error, "VALIDATION");
     expect(item.message).toBe(expectedCopy("disputeResolutionMismatch"));
   });
@@ -1014,6 +1041,7 @@ describe("adversarial probes — privilege boundaries, family crossings, amount 
       variables: { id: sessionHeldMismatchId, resolution: "Uphold" },
     });
     expectMutationError(result.error, "VALIDATION");
+    expect(result.error).toBeDefined();
     const item = firstWireItem(result.error, "VALIDATION");
     expect(item.message).toBe(expectedCopy("disputeResolutionMismatch"));
   });
@@ -1030,6 +1058,7 @@ describe("adversarial probes — privilege boundaries, family crossings, amount 
     );
     for (const result of results) {
       expectMutationError(result.error, "VALIDATION");
+      expect(result.error).toBeDefined();
       const item = firstWireItem(result.error, "VALIDATION");
       expect(item.message).toBe(expectedCopy("partialRefundAmountInvalid"));
     }

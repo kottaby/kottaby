@@ -161,7 +161,7 @@ describe("AdminTeacherDirectoryService.list — filter normalization", () => {
         admin.id,
         tx
       );
-      expectListedItem(page, teacher.id);
+      expect(expectListedItem(page, teacher.id)).not.toBeUndefined();
     });
   });
 
@@ -271,6 +271,7 @@ describe("AdminTeacherDirectoryService.exportAll — export-all envelope", () =>
       // The export envelope reports the FULL filtered count — exactly the
       // count the listing query would report across all pages.
       expectExportEnvelope(envelope, { total: 2, rows: 2 });
+      expect(envelope.truncated).toBe(false);
       expectExportRowIds(envelope, [approved.id, pending.id]);
       const found = envelope.rows.find(row => row.id === approved.id);
       expect(found?.name).toContain("DirTeacherExport");
@@ -292,6 +293,7 @@ describe("AdminTeacherDirectoryService.exportAll — export-all envelope", () =>
         tx
       );
       expectExportEnvelope(envelope, { total: 1, rows: 1 });
+      expect(envelope.truncated).toBe(false);
       expect(envelope.rows[0]?.id).toBe(approved.id);
     });
   });
@@ -306,6 +308,7 @@ describe("AdminTeacherDirectoryService.exportAll — export-all envelope", () =>
         tx
       );
       expectExportEnvelope(envelope, { total: 0, rows: 0 });
+      expect(envelope.truncated).toBe(false);
     });
   });
 });

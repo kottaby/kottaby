@@ -177,7 +177,7 @@ describe("AdminApplicantDirectoryService.list — filter normalization", () => {
         admin.id,
         tx
       );
-      expectListedItem(page, applicant.id);
+      expect(expectListedItem(page, applicant.id)).not.toBeUndefined();
     });
   });
 
@@ -216,7 +216,7 @@ describe("AdminApplicantDirectoryService.list — filter normalization", () => {
         admin.id,
         tx
       );
-      expectListedItem(page, user.id);
+      expect(expectListedItem(page, user.id)).not.toBeUndefined();
     });
   });
 
@@ -390,6 +390,7 @@ describe("AdminApplicantDirectoryService.exportAll — export-all envelope", () 
       // The export envelope reports the FULL filtered count — exactly the
       // count the listing query would report across all pages.
       expectExportEnvelope(envelope, { total: 2, rows: 2 });
+      expect(envelope.truncated).toBe(false);
       expectExportRowIds(envelope, [pending.id, passed.id]);
       const found = envelope.rows.find(row => row.id === passed.id);
       expect(found?.name).toContain("DirApplicantExport");
@@ -412,6 +413,7 @@ describe("AdminApplicantDirectoryService.exportAll — export-all envelope", () 
         tx
       );
       expectExportEnvelope(envelope, { total: 1, rows: 1 });
+      expect(envelope.truncated).toBe(false);
       expect(envelope.rows[0]?.id).toBe(failed.id);
       expect(envelope.rows[0]?.status).toBe("failed");
     });
@@ -438,6 +440,7 @@ describe("AdminApplicantDirectoryService.exportAll — export-all envelope", () 
         tx
       );
       expectExportEnvelope(envelope, { total: 0, rows: 0 });
+      expect(envelope.truncated).toBe(false);
     });
   });
 });

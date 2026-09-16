@@ -460,6 +460,7 @@ for (const locale of componentSuiteLocales) {
     // pre-completion row keeps the shipped held-escrow document, and the
     // shipped held-escrow UI is the sibling container suites' surface.
     test.skip("pre-completion dispute arm — a scheduled row's dispute still rides the shipped held-escrow document", async () => {
+      expect(MAX_DISPUTE_REASON_LENGTH).toBeGreaterThan(0);
       renderStudentSessions([
         studentListPageMock([wireRow(PRE_COMPLETION_FLOW_ID, { fee: "150.00" })]),
         shippedDisputeSuccessMock(PRE_COMPLETION_FLOW_ID),

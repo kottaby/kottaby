@@ -37,7 +37,6 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type { MockLink } from "@apollo/client/testing";
 import { cleanup, fireEvent, type Screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
-import type { TeacherDisputeCaseQuery_teacherDisputeCase } from "@/frontend/graphql/generated/gql/graphql";
 import {
   DisputeResolution,
   SessionIntent,
@@ -45,6 +44,7 @@ import {
   SessionType,
   type StudentDisputeCaseQuery_studentDisputeCase,
   SurahJuzRef,
+  type TeacherDisputeCaseQuery_teacherDisputeCase,
 } from "@/frontend/graphql/generated/gql/graphql";
 import { studentDisputeCaseQueryDocument, teacherDisputeCaseQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { SESSION_FEE_CURRENCY } from "@/shared/constants";

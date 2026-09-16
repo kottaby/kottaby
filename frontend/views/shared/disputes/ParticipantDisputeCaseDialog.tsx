@@ -98,16 +98,22 @@ interface ParticipantDisputeCaseDialogProps {
   readonly onClose: () => void;
 }
 
-/** The participant case dialog: one query, session facts + decision + artifacts, honest nulls. */
-export function ParticipantDisputeCaseDialog({
+/**
+ * The case body — the state matrix (first-fetch skeleton → denial fallback →
+ * generic alert → the bundle) with exactly its own surface's query active.
+ * Extracted from the dialog shell for the cognitive-complexity tier; the
+ * shell owns the chrome, this owns the content decision.
+ */
+function ParticipantDisputeCaseBody({
   surface,
   sessionId,
-  open,
-  onClose,
-}: Readonly<ParticipantDisputeCaseDialogProps>): ReactNode {
+}: Readonly<{
+  surface: ParticipantDisputeCaseSurface;
+  sessionId: string;
+}>): ReactNode {
   const t = useAppTranslation(Sessions);
-  const tc = useAppTranslation(Common);
   const locale = useAppLocale();
+  const tid = (suffix: string) => `${surface}-dispute-case-${suffix}`;
 
   // Each mirror activates exactly its own document (the sibling stays
   // skipped — one network read per dialog, the surface's own query).
@@ -121,50 +127,61 @@ export function ParticipantDisputeCaseDialog({
   });
   const active = surface === "student" ? studentResult : teacherResult;
 
-  const tid = (suffix: string) => `${surface}-dispute-case-${suffix}`;
-
-  let body: ReactNode;
   if (active.loading && active.data === undefined) {
     // First fetch for this case: the `aria-busy` skeleton — no fabricated
     // section shells that could be mistaken for empty artifacts.
-    body = <DisputeCaseLoadingSkeleton surface={surface} testId={tid("loading")} />;
-  } else if (active.error) {
+    return <DisputeCaseLoadingSkeleton surface={surface} testId={tid("loading")} />;
+  }
+  if (active.error) {
     const rawCode = extractErrorCode(active.error);
     const code = rawCode === null ? "" : normalizeGraphQLErrorCode(rawCode);
     const action = mapGraphQLErrorByCode(code, { contextKind: "query", hasForm: false });
-    body =
-      action?.kind === "permission-fallback" || action?.kind === "auth-recovery" ? (
-        <PermissionDeniedFallback />
-      ) : (
-        <DisputeCaseErrorSlot testId={tid("error")} message={t.genericError} />
-      );
-  } else if (!active.data) {
-    body = <DisputeCaseLoadingSkeleton surface={surface} testId={tid("loading")} />;
-  } else {
-    const caseView = projectParticipantCase(active.data);
-    body =
-      caseView === undefined ? (
-        <DisputeCaseLoadingSkeleton surface={surface} testId={tid("loading")} />
-      ) : (
-        <Stack sx={{ gap: 3 }}>
-          <ParticipantCaseSessionFacts
-            surface={surface}
-            caseView={caseView}
-            t={t}
-            locale={locale}
-            counterpartyLabelText={surface === "student" ? t.studentCaseTeacherLabel : t.teacherCaseStudentLabel}
-          />
-          <ParticipantCaseDecisionSections
-            surface={surface}
-            caseView={caseView}
-            t={t}
-            locale={locale}
-            reportTitleText={surface === "student" ? t.studentCaseReportTitle : t.teacherCaseReportTitle}
-            ratingLabelText={surface === "student" ? t.studentCaseRatingLabel : t.teacherCaseRatingLabel}
-          />
-        </Stack>
-      );
+    if (action?.kind === "permission-fallback" || action?.kind === "auth-recovery") {
+      return <PermissionDeniedFallback />;
+    }
+    return <DisputeCaseErrorSlot testId={tid("error")} message={t.genericError} />;
   }
+  if (!active.data) {
+    return <DisputeCaseLoadingSkeleton surface={surface} testId={tid("loading")} />;
+  }
+  const caseView = projectParticipantCase(active.data);
+  if (caseView === undefined) {
+    return <DisputeCaseLoadingSkeleton surface={surface} testId={tid("loading")} />;
+  }
+  return (
+    <Stack sx={{ gap: 3 }}>
+      <ParticipantCaseSessionFacts
+        surface={surface}
+        caseView={caseView}
+        t={t}
+        locale={locale}
+        counterpartyLabelText={surface === "student" ? t.studentCaseTeacherLabel : t.teacherCaseStudentLabel}
+      />
+      <ParticipantCaseDecisionSections
+        surface={surface}
+        caseView={caseView}
+        t={t}
+        locale={locale}
+        reportTitleText={surface === "student" ? t.studentCaseReportTitle : t.teacherCaseReportTitle}
+        ratingLabelText={surface === "student" ? t.studentCaseRatingLabel : t.teacherCaseRatingLabel}
+      />
+    </Stack>
+  );
+}
+
+/** The participant case dialog: one query, session facts + decision + artifacts, honest nulls. */
+export function ParticipantDisputeCaseDialog({
+  surface,
+  sessionId,
+  open,
+  onClose,
+}: Readonly<ParticipantDisputeCaseDialogProps>): ReactNode {
+  const t = useAppTranslation(Sessions);
+  const tc = useAppTranslation(Common);
+
+  const tid = (suffix: string) => `${surface}-dispute-case-${suffix}`;
+
+  const body = <ParticipantDisputeCaseBody surface={surface} sessionId={sessionId} />;
 
   return (
     <Dialog
