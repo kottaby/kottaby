@@ -19,6 +19,7 @@ import {
   ledgerStatusColor,
   ledgerStatusLabel,
   ledgerTypeLabel,
+  signedAmount,
 } from "@/frontend/views/teacher/wallet/walletLedgerVisuals";
 import type { WalletLabels } from "@/shared/locale/types/wallet";
 

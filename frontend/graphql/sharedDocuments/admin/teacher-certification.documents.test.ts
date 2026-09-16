@@ -13,7 +13,6 @@
 
 import { describe, expect, test } from "bun:test";
 import type { TypedDocumentNode } from "@apollo/client";
-import type { DocumentNode, FieldNode, OperationDefinitionNode } from "graphql";
 import type {
   AdminCertifyTeacherColdStartMutation,
   AdminCertifyTeacherColdStartMutationVariables,
@@ -21,29 +20,11 @@ import type {
 import { adminCertifyTeacherColdStartMutationDocument as viaTopBarrel } from "@/frontend/graphql/sharedDocuments";
 import { adminCertifyTeacherColdStartMutationDocument as viaAdminBarrel } from "@/frontend/graphql/sharedDocuments/admin";
 import { adminCertifyTeacherColdStartMutationDocument } from "@/frontend/graphql/sharedDocuments/admin/teacher-certification.documents";
-
-function singleOperationOrThrow(document: DocumentNode): OperationDefinitionNode {
-  const operations = document.definitions.filter(
-    (definition): definition is OperationDefinitionNode => definition.kind === "OperationDefinition"
-  );
-  expect(operations).toHaveLength(1);
-  if (operations.length < 1) {
-    throw new Error("expected exactly one OperationDefinition");
-  }
-  return operations[0];
-}
-
-function fieldSelections(parent: OperationDefinitionNode | FieldNode): FieldNode[] {
-  const selectionSet = parent.selectionSet;
-  if (!selectionSet) {
-    return [];
-  }
-  return selectionSet.selections.filter((selection): selection is FieldNode => selection.kind === "Field");
-}
-
-function namedField(parent: OperationDefinitionNode | FieldNode, name: string): FieldNode | undefined {
-  return fieldSelections(parent).find(field => field.name.value === name);
-}
+import {
+  subFields as fieldSelections,
+  subField as namedField,
+  operationOrThrow as singleOperationOrThrow,
+} from "@/frontend/graphql/sharedDocuments/document-test-kit";
 
 describe("teacher certification document — operation + variables contract", () => {
   test("is a single named mutation operation named AdminCertifyTeacherColdStart", () => {

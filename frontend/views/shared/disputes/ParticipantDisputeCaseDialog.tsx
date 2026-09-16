@@ -52,7 +52,7 @@ import { Common, Sessions, useAppLocale, useAppTranslation } from "@/shared/loca
  */
 
 /** The two participant surfaces the shared dialog core binds. */
-export type ParticipantDisputeCaseSurface = "student" | "teacher";
+type ParticipantDisputeCaseSurface = "student" | "teacher";
 
 /**
  * Normalizes either participant wire envelope into the surface-agnostic

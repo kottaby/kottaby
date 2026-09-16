@@ -100,6 +100,7 @@ import { students } from "@/backend/db/schema/students/students";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
+import { hasPostgresErrorCode } from "@/backend/db/test/pg-error";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
@@ -267,18 +268,6 @@ async function insertConsumedSessionRow(
  * original PostgreSQL error carries the given SQLSTATE code — Drizzle wraps
  * driver errors behind its own generic "failed query" message.
  */
-function hasPostgresErrorCode(error: unknown, pgCode: string): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === pgCode) {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
 
 /**
  * Walks the same cause chain searching for an `Error.message` containing
@@ -2406,14 +2395,14 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     expect(repoSource.includes("const executor = tx ?? db;")).toBe(true);
     expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(16);
     expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(13);
-    // Thirty-one exported methods (each namespace read method plus its
-    // one-to-one sibling implementation, the report-gate lock, the report
-    // wave-context read, and the post-confirmation dispute trio), every one
-    // ending in tx (LAST param).
+    // Thirty-two exported methods across the namespace + its three one-to-one
+    // sibling implementation modules (the report-gate lock, the report
+    // wave-context read, the post-confirmation dispute trio, and the merged
+    // escrow lane), every one ending in tx (LAST param).
     // Exactly ONE takes it REQUIRED — the report-gate lock (a FOR UPDATE
     // read taken outside a transaction releases when the statement ends
-    // and protects nothing); the other thirty keep the optional tx.
-    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(31);
+    // and protects nothing); the other thirty-one keep the optional tx.
+    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(32);
     expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(19);
     expect(repoSource.match(/tx: DBTransaction/g) ?? []).toHaveLength(1);
   });

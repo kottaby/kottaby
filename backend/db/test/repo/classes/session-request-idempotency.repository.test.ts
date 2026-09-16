@@ -56,6 +56,7 @@ import { students } from "@/backend/db/schema/students/students";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
+import { hasPostgresErrorCode } from "@/backend/db/test/pg-error";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
@@ -136,18 +137,6 @@ async function insertSessionRow(tx: DBTransaction, actors: SessionActors): Promi
  * "failed query" message, so the code is reachable only through the chain —
  * exactly what the service's duplicate-branch translation will consume.
  */
-function hasPostgresErrorCode(error: unknown, pgCode: string): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === pgCode) {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
 
 /**
  * Walks the same cycle-safe cause chain searching for an `Error.message`

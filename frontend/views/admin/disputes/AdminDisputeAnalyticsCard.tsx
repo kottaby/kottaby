@@ -31,8 +31,8 @@ import type { AdminDisputeAnalyticsQuery_adminDisputeAnalytics } from "@/fronten
 import {
   AnalyticsLoadingCard,
   AnalyticsOutcomeBreakdown,
-  StatBlock,
-} from "@/frontend/views/admin/disputes/AdminDisputeAnalyticsCard.parts";
+} from "@/frontend/views/admin/disputes/AdminDisputeAnalyticsCard.outcome";
+import { StatBlock } from "@/frontend/views/admin/disputes/AdminDisputeAnalyticsCard.parts";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 interface AdminDisputeAnalyticsCardProps {

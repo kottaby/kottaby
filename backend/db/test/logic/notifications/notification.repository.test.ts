@@ -39,6 +39,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { NotificationRepository } from "@/backend/db/repo";
 import { notifications } from "@/backend/db/schema/notifications/notifications";
 import { createTestUser } from "@/backend/db/test/entity-setup";
+import { hasPostgresErrorCode } from "@/backend/db/test/pg-error";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
 import type { DBTransaction, NotificationInsertType, NotificationSelectType } from "@/backend/types";
@@ -93,18 +94,6 @@ interface RowSpec {
  * errors behind its own generic "failed query" message. Mirrors the
  * established traversal precedent in `applicant-lifecycle.test.ts`.
  */
-function hasPostgresErrorCode(error: unknown, pgCode: string): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === pgCode) {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
 
 /**
  * Returns an integer id that cannot exist as a `notifications` row during

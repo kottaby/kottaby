@@ -26,14 +26,15 @@
  */
 
 import { afterEach, describe, expect, mock, test } from "bun:test";
+import {
+  asHTMLElement,
+  cardTestHarness,
+  clipboardWriteMock,
+  installClipboardStub,
+  previousContentElement,
+} from "@/test/ui/components/admin/admin-card-test-kit";
 
-await import("@/test/ui/test-env");
-await import("@/test/ui/components/happydom-preload");
-await import("@/test/ui/components/translation-preload");
-await import("@/test/ui/components/next-dynamic-mock");
-
-const { cleanup, fireEvent, screen } = await import("@testing-library/react");
-const { renderWithWrapper } = await import("@/test/ui/components/TestWrapper");
+const { cleanup, fireEvent, screen, renderWithWrapper } = await cardTestHarness();
 
 import type { AdminTeachersQuery_adminTeachers_items } from "@/frontend/graphql/generated/gql/graphql";
 import { AdminTeacherMobileCard } from "@/frontend/views/admin/teachers/AdminTeacherMobileCard";
@@ -61,19 +62,6 @@ function teacherFixture(): AdminTeachersQuery_adminTeachers_items {
   };
 }
 
-type WriteTextMock = ReturnType<typeof mock<(text: string) => Promise<void>>>;
-
-/** Controllable clipboard stub: tests resolve/reject writes explicitly. */
-let writeTextMock: WriteTextMock;
-
-function installClipboardStub(impl: (text: string) => Promise<void>): void {
-  writeTextMock = mock<(text: string) => Promise<void>>(impl);
-  Object.defineProperty(navigator, "clipboard", {
-    value: { writeText: writeTextMock },
-    configurable: true,
-  });
-}
-
 afterEach(cleanup);
 
 /**
@@ -81,25 +69,12 @@ afterEach(cleanup);
  * emotion integration interleaves `<style>` tags between the card's real
  * children, so the structural walk must skip them.
  */
-function previousContentElement(element: Element): Element | null {
-  let node: Element | null = element.previousElementSibling;
-  while (node !== null && (node.tagName === "STYLE" || node.tagName === "LINK")) {
-    node = node.previousElementSibling;
-  }
-  return node;
-}
 
 /**
  * Instanceof-narrowed `Element | null` → `HTMLElement` — the runtime-checked
  * replacement for the old bare `as HTMLElement` casts on structural-walk
  * results (a broken walk fails the test through the thrown error).
  */
-function asHTMLElement(element: Element | null): HTMLElement {
-  if (!(element instanceof HTMLElement)) {
-    throw new TypeError("expected an HTMLElement — the structural walk broke");
-  }
-  return element;
-}
 
 interface RenderOptions {
   readonly locale: AppLocale;
@@ -161,7 +136,7 @@ describe("AdminTeacherMobileCard — full-width email row", () => {
       // Let the stubbed promise settle before asserting the callback ran.
       await Promise.resolve();
       await Promise.resolve();
-      expect(writeTextMock.mock.calls[0]?.[0]).toBe("certified@draftacademy.local");
+      expect(clipboardWriteMock().mock.calls[0]?.[0]).toBe("certified@draftacademy.local");
       expect(onCopyEmail.mock.calls).toHaveLength(1);
     }
   );

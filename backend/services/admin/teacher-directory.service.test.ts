@@ -29,36 +29,23 @@
  *    BOTH operations.
  */
 
-import { describe, expect, spyOn, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { createTestAdmin, createTestTeacherRow, createTestUser } from "@/backend/db/test/entity-setup";
-import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
-import { ForbiddenError, UnauthorizedError, ValidationError } from "@/backend/lib/errors";
-import { logger } from "@/backend/lib/logger";
+import { createTestTeacherRow, createTestUser } from "@/backend/db/test/entity-setup";
+import { runInRollback } from "@/backend/db/test/test-utils";
+import {
+  expectExportEnvelope,
+  expectExportRowIds,
+  expectListedItem,
+  expectPageEnvelopeEcho,
+  DIRECTORY_TEST_LOCALE as LOCALE,
+  provisionAdminActor,
+  registerBflaDenials,
+  registerPaginationCountingContract,
+  registerPaginationValidationContract,
+} from "@/backend/services/admin/shared/directory-test.helpers";
 import { AdminTeacherDirectoryService } from "@/backend/services/admin/teacher-directory.service";
 import type { DBTransaction, UserSelectType } from "@/backend/types";
-import { getServerTranslations } from "@/shared/locale/server-graphql";
-
-const LOCALE = "en";
-const tErrors = getServerTranslations(LOCALE).errorsTranslations;
-
-/** Sentinel `actorId` value expressing an anonymous caller. */
-const ANONYMOUS_ACTOR_ID = 0;
-
-/** Silences `logger.logDomainError` so test stdout stays compact. */
-function silenceDomainLog(): ReturnType<typeof spyOn> {
-  return spyOn(logger, "logDomainError").mockImplementation(() => {});
-}
-
-/**
- * Provisions an admin actor (users row + admin role-child row) for use as
- * the `actorId` of subsequent service calls. Returns the user row.
- */
-async function provisionAdminActor(tx: DBTransaction): Promise<UserSelectType> {
-  const user = await createTestUser(tx, { role: "admin" });
-  await createTestAdmin(tx, user.id);
-  return user;
-}
 
 /**
  * Creates a teacher user + `teacher` role-child row with a unique full name
@@ -104,13 +91,9 @@ describe("AdminTeacherDirectoryService.list — happy path + mapping", () => {
 
       const page = await AdminTeacherDirectoryService.list({ search: "DirTeacherHappy" }, 1, 25, LOCALE, admin.id, tx);
 
-      expect(page.page).toBe(1);
-      expect(page.pageSize).toBe(25);
-      expect(page.total).toBeGreaterThanOrEqual(1);
-      expect(page.pageCount).toBeGreaterThanOrEqual(1);
+      expectPageEnvelopeEcho(page, { page: 1, pageSize: 25 });
 
-      const found = page.items.find(item => item.id === teacher.id);
-      expect(found).not.toBeUndefined();
+      const found = expectListedItem(page, teacher.id);
       expect(found?.name).toContain("DirTeacherHappy");
       expect(found?.email).toBe(teacher.email);
       expect(found?.phone).toBe(teacher.phone);
@@ -136,7 +119,7 @@ describe("AdminTeacherDirectoryService.list — happy path + mapping", () => {
       });
 
       const page = await AdminTeacherDirectoryService.list({ search: "DirTeacherBare" }, 1, 25, LOCALE, admin.id, tx);
-      const found = page.items.find(item => item.id === teacher.id);
+      const found = expectListedItem(page, teacher.id);
       expect(found?.averageRating).toBeNull();
       expect(found?.subjects).toEqual([]);
     });
@@ -158,7 +141,7 @@ describe("AdminTeacherDirectoryService.list — happy path + mapping", () => {
         admin.id,
         tx
       );
-      const found = page.items.find(item => item.id === teacher.id);
+      const found = expectListedItem(page, teacher.id);
       expect(found?.subjects).toEqual([]);
     });
   });
@@ -178,8 +161,7 @@ describe("AdminTeacherDirectoryService.list — filter normalization", () => {
         admin.id,
         tx
       );
-      const found = page.items.find(item => item.id === teacher.id);
-      expect(found).not.toBeUndefined();
+      expectListedItem(page, teacher.id);
     });
   });
 
@@ -193,8 +175,7 @@ describe("AdminTeacherDirectoryService.list — filter normalization", () => {
       await createTestTeacherRow(tx, teacher.id, { isApproved: true });
 
       const page = await AdminTeacherDirectoryService.list({ search: "%" }, 1, 100, LOCALE, admin.id, tx);
-      const found = page.items.find(item => item.id === teacher.id);
-      expect(found).not.toBeUndefined();
+      const found = expectListedItem(page, teacher.id);
       expect(found?.name).toContain("%");
     });
   });
@@ -240,46 +221,16 @@ describe("AdminTeacherDirectoryService.list — filter normalization", () => {
 });
 
 describe("AdminTeacherDirectoryService.list — pagination", () => {
-  test("pageCount is the ceiling of total ÷ pageSize", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      const prefix = `DirTeacherPaged${randomUUID().slice(0, 8)}`;
-      // Three mutually independent user+teacher pairs — seeded concurrently.
-      // Each pair's user→role-child FK order stays sequenced inside the
-      // helper; no dependency exists across pairs.
+  registerPaginationCountingContract({
+    seedThree: async (tx, prefix) => {
       await Promise.all([
         createDirectoryTeacher(tx, { namePrefix: prefix }),
         createDirectoryTeacher(tx, { namePrefix: prefix }),
         createDirectoryTeacher(tx, { namePrefix: prefix }),
       ]);
-
-      const twoPer = await AdminTeacherDirectoryService.list({ search: prefix }, 1, 2, LOCALE, admin.id, tx);
-      expect(twoPer.total).toBe(3);
-      expect(twoPer.pageCount).toBe(2);
-      expect(twoPer.items).toHaveLength(2);
-
-      const threePer = await AdminTeacherDirectoryService.list({ search: prefix }, 1, 3, LOCALE, admin.id, tx);
-      expect(threePer.total).toBe(3);
-      expect(threePer.pageCount).toBe(1);
-      expect(threePer.items).toHaveLength(3);
-    });
-  });
-
-  test("no-match search → honest empty envelope (total 0, pageCount 0)", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      const page = await AdminTeacherDirectoryService.list(
-        { search: `no-match-${randomUUID()}` },
-        1,
-        25,
-        LOCALE,
-        admin.id,
-        tx
-      );
-      expect(page.items).toEqual([]);
-      expect(page.total).toBe(0);
-      expect(page.pageCount).toBe(0);
-    });
+    },
+    list: (tx, actorId, filters, page, pageSize) =>
+      AdminTeacherDirectoryService.list(filters, page, pageSize, LOCALE, actorId, tx),
   });
 
   test("out-of-range page → empty items + honest total (never clamped)", async () => {
@@ -298,40 +249,8 @@ describe("AdminTeacherDirectoryService.list — pagination", () => {
 
   // ── Pagination bounds reject BEFORE any DB read ────────────────────────
 
-  test("page = 0 → ValidationError(VALIDATION)", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminTeacherDirectoryService.list({}, 0, 25, LOCALE, admin.id, tx));
-      expect(error).toBeInstanceOf(ValidationError);
-      expect(error.message).toBe(tErrors.validation);
-    });
-  });
-
-  test("page = negative → ValidationError(VALIDATION)", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminTeacherDirectoryService.list({}, -5, 25, LOCALE, admin.id, tx));
-      expect(error).toBeInstanceOf(ValidationError);
-    });
-  });
-
-  test("pageSize = 101 → ValidationError(VALIDATION)", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminTeacherDirectoryService.list({}, 1, 101, LOCALE, admin.id, tx));
-      expect(error).toBeInstanceOf(ValidationError);
-    });
-  });
-
-  test("pageSize = undefined defaults to 25", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      const page = await AdminTeacherDirectoryService.list({}, 1, undefined, LOCALE, admin.id, tx);
-      expect(page.pageSize).toBe(25);
-    });
+  registerPaginationValidationContract({
+    list: (tx, actorId, page, pageSize) => AdminTeacherDirectoryService.list({}, page, pageSize, LOCALE, actorId, tx),
   });
 });
 
@@ -351,12 +270,8 @@ describe("AdminTeacherDirectoryService.exportAll — export-all envelope", () =>
 
       // The export envelope reports the FULL filtered count — exactly the
       // count the listing query would report across all pages.
-      expect(envelope.total).toBe(2);
-      expect(envelope.truncated).toBe(false);
-      expect(envelope.rows).toHaveLength(2);
-      expect(envelope.rows.map(row => row.id).toSorted((a, b) => a - b)).toEqual(
-        [approved.id, pending.id].toSorted((a, b) => a - b)
-      );
+      expectExportEnvelope(envelope, { total: 2, rows: 2 });
+      expectExportRowIds(envelope, [approved.id, pending.id]);
       const found = envelope.rows.find(row => row.id === approved.id);
       expect(found?.name).toContain("DirTeacherExport");
       expect(found?.email).toBe(approved.email);
@@ -376,10 +291,8 @@ describe("AdminTeacherDirectoryService.exportAll — export-all envelope", () =>
         admin.id,
         tx
       );
-      expect(envelope.total).toBe(1);
-      expect(envelope.rows).toHaveLength(1);
+      expectExportEnvelope(envelope, { total: 1, rows: 1 });
       expect(envelope.rows[0]?.id).toBe(approved.id);
-      expect(envelope.truncated).toBe(false);
     });
   });
 
@@ -392,55 +305,19 @@ describe("AdminTeacherDirectoryService.exportAll — export-all envelope", () =>
         admin.id,
         tx
       );
-      expect(envelope.rows).toEqual([]);
-      expect(envelope.total).toBe(0);
-      expect(envelope.truncated).toBe(false);
+      expectExportEnvelope(envelope, { total: 0, rows: 0 });
     });
   });
 });
 
 describe("AdminTeacherDirectoryService.exportAll — defense-in-depth (BFLA)", () => {
-  test("anonymous actor (id=0) → UnauthorizedError; zero writes", async () => {
-    await runInRollback(async tx => {
-      silenceDomainLog();
-      const error = await expectRepoError(() =>
-        AdminTeacherDirectoryService.exportAll({}, LOCALE, ANONYMOUS_ACTOR_ID, tx)
-      );
-      expect(error).toBeInstanceOf(UnauthorizedError);
-      expect(error.message).toContain(tErrors.unauthorized);
-    });
-  });
-
-  test("non-admin actor → ForbiddenError; zero writes", async () => {
-    await runInRollback(async tx => {
-      const nonAdmin = await createTestUser(tx, { role: "student" });
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminTeacherDirectoryService.exportAll({}, LOCALE, nonAdmin.id, tx));
-      expect(error).toBeInstanceOf(ForbiddenError);
-      expect(error.message).toContain(tErrors.forbidden);
-    });
+  registerBflaDenials({
+    call: (tx, actorId) => AdminTeacherDirectoryService.exportAll({}, LOCALE, actorId, tx),
   });
 });
 
 describe("AdminTeacherDirectoryService.list — defense-in-depth (BFLA)", () => {
-  test("anonymous actor (id=0) → UnauthorizedError; zero writes", async () => {
-    await runInRollback(async tx => {
-      silenceDomainLog();
-      const error = await expectRepoError(() =>
-        AdminTeacherDirectoryService.list({}, 1, 25, LOCALE, ANONYMOUS_ACTOR_ID, tx)
-      );
-      expect(error).toBeInstanceOf(UnauthorizedError);
-      expect(error.message).toContain(tErrors.unauthorized);
-    });
-  });
-
-  test("non-admin actor → ForbiddenError; zero writes", async () => {
-    await runInRollback(async tx => {
-      const nonAdmin = await createTestUser(tx, { role: "student" });
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminTeacherDirectoryService.list({}, 1, 25, LOCALE, nonAdmin.id, tx));
-      expect(error).toBeInstanceOf(ForbiddenError);
-      expect(error.message).toContain(tErrors.forbidden);
-    });
+  registerBflaDenials({
+    call: (tx, actorId) => AdminTeacherDirectoryService.list({}, 1, 25, LOCALE, actorId, tx),
   });
 });

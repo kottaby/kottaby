@@ -65,6 +65,7 @@ import { students } from "@/backend/db/schema/students/students";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { users } from "@/backend/db/schema/users/users";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
+import { hasPostgresErrorCode } from "@/backend/db/test/pg-error";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
@@ -239,18 +240,6 @@ async function createSessionInState(
  * original PostgreSQL error carries the given SQLSTATE code — Drizzle wraps
  * driver errors behind its own generic "failed query" message.
  */
-function hasPostgresErrorCode(error: unknown, pgCode: string): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === pgCode) {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
 
 describe("SessionRepository — admin governance surface (runInRollback)", () => {
   // ─── Tier 1: the directory + browse reads ───────────────────────────

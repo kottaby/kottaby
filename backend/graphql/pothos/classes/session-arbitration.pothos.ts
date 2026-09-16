@@ -122,7 +122,7 @@ export const StudentDisputeCasePothosObject = gqlSchemaBuilder
  * server-resolved participant display names (honest `null`s fall back to
  * the numeric identity in the view).
  */
-export const AdminDisputedSessionRowPothosObject = gqlSchemaBuilder
+const AdminDisputedSessionRowPothosObject = gqlSchemaBuilder
   .objectRef<AdminDisputedSessionRowReturnType>("AdminDisputedSessionRow")
   .implement({
     fields: t => ({

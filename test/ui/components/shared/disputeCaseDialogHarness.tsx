@@ -152,9 +152,7 @@ export function disputeCaseArtifactsFixture(
 }
 
 /** The resolved-decision session override (status + outcome + note + stamps). */
-export function resolvedSessionOverride(
-  data: DisputeCaseFixtureData
-): Partial<StudentDisputeCaseQuery_studentDisputeCase> {
+function resolvedSessionOverride(data: DisputeCaseFixtureData): Partial<StudentDisputeCaseQuery_studentDisputeCase> {
   return {
     session: {
       ...disputeCaseSessionFixture(data),

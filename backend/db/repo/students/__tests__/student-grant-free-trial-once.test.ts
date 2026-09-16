@@ -32,6 +32,7 @@ import { eq, sql } from "drizzle-orm";
 import { StudentRepository } from "@/backend/db/repo";
 import { students } from "@/backend/db/schema/students/students";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
+import { hasPostgresErrorCode } from "@/backend/db/test/pg-error";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import type { DBTransaction } from "@/backend/types";
 
@@ -44,18 +45,6 @@ const PG_CHECK_VIOLATION = "23514";
  * driver errors behind its own generic "failed query" message, so the code
  * only surfaces on the underlying `pg` error instance.
  */
-function hasPostgresErrorCode(error: unknown, pgCode: string): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === pgCode) {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
 
 /**
  * Walks the same cause chain searching for an `Error.message` containing the

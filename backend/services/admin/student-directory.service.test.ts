@@ -29,36 +29,23 @@
  *    BOTH operations.
  */
 
-import { describe, expect, spyOn, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { createTestAdmin, createTestParent, createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
-import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
-import { ForbiddenError, UnauthorizedError, ValidationError } from "@/backend/lib/errors";
-import { logger } from "@/backend/lib/logger";
+import { createTestParent, createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
+import { runInRollback } from "@/backend/db/test/test-utils";
+import {
+  expectExportEnvelope,
+  expectExportRowIds,
+  expectListedItem,
+  expectPageEnvelopeEcho,
+  DIRECTORY_TEST_LOCALE as LOCALE,
+  provisionAdminActor,
+  registerBflaDenials,
+  registerPaginationCountingContract,
+  registerPaginationValidationContract,
+} from "@/backend/services/admin/shared/directory-test.helpers";
 import { AdminStudentDirectoryService } from "@/backend/services/admin/student-directory.service";
 import type { DBTransaction, UserSelectType } from "@/backend/types";
-import { getServerTranslations } from "@/shared/locale/server-graphql";
-
-const LOCALE = "en";
-const tErrors = getServerTranslations(LOCALE).errorsTranslations;
-
-/** Sentinel `actorId` value expressing an anonymous caller. */
-const ANONYMOUS_ACTOR_ID = 0;
-
-/** Silences `logger.logDomainError` so test stdout stays compact. */
-function silenceDomainLog(): ReturnType<typeof spyOn> {
-  return spyOn(logger, "logDomainError").mockImplementation(() => {});
-}
-
-/**
- * Provisions an admin actor (users row + admin role-child row) for use as
- * the `actorId` of subsequent service calls. Returns the user row.
- */
-async function provisionAdminActor(tx: DBTransaction): Promise<UserSelectType> {
-  const user = await createTestUser(tx, { role: "admin" });
-  await createTestAdmin(tx, user.id);
-  return user;
-}
 
 /**
  * Creates a student user + `students` role-child row with a unique full
@@ -109,10 +96,7 @@ describe("AdminStudentDirectoryService.list — happy path + mapping", () => {
 
       const page = await AdminStudentDirectoryService.list({ search: "DirStudentHappy" }, 1, 25, LOCALE, admin.id, tx);
 
-      expect(page.page).toBe(1);
-      expect(page.pageSize).toBe(25);
-      expect(page.total).toBeGreaterThanOrEqual(1);
-      expect(page.pageCount).toBeGreaterThanOrEqual(1);
+      expectPageEnvelopeEcho(page, { page: 1, pageSize: 25 });
 
       const found = page.items.find(item => item.id === student.id);
       expect(found).not.toBeUndefined();
@@ -161,8 +145,7 @@ describe("AdminStudentDirectoryService.list — filter normalization", () => {
         admin.id,
         tx
       );
-      const found = page.items.find(item => item.id === student.id);
-      expect(found).not.toBeUndefined();
+      expectListedItem(page, student.id);
     });
   });
 
@@ -176,8 +159,7 @@ describe("AdminStudentDirectoryService.list — filter normalization", () => {
       await createTestStudent(tx, student.id);
 
       const page = await AdminStudentDirectoryService.list({ search: "%" }, 1, 100, LOCALE, admin.id, tx);
-      const found = page.items.find(item => item.id === student.id);
-      expect(found).not.toBeUndefined();
+      const found = expectListedItem(page, student.id);
       expect(found?.name).toContain("%");
     });
   });
@@ -250,84 +232,22 @@ describe("AdminStudentDirectoryService.list — filter normalization", () => {
 });
 
 describe("AdminStudentDirectoryService.list — pagination", () => {
-  test("pageCount is the ceiling of total ÷ pageSize", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      const prefix = `DirStudentPaged${randomUUID().slice(0, 8)}`;
-      // Three mutually independent user+student pairs — seeded concurrently.
-      // Each pair's user→role-child FK order stays sequenced inside the
-      // helper; no dependency exists across pairs.
+  registerPaginationCountingContract({
+    seedThree: async (tx, prefix) => {
       await Promise.all([
         createDirectoryStudent(tx, { namePrefix: prefix }),
         createDirectoryStudent(tx, { namePrefix: prefix }),
         createDirectoryStudent(tx, { namePrefix: prefix }),
       ]);
-
-      const twoPer = await AdminStudentDirectoryService.list({ search: prefix }, 1, 2, LOCALE, admin.id, tx);
-      expect(twoPer.total).toBe(3);
-      expect(twoPer.pageCount).toBe(2);
-      expect(twoPer.items).toHaveLength(2);
-
-      const threePer = await AdminStudentDirectoryService.list({ search: prefix }, 1, 3, LOCALE, admin.id, tx);
-      expect(threePer.total).toBe(3);
-      expect(threePer.pageCount).toBe(1);
-      expect(threePer.items).toHaveLength(3);
-    });
-  });
-
-  test("no-match search → honest empty envelope (total 0, pageCount 0)", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      const page = await AdminStudentDirectoryService.list(
-        { search: `no-match-${randomUUID()}` },
-        1,
-        25,
-        LOCALE,
-        admin.id,
-        tx
-      );
-      expect(page.items).toEqual([]);
-      expect(page.total).toBe(0);
-      expect(page.pageCount).toBe(0);
-    });
+    },
+    list: (tx, actorId, filters, page, pageSize) =>
+      AdminStudentDirectoryService.list(filters, page, pageSize, LOCALE, actorId, tx),
   });
 
   // ── Pagination bounds reject BEFORE any DB read ────────────────────────
 
-  test("page = 0 → ValidationError(VALIDATION)", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminStudentDirectoryService.list({}, 0, 25, LOCALE, admin.id, tx));
-      expect(error).toBeInstanceOf(ValidationError);
-      expect(error.message).toBe(tErrors.validation);
-    });
-  });
-
-  test("page = negative → ValidationError(VALIDATION)", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminStudentDirectoryService.list({}, -5, 25, LOCALE, admin.id, tx));
-      expect(error).toBeInstanceOf(ValidationError);
-    });
-  });
-
-  test("pageSize = 101 → ValidationError(VALIDATION)", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminStudentDirectoryService.list({}, 1, 101, LOCALE, admin.id, tx));
-      expect(error).toBeInstanceOf(ValidationError);
-    });
-  });
-
-  test("pageSize = undefined defaults to 25", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      const page = await AdminStudentDirectoryService.list({}, 1, undefined, LOCALE, admin.id, tx);
-      expect(page.pageSize).toBe(25);
-    });
+  registerPaginationValidationContract({
+    list: (tx, actorId, page, pageSize) => AdminStudentDirectoryService.list({}, page, pageSize, LOCALE, actorId, tx),
   });
 });
 
@@ -353,12 +273,8 @@ describe("AdminStudentDirectoryService.exportAll — export-all envelope", () =>
 
       // The export envelope reports the FULL filtered count — exactly the
       // count the listing query would report across all pages.
-      expect(envelope.total).toBe(2);
-      expect(envelope.truncated).toBe(false);
-      expect(envelope.rows).toHaveLength(2);
-      expect(envelope.rows.map(row => row.id).toSorted((a, b) => a - b)).toEqual(
-        [linked.id, unlinked.id].toSorted((a, b) => a - b)
-      );
+      expectExportEnvelope(envelope, { total: 2, rows: 2 });
+      expectExportRowIds(envelope, [linked.id, unlinked.id]);
       const found = envelope.rows.find(row => row.id === linked.id);
       expect(found?.name).toContain("DirStudentExport");
       expect(found?.email).toBe(linked.email);
@@ -385,10 +301,8 @@ describe("AdminStudentDirectoryService.exportAll — export-all envelope", () =>
         admin.id,
         tx
       );
-      expect(envelope.total).toBe(1);
-      expect(envelope.rows).toHaveLength(1);
+      expectExportEnvelope(envelope, { total: 1, rows: 1 });
       expect(envelope.rows[0]?.id).toBe(linked.id);
-      expect(envelope.truncated).toBe(false);
     });
   });
 
@@ -401,55 +315,19 @@ describe("AdminStudentDirectoryService.exportAll — export-all envelope", () =>
         admin.id,
         tx
       );
-      expect(envelope.rows).toEqual([]);
-      expect(envelope.total).toBe(0);
-      expect(envelope.truncated).toBe(false);
+      expectExportEnvelope(envelope, { total: 0, rows: 0 });
     });
   });
 });
 
 describe("AdminStudentDirectoryService.exportAll — defense-in-depth (BFLA)", () => {
-  test("anonymous actor (id=0) → UnauthorizedError; zero writes", async () => {
-    await runInRollback(async tx => {
-      silenceDomainLog();
-      const error = await expectRepoError(() =>
-        AdminStudentDirectoryService.exportAll({}, LOCALE, ANONYMOUS_ACTOR_ID, tx)
-      );
-      expect(error).toBeInstanceOf(UnauthorizedError);
-      expect(error.message).toContain(tErrors.unauthorized);
-    });
-  });
-
-  test("non-admin actor → ForbiddenError; zero writes", async () => {
-    await runInRollback(async tx => {
-      const nonAdmin = await createTestUser(tx, { role: "student" });
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminStudentDirectoryService.exportAll({}, LOCALE, nonAdmin.id, tx));
-      expect(error).toBeInstanceOf(ForbiddenError);
-      expect(error.message).toContain(tErrors.forbidden);
-    });
+  registerBflaDenials({
+    call: (tx, actorId) => AdminStudentDirectoryService.exportAll({}, LOCALE, actorId, tx),
   });
 });
 
 describe("AdminStudentDirectoryService.list — defense-in-depth (BFLA)", () => {
-  test("anonymous actor (id=0) → UnauthorizedError; zero writes", async () => {
-    await runInRollback(async tx => {
-      silenceDomainLog();
-      const error = await expectRepoError(() =>
-        AdminStudentDirectoryService.list({}, 1, 25, LOCALE, ANONYMOUS_ACTOR_ID, tx)
-      );
-      expect(error).toBeInstanceOf(UnauthorizedError);
-      expect(error.message).toContain(tErrors.unauthorized);
-    });
-  });
-
-  test("non-admin actor → ForbiddenError; zero writes", async () => {
-    await runInRollback(async tx => {
-      const nonAdmin = await createTestUser(tx, { role: "student" });
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminStudentDirectoryService.list({}, 1, 25, LOCALE, nonAdmin.id, tx));
-      expect(error).toBeInstanceOf(ForbiddenError);
-      expect(error.message).toContain(tErrors.forbidden);
-    });
+  registerBflaDenials({
+    call: (tx, actorId) => AdminStudentDirectoryService.list({}, 1, 25, LOCALE, actorId, tx),
   });
 });
