@@ -227,6 +227,10 @@ export interface ErrorsLabels {
   readonly homeworkSurahJuzInvalid: string;
   /** Validation reject — a homework assignment carries neither the current nor the revision block. */
   readonly homeworkAssignmentBlocksRequired: string;
+  /** Classification reject — the submitted dispute resolution does not apply to the session's escrow generation (held escrow admits only Cancel/Complete; consumed escrow only Refund/PartialRefund/Uphold). */
+  readonly disputeResolutionMismatch: string;
+  /** Validation reject — a partial-refund amount is missing, malformed (not a decimal string with up to 2 fractions), non-positive, or not strictly below the session fee. */
+  readonly partialRefundAmountInvalid: string;
   /** "The requested withdrawal was not found." — admin settlement lookup miss on a teacher_transaction id → NotFoundError. */
   readonly withdrawalRequestNotFound: string;
   /** "This withdrawal request is no longer pending." — settlement reject once the row was already approved or rejected → ConflictError. */

@@ -6,32 +6,24 @@
  * split: the list was the bulk of the body's line count). Rows carry the
  * tinted type avatar, the signed amount (a string PREFIX — never math),
  * the status chip, and the description · date secondary line.
+ *
+ * Filter chips (CR-4): the header carries a client-side type filter —
+ * `All` plus one chip per type PRESENT in the fetched page (a type with
+ * zero rows renders no dead chip). Filtering is pure presentation: the
+ * wire page stays the source of truth, the counts are derived in-memory,
+ * and a defensively-empty filtered view renders an honest notice instead
+ * of fabricating rows.
  */
 
+import { Divider, Paper, Stack, Typography } from "@mui/material";
+import { type ReactNode, useMemo, useState } from "react";
 import {
-  Avatar,
-  Chip,
-  Divider,
-  List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
-  Paper,
-  Stack,
-  Typography,
-} from "@mui/material";
-import type { ReactNode } from "react";
-import type { MyWalletQuery_myWallet_transactions } from "@/frontend/graphql/generated/gql/graphql";
-import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
-import {
-  amountTone,
-  avatarTone,
-  ledgerRowVisual,
-  ledgerStatusColor,
-  ledgerStatusLabel,
-  ledgerTypeLabel,
-  signedAmount,
-} from "@/frontend/views/teacher/wallet/walletLedgerVisuals";
+  type MyWalletQuery_myWallet_transactions,
+  TransactionType as WireTransactionType,
+} from "@/frontend/graphql/generated/gql/graphql";
+import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
+import { WalletLedgerFilterBar, WalletLedgerRows } from "@/frontend/views/teacher/wallet/WalletLedger.parts";
+import { ledgerRowVisual, ledgerTypeLabel } from "@/frontend/views/teacher/wallet/walletLedgerVisuals";
 import type { WalletLabels } from "@/shared/locale/types/wallet";
 
 export interface WalletLedgerProps {
@@ -40,8 +32,45 @@ export interface WalletLedgerProps {
   readonly t: WalletLabels;
 }
 
-/** The ledger list — see the module docblock. */
+/** Every ledger type chip in wire-enum order — `all` is prepended at render. */
+const TYPE_FILTERS: readonly WireTransactionType[] = [
+  WireTransactionType.Earning,
+  WireTransactionType.Withdrawal,
+  WireTransactionType.Bonus,
+  WireTransactionType.ArbitrationReversal,
+] as const;
+
+/** The ledger list with its type filter — see the module docblock. */
 export function WalletLedger({ transactions, locale, t }: Readonly<WalletLedgerProps>): ReactNode {
+  const [filter, setFilter] = useState<WireTransactionType | "all">("all");
+
+  /** Per-type row counts over the fetched page — drives chip visibility. */
+  const counts = useMemo(() => {
+    const map = new Map<WireTransactionType, number>();
+    for (const row of transactions) {
+      map.set(row.type, (map.get(row.type) ?? 0) + 1);
+    }
+    return map;
+  }, [transactions]);
+
+  const visible = useMemo(
+    () => (filter === "all" ? transactions : transactions.filter(row => row.type === filter)),
+    [filter, transactions]
+  );
+
+  const filterChips: readonly {
+    readonly key: WireTransactionType | "all";
+    readonly label: string;
+    readonly count: number;
+  }[] = [
+    { key: "all", label: t.filterAll, count: transactions.length },
+    ...TYPE_FILTERS.filter(type => (counts.get(type) ?? 0) > 0).map(type => ({
+      key: type,
+      label: ledgerTypeLabel(type, t),
+      count: counts.get(type) ?? 0,
+    })),
+  ];
+
   return (
     <Paper variant="outlined" sx={{ borderRadius: 3, overflow: "hidden" }}>
       <Stack
@@ -59,58 +88,23 @@ export function WalletLedger({ transactions, locale, t }: Readonly<WalletLedgerP
         </Typography>
       </Stack>
       <Divider />
-      <List data-testid="wallet-ledger" disablePadding>
-        {transactions.map((row, index) => {
-          const visual = ledgerRowVisual(row.type);
-          return (
-            <ListItem
-              key={row.id}
-              data-testid={`wallet-ledger-row-${row.id}`}
-              divider={index < transactions.length - 1}
-              secondaryAction={
-                <Stack spacing={0.5} sx={{ alignItems: "flex-end" }}>
-                  <Typography
-                    data-testid={`wallet-ledger-row-${row.id}-amount`}
-                    sx={theme => ({
-                      fontWeight: 700,
-                      fontVariantNumeric: "tabular-nums",
-                      color: amountTone(row.type, theme.palette),
-                    })}
-                  >
-                    {signedAmount(row)}
-                  </Typography>
-                  <Chip
-                    data-testid={`wallet-ledger-row-${row.id}-status`}
-                    label={ledgerStatusLabel(row.status, t)}
-                    color={ledgerStatusColor(row.status)}
-                    size="small"
-                    variant="outlined"
-                  />
-                </Stack>
-              }
-              sx={{ pr: { xs: 14, sm: 16 } }}
-            >
-              <ListItemAvatar>
-                <Avatar variant="rounded" sx={theme => ({ borderRadius: 2, ...avatarTone(row.type, theme.palette) })}>
-                  <visual.Icon fontSize="small" />
-                </Avatar>
-              </ListItemAvatar>
-              <ListItemText
-                primary={ledgerTypeLabel(row.type, t)}
-                secondary={
-                  row.description === null
-                    ? formatApplicantDate(row.createdAt, locale)
-                    : `${row.description} · ${formatApplicantDate(row.createdAt, locale)}`
-                }
-                slotProps={{
-                  primary: { variant: "body2", sx: { fontWeight: 600 } },
-                  secondary: { variant: "caption" },
-                }}
-              />
-            </ListItem>
-          );
-        })}
-      </List>
+      <WalletLedgerFilterBar
+        chips={filterChips}
+        activeKey={filter}
+        onChange={next => setFilter(next)}
+        label={t.ledgerTitle}
+      />
+      <Divider />
+      {visible.length === 0 ? (
+        <SessionsEmptyState
+          testId="wallet-ledger-filtered-empty"
+          icon={ledgerRowVisual(WireTransactionType.Earning).Icon}
+          title={t.ledgerFilteredTitle}
+          body={t.ledgerFilteredEmpty}
+        />
+      ) : (
+        <WalletLedgerRows rows={visible} locale={locale} t={t} />
+      )}
     </Paper>
   );
 }

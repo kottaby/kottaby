@@ -73,6 +73,11 @@ import {
   myHandshakeCodeQueryDocument as myHandshakeCodeViaBarrel,
 } from "@/frontend/graphql/sharedDocuments";
 import {
+  fieldNames,
+  operationOrThrow as singleOperationOrThrow,
+  subFields,
+} from "@/frontend/graphql/sharedDocuments/document-test-kit";
+import {
   findStudentByHandshakeCodeQueryDocument,
   myHandshakeCodeQueryDocument,
 } from "@/frontend/graphql/sharedDocuments/students/handshake-code.documents";
@@ -92,33 +97,8 @@ loadErrorMessages();
 // Assertion-free AST helpers (guard-and-throw narrowing, same style as
 // `documents.contract.test.ts` — `sonarjs/no-unsafe-type-assertion` clean).
 
-function singleOperationOrThrow(document: DocumentNode): OperationDefinitionNode {
-  const operations = document.definitions.filter(
-    (definition): definition is OperationDefinitionNode => definition.kind === "OperationDefinition"
-  );
-  expect(operations).toHaveLength(1);
-  if (operations.length < 1) {
-    throw new Error("expected exactly one OperationDefinition");
-  }
-  return operations[0];
-}
-
-function fieldSelections(parent: OperationDefinitionNode | FieldNode): FieldNode[] {
-  // graphql-js types `selectionSet` as optional; an absent one simply yields
-  // zero field selections (scalar leaves like `myHandshakeCode`).
-  const selectionSet = parent.selectionSet;
-  if (!selectionSet) {
-    return [];
-  }
-  return selectionSet.selections.filter((selection): selection is FieldNode => selection.kind === "Field");
-}
-
-function selectionFieldNames(parent: OperationDefinitionNode | FieldNode): string[] {
-  return fieldSelections(parent).map(field => field.name.value);
-}
-
 function namedFieldOrThrow(parent: OperationDefinitionNode | FieldNode, name: string): FieldNode {
-  const field = fieldSelections(parent).find(candidate => candidate.name.value === name);
+  const field = subFields(parent).find(candidate => candidate.name.value === name);
   if (field === undefined) {
     throw new Error(`expected selection field ${name} to exist`);
   }
@@ -127,8 +107,8 @@ function namedFieldOrThrow(parent: OperationDefinitionNode | FieldNode, name: st
 
 /** Every field name in the whole operation, at any selection depth. */
 function deepFieldNames(parent: OperationDefinitionNode | FieldNode): string[] {
-  const nested = fieldSelections(parent).flatMap(field => deepFieldNames(field));
-  return [...selectionFieldNames(parent), ...nested];
+  const nested = subFields(parent).flatMap(field => deepFieldNames(field));
+  return [...fieldNames(parent), ...nested];
 }
 
 /** Renders one declared variable's type as GraphQL source notation (e.g. `String!`). */
@@ -236,7 +216,7 @@ describe("handshake-code documents — operation shape (zero identity surface)",
     expect(operation.operation).toBe("query");
     expect(operation.variableDefinitions ?? []).toHaveLength(0);
 
-    const rootFields = fieldSelections(operation);
+    const rootFields = subFields(operation);
     expect(rootFields.map(field => field.name.value)).toEqual(["myHandshakeCode"]);
     // Scalar-only payload (`String!`): no sub-selection ⇒ nothing for the
     // Apollo cache to normalize ⇒ the shared-documents `id` rule cannot apply.
@@ -262,7 +242,7 @@ describe("handshake-code documents — operation shape (zero identity surface)",
     const lookup = namedFieldOrThrow(operation, "findStudentByHandshakeCode");
     // Read-side hygiene: exactly the two public fields — nothing else is
     // requested (no extra-field leak beyond the sanctioned surface).
-    expect(selectionFieldNames(lookup).toSorted((a, b) => a.localeCompare(b))).toEqual(["linkable", "maskedName"]);
+    expect(fieldNames(lookup).toSorted((a, b) => a.localeCompare(b))).toEqual(["linkable", "maskedName"]);
 
     // Printed-source evidence: no `id` token anywhere in the discovery body.
     const body = requireSourceBody(findStudentByHandshakeCodeQueryDocument);

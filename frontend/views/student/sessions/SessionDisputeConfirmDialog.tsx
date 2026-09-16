@@ -2,18 +2,24 @@
 
 import { useMutation } from "@apollo/client/react";
 import type { ReactNode } from "react";
-import { openSessionDisputeMutationDocument } from "@/frontend/graphql/sharedDocuments";
 import { SessionConfirmDialogLayout } from "@/frontend/views/student/sessions/SessionConfirmDialogLayout";
 import { handleDisputeSessionMutationError } from "@/frontend/views/student/sessions/sessionDialogErrorArms";
+import type { SessionDisputeMutationProps } from "@/frontend/views/student/sessions/sessionDisputeMutations";
 import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
 /**
  * SessionDisputeConfirmDialog — the confirm-and-reason seam for opening a
- * dispute on a `Scheduled`/`Started` session (student or teacher side,
- * R-110). Shares its portal/dialog/controlled-textarea form with
- * `CancelSessionConfirmDialog` via `SessionConfirmDialogLayout`: REQUIRED
- * reason instead of optional, and a snackbar-mapped error vocabulary
- * instead of the row-evict arm.
+ * dispute on a session row (student or teacher side). Shares its
+ * portal/dialog/controlled-textarea form with `CancelSessionConfirmDialog`
+ * via `SessionConfirmDialogLayout`: REQUIRED reason instead of optional,
+ * and a snackbar-mapped error vocabulary instead of the row-evict arm.
+ *
+ * The dialog is MUTATION-GENERATION NEUTRAL: the caller binds the wire
+ * operation through the {@link SessionDisputeMutationProps} pair — the
+ * mutation document + the result accessor projecting the operation's
+ * payload onto the shared dispute-family `Session` row. The two dispute
+ * generations ride the same dialog (see the sibling
+ * `sessionDisputeMutations.ts` module, which owns the binding vocabulary):
  *
  * Mutation behavior (plan §3.1 — dispute flow, NO refetch):
  *
@@ -45,7 +51,11 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 /** UI-seam cap for the required dispute reason (mirrors the backend contract). */
 export const MAX_DISPUTE_REASON_LENGTH = 500;
 
-interface SessionDisputeConfirmDialogProps {
+// The mutation-binding vocabulary (types + generation arms + the student
+// surface's binding resolver) lives in the sibling non-component module
+// (fast refresh: this file exports components only).
+
+interface SessionDisputeConfirmDialogProps extends SessionDisputeMutationProps {
   /** Id of the session being disputed. */
   readonly sessionId: string;
   readonly open: boolean;
@@ -66,11 +76,13 @@ interface SessionDisputeConfirmDialogProps {
   readonly onFailure: (message: string) => void;
 }
 
-/** Confirm-and-required-reason dialog owning the `openSessionDispute` mutation. */
+/** Confirm-and-required-reason dialog owning the bound dispute mutation. */
 export function SessionDisputeConfirmDialog({
   sessionId,
   open,
   onClose,
+  mutationDocument,
+  resultAccessor,
   onDisputed,
   onSessionMissing,
   onInvalidTransition,
@@ -79,14 +91,14 @@ export function SessionDisputeConfirmDialog({
   const t = useAppTranslation(Sessions);
   const te = useAppTranslation(Errors);
 
-  const [openDispute, { loading }] = useMutation(openSessionDisputeMutationDocument, {
+  const [openDispute, { loading }] = useMutation(mutationDocument, {
     // Cache NORMALIZE on success — rewrite the transitioned dispute fields
     // onto the normalized `Session:<id>` entity (belt-and-braces over the
     // automatic normalized merge of the returned `Session!` payload).
     // NO refetch — the row flips to its DISPUTED chip in place.
     update(cache, { data }) {
-      const disputed = data?.openSessionDispute;
-      if (!disputed) return;
+      const disputed = resultAccessor(data);
+      if (disputed === null || disputed === undefined) return;
       cache.modify({
         id: cache.identify({ __typename: "Session", id: disputed.id }),
         fields: {
@@ -97,7 +109,10 @@ export function SessionDisputeConfirmDialog({
       });
     },
     onCompleted: data => {
-      onDisputed(data.openSessionDispute.id);
+      const disputed = resultAccessor(data);
+      if (disputed !== null && disputed !== undefined) {
+        onDisputed(disputed.id);
+      }
     },
     onError: error => {
       handleDisputeSessionMutationError(error, {

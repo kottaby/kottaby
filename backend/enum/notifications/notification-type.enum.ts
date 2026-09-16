@@ -1,6 +1,10 @@
 /**
  * NotificationType enum — mirrors the `notification_type` pgEnum in
  * `backend/db/schema/enums.ts`. Values are canonical.
+ *
+ * `SessionDisputeOpened` / `SessionDisputeResolved` are emitted only by the
+ * post-confirmation dispute flow; pre-completion (held-escrow) disputes
+ * stay notification-silent per the shipped session-lifecycle ruling.
  */
 export enum NotificationType {
   SessionRequest = "session_request",
@@ -10,6 +14,8 @@ export enum NotificationType {
   SystemBroadcast = "system_broadcast",
   PaymentConfirmation = "payment_confirmation",
   EvaluationResult = "evaluation_result",
+  SessionDisputeOpened = "session_dispute_opened",
+  SessionDisputeResolved = "session_dispute_resolved",
 }
 
 /**

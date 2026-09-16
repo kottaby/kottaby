@@ -42,10 +42,17 @@ export interface WalletLabels {
   readonly genericError: string;
   /** Ledger section heading. */
   readonly ledgerTitle: string;
+  /** Ledger filter chip — the unfiltered view. */
+  readonly filterAll: string;
+  /** Honest empty state when the selected type filter matches zero rows. */
+  readonly ledgerFilteredTitle: string;
+  readonly ledgerFilteredEmpty: string;
   /** Ledger type vocabulary — mirrors EVERY TransactionType value. */
   readonly typeEarning: string;
   readonly typeWithdrawal: string;
   readonly typeBonus: string;
+  /** The dispute-arbitration clawback chip (teacher-side compensating debit). */
+  readonly typeArbitrationReversal: string;
   /** Ledger status vocabulary — mirrors EVERY TransactionStatus value. */
   readonly statusPending: string;
   readonly statusCompleted: string;

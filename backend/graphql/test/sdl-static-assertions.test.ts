@@ -17,15 +17,15 @@
  *    text. Notification emission is service-internal ONLY — the GraphQL
  *    write surface is exactly the read-latch pair.
  *  - **Root-set freeze** — the Mutation root is EXACTLY the refreshed frozen
- *    35-op baseline (the prior 7-op auth-quartet + notification read-latch
+ *    40-op baseline (the prior 7-op auth-quartet + notification read-latch
  *    pair + users-locale surface, plus the reconciled admin-user
- *    trio + session quartet + dispute pair +
- *    dual-confirmation + payout + the sanctioned admin-governance
+ *    trio + session quartet + dispute pair + post-confirmation dispute entry
+ *    + confirm + payout + the sanctioned admin-governance
  *    pair + the session-governance quartet + the RECONCILED
  *    parent-link trio + admin broadcast/certify pair + the subscription
- *    purchase write + the session-report write + the student-evaluation
- *    rating write) and the Query root is
- *    EXACTLY the refreshed 34-op baseline (the prior frozen baseline +
+ *    purchase write + the session-report write + the financial-auditing
+ *    trio + the student-evaluation rating write) and the Query root is
+ *    EXACTLY the refreshed 48-op baseline (the prior frozen baseline +
  *    the `_health` probe + the session-report read pair +
  *    the reconciled admin-user query quartet + the
  *    participant-read trio + the admin arbitration listing + the
@@ -107,13 +107,14 @@ import {
 // ─── .test.ts — the single sanctioned growth history) ────────────────────────
 
 /**
- * Root mutation fields — the refreshed 35-op baseline: the prior auth
+ * Root mutation fields — the refreshed 40-op baseline: the prior auth
  * quartet + notification read-latch pair + users-locale surface, the
  * reconciled admin-user-management trio (3 mutations) + the
- * session quartet + dispute pair + confirm
+ * session quartet + dispute pair + post-confirmation dispute entry + confirm
  * + payout, the sanctioned admin-governance pair + the
  * session-governance quartet + the subscription purchase write + the
- * session-report write + the student-evaluation rating write.
+ * session-report write + the financial-auditing trio + the student-evaluation
+ * rating write.
  * Sorted alphabetically (mirrors the
  * live `printSchema(lexicographicSortSchema(graphQLSchema))` Mutation root
  * inventory verbatim). Re-anchored to the live schema as a documented
@@ -144,6 +145,7 @@ const FROZEN_MUTATION_FIELDS = [
   "logout",
   "markAllNotificationsRead",
   "markNotificationRead",
+  "openPostConfirmationDispute",
   "openSessionDispute",
   "purchaseSubscription",
   "refreshToken",
@@ -163,11 +165,12 @@ const FROZEN_MUTATION_FIELDS = [
 ] as const;
 
 /**
- * Root query fields — the refreshed 34-op baseline + the whole-platform
+ * Root query fields — the refreshed 48-op baseline + the whole-platform
  * analytics snapshot: the prior frozen baseline + the `_health` probe +
  * the session-report read pair (`sessionHomework` / `sessionReport`) +
  * the reconciled admin-user query quartet + the
- * participant-read trio + the admin arbitration listing + the
+ * participant-read trio + the admin arbitration listing + the admin
+ * dispute-case read + the
  * wallet read + the handshake pair + the admin
  * session pair (`adminSession` / `adminSessions` — 4.4 reconcile) + the
  * subscription purchase caller-scoped read + the R1–R3 admin directory
@@ -189,6 +192,8 @@ const FROZEN_MUTATION_FIELDS = [
 const FROZEN_QUERY_FIELDS = [
   "_health",
   "adminAuditLogs",
+  "adminDisputeAnalytics",
+  "adminDisputeCase",
   "adminDisputedSessions",
   "adminPendingWithdrawals",
   "adminPlans",
@@ -231,6 +236,8 @@ const FROZEN_QUERY_FIELDS = [
   "sessionHomework",
   "sessionRecitation",
   "sessionReport",
+  "studentDisputeCase",
+  "teacherDisputeCase",
 ] as const;
 
 /** REQ-032: emit is service-internal — these operations must NEVER exist. */
@@ -366,12 +373,12 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     }
   });
 
-  test("Mutation root is EXACTLY the refreshed frozen 38-op baseline — the reconciled admin-user trio + quartet + dispute pair + confirm + payout + the sanctioned admin-governance pair + the session-governance quartet + the subscription purchase write + the session-report write + the student-evaluation rating write + the financial-auditing trio on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
+  test("Mutation root is EXACTLY the refreshed frozen 40-op baseline — the reconciled admin-user trio + quartet + dispute pair + post-confirmation dispute entry + confirm + payout + the sanctioned admin-governance pair + the session-governance quartet + the subscription purchase write + the session-report write + the student-evaluation rating write + the financial-auditing trio on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
 
-  test("Query root is EXACTLY the refreshed frozen 42-op baseline (the sanctioned student-evaluation caller-scoped read + the financial-auditing trio + the parent-portal read quintet; zero unsanctioned growth)", () => {
+  test("Query root is EXACTLY the refreshed frozen 48-op baseline (the sanctioned dispute-resolution reads — the admin dispute analytics/case pair + the student/teacher dispute-case pair + the financial-auditing trio + the parent-portal read quintet + the student-evaluation caller-scoped read; zero unsanctioned growth)", () => {
     const names = fieldSurfaces("Query").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_QUERY_FIELDS]);
   });

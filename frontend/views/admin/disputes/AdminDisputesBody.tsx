@@ -44,8 +44,11 @@ interface AdminDisputesBodyProps {
   readonly totalPages: number;
   /** Session id whose arbitration dialog is open (its resolve CTA disables). */
   readonly resolveDialogSessionId: string | null;
+  /** Session id whose case-review dialog is open (its review CTA disables). */
+  readonly caseDialogSessionId: string | null;
   readonly onPageChange: (nextPage: number) => void;
   readonly onResolveIntent: (sessionId: string) => void;
+  readonly onReviewIntent: (sessionId: string) => void;
   readonly t: SessionsLabels;
 }
 
@@ -57,8 +60,10 @@ export function AdminDisputesBody({
   page,
   totalPages,
   resolveDialogSessionId,
+  caseDialogSessionId,
   onPageChange,
   onResolveIntent,
+  onReviewIntent,
   t,
 }: Readonly<AdminDisputesBodyProps>): ReactNode {
   if (loading && data === undefined) {
@@ -86,8 +91,8 @@ export function AdminDisputesBody({
   if (!data) {
     return <SessionListLoadingSkeleton testId="admin-disputes-loading" />;
   }
-  const sessions: readonly AdminDisputedSessionsQuery_adminDisputedSessions_items[] = data.adminDisputedSessions.items;
-  if (sessions.length === 0) {
+  const rows: readonly AdminDisputedSessionsQuery_adminDisputedSessions_items[] = data.adminDisputedSessions.items;
+  if (rows.length === 0) {
     // Branch 4 — the queue drained: the shared icon-circle empty state with
     // the arbitration copy (single pinned status — NO filtered variant).
     return (
@@ -103,13 +108,17 @@ export function AdminDisputesBody({
   // spans more than one page).
   return (
     <Stack sx={{ gap: 2 }}>
-      {sessions.map(session => (
+      {rows.map(({ session, studentName, teacherName }) => (
         <AdminDisputeRow
           key={session.id}
           session={session}
+          studentName={studentName}
+          teacherName={teacherName}
           t={t}
           onResolveIntent={onResolveIntent}
           resolveDisabled={resolveDialogSessionId === session.id}
+          onReviewIntent={onReviewIntent}
+          reviewDisabled={caseDialogSessionId === session.id}
         />
       ))}
       {totalPages > 1 ? (

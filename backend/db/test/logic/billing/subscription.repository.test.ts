@@ -22,6 +22,7 @@ import { eq, sql } from "drizzle-orm";
 import { SubscriptionRepository } from "@/backend/db/repo/billing/subscription.repository";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { createTestPlan, createTestUser } from "@/backend/db/test/entity-setup";
+import { hasPostgresErrorCode } from "@/backend/db/test/pg-error";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import type { DBTransaction } from "@/backend/types";
@@ -37,18 +38,6 @@ const PAYMENT_REFERENCE_UNIQUE = "subscriptions_payment_reference_unique";
  * PostgreSQL SQLSTATE code — the raw violation is reachable only through
  * the chain because Drizzle masks driver errors behind a generic message.
  */
-function hasPostgresErrorCode(error: unknown, pgCode: string): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === pgCode) {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
 
 /** Walks the same cycle-safe cause chain for a message substring. */
 function causeChainContainsMessage(error: unknown, substring: string): boolean {

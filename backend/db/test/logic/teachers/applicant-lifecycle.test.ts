@@ -36,6 +36,7 @@ import { eq, sql } from "drizzle-orm";
 import { ApplicantRepository } from "@/backend/db/repo";
 import { applicants } from "@/backend/db/schema/teachers/applicants";
 import { createTestApplicant, createTestUser } from "@/backend/db/test/entity-setup";
+import { hasPostgresErrorCode } from "@/backend/db/test/pg-error";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import type { DBTransaction } from "@/backend/types";
 
@@ -52,18 +53,6 @@ const PG_FOREIGN_KEY_VIOLATION = "23503";
  * established traversal precedent in
  * `backend/services/auth/registration.service.ts` (`isUniqueViolation`).
  */
-function hasPostgresErrorCode(error: unknown, pgCode: string): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === pgCode) {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
 
 /**
  * Returns an integer id that cannot exist as an `applicants` row during this

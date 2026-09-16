@@ -28,6 +28,10 @@
  * runner: `bun run test/scripts/run-test.ts shared/locale/adminTeachers-namespace.parity.test.ts`.
  */
 
+import { ARABIC_SCRIPT, icuPlaceholdersOf, namespaceParityKit } from "@/shared/locale/namespace-parity.helpers";
+
+const { leafPathsOf, sortedLeafPathsOf, leafValueOf } = namespaceParityKit("adminTeachers");
+
 import { describe, expect, test } from "bun:test";
 import { adminTeachersAr } from "@/shared/locale/ar/adminTeachers";
 import { arMessages } from "@/shared/locale/ar/messages";
@@ -45,65 +49,12 @@ import { namespaces } from "@/shared/locale/namespaces/index";
 const HEADERS_LEAF_PATHS = ["name", "status", "rating", "subjects", "joined"] as const;
 
 /** Arabic-script probe — at least one Arabic-block character in the value. */
-const ARABIC_SCRIPT = /[\u0600-\u06FF]/;
-
 /**
  * Depth-first leaf paths of a locale map — grouped sub-blocks are flattened
  * into dotted paths so nested blocks keep the same zero-dead-key discipline
  * as top-level string slots. Throws on any node that is neither a string nor
  * a grouped labels block.
  */
-function leafPathsOf(localeMap: object, prefix = ""): string[] {
-  const paths: string[] = [];
-  for (const key of Object.keys(localeMap)) {
-    const value: unknown = Reflect.get(localeMap, key);
-    const path = prefix.length === 0 ? key : `${prefix}.${key}`;
-    if (typeof value === "string") {
-      paths.push(path);
-      continue;
-    }
-    if (value !== null && typeof value === "object") {
-      paths.push(...leafPathsOf(value, path));
-      continue;
-    }
-    throw new Error(`adminTeachers.${path} must be a non-empty localized string or a grouped labels block`);
-  }
-  return paths;
-}
-
-/** Locale-sorted leaf paths of a locale map (stable comparison key set). */
-function sortedLeafPathsOf(localeMap: object): string[] {
-  return leafPathsOf(localeMap).toSorted((a, b) => a.localeCompare(b));
-}
-
-/** Reads one leaf value off a locale map by dotted path — throws otherwise. */
-function leafValueOf(localeMap: object, path: string, localeName: string): string {
-  let node: unknown = localeMap;
-  for (const segment of path.split(".")) {
-    if (node === null || typeof node !== "object") {
-      throw new Error(`adminTeachers.${localeName}.${path} traverses a non-block node`);
-    }
-    node = Reflect.get(node, segment);
-  }
-  if (typeof node !== "string" || node.length === 0) {
-    throw new Error(`adminTeachers.${localeName}.${path} must be a non-empty localized string`);
-  }
-  return node;
-}
-
-/** Every `{name}` ICU placeholder occurring in a template, deduplicated + sorted. */
-function icuPlaceholdersOf(template: string): string[] {
-  const seen = new Set<string>();
-  const placeholder = /\{([A-Za-z]\w*)\}/g;
-  let match = placeholder.exec(template);
-  while (match !== null) {
-    if (typeof match[1] === "string") {
-      seen.add(match[1]);
-    }
-    match = placeholder.exec(template);
-  }
-  return [...seen].toSorted((a, b) => a.localeCompare(b));
-}
 
 // ===========================================================================
 describe("compile-time parity mirror — ar/en adminTeachers key sets agree", () => {

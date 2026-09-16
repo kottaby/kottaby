@@ -228,6 +228,23 @@ const SESSION_LIFECYCLE_MUTATION_FIELDS = [
 ] as const;
 /** dispute mutation pair (R-102/R-104). */
 const DISPUTE_MUTATION_FIELDS = ["openSessionDispute", "resolveSessionDispute"] as const;
+/** post-confirmation dispute entry — the student-only consumed-escrow mutation. */
+const ARBITRATION_MUTATION_FIELDS = ["openPostConfirmationDispute"] as const;
+/** admin case-review read — the dispute evidence bundle query. */
+const ARBITRATION_QUERY_FIELDS = ["adminDisputeCase", "adminDisputeAnalytics"] as const;
+/** teacher case read — the own-teacher participant bundle query. */
+const TEACHER_CASE_QUERY_FIELDS = ["teacherDisputeCase"] as const;
+/** student case read — the own-student (filing party's) participant bundle query. */
+const STUDENT_CASE_QUERY_FIELDS = ["studentDisputeCase"] as const;
+/** the case-review envelope object (reuses the canonical entity objects). */
+const ARBITRATION_TYPE_NAMES = [
+  "AdminDisputeCase",
+  "AdminDisputedSessionRow",
+  "AdminDisputedSessionPage",
+  "AdminDisputeAnalytics",
+  "TeacherDisputeCase",
+  "StudentDisputeCase",
+] as const;
 /** dual-confirmation mutation (R-201/R-202). */
 const DUAL_CONFIRMATION_MUTATION_FIELDS = ["confirmSessionCompletion"] as const;
 /** wallet read — the teacher-only wallet + ledger surface (R-301). */
@@ -239,7 +256,14 @@ const WALLET_ENUMS = ["TransactionStatus", "TransactionType"] as const;
 /** arbitration outcome vocabulary — registered ONCE, no pgEnum backing. */
 const DISPUTE_ENUMS = ["DisputeResolution"] as const;
 /** nullable `Session` fields — the dispute + reason surface (R-105/R-107). */
-const DISPUTE_SESSION_FIELDS = ["cancelReason", "disputeReason", "disputedAt", "resolutionNote", "resolvedAt"] as const;
+const DISPUTE_SESSION_FIELDS = [
+  "cancelReason",
+  "disputeReason",
+  "disputedAt",
+  "resolutionNote",
+  "resolutionOutcome",
+  "resolvedAt",
+] as const;
 /** scheduling enum trio — registered ONCE in `shared/enum.pothos.ts`. */
 const SESSION_LIFECYCLE_ENUMS = ["SessionIntent", "SessionStatus", "SessionType"] as const;
 /**
@@ -717,6 +741,9 @@ describe("Query._health — retyped probe surface", () => {
         "myHandshakeCode",
         ...SESSION_LIFECYCLE_QUERY_FIELDS,
         ...DISPUTE_QUERY_FIELDS,
+        ...ARBITRATION_QUERY_FIELDS,
+        ...TEACHER_CASE_QUERY_FIELDS,
+        ...STUDENT_CASE_QUERY_FIELDS,
         ...SESSION_REPORT_QUERY_FIELDS,
         ...WALLET_QUERY_FIELDS,
         ...ADMIN_USER_USER_QUERY_FIELDS,
@@ -823,6 +850,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...PRE_3_1_MUTATION_FIELDS,
         ...SESSION_LIFECYCLE_MUTATION_FIELDS,
         ...DISPUTE_MUTATION_FIELDS,
+        ...ARBITRATION_MUTATION_FIELDS,
         ...SESSION_REPORT_MUTATION_FIELDS,
         ...DUAL_CONFIRMATION_MUTATION_FIELDS,
         ...WALLET_MUTATION_FIELDS,
@@ -923,7 +951,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     expect(graphQLSchema.getSubscriptionType() ?? null).toBeNull();
   });
 
-  test("DisputeResolution exposes exactly the arbitration vocabulary (Cancel | Complete)", () => {
+  test("DisputeResolution exposes exactly the arbitration vocabulary (Cancel | Complete | Refund | PartialRefund | Uphold)", () => {
     const disputeEnum = graphQLSchema.getType("DisputeResolution");
 
     if (!(disputeEnum instanceof GraphQLEnumType)) {
@@ -934,7 +962,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         .getValues()
         .map(value => value.name)
         .toSorted((a, b) => a.localeCompare(b))
-    ).toEqual(["Cancel", "Complete"]);
+    ).toEqual(["Cancel", "Complete", "PartialRefund", "Refund", "Uphold"]);
   });
 
   test("Session exposes EXACTLY the field set plus the five nullable dispute fields", () => {
@@ -953,6 +981,9 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     for (const name of ["cancelReason", "disputeReason", "resolutionNote"]) {
       expect(fields[name]?.type.toString()).toBe("String");
     }
+    // The formal outcome is the DisputeResolution vocabulary, nullable (rows
+    // resolved before the column shipped carry NULL).
+    expect(fields.resolutionOutcome?.type.toString()).toBe("DisputeResolution");
     for (const name of ["disputedAt", "resolvedAt"]) {
       expect(fields[name]?.type.toString()).toBe("DateTime");
     }
@@ -973,6 +1004,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...SESSION_LIFECYCLE_TYPE_NAMES,
         ...SESSION_LIFECYCLE_ENUMS,
         ...DISPUTE_ENUMS,
+        ...ARBITRATION_TYPE_NAMES,
         ...SESSION_REPORT_TYPE_NAMES,
         ...SESSION_REPORT_ENUMS,
         ...WALLET_TYPE_NAMES,
@@ -998,6 +1030,225 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
   });
 });
 
+/**
+ * Reads one argument's SDL type off a root field (no casts). Module scope
+ * per the function-scope discipline — the helper captures nothing.
+ */
+function argShapeOf(field: GraphQLField<unknown, unknown>, name: string): string {
+  const arg = field.args.find(candidate => candidate.name === name);
+  if (!arg) {
+    throw new Error(`\`${field.name}\` must declare the \`${name}\` argument`);
+  }
+  return arg.type.toString();
+}
+
+describe("Post-confirmation dispute arbitration surface — SDL pins", () => {
+  const queryType = graphQLSchema.getQueryType();
+  const mutationType = graphQLSchema.getMutationType();
+
+  if (!queryType) {
+    throw new Error("Schema must define a root Query type");
+  }
+  if (!mutationType) {
+    throw new Error("Schema must define a root Mutation type");
+  }
+
+  const queryField = (name: string) => {
+    const field = queryType.getFields()[name];
+    if (!field) {
+      throw new Error(`Query must register the \`${name}\` root field`);
+    }
+    return field;
+  };
+
+  test("`openPostConfirmationDispute` carries the exact student-entry shape (`id: ID!, reason: String!): Session!` with the authenticated-only scope", () => {
+    const field = mutationField("openPostConfirmationDispute");
+    expect(getNamedType(field.type).name).toBe("Session");
+    expect(field.type.toString()).toBe("Session!");
+    expect(field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b))).toEqual(["id", "reason"]);
+    expect(argShapeOf(field, "id")).toBe("ID!");
+    expect(argShapeOf(field, "reason")).toBe("String!");
+    // The student predicate is SERVICE-side: the scope is the plain
+    // `{ authenticated: true }` map (no role leg to force into `$all`).
+    expect(authScopesSnapshot(field)).toEqual({ authenticated: true });
+  });
+
+  test("`resolveSessionDispute` APPENDS `partialAmount: String` to the untouched shipped input", () => {
+    const field = mutationField("resolveSessionDispute");
+    expect(field.type.toString()).toBe("Session!");
+    expect(field.args.map(arg => arg.name).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "id",
+      "note",
+      "partialAmount",
+      "resolution",
+    ]);
+    // The shipped arg shapes are byte-stable; the appended amount is the
+    // OPTIONAL decimal string.
+    expect(argShapeOf(field, "id")).toBe("ID!");
+    expect(argShapeOf(field, "resolution")).toBe("DisputeResolution!");
+    expect(argShapeOf(field, "note")).toBe("String");
+    expect(argShapeOf(field, "partialAmount")).toBe("String");
+    // The admin `$all` conjunction is unchanged by the extension.
+    expect(authScopesSnapshot(field)).toEqual({
+      $all: { authenticated: true, role: [UserRole.Admin] },
+    });
+  });
+
+  test("`adminDisputeCase` is the admin-gated case read returning the non-null envelope", () => {
+    const field = queryField("adminDisputeCase");
+    expect(getNamedType(field.type).name).toBe("AdminDisputeCase");
+    expect(field.type.toString()).toBe("AdminDisputeCase!");
+    expect(field.args.map(arg => arg.name)).toEqual(["id"]);
+    expect(argShapeOf(field, "id")).toBe("ID!");
+    expect(authScopesSnapshot(field)).toEqual({
+      $all: { authenticated: true, role: [UserRole.Admin] },
+    });
+  });
+
+  test("`AdminDisputeCase` discloses EXACTLY the case bundle with the honest-null artifact fields", () => {
+    const caseType = graphQLSchema.getType("AdminDisputeCase");
+
+    if (!(caseType instanceof GraphQLObjectType)) {
+      throw new Error("AdminDisputeCase must be registered as a GraphQL object type");
+    }
+    const fields = caseType.getFields();
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "auditTrail",
+      "homework",
+      "recitation",
+      "report",
+      "session",
+      "studentName",
+      "teacherName",
+    ]);
+    // The disputed row through the canonical Session object; the artifacts
+    // nullable (never fabricated); the trail a non-nullable list of the
+    // canonical AdminAuditLogEntry rows.
+    expect(fields.session?.type.toString()).toBe("Session!");
+    expect(fields.report?.type.toString()).toBe("SessionReport");
+    expect(fields.homework?.type.toString()).toBe("SessionHomeWork");
+    expect(fields.recitation?.type.toString()).toBe("SessionRecitation");
+    expect(fields.auditTrail?.type.toString()).toBe("[AdminAuditLogEntry!]!");
+    // The participant display names resolve server-side; an unreachable
+    // user row is the honest null the view replaces with the numeric id.
+    expect(fields.studentName?.type.toString()).toBe("String");
+    expect(fields.teacherName?.type.toString()).toBe("String");
+  });
+
+  test("`adminDisputeAnalytics` is the admin-gated argument-free aggregate read", () => {
+    const field = queryField("adminDisputeAnalytics");
+    expect(getNamedType(field.type).name).toBe("AdminDisputeAnalytics");
+    expect(field.type.toString()).toBe("AdminDisputeAnalytics!");
+    // Zero arguments by design: the snapshot is the unfiltered all-time
+    // aggregate — the wire surface carries nothing to misuse.
+    expect(field.args).toHaveLength(0);
+    expect(authScopesSnapshot(field)).toEqual({
+      $all: { authenticated: true, role: [UserRole.Admin] },
+    });
+  });
+
+  test("`AdminDisputeAnalytics` discloses EXACTLY the seven honest counts", () => {
+    const analyticsType = graphQLSchema.getType("AdminDisputeAnalytics");
+
+    if (!(analyticsType instanceof GraphQLObjectType)) {
+      throw new Error("AdminDisputeAnalytics must be registered as a GraphQL object type");
+    }
+    const fields = analyticsType.getFields();
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "cancelCount",
+      "completeCount",
+      "openDisputes",
+      "partialRefundCount",
+      "refundCount",
+      "resolvedDisputes",
+      "upholdCount",
+    ]);
+    // Every member is a NON-NULLABLE Int — zero is the honest empty state,
+    // never a null.
+    for (const field of Object.values(fields)) {
+      expect(field.type.toString()).toBe("Int!");
+    }
+  });
+
+  test("`teacherDisputeCase` is the teacher-role-gated case read returning the non-null envelope", () => {
+    const field = queryField("teacherDisputeCase");
+    expect(getNamedType(field.type).name).toBe("TeacherDisputeCase");
+    expect(field.type.toString()).toBe("TeacherDisputeCase!");
+    expect(field.args.map(arg => arg.name)).toEqual(["id"]);
+    expect(argShapeOf(field, "id")).toBe("ID!");
+    // The scope pins the Teacher ROLE; the service predicate narrows it to
+    // THE teacher of THIS session (the same two-layer shape as the admin
+    // case read).
+    expect(authScopesSnapshot(field)).toEqual({
+      $all: { authenticated: true, role: [UserRole.Teacher] },
+    });
+  });
+
+  test("`TeacherDisputeCase` discloses EXACTLY the participant bundle — NO audit trail, NO teacherName", () => {
+    const caseType = graphQLSchema.getType("TeacherDisputeCase");
+
+    if (!(caseType instanceof GraphQLObjectType)) {
+      throw new Error("TeacherDisputeCase must be registered as a GraphQL object type");
+    }
+    const fields = caseType.getFields();
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "homework",
+      "recitation",
+      "report",
+      "session",
+      "studentName",
+    ]);
+    // The disputed row through the canonical Session object; the artifacts
+    // nullable (never fabricated). The audit trail is deliberately ABSENT
+    // (the admin governance surface) and the caller's own name (teacherName)
+    // is equally absent — the teacher knows who they are.
+    expect(fields.session?.type.toString()).toBe("Session!");
+    expect(fields.report?.type.toString()).toBe("SessionReport");
+    expect(fields.homework?.type.toString()).toBe("SessionHomeWork");
+    expect(fields.recitation?.type.toString()).toBe("SessionRecitation");
+    expect(fields.studentName?.type.toString()).toBe("String");
+  });
+
+  test("`studentDisputeCase` is the student-role-gated case read returning the non-null envelope", () => {
+    const field = queryField("studentDisputeCase");
+    expect(getNamedType(field.type).name).toBe("StudentDisputeCase");
+    expect(field.type.toString()).toBe("StudentDisputeCase!");
+    expect(field.args.map(arg => arg.name)).toEqual(["id"]);
+    expect(argShapeOf(field, "id")).toBe("ID!");
+    // The scope pins the Student ROLE; the service predicate narrows it to
+    // THE student of THIS session (the filing participant on the
+    // post-confirmation path) — the teacher read's exact mirror.
+    expect(authScopesSnapshot(field)).toEqual({
+      $all: { authenticated: true, role: [UserRole.Student] },
+    });
+  });
+
+  test("`StudentDisputeCase` discloses EXACTLY the participant bundle — NO audit trail, NO studentName", () => {
+    const caseType = graphQLSchema.getType("StudentDisputeCase");
+
+    if (!(caseType instanceof GraphQLObjectType)) {
+      throw new Error("StudentDisputeCase must be registered as a GraphQL object type");
+    }
+    const fields = caseType.getFields();
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "homework",
+      "recitation",
+      "report",
+      "session",
+      "teacherName",
+    ]);
+    // The disputed row through the canonical Session object; the artifacts
+    // nullable (never fabricated). The audit trail is deliberately ABSENT
+    // (the admin governance surface) and the caller's own name (studentName)
+    // is equally absent — the student knows who they are.
+    expect(fields.session?.type.toString()).toBe("Session!");
+    expect(fields.report?.type.toString()).toBe("SessionReport");
+    expect(fields.homework?.type.toString()).toBe("SessionHomeWork");
+    expect(fields.recitation?.type.toString()).toBe("SessionRecitation");
+    expect(fields.teacherName?.type.toString()).toBe("String");
+  });
+});
+
 describe("Notification surface — enum + canonical objects", () => {
   /** Field names in canonical definition order (drives the `id`-FIRST source pin). */
   const CANONICAL_NOTIFICATION_FIELDS = [
@@ -1011,7 +1262,7 @@ describe("Notification surface — enum + canonical objects", () => {
     "createdAt",
   ] as const;
 
-  test("NotificationType enum carries EXACTLY the 7 canonical values (keys on the wire, snake_case runtime values)", () => {
+  test("NotificationType enum carries EXACTLY the 9 canonical values (keys on the wire, snake_case runtime values)", () => {
     const enumType = graphQLSchema.getType("NotificationType");
 
     if (!(enumType instanceof GraphQLEnumType)) {
@@ -1019,7 +1270,7 @@ describe("Notification surface — enum + canonical objects", () => {
     }
 
     const values = enumType.getValues();
-    expect(values).toHaveLength(7);
+    expect(values).toHaveLength(9);
     // The built schema is lexicographically sorted (enum-value order carries
     // no GraphQL semantics), so the pins compare as sorted sets:
     expect(values.map(value => value.name).toSorted((a, b) => a.localeCompare(b))).toEqual(
@@ -1031,6 +1282,8 @@ describe("Notification surface — enum + canonical objects", () => {
         "SystemBroadcast",
         "PaymentConfirmation",
         "EvaluationResult",
+        "SessionDisputeOpened",
+        "SessionDisputeResolved",
       ].toSorted((a, b) => a.localeCompare(b))
     );
     // Runtime values stay the canonical snake_case strings — byte-identical
@@ -1044,6 +1297,8 @@ describe("Notification surface — enum + canonical objects", () => {
         "system_broadcast",
         "payment_confirmation",
         "evaluation_result",
+        "session_dispute_opened",
+        "session_dispute_resolved",
       ].toSorted((a, b) => a.localeCompare(b))
     );
     // Single-source agreement with the canonical TS enum itself.
@@ -1934,15 +2189,27 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     // inside the committed artifact.
     expect(committedSdl).toContain("openSessionDispute(id: ID!, reason: String!): Session!");
     expect(committedSdl).toContain(
-      "resolveSessionDispute(id: ID!, note: String, resolution: DisputeResolution!): Session!"
+      "resolveSessionDispute(id: ID!, note: String, partialAmount: String, resolution: DisputeResolution!): Session!"
     );
     expect(committedSdl).toContain(
-      "adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): SessionPage!"
+      "adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): AdminDisputedSessionPage!"
     );
     expect(committedSdl).toContain("enum DisputeResolution {");
     for (const field of DISPUTE_SESSION_FIELDS) {
       expect(committedSdl).toContain(field);
     }
+    // …and the post-confirmation arbitration surface (the student
+    // dispute entry, the admin case-review query, and the case envelope
+    // object) is really inside the committed artifact — at the exact arg
+    // shapes the resolvers bind.
+    expect(committedSdl).toContain("openPostConfirmationDispute(id: ID!, reason: String!): Session!");
+    expect(committedSdl).toContain("adminDisputeCase(id: ID!): AdminDisputeCase!");
+    expect(committedSdl).toContain("type AdminDisputeCase {");
+    // …and the dispute-analytics snapshot (the argument-free admin
+    // aggregate + its seven-count object) is really inside the committed
+    // artifact.
+    expect(committedSdl).toContain("adminDisputeAnalytics: AdminDisputeAnalytics!");
+    expect(committedSdl).toContain("type AdminDisputeAnalytics {");
     // …and the dual-confirmation mutation is really inside the
     // committed artifact.
     expect(committedSdl).toContain("confirmSessionCompletion(id: ID!): Session!");

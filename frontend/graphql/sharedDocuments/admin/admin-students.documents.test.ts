@@ -32,13 +32,6 @@
 
 import { describe, expect, test } from "bun:test";
 import type { TypedDocumentNode } from "@apollo/client";
-import type {
-  DocumentNode,
-  FieldNode,
-  FragmentDefinitionNode,
-  FragmentSpreadNode,
-  OperationDefinitionNode,
-} from "graphql";
 import type { AdminStudentsExportQuery, AdminStudentsQuery } from "@/frontend/graphql/generated/gql/graphql";
 import {
   adminStudentsExportQueryDocument as adminStudentsExportViaBarrel,
@@ -48,90 +41,15 @@ import {
   adminStudentsExportQueryDocument,
   adminStudentsQueryDocument,
 } from "@/frontend/graphql/sharedDocuments/admin/admin-students.documents";
-
-// ---------------------------------------------------------------------------
-// Assertion-free AST helpers
-
-/** Any node carrying a `selectionSet` that the helpers below walk. */
-type SelectionSetNode = OperationDefinitionNode | FieldNode | FragmentDefinitionNode;
-
-function operationOrThrow(document: DocumentNode): OperationDefinitionNode {
-  const operations = document.definitions.filter(
-    (definition): definition is OperationDefinitionNode => definition.kind === "OperationDefinition"
-  );
-  expect(operations).toHaveLength(1);
-  if (operations.length < 1) {
-    throw new Error("expected exactly one OperationDefinition");
-  }
-  return operations[0];
-}
-
-function fragmentDefinition(document: DocumentNode, name: string): FragmentDefinitionNode {
-  const fragment = document.definitions.find(
-    (definition): definition is FragmentDefinitionNode =>
-      definition.kind === "FragmentDefinition" && definition.name.value === name
-  );
-  if (fragment === undefined) {
-    throw new Error(`expected FragmentDefinition "${name}" to exist`);
-  }
-  return fragment;
-}
-
-function subFields(parent: SelectionSetNode): FieldNode[] {
-  const selectionSet = parent.selectionSet;
-  if (!selectionSet) {
-    return [];
-  }
-  return selectionSet.selections.filter((selection): selection is FieldNode => selection.kind === "Field");
-}
-
-function subField(parent: SelectionSetNode, name: string): FieldNode | undefined {
-  return subFields(parent).find(field => field.name.value === name);
-}
-
-/** Resolves a dotted selection path ("adminStudents.items") or throws. */
-function selectionPath(operation: OperationDefinitionNode, path: string): FieldNode {
-  const segments = path.split(".");
-  const first = subField(operation, segments[0]);
-  if (first === undefined) {
-    throw new Error(`expected selection ${path} to exist (missing ${segments[0]})`);
-  }
-  let current: FieldNode = first;
-  for (const segment of segments.slice(1)) {
-    const field = subField(current, segment);
-    if (field === undefined) {
-      throw new Error(`expected selection ${path} to exist (missing ${segment})`);
-    }
-    current = field;
-  }
-  return current;
-}
-
-function fieldNames(parent: SelectionSetNode): string[] {
-  return subFields(parent).map(field => field.name.value);
-}
-
-/** Fragment spreads referenced on a selection set, by name. */
-function fragmentSpreads(parent: OperationDefinitionNode | FieldNode): string[] {
-  const selectionSet = parent.selectionSet;
-  if (!selectionSet) {
-    return [];
-  }
-  return selectionSet.selections
-    .filter((selection): selection is FragmentSpreadNode => selection.kind === "FragmentSpread")
-    .map(selection => selection.name.value);
-}
-
-function variableNames(operation: OperationDefinitionNode): string[] {
-  return (operation.variableDefinitions ?? []).map(definition => definition.variable.name.value);
-}
-
-/** Variable names threaded as root-field arguments (`$x` → `x`), source order. */
-function argumentVariableNames(field: FieldNode): string[] {
-  return (field.arguments ?? []).flatMap(argument =>
-    argument.value.kind === "Variable" ? [argument.value.name.value] : []
-  );
-}
+import {
+  argumentVariableNames,
+  fieldNames,
+  fragmentDefinition,
+  fragmentSpreads,
+  operationOrThrow,
+  selectionPath,
+  variableNames,
+} from "@/frontend/graphql/sharedDocuments/document-test-kit";
 
 // ---------------------------------------------------------------------------
 // Contract

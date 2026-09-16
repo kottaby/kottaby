@@ -38,6 +38,7 @@ import { eq, sql } from "drizzle-orm";
 import { SubscriptionPurchaseIdempotencyRepository } from "@/backend/db/repo/billing/subscription-purchase-idempotency.repository";
 import { subscriptionPurchaseIdempotency } from "@/backend/db/schema/billing/subscription-purchase-idempotency";
 import { createTestPlan, createTestSubscription, createTestUser } from "@/backend/db/test/entity-setup";
+import { hasPostgresErrorCode } from "@/backend/db/test/pg-error";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import type { DBTransaction } from "@/backend/types";
@@ -68,18 +69,6 @@ function makeKey(length: number, tag: string): string {
  * exactly what the purchase service's duplicate-branch translation will
  * consume.
  */
-function hasPostgresErrorCode(error: unknown, pgCode: string): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === pgCode) {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
 
 /** Walks the same cycle-safe cause chain searching for a message substring. */
 function causeChainContainsMessage(error: unknown, substring: string): boolean {

@@ -68,9 +68,10 @@
 import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { SessionPagePothosObject, SessionPothosObject } from "@/backend/graphql/pothos/classes/session.pothos";
+import { AdminDisputedSessionPagePothosObject } from "@/backend/graphql/pothos/classes/session-arbitration.pothos";
 import { SessionListFilterPothosInput } from "@/backend/graphql/pothos/classes/session-filter-input.pothos";
 import { UnauthorizedError } from "@/backend/lib/errors";
-import { SessionLifecycleService } from "@/backend/services";
+import { SessionArbitrationService, SessionLifecycleService } from "@/backend/services";
 import type { SessionListFilterInput, SessionPageReturnType } from "@/backend/types";
 
 /**
@@ -200,10 +201,11 @@ registerParticipantSessionsField("myTeacherSessions", UserRole.Teacher, (ownerId
 );
 
 // Side-effect: register the `adminDisputedSessions` query field — the admin
-// arbitration listing over the pinned `disputed` scope.
+// arbitration listing over the pinned `disputed` scope (the rows carry the
+// server-resolved participant display names).
 gqlSchemaBuilder.queryField("adminDisputedSessions", t =>
   t.field({
-    type: SessionPagePothosObject,
+    type: AdminDisputedSessionPagePothosObject,
     args: {
       filter: t.arg({ type: SessionListFilterPothosInput, required: false }),
       // SDL defaults per the shared clamps (`limit: Int = 25`,
@@ -237,7 +239,7 @@ gqlSchemaBuilder.queryField("adminDisputedSessions", t =>
       // `null`, and the service owns every clamp. The read takes NO caller
       // identity: the pinned `disputed` scope needs none.
       const filter: SessionListFilterInput = args.filter ?? {};
-      return SessionLifecycleService.listAdminDisputedSessions(filter, args.limit ?? 25, args.offset ?? 0);
+      return SessionArbitrationService.listDisputedSessionRows(filter, args.limit ?? 25, args.offset ?? 0);
     },
   })
 );

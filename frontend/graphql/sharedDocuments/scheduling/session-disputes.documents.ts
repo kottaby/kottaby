@@ -2,6 +2,8 @@ import { gql, type TypedDocumentNode } from "@apollo/client";
 import type {
   AdminDisputedSessionsQuery,
   AdminDisputedSessionsQueryVariables,
+  OpenPostConfirmationDisputeMutation,
+  OpenPostConfirmationDisputeMutationVariables,
   OpenSessionDisputeMutation,
   OpenSessionDisputeMutationVariables,
   ResolveSessionDisputeMutation,
@@ -13,14 +15,18 @@ import type {
  * out of `session.documents.ts` (which re-exports every sibling, so the
  * deep-import path and the export surface are unchanged).
  *
- * The dispute trio: the participant escalation mutation
- * (`openSessionDispute`), the ADMIN arbitration mutation
- * (`resolveSessionDispute`) and the ADMIN read of the arbitration queue
- * (`adminDisputedSessions`). Every `Session` payload selects `id` first so
+ * The dispute family's WRITE half + the arbitration queue: the participant
+ * escalation mutation for held-escrow rows (`openSessionDispute`), the
+ * student escalation for dual-confirmed (consumed) rows
+ * (`openPostConfirmationDispute`), the ADMIN arbitration mutation
+ * (`resolveSessionDispute`), and the ADMIN read of the arbitration queue
+ * (`adminDisputedSessions`). The case-READ envelopes live in the sibling
+ * `session-dispute-case.documents.ts` (the same export surface via the
+ * barrel). Every `Session` payload selects `id` first so
  * Apollo Client normalizes returned rows into the cache — consumers converge
  * lists via the returned `Session!` payloads WITHOUT refetch storms (per
- * `sharedDocuments/AGENTS.md` "id Field Requirement" and plan §5.4 "no
- * refetch").
+ * the `sharedDocuments/AGENTS.md` "id Field Requirement" — cache-normalized
+ * convergence, no refetch).
  *
  * Every `Session` selection carries the dispute/cancel-audit
  * fields (`cancelReason`, `disputeReason`, `disputedAt`, `resolutionNote`,
@@ -69,25 +75,28 @@ export const openSessionDisputeMutationDocument: TypedDocumentNode<
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
       resolvedAt
     }
   }
 `;
 
 /**
- * `resolveSessionDispute(id: ID!, resolution: DisputeResolution!, note: String)`
- * — ADMIN arbitration: resolves a `Disputed` session into exactly one
- * terminal state (`Cancel` → cancelled + same-lane refund of any held fee;
- * `Complete` → completed + hold consumed, `startedAt` required). The note
- * is optional (≤ 500 chars at the UI seam). Returns the updated `Session!`
- * payload; arbitration writes (refund/hold consumption) are server-owned.
+ * `openPostConfirmationDispute(id: ID!, reason: String!)` — the STUDENT
+ * escalation for a dual-confirmed session (held escrow consumed, wallet
+ * credited): moves the completed row back into `Disputed` for arbitration.
+ * Same oracle-safe denial collapse as the held-escrow sibling
+ * (`openSessionDispute`): non-participants and nonexistent ids are
+ * indistinguishable `SESSION_NOT_FOUND` denials, and the student predicate
+ * is service-side. Returns the updated `Session!` payload for cache
+ * normalization — the row flips to its disputed chip WITHOUT a refetch.
  */
-export const resolveSessionDisputeMutationDocument: TypedDocumentNode<
-  ResolveSessionDisputeMutation,
-  ResolveSessionDisputeMutationVariables
+export const openPostConfirmationDisputeMutationDocument: TypedDocumentNode<
+  OpenPostConfirmationDisputeMutation,
+  OpenPostConfirmationDisputeMutationVariables
 > = gql`
-  mutation ResolveSessionDispute($id: ID!, $resolution: DisputeResolution!, $note: String) {
-    resolveSessionDispute(id: $id, resolution: $resolution, note: $note) {
+  mutation OpenPostConfirmationDispute($id: ID!, $reason: String!) {
+    openPostConfirmationDispute(id: $id, reason: $reason) {
       id
       status
       intent
@@ -107,6 +116,49 @@ export const resolveSessionDisputeMutationDocument: TypedDocumentNode<
       disputeReason
       disputedAt
       resolutionNote
+      resolutionOutcome
+      resolvedAt
+    }
+  }
+`;
+
+/**
+ * `resolveSessionDispute(id: ID!, resolution: DisputeResolution!, note: String, partialAmount: String)`
+ * — ADMIN arbitration: resolves a `Disputed` session into exactly one
+ * terminal state (`Cancel` → cancelled + same-lane refund of any held fee;
+ * `Complete` → completed + hold consumed, `startedAt` required;
+ * `Refund`/`PartialRefund`/`Uphold` → the consumed-escrow outcomes, where a
+ * `PartialRefund` additionally carries the validated `partialAmount` decimal
+ * string). The note is optional (≤ 500 chars at the UI seam). Returns the
+ * updated `Session!` payload; arbitration writes (refund/hold
+ * consumption/wallet reversal) are server-owned.
+ */
+export const resolveSessionDisputeMutationDocument: TypedDocumentNode<
+  ResolveSessionDisputeMutation,
+  ResolveSessionDisputeMutationVariables
+> = gql`
+  mutation ResolveSessionDispute($id: ID!, $resolution: DisputeResolution!, $note: String, $partialAmount: String) {
+    resolveSessionDispute(id: $id, resolution: $resolution, note: $note, partialAmount: $partialAmount) {
+      id
+      status
+      intent
+      sessionType
+      fee
+      feeHeld
+      studentId
+      teacherId
+      startedAt
+      endedAt
+      confirmationDeadline
+      confirmedByStudentAt
+      confirmedByTeacherAt
+      createdAt
+      updatedAt
+      cancelReason
+      disputeReason
+      disputedAt
+      resolutionNote
+      resolutionOutcome
       resolvedAt
     }
   }
@@ -114,10 +166,13 @@ export const resolveSessionDisputeMutationDocument: TypedDocumentNode<
 
 /**
  * `adminDisputedSessions(filter, limit, offset)` — the ADMIN read of the
- * arbitration queue (`SessionPage!`): every `Disputed` session, newest
- * first, honest `totalCount` under the same status-first predicate.
- * `limit` clamps 1..50 (default 25) server-side; the page clamps offset ≥ 0.
- * Admin-only scope lives server-side (`$all{authenticated, role:[Admin]}`).
+ * arbitration queue (`AdminDisputedSessionPage!`): every `Disputed`
+ * session, newest first, honest `totalCount` under the same status-first
+ * predicate. Each row wraps the family `Session` selection with the
+ * server-resolved participant display names (honest `null`s — the view
+ * falls back to the numeric identity). `limit` clamps 1..50 (default 25)
+ * server-side; the page clamps offset ≥ 0. Admin-only scope lives
+ * server-side (`$all{authenticated, role:[Admin]}`).
  */
 export const adminDisputedSessionsQueryDocument: TypedDocumentNode<
   AdminDisputedSessionsQuery,
@@ -126,26 +181,31 @@ export const adminDisputedSessionsQueryDocument: TypedDocumentNode<
   query AdminDisputedSessions($filter: SessionListFilterInput, $limit: Int, $offset: Int) {
     adminDisputedSessions(filter: $filter, limit: $limit, offset: $offset) {
       items {
-        id
-        status
-        intent
-        sessionType
-        fee
-        feeHeld
-        studentId
-        teacherId
-        startedAt
-        endedAt
-        confirmationDeadline
-        confirmedByStudentAt
-        confirmedByTeacherAt
-        createdAt
-        updatedAt
-        cancelReason
-        disputeReason
-        disputedAt
-        resolutionNote
-        resolvedAt
+        session {
+          id
+          status
+          intent
+          sessionType
+          fee
+          feeHeld
+          studentId
+          teacherId
+          startedAt
+          endedAt
+          confirmationDeadline
+          confirmedByStudentAt
+          confirmedByTeacherAt
+          createdAt
+          updatedAt
+          cancelReason
+          disputeReason
+          disputedAt
+          resolutionNote
+          resolutionOutcome
+          resolvedAt
+        }
+        studentName
+        teacherName
       }
       page
       pageSize

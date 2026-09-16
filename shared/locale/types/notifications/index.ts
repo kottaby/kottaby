@@ -14,8 +14,9 @@
  *  - The notifications server page shell (`getTranslations(locale)` →
  *    `notificationsTranslations` slice).
  *
- * The per-type display labels cover exactly the seven notification-type
+ * The per-type display labels cover exactly the nine notification-type
  * values (`session_request`, `session_completion`, `session_cancellation`,
+ * `session_dispute_opened`, `session_dispute_resolved`,
  * `parent_link_request`, `system_broadcast`, `payment_confirmation`,
  * `evaluation_result`) — one label key per value.
  *
@@ -44,6 +45,10 @@ export interface NotificationsLabels {
   readonly typeSessionCompletion: string;
   /** Type display label — session_cancellation (a session was cancelled). */
   readonly typeSessionCancellation: string;
+  /** Type display label — session_dispute_opened (a post-confirmation dispute was opened). */
+  readonly typeSessionDisputeOpened: string;
+  /** Type display label — session_dispute_resolved (a dispute arbitration was decided). */
+  readonly typeSessionDisputeResolved: string;
   /** Type display label — parent_link_request (a parent asked to link an account). */
   readonly typeParentLinkRequest: string;
   /** Type display label — system_broadcast (platform-wide announcement). */
@@ -223,4 +228,21 @@ export interface NotificationsLabels {
   readonly eventSessionGovernanceTeacherReassignedTitle: string;
   /** Notification body for a governance teacher reassignment — plain factual copy, no participant names. */
   readonly eventSessionGovernanceTeacherReassignedBody: string;
+  // ─── Session dispute-wave event copy (consumed-generation arbitration) ─────
+  /** Admin title — a post-confirmation dispute was opened on a session. */
+  readonly eventSessionDisputeOpenedTitle: string;
+  /**
+   * Admin body for the dispute-opened wave — plain factual copy (no
+   * participant names, no reason content; the disputes console renders the
+   * case).
+   */
+  readonly eventSessionDisputeOpenedBody: string;
+  /** Participant title — the session's dispute arbitration was decided. */
+  readonly eventSessionDisputeResolvedTitle: string;
+  /** Participant body — the full-refund arbitration outcome. */
+  readonly eventSessionDisputeResolvedRefundBody: string;
+  /** Participant body — the partial-refund arbitration outcome. */
+  readonly eventSessionDisputeResolvedPartialRefundBody: string;
+  /** Participant body — the uphold arbitration outcome. */
+  readonly eventSessionDisputeResolvedUpholdBody: string;
 }

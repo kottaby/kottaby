@@ -49,13 +49,53 @@ import {
   myUnreadNotificationCountQueryDocument,
 } from "@/frontend/graphql/sharedDocuments";
 import {
+  ADMIN_DISPUTES_ROUTE,
   resolveNotificationRoute,
   STUDENT_LINK_REQUESTS_ROUTE,
   STUDENT_SESSIONS_ROUTE,
+  TEACHER_SESSIONS_ROUTE,
 } from "@/frontend/lib/notification-route-resolution";
 import { createApolloCache } from "@/frontend/providers/apollo/apolloCache";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
+
+// ---------------------------------------------------------------------------
+// Codegen-conformance exhaustive switches (module scope: the conformance
+// proof is file-wide, and the unicorn consistent-function-scoping tier
+// rejects closures that capture nothing)
+
+function exhaustiveWireType(wireType: NotificationType): string {
+  switch (wireType) {
+    case NotificationType.EvaluationResult:
+    case NotificationType.ParentLinkRequest:
+    case NotificationType.PaymentConfirmation:
+    case NotificationType.SessionCancellation:
+    case NotificationType.SessionCompletion:
+    case NotificationType.SessionDisputeOpened:
+    case NotificationType.SessionDisputeResolved:
+    case NotificationType.SessionRequest:
+    case NotificationType.SystemBroadcast:
+      return wireType;
+    default: {
+      const unhandled: never = wireType;
+      return unhandled;
+    }
+  }
+}
+
+function exhaustiveRole(role: "Admin" | "Parent" | "Student" | "Teacher"): string {
+  switch (role) {
+    case "Admin":
+    case "Parent":
+    case "Student":
+    case "Teacher":
+      return role;
+    default: {
+      const unhandled: never = role;
+      return unhandled;
+    }
+  }
+}
 
 // ─── WebSocket ownership double (drawer-suite precedent) ────────────────────
 
@@ -182,6 +222,37 @@ const SESSION_POINTER_OTHER_TYPE_ROW = drawerRow({
   relatedEntityId: 4104,
 });
 
+const ADMIN_DISPUTE_OPENED_ROW_TITLE = "drawer-deeplink-dispute-opened";
+const STUDENT_DISPUTE_RESOLVED_ROW_TITLE = "drawer-deeplink-dispute-resolved-student";
+const TEACHER_COMPLETION_ROW_TITLE = "drawer-deeplink-completion-teacher";
+
+/** The session-entity pointer every session-family emitter persists. */
+const SESSION_ENTITY_POINTER = "session";
+
+const ADMIN_DISPUTE_OPENED_ROW = drawerRow({
+  id: "306",
+  title: ADMIN_DISPUTE_OPENED_ROW_TITLE,
+  type: NotificationType.SessionDisputeOpened,
+  relatedEntityType: SESSION_ENTITY_POINTER,
+  relatedEntityId: 4103,
+});
+
+const STUDENT_DISPUTE_RESOLVED_ROW = drawerRow({
+  id: "307",
+  title: STUDENT_DISPUTE_RESOLVED_ROW_TITLE,
+  type: NotificationType.SessionDisputeResolved,
+  relatedEntityType: SESSION_ENTITY_POINTER,
+  relatedEntityId: 4103,
+});
+
+const TEACHER_COMPLETION_ROW = drawerRow({
+  id: "308",
+  title: TEACHER_COMPLETION_ROW_TITLE,
+  type: NotificationType.SessionCompletion,
+  relatedEntityType: SESSION_ENTITY_POINTER,
+  relatedEntityId: 4103,
+});
+
 /** The drawer's single inbox window (mirrors `DRAWER_PAGE_SIZE`). */
 const DRAWER_WINDOW: MyNotificationsFilterInput = { isRead: null, type: null, limit: 5, offset: 0 };
 
@@ -219,7 +290,8 @@ function countMock(count: number): MockLink.MockedResponse {
 function renderDrawer(
   mocks: ReadonlyArray<MockLink.MockedResponse>,
   locale: AppLocale,
-  onClose: () => void = () => undefined
+  onClose: () => void = () => undefined,
+  userRole: string | null = null
 ): RenderResult & { client: ApolloClient } {
   const anchor = document.createElement("button");
   const client = new ApolloClient({
@@ -229,7 +301,7 @@ function renderDrawer(
   });
   const result = renderWithWrapper(
     <ApolloProvider client={client}>
-      <NotificationDrawer anchorEl={anchor} open onClose={onClose} />
+      <NotificationDrawer anchorEl={anchor} open onClose={onClose} userRole={userRole} />
     </ApolloProvider>,
     { locale }
   );
@@ -322,12 +394,59 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
   });
 }
 
+// ─── Session deep-link resolution (role-scoped; locale-independent) ────────
+
+describe("NotificationDrawer session deep-links (role-scoped routing)", () => {
+  test("an admin's dispute-opened row anchors to the arbitration console", async () => {
+    renderDrawer([countMock(0), listMock([ADMIN_DISPUTE_OPENED_ROW])], "ar", () => undefined, "Admin");
+
+    const row = await waitFor(() => screen.getByText(ADMIN_DISPUTE_OPENED_ROW_TITLE).closest("a"));
+    if (row === null) {
+      throw new Error("row anchor must render (the row IS a Link anchor)");
+    }
+    expect(row.getAttribute("href")).toBe(ADMIN_DISPUTES_ROUTE);
+    expect(row.getAttribute("href")).toBe("/disputes");
+  });
+
+  test("a student's dispute-resolved row anchors to the student session list", async () => {
+    renderDrawer([countMock(0), listMock([STUDENT_DISPUTE_RESOLVED_ROW])], "en", () => undefined, "Student");
+
+    const row = await waitFor(() => screen.getByText(STUDENT_DISPUTE_RESOLVED_ROW_TITLE).closest("a"));
+    if (row === null) {
+      throw new Error("row anchor must render (the row IS a Link anchor)");
+    }
+    expect(row.getAttribute("href")).toBe(STUDENT_SESSIONS_ROUTE);
+    expect(row.getAttribute("href")).toBe("/student/sessions");
+  });
+
+  test("a teacher's completion row anchors to the teacher session list", async () => {
+    renderDrawer([countMock(0), listMock([TEACHER_COMPLETION_ROW])], "en", () => undefined, "Teacher");
+
+    const row = await waitFor(() => screen.getByText(TEACHER_COMPLETION_ROW_TITLE).closest("a"));
+    if (row === null) {
+      throw new Error("row anchor must render (the row IS a Link anchor)");
+    }
+    expect(row.getAttribute("href")).toBe(TEACHER_SESSIONS_ROUTE);
+    expect(row.getAttribute("href")).toBe("/teacher/sessions");
+  });
+
+  test("a session row WITHOUT a resolvable role falls through to the feed page", async () => {
+    renderDrawer([countMock(0), listMock([STUDENT_DISPUTE_RESOLVED_ROW])], "en");
+
+    const row = await waitFor(() => screen.getByText(STUDENT_DISPUTE_RESOLVED_ROW_TITLE).closest("a"));
+    if (row === null) {
+      throw new Error("row anchor must render (the row IS a Link anchor)");
+    }
+    expect(row.getAttribute("href")).toBe("/notifications");
+  });
+});
+
 // ─── Pure resolver unit cells (locale-independent) ──────────────────────────
 
 describe("resolveNotificationRoute (drawer route-resolution seam)", () => {
   test("maps the backend parent_link_request entity type to the shared route constant", () => {
     expect(
-      resolveNotificationRoute(NotificationType.ParentLinkRequest, BackendNotificationType.ParentLinkRequest)
+      resolveNotificationRoute(BackendNotificationType.ParentLinkRequest, NotificationType.ParentLinkRequest)
     ).toBe(STUDENT_LINK_REQUESTS_ROUTE);
     expect(STUDENT_LINK_REQUESTS_ROUTE).toBe("/student/link-requests");
   });
@@ -337,25 +456,26 @@ describe("resolveNotificationRoute (drawer route-resolution seam)", () => {
     // (pinned above) deep-links; the parent decision + expiry refinement
     // values MISS the map and land on the feed. The values are the backend
     // wire contract (`parent-link-request.helpers.ts`) pinned here verbatim.
-    expect(resolveNotificationRoute(NotificationType.ParentLinkRequest, "parent_link_request_decision")).toBe(
+    expect(resolveNotificationRoute("parent_link_request_decision", NotificationType.ParentLinkRequest)).toBe(
       "/notifications"
     );
-    expect(resolveNotificationRoute(NotificationType.ParentLinkRequest, "parent_link_request_expiry")).toBe(
+    expect(resolveNotificationRoute("parent_link_request_expiry", NotificationType.ParentLinkRequest)).toBe(
       "/notifications"
     );
   });
 
   test("maps every deep-linked row to its single-sourced route (table-driven)", () => {
-    // Lookup-table rows — the [type, pointer] pair is the resolver's KEY
+    // Lookup-table rows — the [pointer, type] pair is the resolver's KEY
     // domain, enum members never `===` comparison targets. The completion
-    // row resolves at the TYPE stage (its pointer is the plain table name
-    // "session"); the parent-link row resolves at the entity-pointer stage.
-    const routeByRow: ReadonlyArray<readonly [NotificationType, string | null, string]> = [
-      [NotificationType.SessionCompletion, "session", STUDENT_SESSIONS_ROUTE],
-      [NotificationType.ParentLinkRequest, BackendNotificationType.ParentLinkRequest, STUDENT_LINK_REQUESTS_ROUTE],
+    // row resolves at the role-less TYPE stage (its pointer is the plain
+    // table name "session"); the parent-link row resolves at the
+    // entity-pointer stage.
+    const routeByRow: ReadonlyArray<readonly [string | null, NotificationType, string]> = [
+      ["session", NotificationType.SessionCompletion, STUDENT_SESSIONS_ROUTE],
+      [BackendNotificationType.ParentLinkRequest, NotificationType.ParentLinkRequest, STUDENT_LINK_REQUESTS_ROUTE],
     ];
-    for (const [type, pointer, expectedRoute] of routeByRow) {
-      expect(resolveNotificationRoute(type, pointer)).toBe(expectedRoute);
+    for (const [pointer, type, expectedRoute] of routeByRow) {
+      expect(resolveNotificationRoute(pointer, type)).toBe(expectedRoute);
     }
     // Frozen-value pins: the constants must KEEP the exact route strings the
     // guard/nav/CTA consumers already anchor to.
@@ -368,22 +488,60 @@ describe("resolveNotificationRoute (drawer route-resolution seam)", () => {
     // the free-string misses (issue #99 refinements, out-of-vocabulary
     // values), for the plain "session" table pointer carried by a
     // NON-completion type, and for the absent pointer.
-    const fallbackRows: ReadonlyArray<readonly [NotificationType, string | null]> = [
-      [NotificationType.SystemBroadcast, null],
-      [NotificationType.SystemBroadcast, "unknown_entity_type"],
-      [NotificationType.ParentLinkRequest, "parent_link_request_decision"],
-      [NotificationType.ParentLinkRequest, "parent_link_request_expiry"],
-      [NotificationType.EvaluationResult, "session"],
-      [NotificationType.SessionRequest, "session"],
-      [NotificationType.SessionCancellation, "session"],
+    const fallbackRows: ReadonlyArray<readonly [string | null, NotificationType]> = [
+      [null, NotificationType.SystemBroadcast],
+      ["unknown_entity_type", NotificationType.SystemBroadcast],
+      ["parent_link_request_decision", NotificationType.ParentLinkRequest],
+      ["parent_link_request_expiry", NotificationType.ParentLinkRequest],
+      ["session", NotificationType.EvaluationResult],
+      ["session", NotificationType.SessionRequest],
+      ["session", NotificationType.SessionCancellation],
     ];
-    for (const [type, pointer] of fallbackRows) {
-      expect(resolveNotificationRoute(type, pointer)).toBe("/notifications");
+    for (const [pointer, type] of fallbackRows) {
+      expect(resolveNotificationRoute(pointer, type)).toBe("/notifications");
     }
   });
 
   test("unknown and absent pointers fall through to the feed page (unchanged default)", () => {
-    expect(resolveNotificationRoute(NotificationType.SystemBroadcast, "unknown_entity_type")).toBe("/notifications");
-    expect(resolveNotificationRoute(NotificationType.SystemBroadcast, null)).toBe("/notifications");
+    expect(resolveNotificationRoute("unknown_entity_type", NotificationType.SystemBroadcast)).toBe("/notifications");
+    expect(resolveNotificationRoute(null, NotificationType.SystemBroadcast)).toBe("/notifications");
+  });
+
+  test("the session matrix routes dispute rows by role (single-argument calls stay parent-link-only)", () => {
+    // Dispute-opened is an ADMIN-audience wave: only the admin cell exists.
+    expect(resolveNotificationRoute("session", "SessionDisputeOpened", "Admin")).toBe("/disputes");
+    expect(resolveNotificationRoute("session", "SessionDisputeOpened", "Student")).toBe("/notifications");
+    expect(resolveNotificationRoute("session", "SessionDisputeOpened", "Teacher")).toBe("/notifications");
+    // Dispute-resolved reaches the participants (defensive admin cell too).
+    expect(resolveNotificationRoute("session", "SessionDisputeResolved", "Student")).toBe("/student/sessions");
+    expect(resolveNotificationRoute("session", "SessionDisputeResolved", "Teacher")).toBe("/teacher/sessions");
+    expect(resolveNotificationRoute("session", "SessionDisputeResolved", "Admin")).toBe("/disputes");
+    expect(resolveNotificationRoute("session", "SessionDisputeResolved", "Parent")).toBe("/notifications");
+  });
+
+  test("the session matrix routes participant lifecycle rows to each role's own session list", () => {
+    for (const wireType of ["SessionCompletion", "SessionCancellation", "SessionRequest"] as const) {
+      expect(resolveNotificationRoute("session", wireType, "Student")).toBe("/student/sessions");
+      expect(resolveNotificationRoute("session", wireType, "Teacher")).toBe("/teacher/sessions");
+      // Admins/parents are not lifecycle audiences — honest fall-through.
+      expect(resolveNotificationRoute("session", wireType, "Admin")).toBe("/notifications");
+      expect(resolveNotificationRoute("session", wireType, "Parent")).toBe("/notifications");
+    }
+  });
+
+  test("unknown types, unknown roles, and missing context fall through (no fabricated routes)", () => {
+    expect(resolveNotificationRoute("session", "SystemBroadcast", "Student")).toBe("/notifications");
+    expect(resolveNotificationRoute("session", "SessionDisputeResolved", "SuperAdmin")).toBe("/notifications");
+    expect(resolveNotificationRoute("session", "SessionDisputeResolved", null)).toBe("/notifications");
+    expect(resolveNotificationRoute("session", null, "Student")).toBe("/notifications");
+    expect(resolveNotificationRoute("subscription", "PaymentConfirmation", "Student")).toBe("/notifications");
+  });
+
+  test("the wire vocabularies stay EXACTLY the resolver's union members (codegen conformance pins)", () => {
+    // Type-only conformance: if the codegen enum ever grows or renames a
+    // member, this exhaustive switch stops compiling (no `any` escape).
+    expect(exhaustiveWireType(NotificationType.SessionDisputeOpened)).toBe("SessionDisputeOpened");
+
+    expect(exhaustiveRole("Teacher")).toBe("Teacher");
   });
 });

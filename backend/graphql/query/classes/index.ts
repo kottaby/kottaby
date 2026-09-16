@@ -11,10 +11,12 @@
  *  - `session-lifecycle.query.ts` registers `sessionById`,
  *    `myStudentSessions`, `myTeacherSessions`, and
  *    `adminDisputedSessions`.
+ *  - `session-arbitration.query.ts` registers `adminDisputeCase`.
  *  - `admin-session-governance.query.ts` registers `adminSessions` and
  *    `adminSession`.
  */
 import "./admin-session-governance.query";
 import "./recitation.query";
+import "./session-arbitration.query";
 import "./session-lifecycle.query";
 import "./session-report.query";

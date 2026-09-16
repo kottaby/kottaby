@@ -52,7 +52,7 @@ const SESSION_SELECT_COLUMNS = `
   started_at AS "startedAt", ended_at AS "endedAt", confirmed_by_student_at AS "confirmedByStudentAt",
   confirmed_by_teacher_at AS "confirmedByTeacherAt", confirmation_deadline AS "confirmationDeadline",
   cancel_reason AS "cancelReason", dispute_reason AS "disputeReason", disputed_at AS "disputedAt",
-  resolution_note AS "resolutionNote", resolved_at AS "resolvedAt",
+  resolution_note AS "resolutionNote", resolution_outcome AS "resolutionOutcome", resolved_at AS "resolvedAt",
   created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 /** Stateless renderer used to translate the shared predicate into standalone-read SQL. */

@@ -7,8 +7,10 @@
  * documents: the participant reads (`sessionById`,
  * `myStudentSessions`, `myTeacherSessions`), the lifecycle mutation
  * quartet (`createSession`, `startSession`, `completeSession`,
- * `cancelSession`) and the dispute trio (`openSessionDispute`,
- * `resolveSessionDispute`, `adminDisputedSessions`).
+ * `cancelSession`) and the dispute family (`openSessionDispute`,
+ * `openPostConfirmationDispute`, `resolveSessionDispute`,
+ * `adminDisputedSessions`, `adminDisputeCase`) — the case-read
+ * envelopes split into the sibling `session-dispute-case.documents.ts`.
  */
 export * from "./recitation.documents";
 export * from "./session.documents";

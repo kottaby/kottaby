@@ -56,7 +56,16 @@ const BADGE_OVERFLOW_MAX = 99;
  * MUI v9 discipline: `sx`-only styling, `theme.palette.*` via theme
  * callbacks, `*Outlined` icon, MUI severity color slot for the badge.
  */
-export function NotificationUnreadBadge(): ReactNode {
+interface NotificationUnreadBadgeProps {
+  /**
+   * The viewer's wire role (`user.role`), threaded to the drawer's row
+   * deep-links; `null`/absent falls every session row through to the feed
+   * page (the pre-deep-link behavior).
+   */
+  readonly userRole?: string | null;
+}
+
+export function NotificationUnreadBadge({ userRole = null }: Readonly<NotificationUnreadBadgeProps>): ReactNode {
   const t = useAppTranslation(Notifications);
   const countQuery = useQuery(myUnreadNotificationCountQueryDocument, {
     pollInterval: NOTIFICATION_COUNT_POLL_INTERVAL_MS,
@@ -128,7 +137,7 @@ export function NotificationUnreadBadge(): ReactNode {
           </Badge>
         </IconButton>
       </Tooltip>
-      <NotificationDrawer anchorEl={anchorEl} open={drawerOpen} onClose={handleDrawerClose} />
+      <NotificationDrawer anchorEl={anchorEl} open={drawerOpen} onClose={handleDrawerClose} userRole={userRole} />
     </>
   );
 }

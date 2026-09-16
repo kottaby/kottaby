@@ -127,6 +127,7 @@ const baseSession: SessionSelectType = {
   disputeReason: null,
   disputedAt: null,
   resolutionNote: null,
+  resolutionOutcome: null,
   resolvedAt: null,
   createdAt: new Date("2026-01-31T10:00:00.000Z"),
   updatedAt: new Date("2026-01-31T10:00:00.000Z"),
