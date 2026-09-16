@@ -14,6 +14,7 @@ import {
 } from "@mui/icons-material";
 import { IconButton, InputAdornment, Stack, TextField, Typography } from "@mui/material";
 import { type ReactNode, useState } from "react";
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import { AdminDialogFieldLabel } from "@/frontend/views/admin/users/dialogs";
 import { Auth, useAppTranslation } from "@/shared/locale";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
@@ -61,6 +62,7 @@ export function CreateUserCredentialField({
                   // Bare icon-only affordance — no border/ring; the
                   // only visible state change is the hover wash.
                   sx={theme => ({
+                    ...focusVisibleRingSx,
                     border: "none",
                     boxShadow: "none",
                     backgroundColor: "transparent",
