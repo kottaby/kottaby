@@ -3,7 +3,7 @@
 import { CheckCircleOutlined as ResolvedIcon } from "@mui/icons-material";
 import { Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { DisputeResolution as WireDisputeResolution } from "@/frontend/graphql/generated/gql/graphql";
+import type { DisputeResolution as WireDisputeResolution } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { resolutionOutcomeLabel } from "@/frontend/views/shared/disputes/resolution-outcome-label";
 import { Sessions, useAppTranslation } from "@/shared/locale";

@@ -131,4 +131,3 @@ export function ledgerStatusLabel(status: MyWalletQuery_myWallet_transactions["s
   const exhaustive: never = status;
   throw new Error(`Unexpected transaction status: ${String(exhaustive)}`);
 }
-
