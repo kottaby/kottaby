@@ -4,6 +4,7 @@ import { useApolloClient, useQuery } from "@apollo/client/react";
 import { Stack, Typography } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
 import type { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
+import type { MyStudentSessionsQuery } from "@/frontend/graphql/generated/gql/graphql";
 import { myStudentSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { StudentDisputeCaseDialog } from "@/frontend/views/student/disputes/StudentDisputeCaseDialog";
 import { SessionStatusFilterChips } from "@/frontend/views/student/sessions/SessionStatusFilterChips";
@@ -131,6 +132,46 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
  */
 
 /**
+ * The dispute case-dialog slot state: the session id whose case is on
+ * view (or `null` when closed) plus its open/close intents. The dialog is
+ * stateless per session — it owns its own case query — so the container
+ * keeps ONLY the id (the teacher container's identical slot shape).
+ */
+function useCaseDialogSlot(): {
+  readonly caseDialogSessionId: string | null;
+  readonly openCaseDialog: (sessionId: string) => void;
+  readonly closeCaseDialog: () => void;
+} {
+  const [caseDialogSessionId, setCaseDialogSessionId] = useState<string | null>(null);
+  const openCaseDialog = useCallback((sessionId: string): void => {
+    setCaseDialogSessionId(sessionId);
+  }, []);
+  const closeCaseDialog = useCallback((): void => {
+    setCaseDialogSessionId(null);
+  }, []);
+  return { caseDialogSessionId, openCaseDialog, closeCaseDialog };
+}
+
+/**
+ * The dispute dialog's mutation arm resolves from the disputed row's
+ * generation: a post-confirmation row escalates through the
+ * post-confirmation document; pre-completion rows (and an unresolved id
+ * while the slot mounts, e.g. the list changed under an open dialog) keep
+ * the shipped held-escrow document. The operations authorize server-side,
+ * so a degraded binding can only surface a localized denial.
+ */
+function resolveDisputeMutationForRow(
+  data: MyStudentSessionsQuery | undefined,
+  disputeDialogSessionId: string | null,
+): ReturnType<typeof resolveStudentDisputeMutation> {
+  const disputedRow =
+    disputeDialogSessionId === null || data === undefined
+      ? null
+      : (data.myStudentSessions.items.find(session => session.id === disputeDialogSessionId) ?? null);
+  return resolveStudentDisputeMutation(disputedRow);
+}
+
+/**
  * The student sessions view: ALWAYS-ON chrome (title + sticky filter chips)
  * over a swapping body — skeleton / permission fallback / error notice /
  * empty (generic or filtered) / rows — plus the cancel/dispute dialogs, the
@@ -180,15 +221,7 @@ export function StudentSessionsContainer(): ReactNode {
   // it owns its own case query, so the container keeps ONLY the id (the
   // teacher container's identical slot shape — the filing participant's
   // mirror of the counterparty read).
-  const [caseDialogSessionId, setCaseDialogSessionId] = useState<string | null>(null);
-
-  const openCaseDialog = useCallback((sessionId: string): void => {
-    setCaseDialogSessionId(sessionId);
-  }, []);
-
-  const closeCaseDialog = useCallback((): void => {
-    setCaseDialogSessionId(null);
-  }, []);
+  const { caseDialogSessionId, openCaseDialog, closeCaseDialog } = useCaseDialogSlot();
 
   const cancelArms = useStudentSessionCancelArms({
     sessionsCopy: t,
@@ -216,21 +249,8 @@ export function StudentSessionsContainer(): ReactNode {
     setNotice,
   });
 
-  // The dispute dialog's mutation arm resolves from the disputed row's
-  // generation: a post-confirmation row escalates through the
-  // post-confirmation document; pre-completion rows (and an unresolved id
-  // while the slot mounts, e.g. the list changed under an open dialog) keep
-  // the shipped held-escrow document. The operations authorize server-side,
-  // so a degraded binding can only surface a localized denial.
-  const disputedRow =
-    disputeDialogSessionId === null || data === undefined
-      ? null
-      : (data.myStudentSessions.items.find(session => session.id === disputeDialogSessionId) ?? null);
-  const disputeMutation = resolveStudentDisputeMutation(disputedRow);
+  const disputeMutation = resolveDisputeMutationForRow(data, disputeDialogSessionId);
 
-  // The student surface's row-role constant (see the docblock's trust
-  // note): student rows reach the post-confirmation dispute escalation;
-  // teacher rows keep the pre-completion path only.
   const rowRole: SessionRowRole = "student";
 
   return (
