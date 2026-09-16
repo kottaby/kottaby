@@ -10,7 +10,10 @@
 
 import { Avatar, Box, Chip, List, ListItem, ListItemAvatar, ListItemText, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import type { MyWalletQuery_myWallet_transactions } from "@/frontend/graphql/generated/gql/graphql";
+import type {
+  MyWalletQuery_myWallet_transactions,
+  TransactionType as WireTransactionType,
+} from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import {
   amountTone,
@@ -25,7 +28,7 @@ import type { WalletLabels } from "@/shared/locale/types/wallet";
 
 /** One filter chip's view model (the bar renders them verbatim). */
 export interface WalletLedgerFilterChip {
-  readonly key: string;
+  readonly key: WireTransactionType | "all";
   readonly label: string;
   readonly count: number;
 }
@@ -42,8 +45,8 @@ export function WalletLedgerFilterBar({
   label,
 }: Readonly<{
   chips: readonly WalletLedgerFilterChip[];
-  activeKey: string;
-  onChange: (next: string) => void;
+  activeKey: WireTransactionType | "all";
+  onChange: (next: WireTransactionType | "all") => void;
   label: string;
 }>): ReactNode {
   return (

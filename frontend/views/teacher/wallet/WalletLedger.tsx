@@ -22,7 +22,7 @@ import type { MyWalletQuery_myWallet_transactions } from "@/frontend/graphql/gen
 import { TransactionType as WireTransactionType } from "@/frontend/graphql/generated/gql/graphql";
 import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
 import { WalletLedgerFilterBar, WalletLedgerRows } from "@/frontend/views/teacher/wallet/WalletLedger.parts";
-import { ledgerRowVisual, ledgerTypeLabel, toLedgerFilter } from "@/frontend/views/teacher/wallet/walletLedgerVisuals";
+import { ledgerRowVisual, ledgerTypeLabel } from "@/frontend/views/teacher/wallet/walletLedgerVisuals";
 import type { WalletLabels } from "@/shared/locale/types/wallet";
 
 export interface WalletLedgerProps {
@@ -90,7 +90,7 @@ export function WalletLedger({ transactions, locale, t }: Readonly<WalletLedgerP
       <WalletLedgerFilterBar
         chips={filterChips}
         activeKey={filter}
-        onChange={next => setFilter(toLedgerFilter(next))}
+        onChange={next => setFilter(next)}
         label={t.ledgerTitle}
       />
       <Divider />

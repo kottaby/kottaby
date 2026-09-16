@@ -132,15 +132,3 @@ export function ledgerStatusLabel(status: MyWalletQuery_myWallet_transactions["s
   throw new Error(`Unexpected transaction status: ${String(exhaustive)}`);
 }
 
-/** Normalizes a chip-bar key into the ledger's filter state (honest "all" fallback). */
-export function toLedgerFilter(next: string): WireTransactionType | "all" {
-  switch (next) {
-    case WireTransactionType.Earning:
-    case WireTransactionType.Withdrawal:
-    case WireTransactionType.Bonus:
-    case WireTransactionType.ArbitrationReversal:
-      return next;
-    default:
-      return "all";
-  }
-}
