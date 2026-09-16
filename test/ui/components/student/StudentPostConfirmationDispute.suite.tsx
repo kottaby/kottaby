@@ -329,7 +329,8 @@ describe("shared dispute status vocabulary (byte-stable)", () => {
     // (onCompleted skips without throwing).
     expect(postBinding.resultAccessor(null)).toBeNull();
     expect(postBinding.resultAccessor(undefined)).toBeNull();
-    expect(heldBinding.resultAccessor({} as unknown as OpenSessionDisputeMutation)).toBeUndefined();
+    const foreignEnvelope = ((): OpenSessionDisputeMutation => Object.create(null))();
+    expect(heldBinding.resultAccessor(foreignEnvelope)).toBeUndefined();
   });
 });
 

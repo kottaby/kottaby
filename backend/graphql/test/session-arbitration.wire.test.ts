@@ -705,19 +705,24 @@ describe("teacherDisputeCase — the session's own teacher's case read", () => {
   });
 
   test("student and parent callers → FORBIDDEN byte-identical to the arbitration reference (teacher-role scope)", async () => {
-    for (const clientOf of [() => studentA, () => parent]) {
-      const referenceResult = await clientOf().mutate({
-        mutation: RESOLVE_DISPUTE_DOC,
-        variables: { id: "999999999", resolution: "Cancel" },
-      });
-      const reference = fingerprintOf(firstWireItem(referenceResult.error, "FORBIDDEN"));
+    const callerPairs = await Promise.all(
+      [studentA, parent].map(async client => {
+        const referenceResult = await client.mutate({
+          mutation: RESOLVE_DISPUTE_DOC,
+          variables: { id: "999999999", resolution: "Cancel" },
+        });
+        const reference = fingerprintOf(firstWireItem(referenceResult.error, "FORBIDDEN"));
 
-      const caseRead = await clientOf().query({
-        query: TEACHER_DISPUTE_CASE_DOC,
-        variables: { id: sessionOracleId },
-      });
-      // The denial rides the teacherDisputeCase root field (byte-identity
-      // covers both caller shapes in this one cell).
+        const caseRead = await client.query({
+          query: TEACHER_DISPUTE_CASE_DOC,
+          variables: { id: sessionOracleId },
+        });
+        return { reference, caseRead };
+      })
+    );
+    // The denial rides the teacherDisputeCase root field (byte-identity
+    // covers both caller shapes in this one cell).
+    for (const { reference, caseRead } of callerPairs) {
       expectDenialIdenticalToReference(caseRead.error, "FORBIDDEN", reference, "teacherDisputeCase");
     }
   });
@@ -771,19 +776,24 @@ describe("studentDisputeCase — the session's own student's case read (the fili
   });
 
   test("teacher and parent callers → FORBIDDEN byte-identical to the arbitration reference (student-role scope)", async () => {
-    for (const clientOf of [() => teacherT, () => parent]) {
-      const referenceResult = await clientOf().mutate({
-        mutation: RESOLVE_DISPUTE_DOC,
-        variables: { id: "999999999", resolution: "Cancel" },
-      });
-      const reference = fingerprintOf(firstWireItem(referenceResult.error, "FORBIDDEN"));
+    const callerPairs = await Promise.all(
+      [teacherT, parent].map(async client => {
+        const referenceResult = await client.mutate({
+          mutation: RESOLVE_DISPUTE_DOC,
+          variables: { id: "999999999", resolution: "Cancel" },
+        });
+        const reference = fingerprintOf(firstWireItem(referenceResult.error, "FORBIDDEN"));
 
-      const caseRead = await clientOf().query({
-        query: STUDENT_DISPUTE_CASE_DOC,
-        variables: { id: sessionOracleId },
-      });
-      // The denial rides the studentDisputeCase root field (byte-identity
-      // covers both caller shapes in this one cell).
+        const caseRead = await client.query({
+          query: STUDENT_DISPUTE_CASE_DOC,
+          variables: { id: sessionOracleId },
+        });
+        return { reference, caseRead };
+      })
+    );
+    // The denial rides the studentDisputeCase root field (byte-identity
+    // covers both caller shapes in this one cell).
+    for (const { reference, caseRead } of callerPairs) {
       expectDenialIdenticalToReference(caseRead.error, "FORBIDDEN", reference, "studentDisputeCase");
     }
   });

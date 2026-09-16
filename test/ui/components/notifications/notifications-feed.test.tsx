@@ -205,9 +205,10 @@ function renderFeed(
   role: UserRole = UserRole.Student
 ): RenderResult {
   const mocksCopy = [...mocks];
+  const authValue = authStub(role);
   return renderWithWrapper(
     <MockedProvider mocks={mocksCopy}>
-      <AuthContext.Provider value={authStub(role)}>
+      <AuthContext.Provider value={authValue}>
         <NotificationsFeedContainer />
       </AuthContext.Provider>
     </MockedProvider>,
@@ -672,9 +673,10 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
         cache: createApolloCache(),
         defaultOptions: { query: { errorPolicy: "none" } },
       });
+      const authValue = authStub(UserRole.Student);
       renderWithWrapper(
         <ApolloProvider client={client}>
-          <AuthContext.Provider value={authStub(UserRole.Student)}>
+          <AuthContext.Provider value={authValue}>
             <NotificationsFeedContainer />
           </AuthContext.Provider>
         </ApolloProvider>,

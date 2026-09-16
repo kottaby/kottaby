@@ -54,6 +54,44 @@ import { createApolloCache } from "@/frontend/providers/apollo/apolloCache";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
 
+// ---------------------------------------------------------------------------
+// Codegen-conformance exhaustive switches (module scope: the conformance
+// proof is file-wide, and the unicorn consistent-function-scoping tier
+// rejects closures that capture nothing)
+
+function exhaustiveWireType(wireType: NotificationType): string {
+  switch (wireType) {
+    case NotificationType.EvaluationResult:
+    case NotificationType.ParentLinkRequest:
+    case NotificationType.PaymentConfirmation:
+    case NotificationType.SessionCancellation:
+    case NotificationType.SessionCompletion:
+    case NotificationType.SessionDisputeOpened:
+    case NotificationType.SessionDisputeResolved:
+    case NotificationType.SessionRequest:
+    case NotificationType.SystemBroadcast:
+      return wireType;
+    default: {
+      const unhandled: never = wireType;
+      return unhandled;
+    }
+  }
+}
+
+function exhaustiveRole(role: "Admin" | "Parent" | "Student" | "Teacher"): string {
+  switch (role) {
+    case "Admin":
+    case "Parent":
+    case "Student":
+    case "Teacher":
+      return role;
+    default: {
+      const unhandled: never = role;
+      return unhandled;
+    }
+  }
+}
+
 // ─── WebSocket ownership double (drawer-suite precedent) ────────────────────
 
 const originalWebSocket = globalThis.WebSocket;
@@ -400,33 +438,8 @@ describe("resolveNotificationRoute (drawer route-resolution seam)", () => {
   test("the wire vocabularies stay EXACTLY the resolver's union members (codegen conformance pins)", () => {
     // Type-only conformance: if the codegen enum ever grows or renames a
     // member, this exhaustive switch stops compiling (no `any` escape).
-    type ExhaustiveWireTypeCheck = (type: NotificationType) => string;
-    const exhaustive: ExhaustiveWireTypeCheck = wireType => {
-      switch (wireType) {
-        case NotificationType.EvaluationResult:
-        case NotificationType.ParentLinkRequest:
-        case NotificationType.PaymentConfirmation:
-        case NotificationType.SessionCancellation:
-        case NotificationType.SessionCompletion:
-        case NotificationType.SessionDisputeOpened:
-        case NotificationType.SessionDisputeResolved:
-        case NotificationType.SessionRequest:
-        case NotificationType.SystemBroadcast:
-          return wireType;
-      }
-    };
-    expect(exhaustive(NotificationType.SessionDisputeOpened)).toBe("SessionDisputeOpened");
+    expect(exhaustiveWireType(NotificationType.SessionDisputeOpened)).toBe("SessionDisputeOpened");
 
-    type ExhaustiveRoleCheck = (role: "Admin" | "Parent" | "Student" | "Teacher") => string;
-    const exhaustiveRole: ExhaustiveRoleCheck = role => {
-      switch (role) {
-        case "Admin":
-        case "Parent":
-        case "Student":
-        case "Teacher":
-          return role;
-      }
-    };
     expect(exhaustiveRole("Teacher")).toBe("Teacher");
   });
 });

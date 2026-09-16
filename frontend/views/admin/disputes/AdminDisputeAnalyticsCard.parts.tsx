@@ -1,6 +1,6 @@
 "use client";
 
-import type { SvgIconComponent, SvgIconComponent } from "@mui/icons-material";
+import type { SvgIconComponent } from "@mui/icons-material";
 /**
  * AdminDisputeAnalyticsCard parts — the analytics card's presentational
  * halves carved out of `AdminDisputeAnalyticsCard` for the function-size
@@ -12,12 +12,11 @@ import type { SvgIconComponent, SvgIconComponent } from "@mui/icons-material";
 import {
   CancelOutlined as CancelIcon,
   CheckCircleOutlined as CompleteIcon,
-  ScheduleOutlined as OpenIcon,
   CallSplitOutlined as PartialRefundIcon,
   AssignmentReturnOutlined as RefundIcon,
   GavelOutlined as UpholdIcon,
 } from "@mui/icons-material";
-import { Box, Card, Chip, Skeleton, Stack, Typography } from "@mui/material";
+import { Card, Chip, Skeleton, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { AdminDisputeAnalyticsQuery_adminDisputeAnalytics } from "@/frontend/graphql/generated/gql/graphql";
 import { type StatusTone, TONE_COLORS } from "@/frontend/views/student/sessions/sessionRowPresentation";
@@ -75,7 +74,7 @@ const OUTCOME_PRESENTATION: readonly OutcomePresentation[] = [
 ];
 
 /** One headline stat: a tone-painted value block (count over its label). */
-function StatBlock({
+export function StatBlock({
   value,
   label,
   tone,

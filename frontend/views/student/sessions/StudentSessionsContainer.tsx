@@ -3,8 +3,7 @@
 import { useApolloClient, useQuery } from "@apollo/client/react";
 import { Stack, Typography } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
-import type { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
-import type { MyStudentSessionsQuery } from "@/frontend/graphql/generated/gql/graphql";
+import type { MyStudentSessionsQuery, SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { myStudentSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { StudentDisputeCaseDialog } from "@/frontend/views/student/disputes/StudentDisputeCaseDialog";
 import { SessionStatusFilterChips } from "@/frontend/views/student/sessions/SessionStatusFilterChips";
@@ -162,7 +161,7 @@ function useCaseDialogSlot(): {
  */
 function resolveDisputeMutationForRow(
   data: MyStudentSessionsQuery | undefined,
-  disputeDialogSessionId: string | null,
+  disputeDialogSessionId: string | null
 ): ReturnType<typeof resolveStudentDisputeMutation> {
   const disputedRow =
     disputeDialogSessionId === null || data === undefined

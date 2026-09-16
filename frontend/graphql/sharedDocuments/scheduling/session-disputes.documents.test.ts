@@ -81,8 +81,10 @@ import {
   resolveSessionDisputeMutationDocument as resolveSessionDisputeViaHub,
 } from "@/frontend/graphql/sharedDocuments/scheduling/session.documents";
 import {
-  adminDisputeAnalyticsQueryDocument,
-  adminDisputeCaseQueryDocument,
+  adminDisputeAnalyticsQueryDocument as adminDisputeAnalyticsViaModule,
+  adminDisputeCaseQueryDocument as adminDisputeCaseViaModule,
+} from "@/frontend/graphql/sharedDocuments/scheduling/session-dispute-case.documents";
+import {
   adminDisputedSessionsQueryDocument,
   openPostConfirmationDisputeMutationDocument,
   openSessionDisputeMutationDocument,
@@ -322,7 +324,7 @@ const SESSION_DISPUTE_DOCUMENT_TABLE: readonly SessionDisputeDocumentRow[] = [
     // The analytics snapshot selects NO Session payload — the family-row
     // pin below skips rows without a `sessionPayloadPath` (its own
     // envelope pin lives in the dedicated describe block).
-    document: adminDisputeAnalyticsQueryDocument,
+    document: adminDisputeAnalyticsViaModule,
     operationName: "AdminDisputeAnalytics",
     channel: "query",
     variables: [],
@@ -330,7 +332,7 @@ const SESSION_DISPUTE_DOCUMENT_TABLE: readonly SessionDisputeDocumentRow[] = [
     rootField: "adminDisputeAnalytics",
   },
   {
-    document: adminDisputeCaseQueryDocument,
+    document: adminDisputeCaseViaModule,
     operationName: "AdminDisputeCase",
     channel: "query",
     variables: ["id"],
@@ -415,13 +417,13 @@ describe("session-disputes documents — one family Session field shape (id FIRS
 
 describe("session-disputes documents — closed adminDisputeCase envelope", () => {
   test("the case envelope selects exactly its seven members (session + evidence + participant names)", () => {
-    const operation = operationOrThrow(adminDisputeCaseQueryDocument);
+    const operation = operationOrThrow(adminDisputeCaseViaModule);
     const envelope = selectionPath(operation, "adminDisputeCase");
     expect(fieldNames(envelope)).toEqual([...DISPUTE_CASE_ENVELOPE]);
   });
 
   test("each evidence artifact selects its canonical sibling-document row with id FIRST (no over-fetch)", () => {
-    const operation = operationOrThrow(adminDisputeCaseQueryDocument);
+    const operation = operationOrThrow(adminDisputeCaseViaModule);
     const expectedRows: ReadonlyArray<readonly [string, readonly string[]]> = [
       ["adminDisputeCase.report", DISPUTE_CASE_REPORT_ROW],
       ["adminDisputeCase.homework", DISPUTE_CASE_HOMEWORK_ROW],
@@ -436,7 +438,7 @@ describe("session-disputes documents — closed adminDisputeCase envelope", () =
   });
 
   test("homework enum legs are plain SurahJuzRef enum leaves (no sub-selection)", () => {
-    const operation = operationOrThrow(adminDisputeCaseQueryDocument);
+    const operation = operationOrThrow(adminDisputeCaseViaModule);
     const homework = selectionPath(operation, "adminDisputeCase.homework");
     for (const name of ["currentSurahJuz", "revisionSurahJuz"]) {
       const leg = subField(homework, name);
@@ -449,7 +451,7 @@ describe("session-disputes documents — closed adminDisputeCase envelope", () =
   });
 
   test("the case read targets ONLY the closed id variable (no identity smuggling)", () => {
-    const operation = operationOrThrow(adminDisputeCaseQueryDocument);
+    const operation = operationOrThrow(adminDisputeCaseViaModule);
     expect(variableNames(operation)).toEqual(["id"]);
     for (const name of variableNames(operation)) {
       expect(name.toLowerCase()).not.toContain("user");
@@ -462,7 +464,7 @@ describe("session-disputes documents — closed adminDisputeCase envelope", () =
 
 describe("session-disputes documents — closed adminDisputeAnalytics envelope", () => {
   test("the analytics envelope selects exactly the seven honest counts (no derived values)", () => {
-    const operation = operationOrThrow(adminDisputeAnalyticsQueryDocument);
+    const operation = operationOrThrow(adminDisputeAnalyticsViaModule);
     const envelope = selectionPath(operation, "adminDisputeAnalytics");
     expect(fieldNames(envelope)).toEqual([
       "openDisputes",
@@ -476,7 +478,7 @@ describe("session-disputes documents — closed adminDisputeAnalytics envelope",
   });
 
   test("the snapshot is argument-free (zero variables, zero literal arguments)", () => {
-    const operation = operationOrThrow(adminDisputeAnalyticsQueryDocument);
+    const operation = operationOrThrow(adminDisputeAnalyticsViaModule);
     expect(variableNames(operation)).toEqual([]);
     const root = selectionPath(operation, "adminDisputeAnalytics");
     expect(root.arguments ?? []).toHaveLength(0);
@@ -484,7 +486,7 @@ describe("session-disputes documents — closed adminDisputeAnalytics envelope",
 
   test("documents remain TypedDocumentNode-typed against generated operation types", () => {
     const typedAnalytics: TypedDocumentNode<AdminDisputeAnalyticsQuery, AdminDisputeAnalyticsQueryVariables> =
-      adminDisputeAnalyticsQueryDocument;
+      adminDisputeAnalyticsViaModule;
     expect(typedAnalytics.loc).toBeDefined();
   });
 
@@ -521,7 +523,7 @@ describe("session-disputes documents — codegen binding + barrel parity", () =>
     const typedQueue: TypedDocumentNode<AdminDisputedSessionsQuery, AdminDisputedSessionsQueryVariables> =
       adminDisputedSessionsQueryDocument;
     const typedCase: TypedDocumentNode<AdminDisputeCaseQuery, AdminDisputeCaseQueryVariables> =
-      adminDisputeCaseQueryDocument;
+      adminDisputeCaseViaModule;
 
     // Runtime uses keep the bindings from being flagged as unused.
     expect(typedOpen.loc).toBeDefined();
@@ -552,19 +554,19 @@ describe("session-disputes documents — codegen binding + barrel parity", () =>
     expect(openPostConfirmationDisputeViaRootBarrel).toBe(openPostConfirmationDisputeMutationDocument);
     expect(resolveSessionDisputeViaRootBarrel).toBe(resolveSessionDisputeMutationDocument);
     expect(adminDisputedSessionsViaRootBarrel).toBe(adminDisputedSessionsQueryDocument);
-    expect(adminDisputeCaseViaRootBarrel).toBe(adminDisputeCaseQueryDocument);
-    expect(adminDisputeAnalyticsViaRootBarrel).toBe(adminDisputeAnalyticsQueryDocument);
+    expect(adminDisputeCaseViaRootBarrel).toBe(adminDisputeCaseViaModule);
+    expect(adminDisputeAnalyticsViaRootBarrel).toBe(adminDisputeAnalyticsViaModule);
     expect(openSessionDisputeViaSchedulingBarrel).toBe(openSessionDisputeMutationDocument);
     expect(openPostConfirmationDisputeViaSchedulingBarrel).toBe(openPostConfirmationDisputeMutationDocument);
     expect(resolveSessionDisputeViaSchedulingBarrel).toBe(resolveSessionDisputeMutationDocument);
     expect(adminDisputedSessionsViaSchedulingBarrel).toBe(adminDisputedSessionsQueryDocument);
-    expect(adminDisputeCaseViaSchedulingBarrel).toBe(adminDisputeCaseQueryDocument);
-    expect(adminDisputeAnalyticsViaSchedulingBarrel).toBe(adminDisputeAnalyticsQueryDocument);
+    expect(adminDisputeCaseViaSchedulingBarrel).toBe(adminDisputeCaseViaModule);
+    expect(adminDisputeAnalyticsViaSchedulingBarrel).toBe(adminDisputeAnalyticsViaModule);
     expect(openSessionDisputeViaHub).toBe(openSessionDisputeMutationDocument);
     expect(openPostConfirmationDisputeViaHub).toBe(openPostConfirmationDisputeMutationDocument);
     expect(resolveSessionDisputeViaHub).toBe(resolveSessionDisputeMutationDocument);
     expect(adminDisputedSessionsViaHub).toBe(adminDisputedSessionsQueryDocument);
-    expect(adminDisputeCaseViaHub).toBe(adminDisputeCaseQueryDocument);
-    expect(adminDisputeAnalyticsViaHub).toBe(adminDisputeAnalyticsQueryDocument);
+    expect(adminDisputeCaseViaHub).toBe(adminDisputeCaseViaModule);
+    expect(adminDisputeAnalyticsViaHub).toBe(adminDisputeAnalyticsViaModule);
   });
 });

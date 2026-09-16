@@ -46,6 +46,23 @@ type WireRole = "Admin" | "Parent" | "Student" | "Teacher";
  * `NotificationType` values (PascalCase). String-union form for the same
  * leaf-import discipline; conformance pinned in the deep-link suite.
  */
+const WIRE_NOTIFICATION_TYPES = [
+  "EvaluationResult",
+  "ParentLinkRequest",
+  "PaymentConfirmation",
+  "SessionCancellation",
+  "SessionCompletion",
+  "SessionDisputeOpened",
+  "SessionDisputeResolved",
+  "SessionRequest",
+  "SystemBroadcast",
+] as const;
+
+/** Narrowing guard for the caller-supplied wire type (untrusted runtime shape). */
+function isWireNotificationType(value: string): value is WireNotificationType {
+  return (WIRE_NOTIFICATION_TYPES as readonly string[]).includes(value);
+}
+
 type WireNotificationType =
   | "EvaluationResult"
   | "ParentLinkRequest"
@@ -142,10 +159,13 @@ export function resolveNotificationRoute(
   if (parentLinkRoute !== undefined) {
     return parentLinkRoute;
   }
-  if (relatedEntityType === SESSION_ENTITY_TYPE && notificationType != null && isWireRole(role)) {
-    return (
-      SESSION_ROUTES_BY_TYPE_AND_ROLE[notificationType as WireNotificationType]?.[role] ?? NOTIFICATIONS_FEED_ROUTE
-    );
+  if (
+    relatedEntityType === SESSION_ENTITY_TYPE &&
+    notificationType != null &&
+    isWireNotificationType(notificationType) &&
+    isWireRole(role)
+  ) {
+    return SESSION_ROUTES_BY_TYPE_AND_ROLE[notificationType]?.[role] ?? NOTIFICATIONS_FEED_ROUTE;
   }
   return NOTIFICATIONS_FEED_ROUTE;
 }

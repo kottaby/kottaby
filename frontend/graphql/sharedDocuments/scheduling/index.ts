@@ -9,7 +9,8 @@
  * quartet (`createSession`, `startSession`, `completeSession`,
  * `cancelSession`) and the dispute family (`openSessionDispute`,
  * `openPostConfirmationDispute`, `resolveSessionDispute`,
- * `adminDisputedSessions`, `adminDisputeCase`).
+ * `adminDisputedSessions`, `adminDisputeCase`) — the case-read
+ * envelopes split into the sibling `session-dispute-case.documents.ts`.
  */
 export * from "./recitation.documents";
 export * from "./session.documents";

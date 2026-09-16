@@ -25,7 +25,7 @@
  */
 
 import { Analytics as AnalyticsIcon, CheckCircle as CompleteIcon, Pending as OpenIcon } from "@mui/icons-material";
-import { Card, Divider, Stack, Typography } from "@mui/material";
+import { Box, Card, Divider, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { AdminDisputeAnalyticsQuery_adminDisputeAnalytics } from "@/frontend/graphql/generated/gql/graphql";
 import {

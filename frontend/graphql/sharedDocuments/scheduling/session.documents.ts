@@ -37,6 +37,7 @@
  *    `sessionReport`, `sessionHomework`).
  */
 
+export * from "@/frontend/graphql/sharedDocuments/scheduling/session-dispute-case.documents";
 export * from "@/frontend/graphql/sharedDocuments/scheduling/session-disputes.documents";
 export * from "@/frontend/graphql/sharedDocuments/scheduling/session-lifecycle.documents";
 export * from "@/frontend/graphql/sharedDocuments/scheduling/session-reads.documents";

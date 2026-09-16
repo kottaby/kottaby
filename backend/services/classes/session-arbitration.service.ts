@@ -86,6 +86,7 @@ import {
   rejectSessionNotFound,
   rejectStateConflict,
 } from "@/backend/services/classes/session-admin-governance.helpers";
+import * as caseReads from "@/backend/services/classes/session-arbitration.case-reads.helpers";
 import {
   assertArbitrationResolution,
   buildArbitrationAuditContract,
@@ -96,7 +97,6 @@ import {
   rejectResolutionFamilyMismatch,
   resolveArbitrationDebitAmount,
 } from "@/backend/services/classes/session-arbitration.service.helpers";
-import * as caseReads from "@/backend/services/classes/session-arbitration.case-reads.helpers";
 import { SessionDisputeNotificationService } from "@/backend/services/classes/session-dispute-notification.service";
 import { assertAdminGovernanceClean } from "@/backend/services/classes/session-lifecycle.governance";
 import {
@@ -118,8 +118,6 @@ import type {
   TeacherDisputeCaseReturnType,
 } from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
-
-
 
 export namespace SessionArbitrationService {
   /**
