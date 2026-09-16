@@ -28,7 +28,7 @@ EOF
 # Assign on its own line: a command-prefixed assignment is applied only after
 # the parent shell expands the curl arguments, so with `set -u` the header
 # expansion below would abort (or reuse a stale preexisting value).
-IDEMPOTENCY_KEY="vlm-escrow-book-$(date +%s)"
+IDEMPOTENCY_KEY="vlm-escrow-book-$(date +%s%N)-$$"
 curl -s -X POST http://127.0.0.1:3000/api/graphql \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $(cat $E2E/.token-sA)" \
