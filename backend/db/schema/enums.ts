@@ -22,13 +22,34 @@ export const appLocale = pgEnum("app_locale", ["ar", "en"]);
 
 export const sessionStatus = pgEnum("session_status", ["scheduled", "started", "completed", "cancelled", "disputed"]);
 
+/**
+ * The formal arbitration outcome — persisted on `session.resolution_outcome`
+ * when an admin resolves a dispute (either escrow family). Values are
+ * wire-identical to the GraphQL `DisputeResolution` enum (the TS enum is the
+ * registration source; this pgEnum is the storage mirror). Nullable: rows
+ * never disputed (or resolved before the column existed) stay NULL.
+ */
+export const disputeResolution = pgEnum("dispute_resolution", [
+  "Cancel",
+  "Complete",
+  "Refund",
+  "PartialRefund",
+  "Uphold",
+]);
+
 export const sessionType = pgEnum("session_type", ["student_session", "teacher_evaluation", "re_evaluation"]);
 
 export const sessionIntent = pgEnum("session_intent", ["hifz", "tajweed", "evaluation"]);
 
 export const paymentStatus = pgEnum("payment_status", ["pending", "paid", "failed", "refunded"]);
 
-export const transactionType = pgEnum("transaction_type", ["earning", "withdrawal", "bonus"]);
+/**
+ * Ledger entry vocabulary. `arbitration_reversal` is the compensating
+ * teacher-side clawback written when an admin arbitrates a dispute with a
+ * refund outcome — it is NOT a withdrawal (no payout request, different
+ * provenance: the arbitration service is the only writer).
+ */
+export const transactionType = pgEnum("transaction_type", ["earning", "withdrawal", "bonus", "arbitration_reversal"]);
 
 export const transactionStatus = pgEnum("transaction_status", ["pending", "completed", "failed"]);
 
@@ -74,6 +95,8 @@ export const notificationType = pgEnum("notification_type", [
   "system_broadcast",
   "payment_confirmation",
   "evaluation_result",
+  "session_dispute_opened",
+  "session_dispute_resolved",
 ]);
 
 export const auditActionType = pgEnum("audit_action_type", [

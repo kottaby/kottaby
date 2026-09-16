@@ -104,6 +104,18 @@ export interface SessionsLabels {
   readonly cancelDisabledDisputed: string;
   /** Meta label for a cancelled row's persisted cancellation reason. */
   readonly cancelReasonLine: string;
+  /** Participant row line label — the reason a participant filed for the dispute. */
+  readonly disputeReasonLine: string;
+  /** Participant row line label — the arbitration note the admin recorded. */
+  readonly arbitrationOutcomeLine: string;
+  /** The formal arbitration outcome vocabulary — mirrors EVERY DisputeResolution value. */
+  readonly outcomeCancel: string;
+  readonly outcomeComplete: string;
+  readonly outcomeRefund: string;
+  readonly outcomePartialRefund: string;
+  readonly outcomeUphold: string;
+  /** The generic outcome label used when a resolved row predates the stored outcome. */
+  readonly outcomeUnrecorded: string;
   /** Success notice — the session was started. */
   readonly sessionStartedNotice: string;
   /** Success notice — the session was completed. */
@@ -166,4 +178,83 @@ export interface SessionsLabels {
   readonly pagerPreviousLabel: string;
   /** Admin pager — next page (icon-button aria-label). */
   readonly pagerNextLabel: string;
+  /** Escrow-class chip — the fee hold still sits in its original balance lane. */
+  readonly escrowHeldChip: string;
+  /** Escrow-class chip — the fee was consumed at dual confirmation (post-confirmation dispute). */
+  readonly escrowConsumedChip: string;
+  /** Resolution radio — REFUND outcome label (consumed-escrow rows only). */
+  readonly resolutionRefundLabel: string;
+  /** Resolution radio — REFUND outcome helper (the fee returns to the student; the teacher's wallet is debited). */
+  readonly resolutionRefundHelper: string;
+  /** Resolution radio — PARTIAL_REFUND outcome label (consumed-escrow rows only). */
+  readonly resolutionPartialRefundLabel: string;
+  /** Resolution radio — PARTIAL_REFUND outcome helper (a chosen slice of the fee returns to the student). */
+  readonly resolutionPartialRefundHelper: string;
+  /** Resolution radio — UPHOLD outcome label (consumed-escrow rows only). */
+  readonly resolutionUpholdLabel: string;
+  /** Resolution radio — UPHOLD outcome helper (the completed session stands; no money moves). */
+  readonly resolutionUpholdHelper: string;
+  /** Partial-refund amount field label — rendered only for the PARTIAL_REFUND outcome. */
+  readonly partialAmountLabel: string;
+  /** Partial-refund amount field placeholder. */
+  readonly partialAmountPlaceholder: string;
+  /** Partial-refund fee reference — the verbatim fee the amount is bounded by; `{fee}` and `{currency}` interpolate. */
+  readonly partialAmountFeeReference: string;
+  /** Admin row action — open the case-review dialog for one disputed session. */
+  readonly reviewCase: string;
+  /** Case-review dialog title. */
+  readonly caseReviewTitle: string;
+  /** Case-review section heading — the teacher's session report. */
+  readonly caseReviewReportTitle: string;
+  /** Case-review section heading — the session homework. */
+  readonly caseReviewHomeworkTitle: string;
+  /** Case-review section heading — the session recitation record. */
+  readonly caseReviewRecitationTitle: string;
+  /** Case-review section heading — the session-scoped audit trail. */
+  readonly caseReviewAuditTitle: string;
+  /** Case-review report meta label — the rating the student received from the teacher. */
+  readonly caseReviewRatingLabel: string;
+  /** Case-review homework meta label — the homework assigned for the current lesson. */
+  readonly caseReviewHomeworkCurrentLabel: string;
+  /** Case-review homework meta label — the revision homework. */
+  readonly caseReviewHomeworkRevisionLabel: string;
+  /** Case-review empty state — no report has been submitted for the session. */
+  readonly caseReviewEmptyReport: string;
+  /** Case-review empty state — no homework was recorded for the session. */
+  readonly caseReviewEmptyHomework: string;
+  /** Case-review empty state — no recitation record exists for the session. */
+  readonly caseReviewEmptyRecitation: string;
+  /** Case-review empty state — the session-scoped audit trail is empty. */
+  readonly caseReviewEmptyAudit: string;
+  /** Teacher row action — open the dispute case dialog for one of the teacher's own sessions. */
+  readonly teacherCaseCta: string;
+  /** Teacher case dialog title. */
+  readonly teacherCaseTitle: string;
+  /** Teacher case dialog meta label — the student on the other side of the case. */
+  readonly teacherCaseStudentLabel: string;
+  /** Teacher case dialog section heading — the arbitration decision block. */
+  readonly teacherCaseResolutionTitle: string;
+  /** Teacher case dialog pending state — the dispute is open and not yet arbitrated. */
+  readonly teacherCasePendingLine: string;
+  /** Teacher case dialog section heading — the teacher's own session report. */
+  readonly teacherCaseReportTitle: string;
+  /** Teacher case dialog meta label — the teacher's own rating of the student. */
+  readonly teacherCaseRatingLabel: string;
+  /** Teacher case dialog meta label — the moment the arbitration decision was issued. */
+  readonly teacherCaseResolvedAtLabel: string;
+
+  /** The student case dialog's counterparty label (the session's teacher). */
+  readonly studentCaseTeacherLabel: string;
+  /** The student case dialog's report-section title (the teacher-authored report). */
+  readonly studentCaseReportTitle: string;
+  /** The student case dialog's rating label (the teacher's rating of the student). */
+  readonly studentCaseRatingLabel: string;
+  /** Analytics card title — the aggregate dispute snapshot on the admin queue. */
+  readonly adminDisputeAnalyticsTitle: string;
+  /** Analytics stat label — the currently open (queued) dispute count. */
+  readonly adminDisputeAnalyticsOpen: string;
+  /** Analytics stat label — the all-time resolved dispute count. */
+  readonly adminDisputeAnalyticsResolved: string;
+  /** Analytics section label — the per-outcome breakdown chips row. */
+  readonly adminDisputeAnalyticsOutcomes: string;
 }

@@ -7,4 +7,6 @@ export enum TransactionType {
   Earning = "earning",
   Withdrawal = "withdrawal",
   Bonus = "bonus",
+  /** Compensating teacher-side clawback written ONLY by the arbitration service. */
+  ArbitrationReversal = "arbitration_reversal",
 }

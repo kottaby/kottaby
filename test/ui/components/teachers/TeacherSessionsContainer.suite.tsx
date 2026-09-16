@@ -60,6 +60,9 @@ import {
   type MyTeacherSessionsQuery_myTeacherSessions_items,
   SessionIntent,
   SessionStatus,
+  SessionType,
+  SurahJuzRef,
+  type TeacherDisputeCaseQuery_teacherDisputeCase,
 } from "@/frontend/graphql/generated/gql/graphql";
 import {
   cancelSessionMutationDocument,
@@ -67,6 +70,7 @@ import {
   myTeacherSessionsQueryDocument,
   openSessionDisputeMutationDocument,
   startSessionMutationDocument,
+  teacherDisputeCaseQueryDocument,
 } from "@/frontend/graphql/sharedDocuments";
 import { MAX_CANCEL_REASON_LENGTH } from "@/frontend/views/student/sessions/CancelSessionConfirmDialog";
 import { MAX_DISPUTE_REASON_LENGTH } from "@/frontend/views/student/sessions/SessionDisputeConfirmDialog";
@@ -402,6 +406,77 @@ const DISPUTED_PAYLOAD = sessionFixture({
   disputeReason: DISPUTE_REASON_SENT,
   disputedAt: DISPUTED_ISO,
 });
+
+/** Deterministic teacher-case bundle fixture (DATA — never locale copy). */
+const CASE_BUNDLE_FEE = "75.00";
+const CASE_CREATED_ISO = "2099-02-09T08:00:00.000Z";
+
+function teacherCaseBundle(sessionId: string): TeacherDisputeCaseQuery_teacherDisputeCase {
+  return {
+    session: {
+      id: sessionId,
+      status: SessionStatus.Disputed,
+      intent: SessionIntent.Tajweed,
+      sessionType: SessionType.StudentSession,
+      fee: CASE_BUNDLE_FEE,
+      feeHeld: false,
+      studentId: "611",
+      teacherId: "902",
+      startedAt: "2099-02-09T09:00:00.000Z",
+      endedAt: "2099-02-09T10:00:00.000Z",
+      confirmationDeadline: null,
+      confirmedByStudentAt: "2099-02-09T10:30:00.000Z",
+      confirmedByTeacherAt: "2099-02-09T10:30:00.000Z",
+      createdAt: CASE_CREATED_ISO,
+      updatedAt: DISPUTED_ISO,
+      cancelReason: null,
+      disputeReason: DISPUTE_REASON_SENT,
+      disputedAt: DISPUTED_ISO,
+      resolutionNote: null,
+      resolutionOutcome: null,
+      resolvedAt: null,
+    },
+    studentName: "Fixture Student S",
+    report: {
+      id: "77001",
+      sessionId: Number(sessionId),
+      teacherNotes: "Student reviewed the planned passage; session ran short.",
+      studentRatingByTeacher: 4,
+      createdAt: CASE_CREATED_ISO,
+      updatedAt: CASE_CREATED_ISO,
+    },
+    homework: {
+      id: "77002",
+      sessionId: Number(sessionId),
+      currentFromAyah: 1,
+      currentToAyah: 5,
+      currentGrade: 8,
+      currentSurahJuz: SurahJuzRef.SurahAlBaqarah,
+      revisionFromAyah: null,
+      revisionToAyah: null,
+      revisionGrade: null,
+      revisionSurahJuz: null,
+      createdAt: CASE_CREATED_ISO,
+      updatedAt: CASE_CREATED_ISO,
+    },
+    recitation: {
+      id: "77003",
+      sessionId,
+      name: "Surah Al-Baqarah 1-5",
+      description: null,
+      createdAt: CASE_CREATED_ISO,
+      updatedAt: CASE_CREATED_ISO,
+    },
+  };
+}
+
+/** Single-operation mock answering the teacher case document with one bundle. */
+function teacherCaseMock(sessionId: string): MockLink.MockedResponse {
+  return {
+    request: { query: teacherDisputeCaseQueryDocument, variables: { id: sessionId } },
+    result: { data: { teacherDisputeCase: teacherCaseBundle(sessionId) } },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Render + expectation helpers
@@ -1152,6 +1227,55 @@ for (const locale of componentSuiteLocales) {
       expect(within(stampedRow).getByText(t.studentConfirmedAt)).toBeDefined();
       expect(within(stampedRow).getAllByText(expectedStamp(confirmedIso, locale)).length).toBeGreaterThanOrEqual(1);
       expect(within(stampedRow).queryByTestId(`session-awaiting-confirmation-${stampedId}`)).toBeNull();
+    });
+
+    test("branch 24 — dispute case affordance: dispute-history rows carry the Case-details CTA and open the teacher case dialog", async () => {
+      const disputedId = "9305";
+      renderTeacherSessions(
+        [
+          teacherListPageMock([
+            sessionFixture({
+              id: disputedId,
+              status: SessionStatus.Disputed,
+              intent: SessionIntent.Tajweed,
+              fee: "75.00",
+              disputeReason: DISPUTE_REASON_SENT,
+              disputedAt: DISPUTED_ISO,
+            }),
+            sessionFixture({ id: ROW_SCHEDULED_A, intent: SessionIntent.Hifz, fee: "150.50", feeHeld: true }),
+          ]),
+          teacherCaseMock(disputedId),
+        ],
+        locale
+      );
+
+      await waitForSessionRow(disputedId);
+
+      // 1. The row WITH dispute history carries the case affordance; the
+      //    row WITHOUT one does not.
+      const disputedRow = screen.getByTestId(`session-row-${disputedId}`);
+      expect(within(disputedRow).getByTestId(`session-case-action-${disputedId}`)).toBeDefined();
+      const scheduledRow = screen.getByTestId(`session-row-${ROW_SCHEDULED_A}`);
+      expect(within(scheduledRow).queryByTestId(`session-case-action-${ROW_SCHEDULED_A}`)).toBeNull();
+
+      // 2. Clicking the affordance opens the teacher case dialog wired to
+      //    the case query (the bundle renders with the title + facts).
+      fireEvent.click(within(disputedRow).getByTestId(`session-case-action-${disputedId}`));
+      await waitFor(() => {
+        expect(screen.getByTestId("teacher-dispute-case-dialog")).toBeDefined();
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId("teacher-dispute-case-session")).toBeDefined();
+      });
+      expect(screen.getByText(t.teacherCaseTitle)).toBeDefined();
+
+      // 3. Dismiss: the close affordance routes the dismissal intent; the
+      //    list stays mounted underneath.
+      fireEvent.click(screen.getByTestId("teacher-dispute-case-close"));
+      await waitFor(() => {
+        expect(screen.queryByTestId("teacher-dispute-case-dialog")).toBeNull();
+      });
+      expect(screen.getByTestId(`session-row-${disputedId}`)).toBeDefined();
     });
   });
 }

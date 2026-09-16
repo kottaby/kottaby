@@ -18,7 +18,10 @@
  *      the guarantee enforced even if someone loosens that typing later).
  *      Every mandated registry key is asserted present on BOTH maps; ICU
  *      placeholder-name sets agree across locales per key (no locale-local
- *      drift).
+ *      drift). The registry includes the post-confirmation arbitration
+ *      inventory (escrow-class chips, consumed-escrow outcome labels/helpers,
+ *      the partial-refund amount field, and the case-review dialog's
+ *      section/empty-state copy).
  *   3. REGISTRY WIRING — the `Sessions` handle is registered in
  *      `shared/locale/namespaces/index.ts` with the conventional `<ns>.<ns>`
  *      id and its getter resolves to the composed bundle slice; both message
@@ -95,6 +98,8 @@ const MANDATED_SESSIONS_KEYS = [
   "disputeOpenedNotice",
   "cancelDisabledDisputed",
   "cancelReasonLine",
+  "disputeReasonLine",
+  "arbitrationOutcomeLine",
   "sessionStartedNotice",
   "sessionCompletedNotice",
   "sessionCancelledNotice",
@@ -123,6 +128,41 @@ const MANDATED_SESSIONS_KEYS = [
   "disputeReasonCollapse",
   "pagerPreviousLabel",
   "pagerNextLabel",
+  "escrowHeldChip",
+  "escrowConsumedChip",
+  "resolutionRefundLabel",
+  "resolutionRefundHelper",
+  "resolutionPartialRefundLabel",
+  "resolutionPartialRefundHelper",
+  "resolutionUpholdLabel",
+  "resolutionUpholdHelper",
+  "partialAmountLabel",
+  "partialAmountPlaceholder",
+  "reviewCase",
+  "caseReviewTitle",
+  "caseReviewReportTitle",
+  "caseReviewHomeworkTitle",
+  "caseReviewRecitationTitle",
+  "caseReviewAuditTitle",
+  "caseReviewRatingLabel",
+  "caseReviewHomeworkCurrentLabel",
+  "caseReviewHomeworkRevisionLabel",
+  "caseReviewEmptyReport",
+  "caseReviewEmptyHomework",
+  "caseReviewEmptyRecitation",
+  "caseReviewEmptyAudit",
+  "teacherCaseCta",
+  "teacherCaseTitle",
+  "teacherCaseStudentLabel",
+  "teacherCaseResolutionTitle",
+  "teacherCasePendingLine",
+  "teacherCaseReportTitle",
+  "teacherCaseRatingLabel",
+  "teacherCaseResolvedAtLabel",
+  "adminDisputeAnalyticsTitle",
+  "adminDisputeAnalyticsOpen",
+  "adminDisputeAnalyticsResolved",
+  "adminDisputeAnalyticsOutcomes",
 ] as const;
 
 /**
@@ -143,6 +183,9 @@ const SYNC_SAMPLE_SESSIONS_KEYS = [
   "adminDisputesPageTitle",
   "duplicateBookingInfo",
   "genericError",
+  "escrowConsumedChip",
+  "resolutionPartialRefundLabel",
+  "caseReviewTitle",
 ] as const;
 
 /** Keys probed for Arabic-script content in the `ar` leaf. */
@@ -154,6 +197,8 @@ const ARABIC_SCRIPT_SAMPLE_KEYS = [
   "statusDisputed",
   "duplicateBookingInfo",
   "adminDisputesEmptyBody",
+  "resolutionRefundHelper",
+  "caseReviewEmptyReport",
 ] as const;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

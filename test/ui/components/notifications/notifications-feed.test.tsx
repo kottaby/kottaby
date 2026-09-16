@@ -27,12 +27,14 @@ import { ApolloProvider } from "@apollo/client/react";
 import { MockLink } from "@apollo/client/testing";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { act, cleanup, fireEvent, type RenderResult, screen, waitFor, within } from "@testing-library/react";
+import { AuthContext, type AuthContextType, type AuthUser } from "@/frontend/context/AuthContext";
 import {
   type MyNotificationsFilterInput,
   type MyNotificationsQuery,
   type MyNotificationsQuery_myNotifications,
   type MyNotificationsQuery_myNotifications_items,
   NotificationType,
+  UserRole,
 } from "@/frontend/graphql/generated/gql/graphql";
 import {
   markAllNotificationsReadMutationDocument,
@@ -40,6 +42,11 @@ import {
   myNotificationsQueryDocument,
   myUnreadNotificationCountQueryDocument,
 } from "@/frontend/graphql/sharedDocuments";
+import {
+  ADMIN_DISPUTES_ROUTE,
+  resolveNotificationRoute,
+  STUDENT_SESSIONS_ROUTE,
+} from "@/frontend/lib/notification-route-resolution";
 import { createApolloCache } from "@/frontend/providers/apollo/apolloCache";
 import { NotificationsFeedContainer } from "@/frontend/views/notifications";
 import type { AppLocale } from "@/shared/locale/AppLocale";
@@ -160,12 +167,50 @@ function graphqlErrorMock(code: string): MockLink.MockedResponse {
   };
 }
 
+/** Deterministic authenticated-user fixture for the container's auth read. */
+function authUserFixture(role: UserRole): AuthUser {
+  return {
+    id: 77,
+    email: "admin@draftacademy.local",
+    fullName: "Feed Test Viewer",
+    phone: null,
+    country: null,
+    gender: null,
+    locale: null,
+    role,
+    preferredRecitation: null,
+    isDeleted: false,
+    suspended: false,
+    isBlocked: false,
+  };
+}
+
+/** Minimal AuthContext stub — the deep-link cells only read `user.role`. */
+function authStub(role: UserRole): AuthContextType {
+  const user = authUserFixture(role);
+  return {
+    user,
+    isAuthenticated: true,
+    isLoading: false,
+    error: null,
+    login: () => Promise.resolve(true),
+    logout: () => undefined,
+  };
+}
+
 /** Renders the feed under MockedProvider + the shared TestWrapper. */
-function renderFeed(mocks: ReadonlyArray<MockLink.MockedResponse>, locale: AppLocale): RenderResult {
+function renderFeed(
+  mocks: ReadonlyArray<MockLink.MockedResponse>,
+  locale: AppLocale,
+  role: UserRole = UserRole.Student
+): RenderResult {
   const mocksCopy = [...mocks];
+  const authValue = authStub(role);
   return renderWithWrapper(
     <MockedProvider mocks={mocksCopy}>
-      <NotificationsFeedContainer />
+      <AuthContext.Provider value={authValue}>
+        <NotificationsFeedContainer />
+      </AuthContext.Provider>
     </MockedProvider>,
     { locale }
   );
@@ -628,9 +673,12 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
         cache: createApolloCache(),
         defaultOptions: { query: { errorPolicy: "none" } },
       });
+      const authValue = authStub(UserRole.Student);
       renderWithWrapper(
         <ApolloProvider client={client}>
-          <NotificationsFeedContainer />
+          <AuthContext.Provider value={authValue}>
+            <NotificationsFeedContainer />
+          </AuthContext.Provider>
         </ApolloProvider>,
         { locale }
       );
@@ -675,3 +723,98 @@ for (const locale of ["ar", "en"] as AppLocale[]) {
     });
   });
 }
+
+// ─── Feed-row deep-links (role-scoped; locale-independent routing) ──────────
+
+const DISPUTED_FEED_ROW_TITLE = "feed-deeplink-dispute-row";
+const LINKLESS_FEED_ROW_TITLE = "feed-deeplink-linkless-row";
+
+const DISPUTED_FEED_ROW = feedRow({
+  id: "150",
+  type: NotificationType.SessionDisputeResolved,
+  title: DISPUTED_FEED_ROW_TITLE,
+  body: "feed-deeplink-dispute-body",
+  isRead: false,
+  // The session-entity pointer the dispute wave emitter persists (backend
+  // `session-dispute-notification.service.ts`).
+  relatedEntityType: "session",
+  relatedEntityId: 326,
+});
+
+const LINKLESS_FEED_ROW = feedRow({
+  id: "151",
+  type: NotificationType.SystemBroadcast,
+  title: LINKLESS_FEED_ROW_TITLE,
+  body: null,
+  isRead: true,
+  relatedEntityType: null,
+  relatedEntityId: null,
+});
+
+describe("NotificationsFeedContainer feed-row deep-links", () => {
+  test("a student's dispute row anchors to the student session list and activation marks it read", async () => {
+    const { container } = renderFeed(
+      [
+        countMock(1),
+        listMock(ALL_PAGE_ONE, feedPageData([DISPUTED_FEED_ROW, LINKLESS_FEED_ROW], 2, false)),
+        // The activation's fire-and-forget mark-one (the drawer contract).
+        {
+          request: {
+            query: markNotificationReadMutationDocument,
+            variables: { id: "150" },
+          },
+          result: { data: { markNotificationRead: feedRow({ ...DISPUTED_FEED_ROW, isRead: true }) } },
+        },
+      ],
+      "ar",
+      UserRole.Student
+    );
+
+    const anchor = await waitFor(() => screen.getByText(DISPUTED_FEED_ROW_TITLE).closest("a"));
+    if (anchor === null) {
+      throw new Error("dispute row content must render as a real anchor");
+    }
+    expect(anchor.getAttribute("href")).toBe("/student/sessions");
+    expect(anchor.getAttribute("href")).toBe(STUDENT_SESSIONS_ROUTE);
+
+    fireEvent.click(anchor);
+    const filterUnreadLabel = Notifications.getLabels(getTranslations("ar")).filterUnread;
+    await waitFor(() => {
+      // The unread dot's sr-only label disappears once the row restyles read.
+      expect(screen.queryByText(filterUnreadLabel)).toBeNull();
+    });
+    expect(container).toBeDefined();
+  });
+
+  test("a row without a routing contract renders UN-linked (no anchor)", async () => {
+    renderFeed(
+      [countMock(0), listMock(ALL_PAGE_ONE, feedPageData([LINKLESS_FEED_ROW], 1, false))],
+      "en",
+      UserRole.Student
+    );
+
+    const title = await waitFor(() => screen.getByText(LINKLESS_FEED_ROW_TITLE));
+    expect(title.closest("a")).toBeNull();
+  });
+
+  test("an admin's dispute row anchors to the arbitration console (role-scoped)", async () => {
+    renderFeed(
+      [countMock(0), listMock(ALL_PAGE_ONE, feedPageData([DISPUTED_FEED_ROW], 1, false))],
+      "en",
+      UserRole.Admin
+    );
+
+    const anchor = await waitFor(() => screen.getByText(DISPUTED_FEED_ROW_TITLE).closest("a"));
+    if (anchor === null) {
+      throw new Error("dispute row content must render as a real anchor");
+    }
+    expect(anchor.getAttribute("href")).toBe(ADMIN_DISPUTES_ROUTE);
+    expect(anchor.getAttribute("href")).toBe("/disputes");
+  });
+
+  test("the resolver agrees with the wire shape the feed rows carry", () => {
+    // The feed passes `notification.type` (the PascalCase wire enum) and the
+    // auth user's `role` — the same vocabulary the drawer consumes.
+    expect(resolveNotificationRoute("session", "SessionDisputeResolved", "Student")).toBe("/student/sessions");
+  });
+});

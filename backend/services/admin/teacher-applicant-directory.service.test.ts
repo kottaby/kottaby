@@ -34,36 +34,26 @@
  *    BOTH operations.
  */
 
-import { describe, expect, spyOn, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { createTestAdmin, createTestApplicant, createTestUser } from "@/backend/db/test/entity-setup";
-import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
-import { ForbiddenError, UnauthorizedError, ValidationError } from "@/backend/lib/errors";
-import { logger } from "@/backend/lib/logger";
+import { createTestApplicant, createTestUser } from "@/backend/db/test/entity-setup";
+import { runInRollback } from "@/backend/db/test/test-utils";
+import {
+  expectExportEnvelope,
+  expectExportRowIds,
+  expectListedItem,
+  expectPageEnvelopeEcho,
+  expectValidationError,
+  DIRECTORY_TEST_LOCALE as LOCALE,
+  provisionAdminActor,
+  registerBflaDenials,
+  registerPaginationCountingContract,
+  registerPaginationValidationContract,
+  silenceDomainLog,
+  DIRECTORY_T_ERRORS as tErrors,
+} from "@/backend/services/admin/shared/directory-test.helpers";
 import { AdminApplicantDirectoryService } from "@/backend/services/admin/teacher-applicant-directory.service";
 import type { DBTransaction, UserSelectType } from "@/backend/types";
-import { getServerTranslations } from "@/shared/locale/server-graphql";
-
-const LOCALE = "en";
-const tErrors = getServerTranslations(LOCALE).errorsTranslations;
-
-/** Sentinel `actorId` value expressing an anonymous caller. */
-const ANONYMOUS_ACTOR_ID = 0;
-
-/** Silences `logger.logDomainError` so test stdout stays compact. */
-function silenceDomainLog(): ReturnType<typeof spyOn> {
-  return spyOn(logger, "logDomainError").mockImplementation(() => {});
-}
-
-/**
- * Provisions an admin actor (users row + admin role-child row) for use as
- * the `actorId` of subsequent service calls. Returns the user row.
- */
-async function provisionAdminActor(tx: DBTransaction): Promise<UserSelectType> {
-  const user = await createTestUser(tx, { role: "admin" });
-  await createTestAdmin(tx, user.id);
-  return user;
-}
 
 /**
  * Creates a teacher-applicant user + `applicants` pipeline row with a
@@ -116,10 +106,7 @@ describe("AdminApplicantDirectoryService.list — happy path + mapping", () => {
         tx
       );
 
-      expect(page.page).toBe(1);
-      expect(page.pageSize).toBe(25);
-      expect(page.total).toBeGreaterThanOrEqual(1);
-      expect(page.pageCount).toBeGreaterThanOrEqual(1);
+      expectPageEnvelopeEcho(page, { page: 1, pageSize: 25 });
       // Page-envelope aggregate: the searched pipeline's own stage counts
       // (search-aware, status-independent) ride alongside the listing.
       expect(page.statusCounts.inEvaluation).toBeGreaterThanOrEqual(1);
@@ -127,8 +114,7 @@ describe("AdminApplicantDirectoryService.list — happy path + mapping", () => {
       expect(page.statusCounts.failed).toBeGreaterThanOrEqual(0);
       expect(page.statusCounts.passed).toBeGreaterThanOrEqual(0);
 
-      const found = page.items.find(item => item.id === applicant.id);
-      expect(found).not.toBeUndefined();
+      const found = expectListedItem(page, applicant.id);
       expect(found?.name).toContain("DirApplicantHappy");
       expect(found?.email).toBe(applicant.email);
       expect(found?.phone).toBe(applicant.phone);
@@ -168,7 +154,7 @@ describe("AdminApplicantDirectoryService.list — happy path + mapping", () => {
         admin.id,
         tx
       );
-      const found = page.items.find(item => item.id === user.id);
+      const found = expectListedItem(page, user.id);
       expect(found?.status).toBe("pending");
       expect(found?.verificationAttempts).toBe(0);
       expect(found?.lastAttemptAt).toBeNull();
@@ -191,8 +177,7 @@ describe("AdminApplicantDirectoryService.list — filter normalization", () => {
         admin.id,
         tx
       );
-      const found = page.items.find(item => item.id === applicant.id);
-      expect(found).not.toBeUndefined();
+      expect(expectListedItem(page, applicant.id)).not.toBeUndefined();
     });
   });
 
@@ -206,8 +191,7 @@ describe("AdminApplicantDirectoryService.list — filter normalization", () => {
       await createTestApplicant(tx, user.id, { status: "pending" });
 
       const page = await AdminApplicantDirectoryService.list({ search: "%" }, 1, 100, LOCALE, admin.id, tx);
-      const found = page.items.find(item => item.id === user.id);
-      expect(found).not.toBeUndefined();
+      const found = expectListedItem(page, user.id);
       expect(found?.name).toContain("%");
     });
   });
@@ -232,8 +216,7 @@ describe("AdminApplicantDirectoryService.list — filter normalization", () => {
         admin.id,
         tx
       );
-      const found = page.items.find(item => item.id === user.id);
-      expect(found).not.toBeUndefined();
+      expect(expectListedItem(page, user.id)).not.toBeUndefined();
     });
   });
 
@@ -275,10 +258,9 @@ describe("AdminApplicantDirectoryService.list — filter normalization", () => {
     await runInRollback(async tx => {
       const admin = await provisionAdminActor(tx);
       silenceDomainLog();
-      const error = await expectRepoError(() =>
+      const error = await expectValidationError(() =>
         AdminApplicantDirectoryService.list({ status: "retired" }, 1, 25, LOCALE, admin.id, tx)
       );
-      expect(error).toBeInstanceOf(ValidationError);
       expect(error.message).toBe(tErrors.validation);
     });
   });
@@ -354,46 +336,16 @@ describe("AdminApplicantDirectoryService.list — statusCounts aggregate", () =>
 });
 
 describe("AdminApplicantDirectoryService.list — pagination", () => {
-  test("pageCount is the ceiling of total ÷ pageSize", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      const prefix = `DirApplicantPaged${randomUUID().slice(0, 8)}`;
-      // Three mutually independent user+applicant pairs — seeded
-      // concurrently. Each pair's user→role-child FK order stays sequenced
-      // inside the helper; no dependency exists across pairs.
+  registerPaginationCountingContract({
+    seedThree: async (tx, prefix) => {
       await Promise.all([
         createDirectoryApplicant(tx, { namePrefix: prefix }),
         createDirectoryApplicant(tx, { namePrefix: prefix }),
         createDirectoryApplicant(tx, { namePrefix: prefix }),
       ]);
-
-      const twoPer = await AdminApplicantDirectoryService.list({ search: prefix }, 1, 2, LOCALE, admin.id, tx);
-      expect(twoPer.total).toBe(3);
-      expect(twoPer.pageCount).toBe(2);
-      expect(twoPer.items).toHaveLength(2);
-
-      const threePer = await AdminApplicantDirectoryService.list({ search: prefix }, 1, 3, LOCALE, admin.id, tx);
-      expect(threePer.total).toBe(3);
-      expect(threePer.pageCount).toBe(1);
-      expect(threePer.items).toHaveLength(3);
-    });
-  });
-
-  test("no-match search → honest empty envelope (total 0, pageCount 0)", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      const page = await AdminApplicantDirectoryService.list(
-        { search: `no-match-${randomUUID()}` },
-        1,
-        25,
-        LOCALE,
-        admin.id,
-        tx
-      );
-      expect(page.items).toEqual([]);
-      expect(page.total).toBe(0);
-      expect(page.pageCount).toBe(0);
-    });
+    },
+    list: (tx, actorId, filters, page, pageSize) =>
+      AdminApplicantDirectoryService.list(filters, page, pageSize, LOCALE, actorId, tx),
   });
 
   test("out-of-range page → empty items + honest total (never clamped)", async () => {
@@ -412,40 +364,8 @@ describe("AdminApplicantDirectoryService.list — pagination", () => {
 
   // ── Pagination bounds reject BEFORE any DB read ────────────────────────
 
-  test("page = 0 → ValidationError(VALIDATION)", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminApplicantDirectoryService.list({}, 0, 25, LOCALE, admin.id, tx));
-      expect(error).toBeInstanceOf(ValidationError);
-      expect(error.message).toBe(tErrors.validation);
-    });
-  });
-
-  test("page = negative → ValidationError(VALIDATION)", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminApplicantDirectoryService.list({}, -5, 25, LOCALE, admin.id, tx));
-      expect(error).toBeInstanceOf(ValidationError);
-    });
-  });
-
-  test("pageSize = 101 → ValidationError(VALIDATION)", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminApplicantDirectoryService.list({}, 1, 101, LOCALE, admin.id, tx));
-      expect(error).toBeInstanceOf(ValidationError);
-    });
-  });
-
-  test("pageSize = undefined defaults to 25", async () => {
-    await runInRollback(async tx => {
-      const admin = await provisionAdminActor(tx);
-      const page = await AdminApplicantDirectoryService.list({}, 1, undefined, LOCALE, admin.id, tx);
-      expect(page.pageSize).toBe(25);
-    });
+  registerPaginationValidationContract({
+    list: (tx, actorId, page, pageSize) => AdminApplicantDirectoryService.list({}, page, pageSize, LOCALE, actorId, tx),
   });
 });
 
@@ -469,12 +389,9 @@ describe("AdminApplicantDirectoryService.exportAll — export-all envelope", () 
 
       // The export envelope reports the FULL filtered count — exactly the
       // count the listing query would report across all pages.
-      expect(envelope.total).toBe(2);
+      expectExportEnvelope(envelope, { total: 2, rows: 2 });
       expect(envelope.truncated).toBe(false);
-      expect(envelope.rows).toHaveLength(2);
-      expect(envelope.rows.map(row => row.id).toSorted((a, b) => a - b)).toEqual(
-        [pending.id, passed.id].toSorted((a, b) => a - b)
-      );
+      expectExportRowIds(envelope, [pending.id, passed.id]);
       const found = envelope.rows.find(row => row.id === passed.id);
       expect(found?.name).toContain("DirApplicantExport");
       expect(found?.email).toBe(passed.email);
@@ -495,11 +412,10 @@ describe("AdminApplicantDirectoryService.exportAll — export-all envelope", () 
         admin.id,
         tx
       );
-      expect(envelope.total).toBe(1);
-      expect(envelope.rows).toHaveLength(1);
+      expectExportEnvelope(envelope, { total: 1, rows: 1 });
+      expect(envelope.truncated).toBe(false);
       expect(envelope.rows[0]?.id).toBe(failed.id);
       expect(envelope.rows[0]?.status).toBe("failed");
-      expect(envelope.truncated).toBe(false);
     });
   });
 
@@ -507,10 +423,9 @@ describe("AdminApplicantDirectoryService.exportAll — export-all envelope", () 
     await runInRollback(async tx => {
       const admin = await provisionAdminActor(tx);
       silenceDomainLog();
-      const error = await expectRepoError(() =>
+      const error = await expectValidationError(() =>
         AdminApplicantDirectoryService.exportAll({ status: "retired" }, LOCALE, admin.id, tx)
       );
-      expect(error).toBeInstanceOf(ValidationError);
       expect(error.message).toBe(tErrors.validation);
     });
   });
@@ -524,57 +439,20 @@ describe("AdminApplicantDirectoryService.exportAll — export-all envelope", () 
         admin.id,
         tx
       );
-      expect(envelope.rows).toEqual([]);
-      expect(envelope.total).toBe(0);
+      expectExportEnvelope(envelope, { total: 0, rows: 0 });
       expect(envelope.truncated).toBe(false);
     });
   });
 });
 
 describe("AdminApplicantDirectoryService.exportAll — defense-in-depth (BFLA)", () => {
-  test("anonymous actor (id=0) → UnauthorizedError; zero writes", async () => {
-    await runInRollback(async tx => {
-      silenceDomainLog();
-      const error = await expectRepoError(() =>
-        AdminApplicantDirectoryService.exportAll({}, LOCALE, ANONYMOUS_ACTOR_ID, tx)
-      );
-      expect(error).toBeInstanceOf(UnauthorizedError);
-      expect(error.message).toContain(tErrors.unauthorized);
-    });
-  });
-
-  test("non-admin actor → ForbiddenError; zero writes", async () => {
-    await runInRollback(async tx => {
-      const nonAdmin = await createTestUser(tx, { role: "student" });
-      silenceDomainLog();
-      const error = await expectRepoError(() => AdminApplicantDirectoryService.exportAll({}, LOCALE, nonAdmin.id, tx));
-      expect(error).toBeInstanceOf(ForbiddenError);
-      expect(error.message).toContain(tErrors.forbidden);
-    });
+  registerBflaDenials({
+    call: (tx, actorId) => AdminApplicantDirectoryService.exportAll({}, LOCALE, actorId, tx),
   });
 });
 
 describe("AdminApplicantDirectoryService.list — defense-in-depth (BFLA)", () => {
-  test("anonymous actor (id=0) → UnauthorizedError; zero writes", async () => {
-    await runInRollback(async tx => {
-      silenceDomainLog();
-      const error = await expectRepoError(() =>
-        AdminApplicantDirectoryService.list({}, 1, 25, LOCALE, ANONYMOUS_ACTOR_ID, tx)
-      );
-      expect(error).toBeInstanceOf(UnauthorizedError);
-      expect(error.message).toContain(tErrors.unauthorized);
-    });
-  });
-
-  test("non-admin actor → ForbiddenError; zero writes", async () => {
-    await runInRollback(async tx => {
-      const nonAdmin = await createTestUser(tx, { role: "student" });
-      silenceDomainLog();
-      const error = await expectRepoError(() =>
-        AdminApplicantDirectoryService.list({}, 1, 25, LOCALE, nonAdmin.id, tx)
-      );
-      expect(error).toBeInstanceOf(ForbiddenError);
-      expect(error.message).toContain(tErrors.forbidden);
-    });
+  registerBflaDenials({
+    call: (tx, actorId) => AdminApplicantDirectoryService.list({}, 1, 25, LOCALE, actorId, tx),
   });
 });

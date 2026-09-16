@@ -50,6 +50,7 @@ import { eq, sql } from "drizzle-orm";
 import { StudentRepository } from "@/backend/db/repo";
 import { students } from "@/backend/db/schema/students/students";
 import { createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
+import { hasPostgresErrorCode } from "@/backend/db/test/pg-error";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
 import type { DBTransaction, StudentSelectType } from "@/backend/types";
@@ -79,18 +80,6 @@ function laneSeed(lane: HeldBalanceLane, balance: number): Partial<StudentSelect
  * original PostgreSQL error carries the given SQLSTATE code — Drizzle wraps
  * driver errors behind its own generic "failed query" message.
  */
-function hasPostgresErrorCode(error: unknown, pgCode: string): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === pgCode) {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
 
 /**
  * Walks the same cause chain searching for an `Error.message` containing the
@@ -380,8 +369,9 @@ describe("StudentRepository.decrementLaneIfAvailable", () => {
 
     // A lane value could only become a column name through string building —
     // none exists: identifiers come from `sql.identifier(<schema column>.name)`.
+    // The ban is on the CALL form — doc comments may name `inArray` verbatim.
     expect(source).not.toContain("sql.raw(");
-    expect(source).not.toContain("inArray");
+    expect(source).not.toContain("inArray(");
     // Inline SQL comments are forbidden anywhere in the module.
     expect(source).not.toContain("--");
   });

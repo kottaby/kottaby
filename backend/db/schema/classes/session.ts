@@ -1,5 +1,5 @@
 import { boolean, decimal, index, integer, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
-import { sessionIntent, sessionStatus, sessionType } from "@/backend/db/schema/enums";
+import { disputeResolution, sessionIntent, sessionStatus, sessionType } from "@/backend/db/schema/enums";
 import { students } from "@/backend/db/schema/students/students";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import type { HeldBalanceLane } from "@/backend/enum/scheduling/held-balance-lane.enum";
@@ -72,6 +72,7 @@ export const session = pgTable(
     disputeReason: varchar("dispute_reason", { length: 500 }),
     disputedAt: timestamp("disputed_at"),
     resolutionNote: varchar("resolution_note", { length: 500 }),
+    resolutionOutcome: disputeResolution("resolution_outcome"),
     resolvedAt: timestamp("resolved_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")

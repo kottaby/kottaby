@@ -3,7 +3,9 @@
  * over the append-only `audit_logs` table.
  *
  * Every shape is backed by a canonical type from `backend/types/audit/`:
- *  - `AdminAuditLogEntry` ← `AdminAuditLogEntryReturnType` (one rendered row)
+ *  - `AdminAuditLogEntry` ← `AdminAuditLogEntryReturnType` (one rendered row;
+ *    the object ref is exported so sibling case/compound objects can embed the
+ *    same canonical entry type — never a second declaration)
  *  - `AdminAuditLogPage` ← `AdminAuditLogPageReturnType` (embedded envelope)
  *  - `AdminAuditLogFiltersInput` — closed six-member filter whitelist whose
  *    members map 1:1 onto `AdminAuditTrailFiltersSubmitInput` (the resolver
@@ -30,7 +32,7 @@ import type { AdminAuditLogEntryReturnType, AdminAuditLogPageReturnType } from "
  * `actorName` is the actor's CURRENT display name (documented live
  * projection, not a snapshot).
  */
-const AdminAuditLogEntryPothosObject = gqlSchemaBuilder
+export const AdminAuditLogEntryPothosObject = gqlSchemaBuilder
   .objectRef<AdminAuditLogEntryReturnType>("AdminAuditLogEntry")
   .implement({
     fields: t => ({

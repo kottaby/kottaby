@@ -1,7 +1,7 @@
 /**
  * NotificationType + isNotificationType test suite.
  * Parity tier — pins the TS mirror byte-identical to the `notification_type`
- *   pgEnum registry entry: same 7 members, same order.
+ *   pgEnum registry entry: same 9 members, same order.
  * Tier 1: 100% branch/statement coverage of the guard.
  * Tier 2: Boundary cases — case mismatch, whitespace, empty, primitives, objects.
  * Tier 3: Chaos/fuzz — random strings, 10k payloads, unicode/RTL, wildcards.
@@ -22,6 +22,8 @@ const CANONICAL_VALUES = [
   "system_broadcast",
   "payment_confirmation",
   "evaluation_result",
+  "session_dispute_opened",
+  "session_dispute_resolved",
 ] as const;
 
 /** Deterministic LCG-backed fuzz generator (same output on every run). */
@@ -50,17 +52,17 @@ function memberReturningFunction(): string {
 }
 
 describe("notificationType pgEnum ↔ NotificationType mirror parity", () => {
-  test("pgEnum enumValues is exactly the 7 canonical values, in order", () => {
+  test("pgEnum enumValues is exactly the 9 canonical values, in order", () => {
     expect([...notificationType.enumValues]).toEqual([...CANONICAL_VALUES]);
   });
 
-  test("TS mirror Object.values is exactly the 7 canonical values, in order", () => {
+  test("TS mirror Object.values is exactly the 9 canonical values, in order", () => {
     expect(Object.values(NotificationType).join("|")).toBe(CANONICAL_VALUES.join("|"));
   });
 
-  test("pgEnum and TS mirror are byte-identical (7 members each, order-sensitive)", () => {
-    expect(notificationType.enumValues).toHaveLength(7);
-    expect(Object.values(NotificationType)).toHaveLength(7);
+  test("pgEnum and TS mirror are byte-identical (9 members each, order-sensitive)", () => {
+    expect(notificationType.enumValues).toHaveLength(9);
+    expect(Object.values(NotificationType)).toHaveLength(9);
     expect([...notificationType.enumValues].join("|")).toBe(Object.values(NotificationType).join("|"));
     expect([...notificationType.enumValues]).toEqual(Object.values(NotificationType));
   });
@@ -81,6 +83,8 @@ describe("isNotificationType", () => {
       expect(isNotificationType(NotificationType.SystemBroadcast)).toBe(true);
       expect(isNotificationType(NotificationType.PaymentConfirmation)).toBe(true);
       expect(isNotificationType(NotificationType.EvaluationResult)).toBe(true);
+      expect(isNotificationType(NotificationType.SessionDisputeOpened)).toBe(true);
+      expect(isNotificationType(NotificationType.SessionDisputeResolved)).toBe(true);
     });
 
     test("string that is not a member fails the membership check (false branch)", () => {

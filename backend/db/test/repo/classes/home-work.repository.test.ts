@@ -67,6 +67,7 @@ import {
   createTestTeacherRow,
   createTestUser,
 } from "@/backend/db/test/entity-setup";
+import { hasPostgresErrorCode } from "@/backend/db/test/pg-error";
 import { constraintNameOf, expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
 import { SurahJuzRef } from "@/backend/enum/shared/surah-juz-ref.enum";
@@ -136,18 +137,6 @@ function jadidMadiOverrides() {
  * original PostgreSQL error carries the given SQLSTATE code — Drizzle wraps
  * driver errors behind its own generic "failed query" message.
  */
-function hasPostgresErrorCode(error: unknown, pgCode: string): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === pgCode) {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
 
 /**
  * Walks the same cause chain searching for an `Error.message` containing

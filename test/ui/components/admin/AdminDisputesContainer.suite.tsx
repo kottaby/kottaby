@@ -60,7 +60,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type { MockLink } from "@apollo/client/testing";
 import { cleanup, fireEvent, type RenderResult, waitFor, within } from "@testing-library/react";
 import {
-  type AdminDisputedSessionsQuery_adminDisputedSessions_items,
+  type AdminDisputedSessionsQuery_adminDisputedSessions_items_session,
   DisputeResolution,
   SessionIntent,
   SessionStatus,
@@ -92,7 +92,7 @@ import {
  * the wire; it is what makes the `Session:<id>` entity normalizable so the
  * dialog's cache `update` filter converges the queue WITHOUT refetch.
  */
-interface DisputeFixture extends AdminDisputedSessionsQuery_adminDisputedSessions_items {
+interface DisputeFixture extends AdminDisputedSessionsQuery_adminDisputedSessions_items_session {
   readonly __typename: "Session";
 }
 
@@ -136,7 +136,9 @@ function queueVariables(page: number): { filter: null; limit: number; offset: nu
 }
 
 /** Deterministic payload builder mirroring the closed 20-field wire shape. */
-function disputeFixture(overrides?: Partial<AdminDisputedSessionsQuery_adminDisputedSessions_items>): DisputeFixture {
+function disputeFixture(
+  overrides?: Partial<AdminDisputedSessionsQuery_adminDisputedSessions_items_session>
+): DisputeFixture {
   return {
     __typename: "Session",
     id: QUEUE_ROW_ID,
@@ -158,8 +160,35 @@ function disputeFixture(overrides?: Partial<AdminDisputedSessionsQuery_adminDisp
     disputeReason: FILED_DISPUTE_REASON,
     disputedAt: DISPUTED_ISO,
     resolutionNote: null,
+    resolutionOutcome: null,
     resolvedAt: null,
     ...overrides,
+  };
+}
+
+/**
+ * Server-resolved participant display names shared by the queue fixtures
+ * (DATA, not locale copy) — every wrapped queue row renders them in the
+ * participants cell.
+ */
+const FIXTURE_STUDENT_NAME = "Queue Fixture Student";
+const FIXTURE_TEACHER_NAME = "Queue Fixture Teacher";
+
+/** The wrapped queue-row wire shape: the session payload + resolved names. */
+interface QueueRowFixture {
+  readonly __typename: "AdminDisputedSessionRow";
+  readonly session: DisputeFixture;
+  readonly studentName: string;
+  readonly teacherName: string;
+}
+
+/** Wraps one session payload into its queue-row wire shape. */
+function queueRow(session: DisputeFixture): QueueRowFixture {
+  return {
+    __typename: "AdminDisputedSessionRow",
+    session,
+    studentName: FIXTURE_STUDENT_NAME,
+    teacherName: FIXTURE_TEACHER_NAME,
   };
 }
 
@@ -167,9 +196,9 @@ function disputeFixture(overrides?: Partial<AdminDisputedSessionsQuery_adminDisp
  * One populated queue page: the primary arbitration row next to a null-matrix
  * sibling (null intent/fee/disputed-at/reason → the em-dash placeholder).
  */
-const QUEUE_ROWS: readonly DisputeFixture[] = [
-  disputeFixture({ id: QUEUE_ROW_ID }),
-  disputeFixture({ id: SIBLING_ROW_ID, intent: null, fee: null, disputeReason: null, disputedAt: null }),
+const QUEUE_ROWS: readonly QueueRowFixture[] = [
+  queueRow(disputeFixture({ id: QUEUE_ROW_ID })),
+  queueRow(disputeFixture({ id: SIBLING_ROW_ID, intent: null, fee: null, disputeReason: null, disputedAt: null })),
 ];
 
 /** The cancelled wire payload the resolve-success mock returns (same id). */
@@ -183,7 +212,7 @@ function cancelledPayload(sessionId: string): DisputeFixture {
 /** Single-operation Apollo mock answering the shared document with a page. */
 function queuePageMock(
   page: number,
-  items: ReadonlyArray<DisputeFixture>,
+  items: ReadonlyArray<QueueRowFixture>,
   totalCount: number
 ): MockLink.MockedResponse {
   return {
@@ -231,8 +260,10 @@ function deniedQueueError(code: string): MockLink.MockedResponse {
 
 /**
  * Resolve-mutation mock with the variables the dialog ACTUALLY sends for an
- * empty note: `{ id, resolution, note: null }` (the trimmed-empty rule — the
- * note is OPTIONAL per R-104, so the wire arms need no typed input).
+ * empty note: `{ id, resolution, note: null, partialAmount: null }` (the
+ * trimmed-empty rule — the note is OPTIONAL per R-104, so the wire arms need
+ * no typed input; the amount rides only with a PartialRefund arbitration and
+ * stays explicitly null on the shipped held-escrow outcomes).
  */
 function resolveMock(
   sessionId: string,
@@ -242,7 +273,7 @@ function resolveMock(
   return {
     request: {
       query: resolveSessionDisputeMutationDocument,
-      variables: { id: sessionId, resolution, note: null },
+      variables: { id: sessionId, resolution, note: null, partialAmount: null },
     },
     ...(outcome.kind === "success"
       ? { result: { data: { resolveSessionDispute: outcome.payload } } }
@@ -387,7 +418,8 @@ for (const locale of componentSuiteLocales) {
       expect(screen.getByText(t.adminDisputesPageTitle)).toBeDefined();
       expect(screen.getByTestId("admin-disputes-count").textContent).toBe(t.adminDisputesCountLine(QUEUE_ROWS.length));
 
-      for (const session of QUEUE_ROWS) {
+      for (const queueEntry of QUEUE_ROWS) {
+        const session = queueEntry.session;
         const row = screen.getByTestId(`admin-dispute-row-${session.id}`);
         // The arbitration meta vocabulary renders on every row.
         expect(within(row).getByText(t.intent)).toBeDefined();
@@ -396,8 +428,9 @@ for (const locale of componentSuiteLocales) {
         expect(within(row).getByText(t.disputedAtLabel)).toBeDefined();
         expect(within(row).getByText(t.participantsLabel)).toBeDefined();
         expect(within(row).getByText(t.disputeReasonMeta)).toBeDefined();
-        // Participant ids render VERBATIM (admin is trusted — R-111).
-        expect(within(row).getByText(`${session.studentId} · ${session.teacherId}`)).toBeDefined();
+        // Participant names render VERBATIM (server-resolved — the numeric
+        // identity is the null-name fallback, never the queue's default).
+        expect(within(row).getByText(`${queueEntry.studentName} · ${queueEntry.teacherName}`)).toBeDefined();
         // Fee renders VERBATIM (never parsed) + currency, or the placeholder.
         const feeText = session.fee === null ? EM_DASH : `${session.fee} ${SESSION_FEE_CURRENCY}`;
         expect(within(row).getAllByText(feeText).length).toBeGreaterThanOrEqual(1);
@@ -630,7 +663,7 @@ for (const locale of componentSuiteLocales) {
       renderDisputes(
         [
           queuePageMock(1, QUEUE_ROWS, 3),
-          queuePageMock(2, [disputeFixture({ id: TRAILING_ROW_ID })], 3),
+          queuePageMock(2, [queueRow(disputeFixture({ id: TRAILING_ROW_ID }))], 3),
           resolveMock(TRAILING_ROW_ID, DisputeResolution.Cancel, {
             kind: "success",
             payload: cancelledPayload(TRAILING_ROW_ID),

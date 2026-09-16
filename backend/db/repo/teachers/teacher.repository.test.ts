@@ -41,6 +41,7 @@ import { eq, sql } from "drizzle-orm";
 import { TeacherRepository } from "@/backend/db/repo";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { createTestUser } from "@/backend/db/test/entity-setup";
+import { hasPostgresErrorCode } from "@/backend/db/test/pg-error";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import type { DBTransaction, TeacherSelectType } from "@/backend/types";
 
@@ -53,18 +54,6 @@ const PG_UNIQUE_VIOLATION = "23505";
  * driver errors behind its own generic "failed query" message, so the code
  * only surfaces on the underlying `pg` error instance.
  */
-function hasPostgresErrorCode(error: unknown, pgCode: string): boolean {
-  let current: unknown = error;
-  const seen = new Set<unknown>();
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current);
-    if ("code" in current && current.code === pgCode) {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
 
 /**
  * Returns an integer id that cannot exist as a `teacher` row during this

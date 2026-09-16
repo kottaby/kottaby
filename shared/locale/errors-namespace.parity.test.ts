@@ -28,6 +28,10 @@
  *      (conflict + validation denials emitted by the domain services, NOT by
  *      the transport gateway) are pinned explicitly in BOTH locales, since
  *      the route-source discovery above cannot see service-tier consumers.
+ *      The session-arbitration denial keys (disputeResolutionMismatch,
+ *      partialRefundAmountInvalid — emitted by the arbitration service and
+ *      surfaced verbatim inside the admin resolve dialog) are pinned with
+ *      the same belt.
  *
  * ENVELOPE LOCALIZATION (rendering-path evidence): behavioral proof that the
  * transport rejection envelopes carry the LOCALIZED value (never a literal) is
@@ -221,6 +225,24 @@ describe("applicant-lifecycle service keys — pinned in BOTH locales", () => {
     // caller — no interpolation slot may ever slip into either locale.
     expect(icuPlaceholdersOf(nonEmptyLabelOf(errorsAr, "applicantAlreadyCertified", "ar"))).toEqual([]);
     expect(icuPlaceholdersOf(nonEmptyLabelOf(errorsEn, "applicantAlreadyCertified", "en"))).toEqual([]);
+  });
+});
+
+// ===========================================================================
+describe("session-arbitration denial keys — flat domain additions on BOTH locales", () => {
+  // The arbitration service resolves these denials through
+  // `getServerTranslations(locale).errorsTranslations` and the admin resolve
+  // dialog raises the same two slots client-side — the route-discovery gate
+  // sees neither consumer, so the inventory is pinned here.
+  const arbitrationDenialKeys = ["disputeResolutionMismatch", "partialRefundAmountInvalid"];
+
+  test.each(arbitrationDenialKeys)("domain key `%s` resolves non-empty in BOTH ar and en maps", key => {
+    expect(nonEmptyLabelOf(errorsAr, key, "ar").length).toBeGreaterThan(0);
+    expect(nonEmptyLabelOf(errorsEn, key, "en").length).toBeGreaterThan(0);
+    // Key must be part of the COMPILE-TIME schema too — Reflect-only
+    // additions (untyped holes) are prohibited by the ErrorsLabels contract.
+    expect(Object.hasOwn(errorsEn, key)).toBe(true);
+    expect(Object.hasOwn(errorsAr, key)).toBe(true);
   });
 });
 

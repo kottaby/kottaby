@@ -36,14 +36,31 @@
  *      validated service-side (trimmed non-empty, ≤ 500, pre-DB
  *      `VALIDATION`); the row moves `scheduled|started → disputed` exactly
  *      once (wrong state → `SESSION_INVALID_TRANSITION`).
- *  - `resolveSessionDispute(id: ID!, resolution: DisputeResolution!, note: String): Session!`
+ *  - `resolveSessionDispute(id: ID!, resolution: DisputeResolution!, note: String, partialAmount: String): Session!`
  *      Admin-only (`$all` conjunction — authenticated wrong-role callers
  *      fail the `role` leg into the canonical localized FORBIDDEN); the
  *      service re-asserts the admin role + governance from the user row as
- *      defense in depth. The arbitration resolves a `disputed` row into
- *      exactly one terminal state (`Cancel` → refund via the same-lane
- *      primitive; `Complete` → hold consumed, never-started rows are
- *      pre-DB `VALIDATION` denials).
+ *      defense in depth. The mutation resolves a `disputed` row into
+ *      exactly one terminal state, DISPATCHING the two dispute
+ *      generations by the outcome family (each service re-classifies the
+ *      row's escrow internally, so a mismatched family is always a typed
+ *      denial — `disputeResolutionMismatch` on the arbitration service, the
+ *      shipped state-conflict/never-started guards on the lifecycle
+ *      service):
+ *       - `Cancel | Complete` (held escrow — the fee still frozen) →
+ *         `SessionLifecycleService.resolveSessionDispute` (the shipped
+ *         byte-stable path: `Cancel` refunds the hold via the same-lane
+ *         primitive; `Complete` consumes the hold, and never-started rows
+ *         are pre-DB `VALIDATION` denials).
+ *       - `Refund | PartialRefund | Uphold` (consumed escrow — the fee
+ *         already credited to the teacher) →
+ *         `SessionArbitrationService.arbitrateDispute`: the binding
+ *         reversal flow (full/partial wallet reversal + the quantized
+ *         student lane credit, or zero financial writes for `Uphold`), one
+ *         `override` audit row, one transaction. `partialAmount` is the
+ *         decimal-string amount REQUIRED for `PartialRefund` (validated
+ *         strict-pre-DB: `0 < amount < fee`, ≤ 2 fractional digits) and
+ *         rejected as stray money input alongside ANY other outcome.
  *
  * authScopes 401/403 split (mirrors `query/teachers/applicant.query.ts`,
  * verified against @pothos/plugin-scope-auth@4.1.7):
@@ -73,6 +90,7 @@
  *    `mutation/index.ts` → `gqlSchema.ts`.
  */
 
+import { DisputeResolution } from "@/backend/enum/scheduling/dispute-resolution.enum";
 import { SessionIntent } from "@/backend/enum/scheduling/session-intent.enum";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
@@ -80,7 +98,7 @@ import { CreateSessionInput } from "@/backend/graphql/pothos/classes/create-sess
 import { SessionPothosObject } from "@/backend/graphql/pothos/classes/session.pothos";
 import { DisputeResolutionPothosEnum } from "@/backend/graphql/pothos/shared/enum.pothos";
 import { UnauthorizedError } from "@/backend/lib/errors";
-import { SessionLifecycleService } from "@/backend/services";
+import { SessionArbitrationService, SessionLifecycleService } from "@/backend/services";
 import type { SessionSubmitInput } from "@/backend/types";
 
 // Side-effect: register the `createSession` mutation field.
@@ -251,7 +269,10 @@ gqlSchemaBuilder.mutationField("openSessionDispute", t =>
   })
 );
 
-// Side-effect: register the `resolveSessionDispute` mutation field.
+// Side-effect: register the `resolveSessionDispute` mutation field — the
+// single admin arbitration entry for BOTH dispute generations, dispatched
+// by the outcome family to the generation's own service (see the file
+// header contract).
 gqlSchemaBuilder.mutationField("resolveSessionDispute", t =>
   t.field({
     type: SessionPothosObject,
@@ -259,9 +280,14 @@ gqlSchemaBuilder.mutationField("resolveSessionDispute", t =>
       id: t.arg({ type: "ID", required: true }),
       resolution: t.arg({ type: DisputeResolutionPothosEnum, required: true }),
       note: t.arg({ type: "String", required: false }),
+      // The partial-refund amount as a decimal string — required iff
+      // `resolution = PartialRefund`, rejected as stray money input
+      // alongside any other outcome. APPEND-ONLY to the shipped input: the
+      // pre-existing arg names (`id`, `resolution`, `note`) are untouched.
+      partialAmount: t.arg({ type: "String", required: false }),
     },
     description:
-      "Resolve one disputed session into exactly one terminal state (admin arbitration): Cancel refunds the held fee to its original lane, Complete consumes the hold (never-started disputes are rejected). Non-disputed rows are SESSION_INVALID_TRANSITION conflicts.",
+      "Resolve one disputed session into exactly one terminal state (admin arbitration over both dispute generations, dispatched by outcome family): Cancel refunds the held fee to its original lane, Complete consumes the hold (never-started disputes are rejected), Refund reverses the consumed fee to the teacher's wallet and restores the student's lane credit, PartialRefund reverses only the validated partialAmount, Uphold completes the session untouched. Held-escrow rows reject the consumed-family outcomes and vice versa (disputeResolutionMismatch). Non-disputed rows are SESSION_INVALID_TRANSITION conflicts.",
     // Explicit `$all` conjunction per the 401/403 split documented above:
     // anonymous callers hit UNAUTHORIZED (401), authenticated non-admins
     // fail the `role` leg into the canonical localized FORBIDDEN (403).
@@ -278,11 +304,38 @@ gqlSchemaBuilder.mutationField("resolveSessionDispute", t =>
       if (!ctx.user) {
         throw new UnauthorizedError("Authentication required.");
       }
-      return SessionLifecycleService.resolveSessionDispute(
+      // Escrow-classification gate BEFORE any dispatch: a resolution
+      // submitted for a currently disputed row must belong to the row's own
+      // generation vocabulary — a cross-family submission is the localized
+      // classification-mismatch denial with ZERO writes, never the other
+      // generation's generic state guard. Non-disputed rows pass through
+      // untouched (their dispatched service owns those denials). The
+      // dispatched service still re-classifies inside its own transaction,
+      // so the gate is advisory in the race sense and authoritative only
+      // for the vocabulary error.
+      await SessionArbitrationService.assertResolutionFamilyMatchesEscrow(Number(args.id), args.resolution, ctx.locale);
+      // Family dispatch by the PARSED outcome value (the wire enum already
+      // parsed it): the held-family outcomes resolve through the shipped
+      // held-escrow service (byte-stable path), the consumed-family
+      // outcomes through the post-confirmation arbitration service. The
+      // arbitration service owns its transaction and publishes the
+      // dispute-resolved wave itself after its own commit — the resolver
+      // passes no outer tx and handles no receipts.
+      if (args.resolution === DisputeResolution.Cancel || args.resolution === DisputeResolution.Complete) {
+        return SessionLifecycleService.resolveSessionDispute(
+          ctx.user.id,
+          Number(args.id),
+          args.resolution,
+          args.note ?? null,
+          ctx.locale
+        );
+      }
+      return SessionArbitrationService.arbitrateDispute(
         ctx.user.id,
         Number(args.id),
         args.resolution,
         args.note ?? null,
+        args.partialAmount ?? null,
         ctx.locale
       );
     },

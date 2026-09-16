@@ -91,6 +91,39 @@ input AdminCreateUserInput {
   role: RegisterPublicRole!
 }
 
+type AdminDisputeAnalytics {
+  cancelCount: Int!
+  completeCount: Int!
+  openDisputes: Int!
+  partialRefundCount: Int!
+  refundCount: Int!
+  resolvedDisputes: Int!
+  upholdCount: Int!
+}
+
+type AdminDisputeCase {
+  auditTrail: [AdminAuditLogEntry!]!
+  homework: SessionHomeWork
+  recitation: SessionRecitation
+  report: SessionReport
+  session: Session!
+  studentName: String
+  teacherName: String
+}
+
+type AdminDisputedSessionPage {
+  items: [AdminDisputedSessionRow!]!
+  page: Int!
+  pageSize: Int!
+  totalCount: Int!
+}
+
+type AdminDisputedSessionRow {
+  session: Session!
+  studentName: String
+  teacherName: String
+}
+
 type AdminParentSnapshot {
   linkedChildrenCount: Int!
 }
@@ -461,6 +494,9 @@ scalar DateTime
 enum DisputeResolution {
   Cancel
   Complete
+  PartialRefund
+  Refund
+  Uphold
 }
 
 enum Gender {
@@ -624,6 +660,11 @@ type Mutation {
   markNotificationRead(id: ID!): Notification!
 
   """
+  Open a post-confirmation dispute on one of the caller's dual-confirmed sessions (student-only, exactly once, with a required reason). Non-students and nonexistent ids are indistinguishable SESSION_NOT_FOUND denials; a row that is not a confirmed completion with its escrow consumed is a SESSION_INVALID_TRANSITION conflict. The row waits in the disputed state for admin arbitration.
+  """
+  openPostConfirmationDispute(id: ID!, reason: String!): Session!
+
+  """
   Open a dispute on one of the caller's scheduled/started sessions (either participant, exactly once, with a required reason). Non-participants and nonexistent ids are indistinguishable SESSION_NOT_FOUND denials; the row waits in the disputed state for admin arbitration.
   """
   openSessionDispute(id: ID!, reason: String!): Session!
@@ -656,9 +697,9 @@ type Mutation {
   requestWithdrawal(input: RequestWithdrawalInput!): Wallet!
 
   """
-  Resolve one disputed session into exactly one terminal state (admin arbitration): Cancel refunds the held fee to its original lane, Complete consumes the hold (never-started disputes are rejected). Non-disputed rows are SESSION_INVALID_TRANSITION conflicts.
+  Resolve one disputed session into exactly one terminal state (admin arbitration over both dispute generations, dispatched by outcome family): Cancel refunds the held fee to its original lane, Complete consumes the hold (never-started disputes are rejected), Refund reverses the consumed fee to the teacher's wallet and restores the student's lane credit, PartialRefund reverses only the validated partialAmount, Uphold completes the session untouched. Held-escrow rows reject the consumed-family outcomes and vice versa (disputeResolutionMismatch). Non-disputed rows are SESSION_INVALID_TRANSITION conflicts.
   """
-  resolveSessionDispute(id: ID!, note: String, resolution: DisputeResolution!): Session!
+  resolveSessionDispute(id: ID!, note: String, partialAmount: String, resolution: DisputeResolution!): Session!
 
   """
   Accepts or rejects exactly one of the caller's own pending link requests (one-directional claim). A foreign or nonexistent id is indistinguishable — PARENT_LINK_REQUEST_NOT_FOUND with no existence oracle; already-resolved and expired requests surface their dedicated conflicts.
@@ -730,6 +771,8 @@ enum NotificationType {
   PaymentConfirmation
   SessionCancellation
   SessionCompletion
+  SessionDisputeOpened
+  SessionDisputeResolved
   SessionRequest
   SystemBroadcast
 }
@@ -934,7 +977,17 @@ type PurchaseSubscriptionPayload {
 type Query {
   _health: HealthCheck!
   adminAuditLogs(filters: AdminAuditLogFiltersInput, page: Int, pageSize: Int): AdminAuditLogPage!
-  adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): SessionPage!
+
+  """
+  Read the aggregate dispute analytics snapshot (admin-only): the open dispute count (the arbitration queue's own membership), the resolved total, and the per-outcome breakdown across both escrow generations. Honest counts — zero is the legitimate empty state. Strictly side-effect free.
+  """
+  adminDisputeAnalytics: AdminDisputeAnalytics!
+
+  """
+  Read the full dispute case for one session (admin-only): the session row, its report, homework, and recitation records (honest nulls when absent), and the session-scoped audit trail. Unknown or malformed ids are localized not-found denials.
+  """
+  adminDisputeCase(id: ID!): AdminDisputeCase!
+  adminDisputedSessions(filter: SessionListFilterInput, limit: Int = 25, offset: Int = 0): AdminDisputedSessionPage!
   adminPendingWithdrawals(page: Int, pageSize: Int): AdminWithdrawalQueuePage!
 
   """Admin-only query to list plans, optionally including inactive plans."""
@@ -1021,6 +1074,16 @@ type Query {
   sessionHomework(sessionId: ID!): SessionHomeWork
   sessionRecitation(sessionId: ID!): SessionRecitation
   sessionReport(sessionId: ID!): SessionReport
+
+  """
+  Read the dispute case for one session as its own student (student-only): the session row plus the participant-owned artifacts (report, homework, recitation — honest nulls when absent) and the teacher display name. Non-participants and unknown or malformed ids are indistinguishable localized not-found denials.
+  """
+  studentDisputeCase(id: ID!): StudentDisputeCase!
+
+  """
+  Read the dispute case for one session as its own teacher (teacher-only): the session row plus the participant-owned artifacts (report, homework, recitation — honest nulls when absent) and the student display name. Non-participants and unknown or malformed ids are indistinguishable localized not-found denials.
+  """
+  teacherDisputeCase(id: ID!): TeacherDisputeCase!
 }
 
 enum RecitationReading {
@@ -1083,6 +1146,7 @@ type Session {
   intent: SessionIntent
   needsAttention: Boolean!
   resolutionNote: String
+  resolutionOutcome: DisputeResolution
   resolvedAt: DateTime
   sessionType: SessionType!
   startedAt: DateTime
@@ -1159,6 +1223,14 @@ enum SessionType {
   ReEvaluation
   StudentSession
   TeacherEvaluation
+}
+
+type StudentDisputeCase {
+  homework: SessionHomeWork
+  recitation: SessionRecitation
+  report: SessionReport
+  session: Session!
+  teacherName: String
 }
 
 """A recorded payment a student made for a subscription."""
@@ -1293,6 +1365,14 @@ enum SurahJuzRef {
   SurahAnNisa
 }
 
+type TeacherDisputeCase {
+  homework: SessionHomeWork
+  recitation: SessionRecitation
+  report: SessionReport
+  session: Session!
+  studentName: String
+}
+
 type TeacherTransaction {
   amount: String!
   createdAt: DateTime!
@@ -1312,6 +1392,7 @@ enum TransactionStatus {
 }
 
 enum TransactionType {
+  ArbitrationReversal
   Bonus
   Earning
   Withdrawal

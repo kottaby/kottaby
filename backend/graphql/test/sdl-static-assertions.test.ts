@@ -106,10 +106,10 @@ import {
 // ─── .test.ts — the single sanctioned growth history) ────────────────────────
 
 /**
- * Root mutation fields — the refreshed 34-op baseline: the prior auth
+ * Root mutation fields — the refreshed 35-op baseline: the prior auth
  * quartet + notification read-latch pair + users-locale surface, the
  * reconciled admin-user-management trio (3 mutations) + the
- * session quartet + dispute pair + confirm
+ * session quartet + dispute pair + post-confirmation dispute entry + confirm
  * + payout, the sanctioned admin-governance pair + the
  * session-governance quartet + the subscription purchase write + the
  * session-report write.
@@ -141,6 +141,7 @@ const FROZEN_MUTATION_FIELDS = [
   "logout",
   "markAllNotificationsRead",
   "markNotificationRead",
+  "openPostConfirmationDispute",
   "openSessionDispute",
   "purchaseSubscription",
   "refreshToken",
@@ -158,11 +159,12 @@ const FROZEN_MUTATION_FIELDS = [
 ] as const;
 
 /**
- * Root query fields — the refreshed 33-op baseline + the whole-platform
+ * Root query fields — the refreshed 34-op baseline + the whole-platform
  * analytics snapshot: the prior frozen baseline + the `_health` probe +
  * the session-report read pair (`sessionHomework` / `sessionReport`) +
  * the reconciled admin-user query quartet + the
- * participant-read trio + the admin arbitration listing + the
+ * participant-read trio + the admin arbitration listing + the admin
+ * dispute-case read + the
  * wallet read + the handshake pair + the admin
  * session pair (`adminSession` / `adminSessions` — 4.4 reconcile) + the
  * subscription purchase caller-scoped read + the R1–R3 admin directory
@@ -183,6 +185,8 @@ const FROZEN_MUTATION_FIELDS = [
 const FROZEN_QUERY_FIELDS = [
   "_health",
   "adminAuditLogs",
+  "adminDisputeAnalytics",
+  "adminDisputeCase",
   "adminDisputedSessions",
   "adminPlans",
   "adminPlatformAnalytics",
@@ -216,6 +220,8 @@ const FROZEN_QUERY_FIELDS = [
   "sessionHomework",
   "sessionRecitation",
   "sessionReport",
+  "studentDisputeCase",
+  "teacherDisputeCase",
 ] as const;
 
 /** REQ-032: emit is service-internal — these operations must NEVER exist. */
@@ -356,7 +362,7 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
 
-  test("Query root is EXACTLY the refreshed frozen 33-op baseline (zero unsanctioned growth)", () => {
+  test("Query root is EXACTLY the refreshed frozen 39-op baseline (zero unsanctioned growth)", () => {
     const names = fieldSurfaces("Query").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_QUERY_FIELDS]);
   });

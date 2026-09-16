@@ -12,6 +12,8 @@ export const notificationsEn: NotificationsLabels = {
   typeSessionRequest: "Session Request",
   typeSessionCompletion: "Session Completion",
   typeSessionCancellation: "Session Cancellation",
+  typeSessionDisputeOpened: "Session Dispute Opened",
+  typeSessionDisputeResolved: "Session Dispute Resolved",
   typeParentLinkRequest: "Parent Link Request",
   typeSystemBroadcast: "System Announcement",
   typePaymentConfirmation: "Payment Confirmation",
@@ -90,4 +92,14 @@ export const notificationsEn: NotificationsLabels = {
   eventSessionGovernanceTeacherReassignedTitle: "Session teacher changed",
   eventSessionGovernanceTeacherReassignedBody:
     "A platform administrator changed the teacher for your session. Open the session to see the details.",
+  eventSessionDisputeOpenedTitle: "Session dispute opened",
+  eventSessionDisputeOpenedBody:
+    "A completed session was disputed and awaits arbitration. Open the disputes console to review the case.",
+  eventSessionDisputeResolvedTitle: "Session dispute resolved",
+  eventSessionDisputeResolvedRefundBody:
+    "The arbitration for your session was decided: the session fee was refunded. Open the session to see the recorded outcome.",
+  eventSessionDisputeResolvedPartialRefundBody:
+    "The arbitration for your session was decided: the session fee was partially refunded. Open the session to see the recorded outcome.",
+  eventSessionDisputeResolvedUpholdBody:
+    "The arbitration for your session was decided: the session's completion was upheld. Open the session to see the recorded outcome.",
 };

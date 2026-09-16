@@ -22,6 +22,8 @@ interface NotificationsFeedBodyProps {
   readonly commonLabels: CommonLabels;
   /** Active app locale (drives the locale-aware timestamp stamps). */
   readonly locale: string;
+  /** The viewer's wire role — scopes the rows' session deep-link matrix. */
+  readonly userRole: string | null;
   /** Current page's rows (one offset window of the filtered feed). */
   readonly items: readonly MyNotificationsQuery_myNotifications_items[];
   /** Cold first render (no cached data yet — drives the skeleton branch). */
@@ -61,6 +63,7 @@ export function NotificationsFeedBody({
   labels,
   commonLabels,
   locale,
+  userRole,
   items,
   initialLoading,
   loading,
@@ -99,6 +102,7 @@ export function NotificationsFeedBody({
         items={items}
         labels={labels}
         locale={locale}
+        userRole={userRole}
         onMarkRead={onMarkRead}
         markReadPendingIds={markReadPendingIds}
         busy={busy}
