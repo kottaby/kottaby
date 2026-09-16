@@ -1,7 +1,6 @@
 # Requirements — Fee Escrow & Teacher Wallet Crediting (Close-the-Loop Verification)
 
-**Plan Directory:** `ai/plans/sprint_2/Fee Escrow & Teacher Wallet Crediting-crediting/`
-**Outcome Directory:** `ai/plans/sprint_2/Fee Escrow & Teacher Wallet Crediting-crediting/outcome/`
+**Plan Directory:** `ai/finished_plans/sprint_2/fee_escrow_and_teacher_wallet_crediting-crediting/`
 **Tickets:** "Fee Escrow: Hold at Request, Decrement at Completion" (`docs/planning/TICKETS.md:1704-1750`) and "Teacher Wallet Crediting (Earning Transactions)" (`docs/planning/TICKETS.md:1753-1796`)
 **Sprint:** 2 · **Owner Stream:** Dev 3 · **Story Points:** 5 + 5
 
@@ -12,8 +11,7 @@
 | Field | Value |
 |---|---|
 | Feature Name | Fee Escrow & Teacher Wallet Crediting |
-| Target Directory | `ai/plans/sprint_2/Fee Escrow & Teacher Wallet Crediting-crediting/` |
-| Outcome Directory | `ai/plans/sprint_2/Fee Escrow & Teacher Wallet Crediting-crediting/outcome/` |
+| Target Directory | `ai/finished_plans/sprint_2/fee_escrow_and_teacher_wallet_crediting-crediting/` |
 | Version | 1.0 |
 | Date | 2026-09-11 |
 | Status | Requirements complete — verification-scoped, pre-execution |
