@@ -1,9 +1,9 @@
 "use client";
 
-import { useApolloClient, useQuery } from "@apollo/client/react";
+import { useQuery } from "@apollo/client/react";
 import { Stack, Typography } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
-import type { MyStudentSessionsQuery, SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
+import type { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { myStudentSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { StudentDisputeCaseDialog } from "@/frontend/views/student/disputes/StudentDisputeCaseDialog";
 import { SessionStatusFilterChips } from "@/frontend/views/student/sessions/SessionStatusFilterChips";
@@ -13,15 +13,13 @@ import {
   StudentSessionsDialogs,
 } from "@/frontend/views/student/sessions/StudentSessionsDialogs";
 import { StudentSessionsNoticeSnackbar } from "@/frontend/views/student/sessions/StudentSessionsNoticeSnackbar";
-import { resolveStudentDisputeMutation } from "@/frontend/views/student/sessions/sessionDisputeMutations";
 import type { SessionRowRole } from "@/frontend/views/student/sessions/sessionRowPresentation";
+import { resolveStudentDisputeMutationForRow } from "@/frontend/views/student/sessions/studentSessionDisputeMutationForRow";
 import { useMyTeacherEvaluations } from "@/frontend/views/student/sessions/useMyTeacherEvaluations";
-import { useStudentSessionCancelArms } from "@/frontend/views/student/sessions/useStudentSessionCancelArms";
-import { useStudentSessionConfirm } from "@/frontend/views/student/sessions/useStudentSessionConfirm";
+import { useStudentSessionCaseDialogSlot } from "@/frontend/views/student/sessions/useStudentSessionCaseDialogSlot";
 import { useStudentSessionDialogSlots } from "@/frontend/views/student/sessions/useStudentSessionDialogSlots";
-import { useStudentSessionDisputeArms } from "@/frontend/views/student/sessions/useStudentSessionDisputeArms";
+import { useStudentSessionMutationArms } from "@/frontend/views/student/sessions/useStudentSessionMutationArms";
 import { useStudentSessionNotices } from "@/frontend/views/student/sessions/useStudentSessionNotices";
-import { useStudentSessionRateArms } from "@/frontend/views/student/sessions/useStudentSessionRateArms";
 import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
 
 /**
@@ -34,16 +32,14 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
  * `myStudentSessions` query (Apollo refetch semantics — `useLazyQuery`
  * is banned per `sharedDocuments/AGENTS.md`). Page-level authorization is
  * owned by the server guard (`withPageAuth`) — the container passes its
- * surface's row-role constant to the shared row slot (see below) but
- * performs no authorization logic. The stateful machinery lives in the
- * sibling hooks:
+ * surface's row-role constant to the shared row slot but performs no
+ * authorization logic. The stateful machinery lives in the sibling hooks:
  * `useStudentSessionDialogSlots` (dialog slots + per-row in-flight slot
  * book), `useStudentSessionNotices` (row alerts + snackbar notice),
- * `useStudentSessionCancelArms` / `useStudentSessionDisputeArms` /
- * `useStudentSessionRateArms` (dialog outcome routing),
- * `useStudentSessionConfirm` (the container-owned confirm-completion
- * mutation) and `useMyTeacherEvaluations` (the rated-session-id set the
- * Rate gate consumes).
+ * `useStudentSessionMutationArms` (the cancel / dispute / rate arms plus
+ * the confirm-completion mutation), `useStudentSessionCaseDialogSlot`
+ * (the dispute case-dialog session id) and `useMyTeacherEvaluations`
+ * (the rated-session-id set the Rate gate consumes).
  *
  * Row-role token: this container supplies the shared row slot's
  * `"student"` role constant — the affordance seam that lets student rows
@@ -69,127 +65,41 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
  * | 4b | zero items, status filter ACTIVE | distinct filtered-empty state (`filteredEmptyTitle` / `filteredEmptyBody`, filter-list icon) |
  * | 5 | rows present | `SessionRow` list |
  *
- * Mutation outcome wiring — the `cancelSession` mutation and its code
- * classification live in {@link CancelSessionConfirmDialog}; the container
- * receives typed callbacks (`useStudentSessionCancelArms`) and renders the
- * surfaces:
+ * Mutation outcome wiring — cancel (`cancelSession`), dispute
+ * (`openSessionDispute`, riding the generation-resolved binding from
+ * `resolveStudentDisputeMutationForRow`), rate
+ * (`submitTeacherEvaluation`) and confirm-completion
+ * (`confirmSessionCompletion`, no dialog: the row's Confirm CTA fires
+ * directly) — each mutation and its code classification live in its
+ * sibling dialog/hook; the container receives typed callbacks and renders
+ * the surfaces:
  *
  * | Outcome (extensions.code) | Container behavior |
  * |---------------------------|--------------------|
- * | success | `sessions.holdReleasedNotice` success snackbar + stale row alert dropped |
- * | `SESSION_NOT_FOUND` | `errors.sessionNotFound` error snackbar (cache eviction + list filtering are owned by the dialog's not-found arm — the row has already left the list here) |
+ * | success | localized success snackbar; the row's cache normalize/append/filter applies in place (no refetch); the dialog closes and the row's in-flight slot releases |
+ * | `SESSION_NOT_FOUND` | `errors.sessionNotFound` error snackbar (cache eviction + list filtering are owned by the dialog's/hook's not-found arm — the row has already left the list here; confirm evicts the row itself) |
  * | `SESSION_INVALID_TRANSITION` | row-scoped inline alert via `SessionRow` `alertMessage` carrying `errors.sessionInvalidTransition` |
- * | `DUPLICATE_REQUEST` | informational snackbar with `sessions.duplicateBookingInfo` (never an error treatment — docs/IDEMPOTENCY.md §3) |
- * | `FORBIDDEN` / masked `INTERNAL_SERVER_ERROR` / anything else | error snackbar with the copy the dialog resolved (`errors.forbidden` / `sessions.genericError`); the dialog stays open for a retry |
- *
- * Dispute-dialog wiring — the `openSessionDispute` mutation
- * and its code classification live in {@link SessionDisputeConfirmDialog};
- * EVERY error arm surfaces a snackbar (the dispute error vocabulary)
- * and the row stays in the list (no eviction arm — the dialog's docblock).
- * The dialog rides a MUTATION BINDING the container resolves per disputed
- * row's generation: post-confirmation rows (completed + student-confirmed
- * + hold consumed) escalate through the post-confirmation document;
- * pre-completion rows keep the shipped held-escrow document byte-stable
- * (see `resolveStudentDisputeMutation`):
- *
- * | Outcome (extensions.code) | Container behavior |
- * |---------------------------|--------------------|
- * | success | `sessions.disputeOpenedNotice` success snackbar; the row flips to its DISPUTED chip via the dialog's cache normalize (no refetch); the dispute dialog closes and the row's `dispute` in-flight slot releases |
- * | `SESSION_NOT_FOUND` | `errors.sessionNotFound` error snackbar; row stays; dialog closes |
- * | `SESSION_INVALID_TRANSITION` | `errors.sessionInvalidTransition` error snackbar; row stays; dialog closes |
- * | `VALIDATION` / `FORBIDDEN` / anything else | error snackbar with the copy the dialog resolved (`errors.validation` / `errors.forbidden` / `sessions.genericError`); the dialog stays open for a retry |
- *
- * The dispute affordance participates in the per-row slot
- * book (`Record<sessionId, Set<kind>>` extended with the `dispute` kind):
- * the row whose dispute dialog is open holds the slot, disabling its own
- * dispute CTA while the modal owns the mutation.
- *
- * Confirm-completion wiring — the `confirmSessionCompletion`
- * mutation is owned by `useStudentSessionConfirm` (no dialog: the row's
- * Confirm CTA fires directly, its consequence explainer riding the CTA
- * tooltip), mirroring the teacher container's direct lifecycle mutations:
- *
- * | Outcome (extensions.code) | Container behavior |
- * |---------------------------|--------------------|
- * | success | `sessions.sessionConfirmedNotice` success snackbar; the row's `confirmedByStudentAt`/`feeHeld` fields normalize via the mutation's cache `update` (the Confirm CTA + pending pill leave in place — no refetch); the row's `confirm` in-flight slot releases |
- * | `SESSION_NOT_FOUND` (not-found family) | evict the row — `myStudentSessions` list fields filtered by `__ref`, entity evicted, `gc()`; `errors.sessionNotFound` error snackbar |
- * | `SESSION_INVALID_TRANSITION` | row-scoped inline alert via `SessionRow` `alertMessage` carrying `errors.sessionInvalidTransition` |
- * | `FORBIDDEN` | error snackbar with `errors.forbidden` |
- * | masked `INTERNAL_SERVER_ERROR` / anything else | error snackbar with `sessions.genericError` |
+ * | `DUPLICATE_REQUEST` (cancel) | informational snackbar with `sessions.duplicateBookingInfo` (never an error treatment — docs/IDEMPOTENCY.md §3) |
+ * | `EVALUATION_ALREADY_SUBMITTED` / `EVALUATION_SESSION_NOT_COMPLETED` (rate) | the row is marked rated / the localized notice renders app-scope through the mapped error surface; the dialog closes |
+ * | `FORBIDDEN` / masked `INTERNAL_SERVER_ERROR` / anything else | error snackbar with the copy the dialog resolved (`errors.forbidden` / `errors.validation` / `sessions.genericError`); the dialog stays open for a retry |
  *
  * The confirm affordance matrix keys off the EXACTLY-ONCE financial shape
  * (`Completed` ∧ student stamp unset ∧ hold still marked) — the same shape
  * the row's pending pill renders. An arbitration-settled hold (`feeHeld =
  * false`) renders NO confirm CTA: the idempotent mutation would return the
  * row untouched and the stamp would stay unset — an affordance there would
- * be dishonest.
- *
- * Rate-dialog wiring — the `submitTeacherEvaluation` mutation and its code
- * classification live in {@link RateTeacherDialog}; the row's Rate CTA
- * renders ONLY on the dual-confirmed-completed shape whose id is absent
- * from the rated set (`useMyTeacherEvaluations`), whose write-once
- * end-state renders the read-only rated chip instead:
- *
- * | Outcome (extensions.code) | Container behavior |
- * |---------------------------|--------------------|
- * | success | `sessions.rateTeacherSuccess` success snackbar; the rating row lands in the rated set via the dialog's cache append (no refetch); the rate dialog closes |
- * | `SESSION_NOT_FOUND` | `errors.sessionNotFound` error snackbar (cache eviction + list filtering are owned by the dialog's not-found arm — the row has already left the list here) |
- * | `EVALUATION_ALREADY_SUBMITTED` | the row is marked rated (the CTA yields to the rated chip); the localized notice renders app-scope through the mapped error surface; the dialog closes |
- * | `EVALUATION_SESSION_NOT_COMPLETED` | the localized notice renders app-scope through the mapped error surface; the dialog closes |
- * | `FORBIDDEN` / masked `INTERNAL_SERVER_ERROR` / anything else | error snackbar with the copy the dialog resolved (`errors.forbidden` / `sessions.genericError`); the dialog stays open for a retry |
+ * be dishonest. The rate CTA renders ONLY on the dual-confirmed-completed
+ * shape whose id is absent from the rated set (`useMyTeacherEvaluations`),
+ * whose write-once end-state renders the read-only rated chip instead.
  *
  * Query-context errors classify through the SINGLE
  * `mapGraphQLErrorByCode` table (`frontend/providers/apollo/error-link.map.ts`)
- * — never the server `message`.
- *
- * All copy resolves through compile-time i18n handles
- * (`useAppTranslation(Sessions | Errors)` property access — NEVER
- * `t('key')`).
- *
- * MUI v9 discipline: `sx`-only styling, colors exclusively through
- * `theme.palette.*` callbacks, `*Outlined` icons only, RTL-safe logical
- * composition.
+ * — never the server `message`. All copy resolves through compile-time
+ * i18n handles (`useAppTranslation(Sessions | Errors)` property access —
+ * NEVER `t('key')`). MUI v9 discipline: `sx`-only styling, colors
+ * exclusively through `theme.palette.*` callbacks, `*Outlined` icons only,
+ * RTL-safe logical composition.
  */
-
-/**
- * The dispute case-dialog slot state: the session id whose case is on
- * view (or `null` when closed) plus its open/close intents. The dialog is
- * stateless per session — it owns its own case query — so the container
- * keeps ONLY the id (the teacher container's identical slot shape).
- */
-function useCaseDialogSlot(): {
-  readonly caseDialogSessionId: string | null;
-  readonly openCaseDialog: (sessionId: string) => void;
-  readonly closeCaseDialog: () => void;
-} {
-  const [caseDialogSessionId, setCaseDialogSessionId] = useState<string | null>(null);
-  const openCaseDialog = useCallback((sessionId: string): void => {
-    setCaseDialogSessionId(sessionId);
-  }, []);
-  const closeCaseDialog = useCallback((): void => {
-    setCaseDialogSessionId(null);
-  }, []);
-  return { caseDialogSessionId, openCaseDialog, closeCaseDialog };
-}
-
-/**
- * The dispute dialog's mutation arm resolves from the disputed row's
- * generation: a post-confirmation row escalates through the
- * post-confirmation document; pre-completion rows (and an unresolved id
- * while the slot mounts, e.g. the list changed under an open dialog) keep
- * the shipped held-escrow document. The operations authorize server-side,
- * so a degraded binding can only surface a localized denial.
- */
-function resolveDisputeMutationForRow(
-  data: MyStudentSessionsQuery | undefined,
-  disputeDialogSessionId: string | null
-): ReturnType<typeof resolveStudentDisputeMutation> {
-  const disputedRow =
-    disputeDialogSessionId === null || data === undefined
-      ? null
-      : (data.myStudentSessions.items.find(session => session.id === disputeDialogSessionId) ?? null);
-  return resolveStudentDisputeMutation(disputedRow);
-}
 
 /**
  * The student sessions view: ALWAYS-ON chrome (title + sticky filter chips)
@@ -198,16 +108,13 @@ function resolveDisputeMutationForRow(
  * dialog seam, the STUDENT-ONLY rate dialog (mounted HERE through
  * `StudentRateDialogSlot` — the teacher twin renders the same seam, and
  * students rate teachers; teachers never rate), the dispute case dialog
- * (the session's own student's — the filing party's — read; rows with
- * dispute history carry the "Case details" affordance) and the snackbar
- * chrome. State + callbacks only (extracted to sibling hooks); the body
- * resolver (`StudentSessionsBody`) keeps the chrome rendering in EVERY
- * branch (the user never loses the filter row).
+ * and the snackbar chrome. State + callbacks only (extracted to sibling
+ * hooks); the body resolver (`StudentSessionsBody`) keeps the chrome
+ * rendering in EVERY branch (the user never loses the filter row).
  */
 export function StudentSessionsContainer(): ReactNode {
   const t = useAppTranslation(Sessions);
   const te = useAppTranslation(Errors);
-  const client = useApolloClient();
 
   // Status filter — `null` is the "all" token; every change re-keys the
   // query `variables`, which re-runs the stateful query (Apollo refetch).
@@ -231,51 +138,22 @@ export function StudentSessionsContainer(): ReactNode {
 
   const slots = useStudentSessionDialogSlots();
 
-  const { rowAlerts, notice, setRowAlerts, setNotice, dismissNotice } = useStudentSessionNotices();
+  const notices = useStudentSessionNotices();
 
   // Case-dialog slot — the session id whose dispute case is on view, or
-  // `null` when the dialog is closed. The dialog is stateless per session:
-  // it owns its own case query, so the container keeps ONLY the id (the
-  // teacher container's identical slot shape — the filing participant's
-  // mirror of the counterparty read).
-  const { caseDialogSessionId, openCaseDialog, closeCaseDialog } = useCaseDialogSlot();
+  // `null` when the dialog is closed (the teacher container's identical
+  // slot shape — the filing participant's mirror of the counterparty read).
+  const { caseDialogSessionId, openCaseDialog, closeCaseDialog } = useStudentSessionCaseDialogSlot();
 
-  const cancelArms = useStudentSessionCancelArms({
+  const { cancelArms, disputeArms, rateArms, handleConfirm } = useStudentSessionMutationArms({
     sessionsCopy: t,
     errorsCopy: te,
-    closeCancelDialog: slots.closeCancelDialog,
-    setRowAlerts,
-    setNotice,
-  });
-
-  const disputeArms = useStudentSessionDisputeArms({
-    sessionsCopy: t,
-    errorsCopy: te,
-    closeDisputeDialog: slots.closeDisputeDialog,
-    setRowAlerts,
-    setNotice,
-  });
-
-  const rateArms = useStudentSessionRateArms({
-    sessionsCopy: t,
-    errorsCopy: te,
-    closeRateDialog: slots.closeRateDialog,
+    slots,
+    notices,
     markSessionRated,
-    setRowAlerts,
-    setNotice,
   });
 
-  const { handleConfirm } = useStudentSessionConfirm({
-    cache: client.cache,
-    sessionsCopy: t,
-    errorsCopy: te,
-    claimConfirmSlot: slots.claimConfirmSlot,
-    clearConfirmSlot: slots.clearConfirmSlot,
-    setRowAlerts,
-    setNotice,
-  });
-
-  const disputeMutation = resolveDisputeMutationForRow(data, slots.disputeDialogSessionId);
+  const disputeMutation = resolveStudentDisputeMutationForRow(data, slots.disputeDialogSessionId);
 
   const rowRole: SessionRowRole = "student";
 
@@ -292,7 +170,7 @@ export function StudentSessionsContainer(): ReactNode {
         loading={loading}
         error={error}
         data={data}
-        rowAlerts={rowAlerts}
+        rowAlerts={notices.rowAlerts}
         onCancelIntent={slots.openCancelDialog}
         onDisputeIntent={slots.openDisputeDialog}
         disputeInFlightSlots={slots.inFlightSlots}
@@ -330,7 +208,7 @@ export function StudentSessionsContainer(): ReactNode {
       {caseDialogSessionId !== null ? (
         <StudentDisputeCaseDialog sessionId={caseDialogSessionId} open onClose={closeCaseDialog} />
       ) : null}
-      <StudentSessionsNoticeSnackbar notice={notice} onDismiss={dismissNotice} />
+      <StudentSessionsNoticeSnackbar notice={notices.notice} onDismiss={notices.dismissNotice} />
     </Stack>
   );
 }

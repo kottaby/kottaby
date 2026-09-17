@@ -171,7 +171,7 @@ export async function getTeacherDisputeCase(
   // The session row next — it is BOTH the existence check and the
   // participant predicate.
   const session = await SessionRepository.findById(sessionId, tx);
-  if (session === null || session.teacherId !== teacherId) {
+  if (session?.teacherId !== teacherId) {
     logger.logDomainError("Teacher dispute case denied: session not found or not owned", {
       code: "SESSION_NOT_FOUND",
       entity: "session",
@@ -254,7 +254,7 @@ export async function getStudentDisputeCase(
   // The session row next — it is BOTH the existence check and the
   // participant predicate.
   const session = await SessionRepository.findById(sessionId, tx);
-  if (session === null || session.studentId !== studentId) {
+  if (session?.studentId !== studentId) {
     logger.logDomainError("Student dispute case denied: session not found or not owned", {
       code: "SESSION_NOT_FOUND",
       entity: "session",
