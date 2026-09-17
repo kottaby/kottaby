@@ -73,3 +73,16 @@ export type SessionTransitionProbeRowType = Pick<
   SessionSelectType,
   "id" | "status" | "startedAt" | "studentId" | "teacherId"
 >;
+
+/**
+ * Rating-eligibility probe row for the student→teacher evaluation gate:
+ * the minimal column projection a service reads to decide whether a
+ * session may be rated — row identity, both participant ids, the lifecycle
+ * status, and the dual-confirmation stamps. Probe reads never feed writes;
+ * duplicate rating submissions are arbitrated downstream by the
+ * evaluations table's unique (session, evaluator) constraint.
+ */
+export type SessionRatingEligibilityProbeType = Pick<
+  SessionSelectType,
+  "id" | "studentId" | "teacherId" | "status" | "confirmedByTeacherAt" | "confirmedByStudentAt"
+>;

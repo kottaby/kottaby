@@ -241,6 +241,12 @@ export interface ErrorsLabels {
   readonly adjustmentReasonRequired: string;
   /** "The adjustment direction must be either credit or debit." — fail-closed manual wallet-adjustment direction reject (a non-GraphQL caller passing a non-member direction) → ValidationError. */
   readonly invalidAdjustmentDirection: string;
+  /** Rating-gate reject — the session cannot receive a teacher rating yet (not completed, or missing a participant's completion stamp) → ConflictError("EVALUATION_SESSION_NOT_COMPLETED", …). */
+  readonly evaluationSessionNotCompleted: string;
+  /** Write-once reject — the caller already rated the teacher for this session (unique-constraint loser) → ConflictError("EVALUATION_ALREADY_SUBMITTED", …). */
+  readonly evaluationAlreadySubmitted: string;
+  /** Validation reject — the submitted teacher rating is not an integer within 1..5. */
+  readonly teacherRatingInvalid: string;
 }
 
 export type ErrorMessageKey = {

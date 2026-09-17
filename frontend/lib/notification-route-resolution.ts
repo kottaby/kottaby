@@ -1,4 +1,5 @@
-import { NotificationType } from "@/backend/enum/notifications/notification-type.enum";
+import { NotificationType as BackendNotificationType } from "@/backend/enum/notifications/notification-type.enum";
+import { NotificationType } from "@/frontend/graphql/generated/gql/graphql";
 
 /**
  * The student link-requests decision route — ONE definition site for every
@@ -9,13 +10,22 @@ import { NotificationType } from "@/backend/enum/notifications/notification-type
  * Leaf module: directive-free and framework-free — NO `"use client"`,
  * NO Apollo, NO logger — so nav/card/test consumers import the constant and
  * resolver WITHOUT transitively dragging the drawer-actions hook graph.
+ * (The generated-gql import is runtime-inert: the generated module's only
+ * import is type-only, so the codegen enum adds no dependency edge.)
  */
 export const STUDENT_LINK_REQUESTS_ROUTE = "/student/link-requests";
 
 /** The admin arbitration console — the landing surface for dispute rows. */
 export const ADMIN_DISPUTES_ROUTE = "/disputes";
 
-/** The student's session list — the landing surface for student session rows. */
+/**
+ * The student sessions route — ONE definition site for every student
+ * sessions-page navigation consumer (the student nav entry and the
+ * session-completion notification deep link) so the two never drift.
+ *
+ * Same leaf-module discipline as `STUDENT_LINK_REQUESTS_ROUTE` above:
+ * directive-free and framework-free, safe for nav/card/test consumers.
+ */
 export const STUDENT_SESSIONS_ROUTE = "/student/sessions";
 
 /** The teacher's session list — the landing surface for teacher session rows. */
@@ -110,7 +120,29 @@ const SESSION_ROUTES_BY_TYPE_AND_ROLE: Readonly<
 };
 
 /**
- * `relatedEntityType` → deep-link route. The persisted `related_entity_type`
+ * Drawer-row notification TYPE → deep-link route — the ROLE-LESS resolution
+ * stage, consulted only when the row carries no resolvable wire role. The
+ * row's `type` field carries the GraphQL wire name of the notification kind,
+ * so every key is the codegen `NotificationType` enum's member — never a
+ * bare string literal.
+ *
+ * The session-completion row routes by TYPE alone: its emitters persist the
+ * plain table pointer `relatedEntityType: "session"` as the entity
+ * discriminator, which is not a notification-kind marker — keying this deep
+ * link on the varchar would key on the entity table and strand the row on
+ * the feed (no emitter persists `"session_completion"` there). `undefined`
+ * values model the runtime miss for an unknown type (the realtime
+ * payload-map precedent in `use-notification-realtime.helpers.ts`).
+ */
+const NOTIFICATION_ROUTE_BY_TYPE: Readonly<Record<string, string | undefined>> = {
+  // The student's session-completion row deep-links to the sessions list —
+  // the surface where the Rate action lives.
+  [NotificationType.SessionCompletion]: STUDENT_SESSIONS_ROUTE,
+};
+
+/**
+ * `relatedEntityType` → deep-link route — the role-independent stage,
+ * consulted before the session matrix. The persisted `related_entity_type`
  * varchar carries the backend `NotificationType` enum VALUE for the
  * STUDENT-targeted parent-link row (e.g. `"parent_link_request"`), so that
  * key is the enum's member — never a bare string literal. `undefined` values
@@ -127,7 +159,7 @@ const SESSION_ROUTES_BY_TYPE_AND_ROLE: Readonly<
  * backend constants.
  */
 const NOTIFICATION_ROUTE_BY_ENTITY_TYPE: Readonly<Record<string, string | undefined>> = {
-  [NotificationType.ParentLinkRequest]: STUDENT_LINK_REQUESTS_ROUTE,
+  [BackendNotificationType.ParentLinkRequest]: STUDENT_LINK_REQUESTS_ROUTE,
 };
 
 /**
@@ -139,13 +171,19 @@ const NOTIFICATION_ROUTE_BY_ENTITY_TYPE: Readonly<Record<string, string | undefi
  *     decision route — role-independent, only students receive those rows);
  *  2. the session matrix (session entity + known type + known role → the
  *     role's route);
- *  3. the feed-page fall-through — UNKNOWN or absent pointers, unknown
+ *  3. the role-less type stage (`NOTIFICATION_ROUTE_BY_TYPE` — the
+ *     session-completion row deep-links to the student sessions list even
+ *     when no wire role resolves; a bare `"session"` table pointer with a
+ *     type the matrix and this stage do not route NEVER reaches the
+ *     sessions list);
+ *  4. the feed-page fall-through — UNKNOWN or absent pointers, unknown
  *     types, unknown roles, and matrix misses ALL land here. Never throws,
  *     never mis-routes.
  *
  * The optional `notificationType` / `role` keep the original single-argument
- * call sites compiling: without them only rule 1 can ever hit, which is
- * exactly the pre-deep-link behavior.
+ * call sites compiling: without them only rule 1 and the role-less
+ * session-completion rule can ever hit, which covers the pre-deep-link
+ * behavior.
  */
 export function resolveNotificationRoute(
   relatedEntityType: string | null,
@@ -166,6 +204,9 @@ export function resolveNotificationRoute(
     isWireRole(role)
   ) {
     return SESSION_ROUTES_BY_TYPE_AND_ROLE[notificationType]?.[role] ?? NOTIFICATIONS_FEED_ROUTE;
+  }
+  if (!isWireRole(role) && notificationType != null && isWireNotificationType(notificationType)) {
+    return NOTIFICATION_ROUTE_BY_TYPE[notificationType] ?? NOTIFICATIONS_FEED_ROUTE;
   }
   return NOTIFICATIONS_FEED_ROUTE;
 }

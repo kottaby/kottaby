@@ -1,7 +1,7 @@
 "use client";
 
 import { LockOutlined } from "@mui/icons-material";
-import { Alert, AlertTitle, Box, Typography } from "@mui/material";
+import { Alert, AlertTitle, Box, Button, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { Errors, useAppTranslation } from "@/shared/locale";
 
@@ -22,6 +22,12 @@ import { Errors, useAppTranslation } from "@/shared/locale";
  * The page-deny key `forbiddenRole` titles the fallback; callers may pass
  * explicit localized overrides for query-level vs page-level contexts.
  *
+ * Recovery: callers on PAGE-level surfaces may pass `actionLabel` +
+ * `onAction` to render a primary recovery affordance inside the card
+ * (e.g. "Back to My Children" on the parent portal detail page). Both
+ * props are optional and only ever appear together; section-level callers
+ * omit them and get the exact pre-existing alert-only surface.
+ *
  * Styling: `sx`-only; colors resolve through the MUI theme palette
  * (`error` severity family ONLY) via theme callbacks — no hex, no rgb, no
  * string-based palette access.
@@ -31,13 +37,23 @@ interface PermissionDeniedFallbackProps {
   readonly title?: string;
   /** Optional override for the localized description (defaults to `errors.forbidden`). */
   readonly description?: string;
+  /** Optional localized label for the recovery action (rendered only with `onAction`). */
+  readonly actionLabel?: string;
+  /** Optional recovery callback (rendered only with `actionLabel`). */
+  readonly onAction?: () => void;
 }
 
-export function PermissionDeniedFallback({ title, description }: Readonly<PermissionDeniedFallbackProps>): ReactNode {
+export function PermissionDeniedFallback({
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: Readonly<PermissionDeniedFallbackProps>): ReactNode {
   const t = useAppTranslation(Errors);
 
   const resolvedTitle = title ?? t.forbiddenRole;
   const resolvedDescription = description ?? t.forbidden;
+  const showAction = actionLabel !== undefined && onAction !== undefined;
 
   return (
     <Box
@@ -72,6 +88,22 @@ export function PermissionDeniedFallback({ title, description }: Readonly<Permis
         <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.onErrorContainer })}>
           {resolvedDescription}
         </Typography>
+        {showAction ? (
+          <Button
+            variant="contained"
+            color="error"
+            onClick={onAction}
+            sx={theme => ({
+              mt: 2,
+              alignSelf: "flex-start",
+              borderRadius: 2,
+              bgcolor: theme.palette.error.main,
+              "&:hover": { bgcolor: theme.palette.error.dark },
+            })}
+          >
+            {actionLabel}
+          </Button>
+        ) : null}
       </Alert>
     </Box>
   );

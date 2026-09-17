@@ -321,9 +321,27 @@ describe("parent-link-request.helpers — requireActor", () => {
     });
   });
 
-  test("allows governed actor when enforceGovernance is false", async () => {
+  test("rejects a SOFT-DELETED actor even when enforceGovernance is false", async () => {
     await runInRollback(async tx => {
+      // A deleted account has no reads: `isDeleted` is rejected on every
+      // path, governance arm or not.
       trackSpy(spyOn(UserRepository, "findById").mockResolvedValue({ ...baseUser, isDeleted: true }));
+
+      try {
+        await requireActor(10, UserRole.Parent, LOCALE, tx, false);
+        expect.unreachable("should have thrown");
+      } catch (err) {
+        expect(err).toBeInstanceOf(ForbiddenError);
+      }
+    });
+  });
+
+  test("allows a BLOCKED actor when enforceGovernance is false (governance arm scoped to mutations)", async () => {
+    await runInRollback(async tx => {
+      // The self-scoped-history rationale: blocked/suspended flags are
+      // governance-scoped, so the relaxed read path keeps the actor's own
+      // lists visible.
+      trackSpy(spyOn(UserRepository, "findById").mockResolvedValue({ ...baseUser, isBlocked: true }));
 
       const actor = await requireActor(10, UserRole.Parent, LOCALE, tx, false);
       expect(actor.id).toBe(10);

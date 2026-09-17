@@ -15,7 +15,7 @@ import {
 } from "@/frontend/views/student/sessions/sessionBodyBranches";
 import type { SessionRowRole } from "@/frontend/views/student/sessions/sessionRowPresentation";
 import type { InFlightSlots } from "@/frontend/views/student/sessions/studentSessionInFlightSlots";
-import { studentActionsForSession } from "@/frontend/views/student/sessions/useStudentSessionConfirm";
+import { studentActionsForSession } from "@/frontend/views/student/sessions/studentSessionRowActions";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
 
 interface StudentSessionsBodyProps {
@@ -32,6 +32,10 @@ interface StudentSessionsBodyProps {
   readonly inFlightSlots: InFlightSlots;
   /** Confirm-CTA intent — the container owns the mutation. */
   readonly onConfirm: (sessionId: string) => void;
+  /** Session ids the student has already rated — gates the Rate CTA + rated chip. */
+  readonly ratedSessionIds: ReadonlySet<number>;
+  /** Rate-CTA intent — the container owns the dialog slot. */
+  readonly onRate: (sessionId: string) => void;
   /**
    * The row-owner role token supplied by the student container (the
    * student surface constant) — scopes the rows' dispute affordance matrix.
@@ -66,6 +70,8 @@ export function StudentSessionsBody({
   disputeInFlightSlots,
   inFlightSlots,
   onConfirm,
+  ratedSessionIds,
+  onRate,
   role,
   onCaseIntent,
   t,
@@ -105,7 +111,8 @@ export function StudentSessionsBody({
     );
   }
   // Branch 5 — rows (each row's confirm CTA disabled iff ITS OWN row+kind
-  // slot is open; the affordance matrix resolves per payload shape).
+  // slot is open; the affordance matrix resolves per payload shape, the
+  // Rate CTA + rated chip keyed off the caller's rated set).
   return (
     <SessionsRowList
       sessions={sessions}
@@ -114,7 +121,9 @@ export function StudentSessionsBody({
       onDisputeIntent={onDisputeIntent}
       disputeInFlightSlots={disputeInFlightSlots}
       role={role}
-      actionsFor={session => studentActionsForSession(session, { t, inFlightSlots, onConfirm })}
+      actionsFor={session =>
+        studentActionsForSession(session, { t, inFlightSlots, onConfirm, ratedSessionIds, onRate })
+      }
       onCaseIntent={onCaseIntent}
     />
   );

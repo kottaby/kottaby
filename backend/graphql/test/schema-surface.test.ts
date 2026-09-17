@@ -473,6 +473,20 @@ const RECITATION_RECORD_MUTATION_FIELDS = ["setSessionRecitation"] as const;
 const RECITATION_RECORD_QUERY_FIELDS = ["sessionRecitation"] as const;
 /** record object + its closed two-member input (name + optional description). */
 const RECITATION_RECORD_TYPE_NAMES = ["SessionRecitation", "SessionRecitationInput"] as const;
+/**
+ * student-evaluation rating pair — the sanctioned student→teacher rating
+ * surface addition. The mutation is student-gated
+ * (`$all { authenticated: true, role: [UserRole.Student] }`) with a
+ * NON-nullable payload; the query is caller-scoped (rater id server-bound,
+ * zero arguments) with a NON-nullable list payload. Both are authScopes-gated
+ * — neither is allowlist material; the public-operation registry stays
+ * byte-unchanged.
+ */
+const STUDENT_EVALUATION_MUTATION_FIELDS = ["submitTeacherEvaluation"] as const;
+/** caller-scoped read — the non-paginated own-ratings list. */
+const STUDENT_EVALUATION_QUERY_FIELDS = ["myTeacherEvaluations"] as const;
+/** record object + its closed one-member input (whole-star rating). */
+const STUDENT_EVALUATION_TYPE_NAMES = ["Evaluation", "SubmitTeacherEvaluationInput"] as const;
 
 /**
  * Admin financial-auditing surface — the sanctioned addition. Three
@@ -502,6 +516,36 @@ const ADMIN_FINANCE_TYPE_NAMES = [
   "AdminWithdrawalQueuePage",
   "AdminWithdrawalQueueRow",
   "AdjustTeacherWalletInput",
+] as const;
+
+/**
+ * Parent read-only monitoring portal — RECONCILED baseline drift. The five
+ * caller-scoped reads (linked-children root + the four per-child paged
+ * surfaces) and their page/entry value objects shipped on the parent-portal
+ * branch but were never enumerated in the Query-root additions pin or the
+ * whole-schema named-type delta. Re-anchored to the live schema as a
+ * documented one-time reconciliation. (The behavioral pins for this surface
+ * live in `parent-monitoring.wire.test.ts`.)
+ */
+const PARENT_MONITORING_QUERY_FIELDS = [
+  "myLinkedChildren",
+  "parentChildHomework",
+  "parentChildProgress",
+  "parentChildReports",
+  "parentChildSessions",
+] as const;
+/** The portal's page/entry/track value objects — no closed inputs (argless + paged reads). */
+const PARENT_MONITORING_TYPE_NAMES = [
+  "ParentAttendanceEntry",
+  "ParentAttendancePage",
+  "ParentChildProgress",
+  "ParentHomeworkEntry",
+  "ParentHomeworkPage",
+  "ParentHomeworkPosition",
+  "ParentHomeworkTrack",
+  "ParentLinkedChild",
+  "ParentReportEntry",
+  "ParentReportPage",
 ] as const;
 
 /**
@@ -687,6 +731,8 @@ describe("Query._health — retyped probe surface", () => {
     // R5 admin directory export trio (the sanctioned export-all read
     // surface), and the admin financial-auditing read trio
     // (payments audit listing, wallet inspector, pending-withdrawal queue).
+    // surface) + the student-evaluation caller-scoped read
+    // (`myTeacherEvaluations`).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
       [
@@ -710,6 +756,8 @@ describe("Query._health — retyped probe surface", () => {
         ...RECONCILED_ADMIN_AUDIT_QUERY_FIELDS,
         ...RECITATION_RECORD_QUERY_FIELDS,
         ...ADMIN_FINANCE_QUERY_FIELDS,
+        ...STUDENT_EVALUATION_QUERY_FIELDS,
+        ...PARENT_MONITORING_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -771,7 +819,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set grows ONLY by the sanctioned additions (quartet + dispute pair + confirm + payout + admin-user trio + admin-governance pair + session-governance quartet + session-report write + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair + the session-recitation write + the financial-auditing trio)", () => {
+  test("mutation set grows ONLY by the sanctioned additions (quartet + dispute pair + confirm + payout + admin-user trio + admin-governance pair + session-governance quartet + session-report write + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair + the session-recitation write + the financial-auditing trio + the student-evaluation rating write)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
@@ -794,6 +842,9 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     // (`approveWithdrawal` / `rejectWithdrawal` / `adjustTeacherWallet`).
     // All authScopes-gated — none is allowlist material; the
     // public-operation registry stays byte-unchanged.
+    // (`setSessionRecitation`), and the student-evaluation rating write
+    // (`submitTeacherEvaluation`). All authScopes-gated — none is allowlist
+    // material; the public-operation registry stays byte-unchanged.
     expect(names).toEqual(
       [
         ...PRE_3_1_MUTATION_FIELDS,
@@ -811,6 +862,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...RECONCILED_ADMIN_BROADCAST_CERTIFY_MUTATION_FIELDS,
         ...RECITATION_RECORD_MUTATION_FIELDS,
         ...ADMIN_FINANCE_MUTATION_FIELDS,
+        ...STUDENT_EVALUATION_MUTATION_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
     expect(names).not.toContain("_health");
@@ -937,7 +989,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
     }
   });
 
-  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + handshake surface) + session objects/inputs + scheduling/arbitration/ledger enums + wallet surface + admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects + the governance inputs + the subscription purchase surface (objects, input, root operations) + the reconciled audit/broadcast/directory surfaces + the R5 export envelopes + the session-report surface (2 objects + 4 inputs + the recitation enum) + the recitation record pair", () => {
+  test("whole-schema named-type delta is pinned: refreshed baseline delta (DateTime scalar + HealthCheck probe + handshake surface) + session objects/inputs + scheduling/arbitration/ledger enums + wallet surface + admin-user-management surface + the parent-link objects (extend step) + the eleven analytics value objects + the governance inputs + the subscription purchase surface (objects, input, root operations) + the reconciled audit/broadcast/directory surfaces + the R5 export envelopes + the session-report surface (2 objects + 4 inputs + the recitation enum) + the recitation record pair + the student-evaluation record object + input", () => {
     const post = new Set(sdlTypeNames());
 
     for (const name of PRE_3_1_TYPE_NAMES) {
@@ -970,7 +1022,9 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...R5_ADMIN_EXPORT_TYPE_NAMES,
         ...RECITATION_RECORD_TYPE_NAMES,
         ...ADMIN_FINANCE_TYPE_NAMES,
+        ...PARENT_MONITORING_TYPE_NAMES,
         ...ADMIN_FINANCE_ENUMS,
+        ...STUDENT_EVALUATION_TYPE_NAMES,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });

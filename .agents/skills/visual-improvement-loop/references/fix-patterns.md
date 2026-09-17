@@ -37,6 +37,14 @@ matches the finding, say so in the wave report: that gap is a playbook candidate
 | Multiline outlined field with forced shrunk label clips glyphs | Forced `inputLabel: { shrink: true }` on `multiline` mis-positions the notch label | Don't force shrink on multiline fields; the un-shrunk in-field label is the hint | Single-line fields keep the forced shrink fine |
 | VLM reports sub-8px misalignments ("label 2px high", "icon off-center", "gap is 4px not 8px") | VLM eyeball noise, not real defects — such claims contradict each other across passes | Pixel-verify with DOM `getBoundingClientRect` (element-vs-container center deltas) BEFORE any fix; if delta ≤ 1-2px or the spacing equals a design token, adjudicate as false positive and record it | Contradictory readings of the same element across passes/inspectors are the noise signature; never ship a fix for an unmeasured sub-8px claim |
 
+## Adjudication watch-outs (observed 2026-09-13)
+
+- Contradictory VLM alignment/offset claims across passes are a NOISE signature, not a defect
+  signature — pixel-verify with `getBoundingClientRect` before any fix. A "toast overlaps the title"
+  claim survived three passes while `.MuiSnackbar-root` did not exist in the DOM at all.
+- Digit-format claims are DOM-decidable in one eval (see objective-prechecks manual fallbacks) —
+  never "fix" numeral formatting on an inspector's word alone.
+
 ## Convergence rule
 
 When two findings on different screens share a root cause in a shared primitive (grid, container,

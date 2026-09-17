@@ -15,6 +15,7 @@
  *  - `session-arbitration.mutation.ts` registers
  *    `openPostConfirmationDispute`.
  *  - `session-report.mutation.ts` registers `submitSessionReport`.
+ *  - `student-evaluation.mutation.ts` registers `submitTeacherEvaluation`.
  *  - `admin-session-governance.mutation.ts` registers
  *    `adminRescheduleSession`, `adminCancelSession`,
  *    `adminReassignTeacher`, and `adminJoinSession`.
@@ -25,3 +26,4 @@ import "./recitation.mutation";
 import "./session-arbitration.mutation";
 import "./session-lifecycle.mutation";
 import "./session-report.mutation";
+import "./student-evaluation.mutation";

@@ -228,12 +228,14 @@ export async function emitRequestNotificationTx(
  *  - non-positive / non-safe-integer id or missing row → `UnauthorizedError`
  *    (the anonymous sentinel `0` is the production "no session" shape);
  *  - role mismatch → `ForbiddenError`;
- *  - when `enforceGovernance` is set (every MUTATION), a deleted, blocked, or
- *    actively-suspended actor → `ForbiddenError` with the SAME constant copy
- *    and the SAME log fingerprint as the role arm (no branch disclosure).
- *    The relaxed READ path skips the governance arm: a governed actor's
- *    self-scoped history stays visible to him (the lists are self-scoped by
- *    the verified id regardless of request payloads).
+ *  - a soft-deleted actor is rejected on EVERY path → `ForbiddenError` with
+ *    the SAME constant copy and the SAME log fingerprint as the role arm
+ *    (no branch disclosure) — a deleted account has no reads either;
+ *  - when `enforceGovernance` is set (every MUTATION), a blocked or
+ *    actively-suspended actor is additionally rejected with the SAME denial
+ *    shape. The relaxed READ path skips THOSE arms: a governed-but-present
+ *    actor's self-scoped history stays visible to him (the lists are
+ *    self-scoped by the verified id regardless of request payloads).
  *
  * EVERY denial: exactly ONE bounded `logDomainError` (`entity: "users"`),
  * ZERO writes, ZERO notifications — the check runs before any transaction
@@ -283,8 +285,11 @@ export async function requireActor(
     throw new ForbiddenError(t.forbidden);
   }
 
-  if (enforceGovernance && (actor.isDeleted || actor.isBlocked || actor.suspended)) {
-    // Constant copy — the three governed arms are indistinguishable.
+  if (actor.isDeleted || (enforceGovernance && (actor.isBlocked || actor.suspended))) {
+    // Constant copy — the denial arms are indistinguishable. A soft-deleted
+    // actor is rejected on EVERY path (deleted accounts have no reads); the
+    // blocked/suspended arms stay governance-scoped so a governed-but-
+    // present actor's self-scoped read history stays visible.
     logger.logDomainError("Parent-link operation denied: actor failed the re-check", {
       code: "FORBIDDEN",
       entity: "users",

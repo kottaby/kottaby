@@ -17,14 +17,15 @@
  *    text. Notification emission is service-internal ONLY — the GraphQL
  *    write surface is exactly the read-latch pair.
  *  - **Root-set freeze** — the Mutation root is EXACTLY the refreshed frozen
- *    34-op baseline (the prior 7-op auth-quartet + notification read-latch
+ *    40-op baseline (the prior 7-op auth-quartet + notification read-latch
  *    pair + users-locale surface, plus the reconciled admin-user
- *    trio + session quartet + dispute pair +
- *    dual-confirmation + payout + the sanctioned admin-governance
+ *    trio + session quartet + dispute pair + post-confirmation dispute entry
+ *    + confirm + payout + the sanctioned admin-governance
  *    pair + the session-governance quartet + the RECONCILED
  *    parent-link trio + admin broadcast/certify pair + the subscription
- *    purchase write + the session-report write) and the Query root is
- *    EXACTLY the refreshed 33-op baseline (the prior frozen baseline +
+ *    purchase write + the session-report write + the financial-auditing
+ *    trio + the student-evaluation rating write) and the Query root is
+ *    EXACTLY the refreshed 48-op baseline (the prior frozen baseline +
  *    the `_health` probe + the session-report read pair +
  *    the reconciled admin-user query quartet + the
  *    participant-read trio + the admin arbitration listing + the
@@ -106,13 +107,14 @@ import {
 // ─── .test.ts — the single sanctioned growth history) ────────────────────────
 
 /**
- * Root mutation fields — the refreshed 35-op baseline: the prior auth
+ * Root mutation fields — the refreshed 40-op baseline: the prior auth
  * quartet + notification read-latch pair + users-locale surface, the
  * reconciled admin-user-management trio (3 mutations) + the
  * session quartet + dispute pair + post-confirmation dispute entry + confirm
  * + payout, the sanctioned admin-governance pair + the
  * session-governance quartet + the subscription purchase write + the
- * session-report write.
+ * session-report write + the financial-auditing trio + the student-evaluation
+ * rating write.
  * Sorted alphabetically (mirrors the
  * live `printSchema(lexicographicSortSchema(graphQLSchema))` Mutation root
  * inventory verbatim). Re-anchored to the live schema as a documented
@@ -120,6 +122,7 @@ import {
  * the admin-governance pair.
  */
 const FROZEN_MUTATION_FIELDS = [
+  "adjustTeacherWallet",
   "adminBroadcastNotification",
   "adminCancelSession",
   "adminCertifyTeacherColdStart",
@@ -131,6 +134,7 @@ const FROZEN_MUTATION_FIELDS = [
   "adminSetUserDeleted",
   "adminSetUserSuspended",
   "adminUpdateUser",
+  "approveWithdrawal",
   "cancelParentLinkRequest",
   "cancelSession",
   "completeSession",
@@ -146,6 +150,7 @@ const FROZEN_MUTATION_FIELDS = [
   "purchaseSubscription",
   "refreshToken",
   "registerUser",
+  "rejectWithdrawal",
   "requestParentChildLink",
   "requestWithdrawal",
   "resolveSessionDispute",
@@ -154,12 +159,13 @@ const FROZEN_MUTATION_FIELDS = [
   "setSessionRecitation",
   "startSession",
   "submitSessionReport",
+  "submitTeacherEvaluation",
   "updateMyLocale",
   "updatePlan",
 ] as const;
 
 /**
- * Root query fields — the refreshed 34-op baseline + the whole-platform
+ * Root query fields — the refreshed 48-op baseline + the whole-platform
  * analytics snapshot: the prior frozen baseline + the `_health` probe +
  * the session-report read pair (`sessionHomework` / `sessionReport`) +
  * the reconciled admin-user query quartet + the
@@ -175,7 +181,8 @@ const FROZEN_MUTATION_FIELDS = [
  * (`adminTeachersExport` / `adminStudentsExport` /
  * `adminTeacherApplicantsExport` — the sanctioned export-all read
  * surface, pinned as the documented one-time reconciliation in the same
- * convention). Sorted alphabetically (mirrors the live
+ * convention) + the student-evaluation caller-scoped read
+ * (`myTeacherEvaluations`). Sorted alphabetically (mirrors the live
  * `printSchema(lexicographicSortSchema(graphQLSchema))` Query root
  * inventory verbatim, with locale-aware case handling:
  * `adminUsers` precedes `adminUserStats` because the locale comparator
@@ -188,16 +195,19 @@ const FROZEN_QUERY_FIELDS = [
   "adminDisputeAnalytics",
   "adminDisputeCase",
   "adminDisputedSessions",
+  "adminPendingWithdrawals",
   "adminPlans",
   "adminPlatformAnalytics",
   "adminSession",
   "adminSessions",
+  "adminStudentPayments",
   "adminStudents",
   "adminStudentsExport",
   "adminTeacherApplicants",
   "adminTeacherApplicantsExport",
   "adminTeachers",
   "adminTeachersExport",
+  "adminTeacherWallet",
   "adminUserActivity",
   "adminUserDetail",
   "adminUsers",
@@ -207,13 +217,19 @@ const FROZEN_QUERY_FIELDS = [
   "myApplicantProfile",
   "myHandshakeCode",
   "myIncomingParentLinkRequests",
+  "myLinkedChildren",
   "myNotifications",
   "myOutgoingParentLinkRequests",
   "myStudentSessions",
   "mySubscriptions",
+  "myTeacherEvaluations",
   "myTeacherSessions",
   "myUnreadNotificationCount",
   "myWallet",
+  "parentChildHomework",
+  "parentChildProgress",
+  "parentChildReports",
+  "parentChildSessions",
   "planCatalog",
   "recitationReadings",
   "sessionById",
@@ -357,12 +373,12 @@ describe("BFLA structural verdict — zero notification CUD surface (REQ-032)", 
     }
   });
 
-  test("Mutation root is EXACTLY the refreshed frozen 34-op baseline — the reconciled admin-user trio + quartet + dispute pair + confirm + payout + the sanctioned admin-governance pair + the session-governance quartet + the subscription purchase write + the session-report write on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
+  test("Mutation root is EXACTLY the refreshed frozen 40-op baseline — the reconciled admin-user trio + quartet + dispute pair + post-confirmation dispute entry + confirm + payout + the sanctioned admin-governance pair + the session-governance quartet + the subscription purchase write + the session-report write + the student-evaluation rating write + the financial-auditing trio on top of the auth quartet + notification read-latch pair + users-locale surface", () => {
     const names = fieldSurfaces("Mutation").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_MUTATION_FIELDS]);
   });
 
-  test("Query root is EXACTLY the refreshed frozen 39-op baseline (zero unsanctioned growth)", () => {
+  test("Query root is EXACTLY the refreshed frozen 48-op baseline (the sanctioned dispute-resolution reads — the admin dispute analytics/case pair + the student/teacher dispute-case pair + the financial-auditing trio + the parent-portal read quintet + the student-evaluation caller-scoped read; zero unsanctioned growth)", () => {
     const names = fieldSurfaces("Query").map(surface => surface.name);
     expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([...FROZEN_QUERY_FIELDS]);
   });
@@ -928,5 +944,86 @@ describe("Session-recitation surface — artifact-side pins", () => {
     // and it is the DateTime registration.
     expect(sdlText.match(/^scalar /gm) ?? []).toHaveLength(1);
     expect(sdlText).toMatch(/^scalar DateTime$/gm);
+  });
+});
+
+describe("Student→teacher rating surface (extend) — write-once mutation, caller-scoped read query, and Evaluation payload pins", () => {
+  test("`submitTeacherEvaluation(input: SubmitTeacherEvaluationInput!, sessionId: ID!): Evaluation!`", () => {
+    // The live sorted SDL emits args alphabetically — `input` precedes
+    // `sessionId` (both NonNull). The write-once rating NEVER returns null:
+    // every denial throws (unknown/foreign session, unfinished handshake,
+    // re-submission, malformed shape), so the payload is NonNull on the
+    // contract surface.
+    const surface = fieldSurface("Mutation", "submitTeacherEvaluation");
+    expect(surface.type).toBe("Evaluation!");
+    expect(surface.args).toEqual([
+      { name: "input", type: "SubmitTeacherEvaluationInput!" },
+      { name: "sessionId", type: "ID!" },
+    ]);
+  });
+
+  test("`myTeacherEvaluations: [Evaluation!]!` — NON-paginated, ZERO arguments (caller-scoped read)", () => {
+    const surface = fieldSurface("Query", "myTeacherEvaluations");
+    expect(surface.type).toBe("[Evaluation!]!");
+    expect(surface.args).toEqual([]);
+  });
+
+  test("both root-field lines appear verbatim in the artifact text (lexical belt-and-braces)", () => {
+    // The mutation line is exact (sorted print order: input first); the
+    // query line is exact with its non-null list payload. Neither spelling
+    // can collide with the other: the camelCase mutation name never occurs
+    // inside the query line and vice versa.
+    expect(sdlText).toContain(
+      "submitTeacherEvaluation(input: SubmitTeacherEvaluationInput!, sessionId: ID!): Evaluation!"
+    );
+    expect(sdlText).toContain("myTeacherEvaluations: [Evaluation!]!");
+  });
+
+  test("Evaluation exposes EXACTLY the six canonical fields — id on the wire, participant ids Int!, honest nullability", () => {
+    const surfaces = fieldSurfaces("Evaluation");
+    expect(surfaces.map(surface => surface.name).toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "createdAt",
+      "evaluatedId",
+      "evaluatorId",
+      "id",
+      "score",
+      "sessionId",
+    ]);
+    const byName = new Map(surfaces.map(surface => [surface.name, surface]));
+    // Apollo normalization: `id` on the wire, surfaced as `ID!`.
+    expect(byName.get("id")?.type).toBe("ID!");
+    expect(byName.get("evaluatedId")?.type).toBe("Int!");
+    expect(byName.get("evaluatorId")?.type).toBe("Int!");
+    // Honest nullability — standalone applicant evaluations carry no session
+    // (and a deleted session nulls the link), and the 0-100 score is a
+    // nullable column; the creation instant is NOT NULL.
+    expect(byName.get("sessionId")?.type).toBe("Int");
+    expect(byName.get("score")?.type).toBe("Int");
+    expect(byName.get("createdAt")?.type).toBe("DateTime!");
+    // SEC (Disclosure): the soft-delete internals, the free-text notes, and
+    // the server-managed update stamp are structurally absent — the backing
+    // `EvaluationReturnType` never carries them onto the wire.
+    expect(surfaces.some(surface => surface.name === "isDeleted")).toBe(false);
+    expect(surfaces.some(surface => surface.name === "deletedAt")).toBe(false);
+    expect(surfaces.some(surface => surface.name === "notes")).toBe(false);
+    expect(surfaces.some(surface => surface.name === "updatedAt")).toBe(false);
+  });
+
+  test("SubmitTeacherEvaluationInput is the closed single-member whitelist (BOPLA) — rating only", () => {
+    const fields = inputObjectTypeDefinition("SubmitTeacherEvaluationInput").fields ?? [];
+    expect(fields.map(field => field.name.value)).toEqual(["rating"]);
+    const byName = new Map(fields.map(field => [field.name.value, renderType(field.type)]));
+    expect(byName.get("rating")).toBe("Int!");
+    // No server-controlled field is input-bound — the rater/subject
+    // identities, the session coordinate, the score conversion, and every
+    // timestamp are derived server-side exclusively; smuggled fields die at
+    // validation before any resolver runs.
+    expect(byName.has("id")).toBe(false);
+    expect(byName.has("sessionId")).toBe(false);
+    expect(byName.has("evaluatedId")).toBe(false);
+    expect(byName.has("evaluatorId")).toBe(false);
+    expect(byName.has("score")).toBe(false);
+    expect(byName.has("createdAt")).toBe(false);
+    expect(fields).toHaveLength(1);
   });
 });

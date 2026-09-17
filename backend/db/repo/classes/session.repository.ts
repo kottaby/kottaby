@@ -57,6 +57,9 @@
  * the sibling `session.repository.helpers.ts` module (extracted verbatim);
  * the joined wave-context read lives in the sibling
  * `session.repository.wave.helpers.ts` module (extracted verbatim); the
+ * gate-supporting row reads (the report gate's `FOR UPDATE` lock and the
+ * rating-eligibility probe) live in the sibling
+ * `session.repository.gate.helpers.ts` module (extracted verbatim); the
  * post-confirmation dispute primitives live in the sibling
  * `session.repository.arbitration.helpers.ts` module (same extraction
  * pattern). The guarded write transitions stay in this file, their shared
@@ -69,6 +72,7 @@
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/backend/db";
 import * as arbitrationImpl from "@/backend/db/repo/classes/session.repository.arbitration.helpers";
+import * as sessionRepositoryGateImpl from "@/backend/db/repo/classes/session.repository.gate.helpers";
 import * as sessionRepositoryImpl from "@/backend/db/repo/classes/session.repository.helpers";
 import * as sessionRepositoryLifecycleImpl from "@/backend/db/repo/classes/session.repository.lifecycle.helpers";
 import * as sessionRepositoryWaveImpl from "@/backend/db/repo/classes/session.repository.wave.helpers";
@@ -82,6 +86,7 @@ import type {
   DBTransaction,
   SessionInsertType,
   SessionListFilterInput,
+  SessionRatingEligibilityProbeType,
   SessionReportWaveContextRow,
   SessionSelectType,
   SessionTransitionProbeRowType,
@@ -402,6 +407,25 @@ export namespace SessionRepository {
   }
 
   /**
+   * Rating-eligibility probe: reads the minimal gate projection (row
+   * identity, both participants, the lifecycle state, and the dual
+   * completion stamps) for a session id. A plain (non-locking) read —
+   * the probe is classification-only and never feeds a guarded update;
+   * duplicate submissions are arbitrated downstream by the evaluations
+   * table's unique (session, evaluator) constraint. `tx` is REQUIRED:
+   * the gate decision observes the caller transaction's own writes.
+   *
+   * @returns The six-column probe row, or `null` when the id is unknown
+   *          (the caller owns the not-found semantics).
+   */
+  export async function findRatingEligibilityProbe(
+    sessionId: number,
+    tx: DBTransaction
+  ): Promise<SessionRatingEligibilityProbeType | null> {
+    return sessionRepositoryGateImpl.findRatingEligibilityProbe(sessionId, tx);
+  }
+
+  /**
    * Arbitration classification probe: the escrow-focused column projection
    * (identity + lifecycle state + both participants + the fee, the hold
    * marker, the permanent provenance lane, and the student's dual-
@@ -442,18 +466,7 @@ export namespace SessionRepository {
     sessionId: number,
     tx: DBTransaction
   ): Promise<SessionTransitionProbeRowType | null> {
-    const rows = await tx
-      .select({
-        id: session.id,
-        status: session.status,
-        studentId: session.studentId,
-        teacherId: session.teacherId,
-        startedAt: session.startedAt,
-      })
-      .from(session)
-      .where(eq(session.id, sessionId))
-      .for("update");
-    return rows[0] ?? null;
+    return sessionRepositoryGateImpl.lockForReportGate(sessionId, tx);
   }
 
   /**

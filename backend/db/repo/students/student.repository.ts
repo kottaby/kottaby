@@ -48,7 +48,7 @@
  * directory contracts are re-exported verbatim, so the public API (names,
  * signatures, behavior, import paths) is unchanged.
  */
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db, queryDb } from "@/backend/db";
 import * as studentRepositoryCreditLaneImpl from "@/backend/db/repo/students/student.repository.credit-lane.helpers";
@@ -66,6 +66,7 @@ import type {
   DBQueryExecutor,
   DBTransaction,
   HandshakeDiscoveryRowType,
+  ParentLinkedChildReturnType,
   StudentLinkTargetRowType,
   StudentSelectType,
 } from "@/backend/types";
@@ -154,28 +155,7 @@ async function readHandshakeCodeJoinRow(code: string, tx?: DBTransaction): Promi
 }
 
 export namespace StudentRepository {
-  /**
-   * Inserts a `students` row for a freshly-created user during registration.
-   *
-   * Balances are explicitly zeroed for clarity-of-contract even though the
-   * schema applies `DEFAULT 0`. `handshakeCode` is server-generated
-   * by the service layer with a bounded retry loop on unique-violation.
-   * `parentId` is `null` at registration — set later via the parent
-   * handshake flow.
-   *
-   * The insert runs inside its own savepoint (a Drizzle nested transaction
-   * opened on the supplied `tx`): a unique-constraint rejection rolls back
-   * ONLY this insert and rethrows the driver error unchanged, leaving the
-   * caller's transaction usable. That is what lets the registration
-   * service's bounded collision retry regenerate a fresh code and insert
-   * again on the SAME transaction — without the savepoint, a rejected
-   * insert aborts the surrounding transaction and every subsequent
-   * statement on it fails with an aborted-transaction error. On success the
-   * savepoint is released, which is transparent to the surrounding
-   * registration transaction (same atomicity as a bare insert).
-   *
-   * @returns The inserted student row.
-   */
+  /** * Inserts a `students` row for a freshly-created user during registration. */
   export async function createForRegistration(
     userId: number,
     handshakeCode: string,
@@ -379,28 +359,7 @@ export namespace StudentRepository {
     return row ?? null;
   }
 
-  /**
-   * Atomically debits ONE allowance unit from the student's held-balance
-   * lane when the lane still holds a positive balance.
-   *
-   * ONE guarded conditional UPDATE per call: the balance predicate
-   * (`balance_<lane> > 0`) and the decrement share a single statement, so
-   * the check-and-subtract happens atomically under PostgreSQL's row lock
-   * (zero TOCTOU — a concurrent debit serializes on the same row and
-   * re-evaluates the predicate against the post-decrement value). The lane
-   * column is resolved exclusively through the frozen `LANE_BALANCE_COLUMNS`
-   * map keyed by `HeldBalanceLane` enum members; caller strings can never
-   * select a column.
-   *
-   * `updated_at` is stamped explicitly because the raw-SQL statement bypasses
-   * the query-builder's `$onUpdate` hook. The `balance_* >= 0` CHECK
-   * constraints stay untouched as the DB-layer backstop — the guarded
-   * predicate prevents the negative write from ever being attempted.
-   *
-   * @returns `true` when the row matched and the unit was debited, `false`
-   *   when the student is unknown or the lane balance was already zero (the
-   *   caller decides what the miss means — the repository raises nothing).
-   */
+  /** lane when the lane still holds a positive balance. */
   export async function decrementLaneIfAvailable(
     studentId: number,
     lane: HeldBalanceLane,
@@ -463,27 +422,7 @@ export namespace StudentRepository {
     return studentRepositoryCreditLaneImpl.creditLaneBalance(studentId, lane, amount, tx);
   }
 
-  /**
-   * Zeroes ONE student subscription-credit lane when NO subscription still
-   * covers it — the expiry-sweep write that retires an expired
-   * subscription's credited period balance (one guarded UPDATE, honest
-   * boolean for lanes-zeroed counting).
-   *
-   * Implementation lives in the sibling
-   * `student.repository.zero-lane.helpers.ts` module (same extraction
-   * convention as `creditLaneBalance`); this method is a one-to-one
-   * delegation wrapper, so the public API (name, signature, behavior) is
-   * unchanged. Statement-shape notes — the single fused predicate set, the
-   * frozen `ZERO_LANE_BALANCE_COLUMNS` lane resolution, the bound enum
-   * parameters, the structural `balance_trial` exemption and the explicit
-   * `updated_at` stamp — are documented on the implementation.
-   *
-   * @returns `true` iff the row matched (the lane was positive and
-   *   uncovered) and was zeroed; `false` when the student is unknown, the
-   *   lane is already zero, or a covering `active`/`pending` subscription
-   *   of the same user credits the same lane. The repository raises
-   *   nothing — the caller classifies the miss.
-   */
+  /** boolean for lanes-zeroed counting). */
   export async function zeroLaneIfNoCoveringSubscription(
     studentId: number,
     lane: SubscriptionCreditLane,
@@ -518,5 +457,43 @@ export namespace StudentRepository {
     tx?: DBTransaction
   ): Promise<{ rows: AdminStudentDirectoryRow[]; total: number }> {
     return studentRepositoryDirectoryImpl.listDirectory(filters, limit, offset, tx);
+  }
+
+  /**
+   * Lists the caller's confirmed-linked children, oldest-first. Soft-deleted
+   * excluded — the severance predicate lives in the JOIN, never the service.
+   *
+   * Read-only, two executor arms (per backend/AGENTS.md "Bare Reads"): on the
+   * caller's transaction it runs as a Drizzle join select; standalone it runs
+   * as raw parameterized SQL via `queryDb` (the parent id rides a bound
+   * parameter — the Neon-HTTP-eligible pattern, never the global Drizzle
+   * handle). The raw-SQL column aliases mirror the Drizzle projection keys so
+   * both arms return the identical `ParentLinkedChildReturnType` shape.
+   */
+  export async function listLinkedChildrenByParentId(
+    parentId: number,
+    tx?: DBTransaction
+  ): Promise<ParentLinkedChildReturnType[]> {
+    if (tx) {
+      return tx
+        .select({ id: students.id, fullName: users.fullName, createdAt: students.createdAt })
+        .from(students)
+        .innerJoin(users, eq(users.id, students.id))
+        .where(and(eq(students.parentId, parentId), eq(users.isDeleted, false)))
+        .orderBy(asc(students.createdAt), asc(students.id));
+    }
+    const result = await queryDb<{ id: number; fullName: string; createdAt: Date | string }>(
+      `SELECT s.id AS id, u.full_name AS "fullName", s.created_at AS "createdAt"
+       FROM students s
+       INNER JOIN users u ON u.id = s.id
+       WHERE s.parent_id = $1 AND u.is_deleted = false
+       ORDER BY s.created_at ASC, s.id ASC`,
+      [parentId]
+    );
+    return result.rows.map(row => ({
+      id: row.id,
+      fullName: row.fullName,
+      createdAt: new Date(row.createdAt),
+    }));
   }
 }

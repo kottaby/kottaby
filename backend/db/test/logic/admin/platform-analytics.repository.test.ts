@@ -512,14 +512,22 @@ describeBranchIsolation("PlatformAnalyticsRepository — Tier 1: every method ×
       await createTestSessionReport(tx, sessionRow.id, { studentRatingByTeacher: 4 });
       // An unrated report exists as a row but never joins the average or the count.
       await createTestSessionReport(tx, unratedSessionRow.id, { studentRatingByTeacher: null });
+      // The write-once (session, evaluator) unique constraint (elite_gambit)
+      // forbids two evaluations on the SAME (session, evaluator) pair — the
+      // soft-deleted and legacy-NULL probes each ride their OWN session row
+      // while keeping the same (evaluated, evaluator) actors. The aggregate
+      // never joins sessions, so the deltas are unchanged.
+      const deletedProbeSession = await createTestSession(tx, teacherRow.id, student.id);
+      const legacyProbeSession = await createTestSession(tx, teacherRow.id, student.id);
       await createTestEvaluation(tx, student.id, teacherUser.id, sessionRow.id, { score: 85 });
-      await createTestEvaluation(tx, student.id, teacherUser.id, sessionRow.id, {
+      // A soft-deleted rating exists as a row but never joins the average or the count.
+      await createTestEvaluation(tx, student.id, teacherUser.id, deletedProbeSession.id, {
         score: 90,
         isDeleted: true,
         deletedAt: NOW,
       });
       // A legacy NULL soft-delete flag reads as live (NULL-safe inclusion).
-      await createTestEvaluation(tx, student.id, teacherUser.id, sessionRow.id, { score: 70, isDeleted: null });
+      await createTestEvaluation(tx, student.id, teacherUser.id, legacyProbeSession.id, { score: 70, isDeleted: null });
 
       const afterViaTx = await PlatformAnalyticsRepository.getRatingStats(tx);
       expect(afterViaTx.sessionRatingsCount).toBe(before.viaTx.sessionRatingsCount + 1);

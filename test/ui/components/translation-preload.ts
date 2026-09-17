@@ -26,19 +26,28 @@ import { mock } from "bun:test";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 import { arMessages } from "@/shared/locale/ar/messages";
 import { enMessages } from "@/shared/locale/en/messages";
-import { AdminStudents } from "@/shared/locale/namespaces/adminStudents";
-import { AdminTeachers } from "@/shared/locale/namespaces/adminTeachers";
-import { AdminUsers } from "@/shared/locale/namespaces/adminUsers";
-import { Applicant } from "@/shared/locale/namespaces/applicant";
-import { Auth } from "@/shared/locale/namespaces/auth";
-import { Checkout } from "@/shared/locale/namespaces/checkout";
-import { Common } from "@/shared/locale/namespaces/common";
-import { Dashboard } from "@/shared/locale/namespaces/dashboard";
-import { Errors } from "@/shared/locale/namespaces/errors";
-import { HandshakeCode } from "@/shared/locale/namespaces/handshakeCode";
-import { Landing } from "@/shared/locale/namespaces/landing";
-import { Notifications } from "@/shared/locale/namespaces/notifications";
-import { ParentLink } from "@/shared/locale/namespaces/parentLink";
+import { namespaces } from "@/shared/locale/namespaces/registry";
+
+// Namespace handles come from the registry (single source of truth) instead
+// of per-namespace imports — keeps this preload in sync with the registry and
+// avoids duplicating its import table (jscpd zero-clone policy).
+const {
+  AdminStudents,
+  AdminTeachers,
+  AdminUsers,
+  Applicant,
+  Auth,
+  Checkout,
+  Common,
+  Dashboard,
+  Errors,
+  HandshakeCode,
+  Landing,
+  Notifications,
+  ParentLink,
+  ParentMonitoring,
+  Sessions,
+} = namespaces;
 
 /** Mutable navigation state consumed by the mocked `next/navigation` exports. */
 export interface TestNavigationState {
@@ -48,12 +57,29 @@ export interface TestNavigationState {
   pathname: string;
   /** Number of `router.refresh()` invocations (locale-switch side effect). */
   refreshCount: number;
+  /** Recorded `router.push(href)` arguments, in call order. */
+  readonly pushCalls: string[];
+  /** Recorded `router.replace(href)` arguments, in call order. */
+  readonly replaceCalls: string[];
+}
+
+/**
+ * Reset helper for the recorded-navigation arrays — call between tests so
+ * push/replace assertions read only the current test's traffic. The locale,
+ * pathname and refreshCount fields are reset directly by callers (their
+ * pre-existing convention).
+ */
+export function resetNavigationCalls(): void {
+  testNavigationState.pushCalls.length = 0;
+  testNavigationState.replaceCalls.length = 0;
 }
 
 export const testNavigationState: TestNavigationState = {
   locale: "ar",
   pathname: "/",
   refreshCount: 0,
+  pushCalls: [],
+  replaceCalls: [],
 };
 
 void mock.module("next/navigation", () => ({
@@ -61,8 +87,12 @@ void mock.module("next/navigation", () => ({
   usePathname: () => testNavigationState.pathname,
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({
-    push: () => undefined,
-    replace: () => undefined,
+    push: (href: string) => {
+      testNavigationState.pushCalls.push(href);
+    },
+    replace: (href: string) => {
+      testNavigationState.replaceCalls.push(href);
+    },
     back: () => undefined,
     forward: () => undefined,
     prefetch: () => undefined,
@@ -100,6 +130,15 @@ for (const translations of [arMessages, enMessages]) {
   // incoming queue + parent outgoing section) surface missing-key drift at
   // preload time.
   ParentLink.getLabels(translations);
+  // Warm the ParentMonitoring handle so the parent read-only monitoring
+  // portal suites (root + detail containers + five tabs) surface missing-key
+  // drift at preload time.
+  ParentMonitoring.getLabels(translations);
+  // Warm the Sessions handle so the student-sessions container + rate-teacher
+  // dialog suites surface missing-key drift at preload time (the rate dialog
+  // resolves its whole label surface through the Sessions namespace handle;
+  // Errors is warmed above).
+  Sessions.getLabels(translations);
   // Warm the Checkout handle so the purchase-funnel suites (plan catalog /
   // payment result / my subscriptions) surface missing-key drift at preload
   // time.

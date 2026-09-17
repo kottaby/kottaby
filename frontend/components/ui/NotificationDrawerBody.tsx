@@ -99,8 +99,10 @@ interface NotificationDrawerListProps {
  * `resolveNotificationRoute(relatedEntityType, type, userRole)` —
  * entity-type-keyed deep links (parent-link rows land on the student
  * decision route; session rows land per the type+role matrix — the admin
- * console for disputes, each participant's own session list) and unknown or
- * absent pointers fall through to the notifications feed page. Either way
+ * console for disputes, each participant's own session list; and when no
+ * role resolves, session-completion rows still land on the student
+ * sessions route via the role-less type stage), while unknown or absent
+ * pointers fall through to the notifications feed page. Either way
  * navigation is native — no router call.
  */
 function NotificationDrawerList({

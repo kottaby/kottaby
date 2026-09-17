@@ -173,7 +173,7 @@ Each of these was found or proven during this slice's review waves; all are load
 | **Dual confirmation + 24h auto-cancel sweeper** | Student confirm flips `fee_held=false` and credits the wallet (same tx discipline as §4). The timeout sweeper **reuses this slice's same-lane refund primitive** (read `held_balance_lane` from the row, `incrementLane` the same lane, once). The deadline is never re-armed anywhere — B.2. |
 | **Wallet credit / finalize** | Consume `fee_held` + `held_balance_lane` EXACTLY as defined (§4). Plan-linked pricing replaces the interim constant fees (`SESSION_FEE_*` in `shared/constants/session-fees.constants.ts` = `"25.00"` decimal strings, EGP) — a recorded forward contract; until then do not add per-plan fee inputs to the wire. |
 | **Admin governance surface** | Ship the admin surface under its OWN authScopes; today admins get `FORBIDDEN` on role-gated ops and the oracle `SESSION_NOT_FOUND`/`null` like any non-participant — no bypass exists. Honors the REQ-030 sensitivity ruling (§7). |
-| **Ratings** | Treat `confirmedByTeacherAt` + `status` as the rating-eligibility substrate — read-only consumption; do not add write surfaces to the lifecycle to support it. |
+| **Ratings** | Treat `confirmedByTeacherAt` + `status` as the rating-eligibility substrate — read-only consumption; do not add write surfaces to the lifecycle to support it. The rating write contract's canonical reference: [`docs/teachers/student-evaluation-submission.md`](../teachers/student-evaluation-submission.md). |
 
 ## 11. Rollout Summary
 

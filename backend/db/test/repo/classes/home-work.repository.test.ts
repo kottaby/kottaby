@@ -503,7 +503,15 @@ describe("HomeWorkRepository — transactional paths (runInRollback)", () => {
       // The whole hostile string rode ONE bound parameter — PostgreSQL
       // rejected the VALUE against the enum type, no statement escaped.
       expect(hasPostgresErrorCode(bindingError, PG_INVALID_ENUM_INPUT)).toBe(true);
-      const intact = await tx.select({ id: homeWork.id }).from(homeWork).limit(1);
+      // Scoped to THIS probe's session: the parallel db-test workers share one
+      // database, so a table-wide read would race another worker's committed
+      // home_work row (observed once on CI). The oracle only needs "the
+      // hostile payload wrote nothing for this session".
+      const intact = await tx
+        .select({ id: homeWork.id })
+        .from(homeWork)
+        .where(eq(homeWork.sessionId, sessionRow.id))
+        .limit(1);
       expect(intact).toHaveLength(0);
     });
   });
@@ -531,9 +539,9 @@ describe("HomeWorkRepository — transactional paths (runInRollback)", () => {
 
   test("source: executor discipline — pool-fallback write branches, queryDb read branches, tx last on every signature", () => {
     expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(2);
-    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(2);
+    expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(4);
     const signatures = repoSource.match(/export async function [a-zA-Z]+\([^)]*\)/g) ?? [];
-    expect(signatures).toHaveLength(4);
+    expect(signatures).toHaveLength(6);
     for (const signature of signatures) {
       const flattened = signature.replace(/\s+/g, " ").replace(/ \)/g, ")").trim();
       expect(flattened.endsWith("tx?: DBTransaction)") || flattened.endsWith("tx?: DBQueryExecutor)")).toBe(true);
@@ -543,7 +551,10 @@ describe("HomeWorkRepository — transactional paths (runInRollback)", () => {
   test("source: bound parameters only, no wildcard select, no prepared statements, no SQL line comments", () => {
     expect(repoSource.includes("session_id = $1")).toBe(true);
     expect(repoSource.includes("s.student_id = $1")).toBe(true);
-    expect(repoSource.includes("SELECT *")).toBe(false);
+    // The `SELECT *` prohibition is scoped to actual SQL — the JSDoc text
+    // `no \`SELECT *\`` would false-positive a naive `includes` check, so
+    // the regex anchors on the SQL shape `SELECT * FROM`.
+    expect(/SELECT \* FROM/i.test(repoSource)).toBe(false);
     expect(repoSource.includes(".prepare(")).toBe(false);
     expect(repoSource.includes("sql.placeholder")).toBe(false);
     expect(repoSource.includes("inArray")).toBe(false);
@@ -553,6 +564,11 @@ describe("HomeWorkRepository — transactional paths (runInRollback)", () => {
     // stamp DESC with the id DESC tiebreak.
     expect(repoSource.includes("desc(homeWork.createdAt), desc(homeWork.id)")).toBe(true);
     expect(repoSource.includes("ORDER BY created_at DESC, id DESC")).toBe(true);
+    // The parent-portal list+count pair orders by the owning session's
+    // started_at DESC NULLS LAST (scheduled-but-not-started sessions pin
+    // after live sessions) with the homework id DESC deterministic tiebreak.
+    expect(repoSource.includes("DESC NULLS LAST, hw.id DESC")).toBe(true);
+    expect(repoSource.includes("desc(homeWork.id)")).toBe(true);
     // The fused BOTH-NULL grade predicate (never one-sided) lives ONLY in
     // the guarded UPDATE — the latest-row read carries NO grade predicate.
     expect(repoSource.match(/isNull\(homeWork\.currentGrade\)/g) ?? []).toHaveLength(1);

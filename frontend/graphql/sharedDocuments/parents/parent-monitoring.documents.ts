@@ -1,0 +1,215 @@
+import { gql, type TypedDocumentNode } from "@apollo/client";
+import type {
+  MyLinkedChildrenQuery,
+  ParentChildHomeworkQuery,
+  ParentChildHomeworkQueryVariables,
+  ParentChildProgressQuery,
+  ParentChildProgressQueryVariables,
+  ParentChildReportsQuery,
+  ParentChildReportsQueryVariables,
+  ParentChildSessionsQuery,
+  ParentChildSessionsQueryVariables,
+} from "@/frontend/graphql/generated/gql/graphql";
+
+/**
+ * Parent read-only monitoring portal GraphQL documents — the shared
+ * `TypedDocumentNode` operations consumed by the portal views in
+ * `frontend/views/parent/monitoring/` (children list, child detail
+ * header + progress, attendance / reports / homework tabs).
+ *
+ * Self-scoped surface: every per-student read carries ONLY the
+ * `studentId` targeting argument plus optional pagination (`page` /
+ * `pageSize`) — parent identity is ALWAYS derived server-side from the
+ * authenticated caller (BOLA: no `parentId` / `actorId` / `userId` /
+ * role / auth hint exists anywhere in the documents). The list query is
+ * zero-argument — the caller's verified identity IS the read scope.
+ *
+ * `id` is selected FIRST on every entity-shaped object selection
+ * (`ParentLinkedChild`, `ParentAttendanceEntry`, `ParentReportEntry`,
+ * `ParentHomeworkEntry`) so Apollo Client normalizes them into cache
+ * entries. The three page wrappers (`ParentAttendancePage`,
+ * `ParentReportPage`, `ParentHomeworkPage`) and the three composite
+ * value objects (`ParentHomeworkTrack`, `ParentHomeworkPosition`,
+ * `ParentChildProgress`) carry no `id` and are registered with
+ * `keyFields: false` in `frontend/providers/apollo/apolloCache.ts` —
+ * they are embedded value types replaced wholesale on refetch.
+ *
+ * NO `useLazyQuery` anywhere in the documents layer — consumers use
+ * stateful `useQuery` from "@apollo/client/react" and re-key on
+ * `studentId` (the `?student=` URL param) so rows never leak across
+ * children. Pagination state rides the same `useQuery` variables
+ * contract.
+ */
+
+/**
+ * `myLinkedChildren` query — the caller's (parent's) own linked
+ * children, newest-first per the service contract.
+ *
+ * Zero-argument: the parent id is derived server-side from the verified
+ * context. Each row carries the confirmed-child identity (`fullName`)
+ * and `createdAt` (the link-establishment timestamp). Drives the portal
+ * root container's empty-state (zero rows → handshake CTA) and the
+ * child switcher (`?student=` writes). The same `ParentLinkedChild`
+ * selection is echoed inside `parentChildProgress` so the detail header
+ * stays in one payload with the progress metrics.
+ */
+export const myLinkedChildrenQueryDocument: TypedDocumentNode<MyLinkedChildrenQuery> = gql`
+  query MyLinkedChildren {
+    myLinkedChildren {
+      id
+      fullName
+      createdAt
+    }
+  }
+`;
+
+/**
+ * `parentChildProgress` query — the detail-page header payload
+ * (confirmed-child echo + progress count + latest Jadid/Madi
+ * positions) collapsed into one read.
+ *
+ * The `studentId` is the ONLY variable. `child` re-projects the same
+ * `ParentLinkedChild` selection as the list (id FIRST) so the detail
+ * header restyles against the same normalized cache entry. The two
+ * `latest*Position` fields are nullable: a `null` collapse means "no
+ * recorded progress yet" on that track (Jadid or Madi) — never a
+ * fabricated zero. `progressRowCount` is a non-null integer count.
+ */
+export const parentChildProgressQueryDocument: TypedDocumentNode<
+  ParentChildProgressQuery,
+  ParentChildProgressQueryVariables
+> = gql`
+  query ParentChildProgress($studentId: Int!) {
+    parentChildProgress(studentId: $studentId) {
+      child {
+        id
+        fullName
+        createdAt
+      }
+      progressRowCount
+      latestJadidPosition {
+        surahJuz
+        fromAyah
+        toAyah
+      }
+      latestMadiPosition {
+        surahJuz
+        fromAyah
+        toAyah
+      }
+    }
+  }
+`;
+
+/**
+ * `parentChildSessions` query — the child's attendance window
+ * (derived read from `session` rows), paginated, newest-first per the
+ * service contract.
+ *
+ * The `studentId` is required; `page` / `pageSize` are optional and
+ * server-clamped to honest defaults (1 / 20, upper clamp 50). Each
+ * `ParentAttendanceEntry` row carries the session lifecycle timestamps
+ * (`startedAt` / `endedAt` nullable — `scheduled` rows have neither,
+ * `started` rows have only `startedAt`, `completed` rows have both) and
+ * the non-null `status` enum for the attendance chip. `totalCount` is
+ * the honest total across all pages; `page` / `pageSize` echo the
+ * resolved window.
+ */
+export const parentChildSessionsQueryDocument: TypedDocumentNode<
+  ParentChildSessionsQuery,
+  ParentChildSessionsQueryVariables
+> = gql`
+  query ParentChildSessions($studentId: Int!, $page: Int, $pageSize: Int) {
+    parentChildSessions(studentId: $studentId, page: $page, pageSize: $pageSize) {
+      items {
+        id
+        status
+        startedAt
+        endedAt
+        createdAt
+      }
+      totalCount
+      page
+      pageSize
+    }
+  }
+`;
+
+/**
+ * `parentChildReports` query — the child's session report window
+ * (`reports ⋈ session` rows), paginated, newest-first per the service
+ * contract.
+ *
+ * The `studentId` is required; `page` / `pageSize` are optional and
+ * server-clamped. Each `ParentReportEntry` row carries the joined
+ * session's `sessionStatus` + `sessionStartedAt` (so the report chip
+ * and date render without a second query), the teacher-authored
+ * `teacherNotes` (nullable — never coerced to ""), and the
+ * `studentRatingByTeacher` (nullable — `null` renders "not rated yet",
+ * NEVER `0`). `totalCount` / `page` / `pageSize` form the honest
+ * envelope.
+ */
+export const parentChildReportsQueryDocument: TypedDocumentNode<
+  ParentChildReportsQuery,
+  ParentChildReportsQueryVariables
+> = gql`
+  query ParentChildReports($studentId: Int!, $page: Int, $pageSize: Int) {
+    parentChildReports(studentId: $studentId, page: $page, pageSize: $pageSize) {
+      items {
+        id
+        sessionId
+        sessionStatus
+        sessionStartedAt
+        teacherNotes
+        studentRatingByTeacher
+        createdAt
+      }
+      totalCount
+      page
+      pageSize
+    }
+  }
+`;
+
+/**
+ * `parentChildHomework` query — the child's homework window
+ * (`home_work ⋈ session` rows with the Jadid/Madi track split),
+ * paginated, newest-first per the service contract.
+ *
+ * The `studentId` is required; `page` / `pageSize` are optional and
+ * server-clamped. Each `ParentHomeworkEntry` row carries the joined
+ * session's `sessionId`, the two nullable track blocks `jadid` /
+ * `madi` (each exposing `surahJuz` / `fromAyah` / `toAyah` / `grade` —
+ * all nullable, a fully-null block means "none assigned" on that
+ * track), and the homework `createdAt`. `totalCount` / `page` /
+ * `pageSize` form the honest envelope.
+ */
+export const parentChildHomeworkQueryDocument: TypedDocumentNode<
+  ParentChildHomeworkQuery,
+  ParentChildHomeworkQueryVariables
+> = gql`
+  query ParentChildHomework($studentId: Int!, $page: Int, $pageSize: Int) {
+    parentChildHomework(studentId: $studentId, page: $page, pageSize: $pageSize) {
+      items {
+        id
+        sessionId
+        jadid {
+          surahJuz
+          fromAyah
+          toAyah
+          grade
+        }
+        madi {
+          surahJuz
+          fromAyah
+          toAyah
+          grade
+        }
+        createdAt
+      }
+      totalCount
+      page
+      pageSize
+    }
+  }
+`;

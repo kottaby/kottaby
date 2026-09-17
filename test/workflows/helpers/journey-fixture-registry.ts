@@ -45,6 +45,7 @@ import { notifications } from "@/backend/db/schema/notifications/notifications";
 import { parents } from "@/backend/db/schema/parents/parents";
 import { students } from "@/backend/db/schema/students/students";
 import { applicants } from "@/backend/db/schema/teachers/applicants";
+import { evaluations } from "@/backend/db/schema/teachers/evaluations";
 import { teacher } from "@/backend/db/schema/teachers/teacher";
 import { admin } from "@/backend/db/schema/users/admin";
 import { users } from "@/backend/db/schema/users/users";
@@ -61,7 +62,12 @@ import type { DBTransaction } from "@/backend/types";
  * 3. Role-child rows (`students`, `teacher`, `applicants`, `parents`,
  *    `admin`) — shared-PK FKs into `users`; `students.parent_id` set-nulls
  *    on parent-user deletion but is deleted explicitly here first.
- * 4. `users` — deleted last; any still-attached cascade children
+ * 4. `evaluations` — RESTRICT-FKs into `users` via `evaluator_id` (the
+ *    rater cannot be removed while a rating of theirs is on record), so
+ *    every rating row must be gone before its evaluator's user row; the
+ *    cascade side (`evaluated_id`) and the set-null side (`session_id`)
+ *    impose no order of their own.
+ * 5. `users` — deleted last; any still-attached cascade children
  *    (e.g. notifications) disappear with their owner.
  */
 const JOURNEY_TRACKED_TABLE_DELETE_ORDER = [
@@ -72,6 +78,7 @@ const JOURNEY_TRACKED_TABLE_DELETE_ORDER = [
   "applicants",
   "parents",
   "admin",
+  "evaluations",
   "users",
 ] as const;
 
@@ -92,6 +99,7 @@ const TRACKED_ROW_DELETERS: Record<JourneyTrackedTable, (tx: DBTransaction, ids:
   applicants: (tx, ids) => tx.delete(applicants).where(inArray(applicants.id, ids)),
   parents: (tx, ids) => tx.delete(parents).where(inArray(parents.id, ids)),
   admin: (tx, ids) => tx.delete(admin).where(inArray(admin.id, ids)),
+  evaluations: (tx, ids) => tx.delete(evaluations).where(inArray(evaluations.id, ids)),
   users: (tx, ids) => tx.delete(users).where(inArray(users.id, ids)),
 };
 

@@ -101,6 +101,16 @@ export const CONFIRM_PENDING_STATUSES: Record<string, true> = {
   [SessionStatus.Completed]: true,
 };
 
+/**
+ * Rate-eligible lookup — the student's Rate affordance keys off this status
+ * via Record lookup (never an enum comparison). The row additionally
+ * requires BOTH completion stamps (the dual-confirmation handshake) and the
+ * session to be absent from the student's rated set.
+ */
+export const RATE_ELIGIBLE_STATUSES: Record<string, true> = {
+  [SessionStatus.Completed]: true,
+};
+
 /** Disputed token (Record lookup — the disabled-Cancel state). */
 export const DISPUTED_STATUS: Record<string, true> = {
   [SessionStatus.Disputed]: true,

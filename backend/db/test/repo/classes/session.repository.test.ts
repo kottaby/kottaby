@@ -3,6 +3,7 @@
  * (`insertSession`, `findById`, `startSessionOnce`, `completeSessionOnce`,
  * `cancelSessionOnce`, `openDisputeOnce`, `resolveDisputeCancelOnce`,
  * `resolveDisputeCompleteOnce`, `findTransitionProbe`,
+ * `findRatingEligibilityProbe`,
  * `sweepExpiredCompletedOnce`, the participant list/count quartet, and the
  * admin disputed pair) against the live `kottaby_test_db` PostgreSQL
  * instance.
@@ -37,12 +38,17 @@
  *    ids), and `findReportWaveContextById` returns the three-participant
  *    projection — student, teacher, and the LINKED parent only (a null
  *    parent leg for an unlinked student, exactly the recipient set the
- *    report notification seam needs). The post-confirmation dispute trio
- *    follows them: the student-only entry misses held fees, missing
- *    stamps, live states, and non-student callers; the consumed arbitration
- *    leg misses held disputes and settled rows and returns the eight-column
- *    arbitration probe; the arbitration probe projects exactly its escrow
- *    columns (a null lane for never-held rows).
+ *    report notification seam needs). The rating-eligibility probe addition
+ *    follows the same probe rules: `findRatingEligibilityProbe` returns the
+ *    six-column gate projection (identity, both participants, lifecycle
+ *    state, both completion stamps) on a REQUIRED tx — a plain read that
+ *    never feeds a guarded write (null for unknown ids). The
+ *    post-confirmation dispute trio follows them: the student-only entry
+ *    misses held fees, missing stamps, live states, and non-student
+ *    callers; the consumed arbitration leg misses held disputes and settled
+ *    rows and returns the eight-column arbitration probe; the arbitration
+ *    probe projects exactly its escrow columns (a null lane for never-held
+ *    rows).
  *  - Tier 2 (pagination): newest-first ordering (`created_at DESC`) with
  *    the `id DESC` tiebreak for rows created in the same instant; page 1
  *    exact-size; a mid window; an offset past the end yields empty items
@@ -1225,6 +1231,52 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     });
   });
 
+  test("findRatingEligibilityProbe returns exactly the six-column eligibility projection", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const row = await insertSessionRow(tx, actors, {
+        status: SessionStatus.Completed,
+        startedAt: new Date(),
+        endedAt: new Date(),
+        confirmedByTeacherAt: new Date(),
+        confirmedByStudentAt: new Date(),
+      });
+
+      const probe = await SessionRepository.findRatingEligibilityProbe(row.id, tx);
+
+      expect(probe).not.toBeNull();
+      expect(Object.keys(probe ?? {}).toSorted((a, b) => a.localeCompare(b))).toEqual([
+        "confirmedByStudentAt",
+        "confirmedByTeacherAt",
+        "id",
+        "status",
+        "studentId",
+        "teacherId",
+      ]);
+      expect(probe?.id).toBe(row.id);
+      expect(probe?.status).toBe(SessionStatus.Completed);
+      expect(probe?.studentId).toBe(actors.studentUserId);
+      expect(probe?.teacherId).toBe(actors.teacherUserId);
+      expect(probe?.confirmedByTeacherAt).not.toBeNull();
+      expect(probe?.confirmedByStudentAt).not.toBeNull();
+    });
+  });
+
+  test("findRatingEligibilityProbe surfaces null stamps verbatim and returns null for unknown ids", async () => {
+    await runInRollback(async tx => {
+      const actors = await createSessionActors(tx);
+      const missingId = await absentSessionId(tx);
+
+      expect(await SessionRepository.findRatingEligibilityProbe(missingId, tx)).toBeNull();
+
+      const row = await insertSessionRow(tx, actors);
+      const probe = await SessionRepository.findRatingEligibilityProbe(row.id, tx);
+      expect(probe?.status).toBe(SessionStatus.Scheduled);
+      expect(probe?.confirmedByTeacherAt).toBeNull();
+      expect(probe?.confirmedByStudentAt).toBeNull();
+    });
+  });
+
   test("findReportWaveContextById returns student, teacher, and the LINKED parent (three participants)", async () => {
     await runInRollback(async tx => {
       const parentUser = await createTestUser(tx, { role: "parent" });
@@ -2396,16 +2448,19 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     expect(repoSource.includes("const executor = tx ?? db;")).toBe(true);
     expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(16);
     expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(13);
-    // Thirty-three exported methods across the namespace + its four one-to-one
+    // Thirty-four exported methods across the namespace + its five one-to-one
     // sibling implementation modules (the report-gate lock, the report
-    // wave-context read, the post-confirmation dispute trio, and the merged
-    // escrow lane), every one ending in tx (LAST param).
-    // Exactly ONE takes it REQUIRED — the report-gate lock (a FOR UPDATE
+    // wave-context read, the rating-eligibility probe, the post-confirmation
+    // dispute trio, and the merged escrow lane), every one ending in tx
+    // (LAST param).
+    // Exactly TWO take it REQUIRED — the report-gate lock (a FOR UPDATE
     // read taken outside a transaction releases when the statement ends
-    // and protects nothing); the other thirty-two keep the optional tx.
-    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(33);
+    // and protects nothing) and the rating-eligibility probe (the gate
+    // decision must observe the caller's transaction's own writes); the
+    // other thirty-two keep the optional tx.
+    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(34);
     expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(19);
-    expect(repoSource.match(/tx: DBTransaction/g) ?? []).toHaveLength(1);
+    expect(repoSource.match(/tx: DBTransaction/g) ?? []).toHaveLength(2);
   });
 
   test("source: no i18n, no logger, no console, one namespace", () => {

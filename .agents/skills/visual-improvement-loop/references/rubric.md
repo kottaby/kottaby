@@ -19,6 +19,15 @@ Contract for the single-image visual inspector subagents.
 5. **Control affordance** — buttons/inputs look interactive and equal in quality; selected/checked states unambiguous; empty/placeholder states deliberately composed.
 6. **Responsiveness (for this viewport)** — no overflow, no dead space, purposeful reflow. AR captures: the layout actually mirrors — no "stuck" left/right regions.
 
+## Structure deltas vs axis scores (observed 2026-09-13)
+
+Prototype structure gaps (a surface/section the implementation deliberately lacks) are reported in
+the "Prototype structure delta" line ONLY — they are NOT findings and MUST NOT reduce the six axis
+scores. A rubric that leaves them coupled turned 9.2-10 pixels into 6.5-8.5 verdicts dominated by
+out-of-scope redesign requests; the decoupled rubric scored the same captures 9.2-10. When a pass
+must compare against a rich prototype, say so twice in the prompt: "score what EXISTS; missing
+features are not findings".
+
 ## RTL / i18n checklist (Arabic captures)
 
 Applied on top of the axes when the capture locale is AR; each failure lands on the axis it belongs to:

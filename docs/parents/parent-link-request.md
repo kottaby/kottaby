@@ -118,7 +118,7 @@ Wire-level proof: `backend/graphql/test/parent-link.wire.test.ts` (1267 ln — 4
 
 ### 8. Consumer contract (forward-pointers)
 
-- **Parent monitoring portal:** reads ONLY `students.parent_id`. It must NEVER query `parent_link_requests` for authorization — the link table is history, the student row is the grant.
+- **Parent monitoring portal:** reads ONLY `students.parent_id`. It must NEVER query `parent_link_requests` for authorization — the link table is history, the student row is the grant. The portal shipped at [`docs/parents/monitoring-portal.md`](./monitoring-portal.md) (the canonical reference for the five read-only query contracts, the `requireLinkedChild` gate, the constant-403 denial oracle, and the Apollo cache policy for the portal's no-`id` value types).
 - **Session-completion notifications:** resolves parents through `students.parent_id` — same grant rule.
 - **D1 (cron sweep + reminder scheduler):** BOTH system primitives are shipped and tested — the sweep (`markAllExpiredIfPending` + `sweepExpiredRequests`, ops: `bun run ops:sweep-link-requests`) and the expiry reminder (`claimPendingForExpiryReminder` + `sendExpiryReminders`, ops: `bun run ops:remind-link-requests [--horizon-hours <n>]`). The cron stream/trigger is the future cron-stream ticket — it registers BOTH primitives as job handlers (sweep cadence + reminder cadence) and unlocks the silent-expiry UX choreography (§5, D9b) on a schedule instead of on-demand.
 - **D2 (cancelled vocabulary):** if product later wants a distinct `cancelled` chip, it is a vocabulary migration ON TOP of this state machine — `rejected` remains the fold until then.
