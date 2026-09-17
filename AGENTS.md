@@ -49,8 +49,6 @@ bun run test:services:sequential # Backend services tests (sequential, for debug
 bun run test:graphql           # GraphQL integration tests (dev server via test/scripts/run-server-tests.ts)
 bun run test:ui:e2e            # End-to-end tests (dev/production server — test/scripts/run-server-tests.ts --e2e)
 bun run test:ui:e2e:paymob     # Paymob live checkout E2E
-bun run test:ui:static         # Mobile/desktop isolation checks
-bun run test:ui                # Static UI checks
 bun run test:ui:kill           # Kill test servers on port 3099 only (never dev:3000 or start:4000)
 
 # Run database tests with log capture (AI agents MUST use this instead of raw `bun test`)
@@ -398,9 +396,8 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `backend/db/test/repo/` - Repository unit tests (100% coverage required)
 - `backend/db/test/logic/` - Business logic integration tests
 - `frontend/graphql/test/` - GraphQL integration tests (dev server; use testClient, not raw fetch)
-- `test/ui/` - UI tests
+- `test/ui/` - UI tests (E2E-only; no static/component UI test layer exists)
 - `test/ui/e2e/` - End-to-end tests (Paymob checkout suite)
-- `test/ui/mobile-desktop-isolation.test.ts` - Mobile/desktop isolation static checks
 
 ## Linting Rules
 

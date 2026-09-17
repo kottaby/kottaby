@@ -28,7 +28,7 @@ const config: KnipConfig = {
     "backend/graphql/mutation/index.ts",
 
     // Bun --preload test roots — loaded via `bun test --preload <file>` CLI flag,
-    // never statically imported (package.json scripts: test:ui:static, etc.)
+    // never statically imported (package.json scripts: test:ui:e2e, etc.)
     "test/ui/test-env.ts",
 
     // Bun test runners invoked by path string only (run-locked-cmd wrapper args

@@ -1,6 +1,6 @@
 /**
- * UI test environment bootstrap — FIRST preload of every `test:ui*` entry
- * point (see `package.json` scripts + adopted `test/ui/AGENTS.md`).
+ * UI test environment bootstrap — preload of every `test:ui*` test run
+ * (see `package.json` scripts + adopted `test/ui/AGENTS.md`).
  *
  * Responsibilities (intentionally tiny — the heavy lifting is already done by
  * the bunfig.toml global preloads, which run BEFORE this file):
@@ -16,7 +16,8 @@
  *   reaches UI tests without any sanctioned marker fails fast
  *   instead of silently exercising production-ish assumptions.
  * - `TEST_SERVER_MODE` defaults to `dev` per `test/ui/AGENTS.md`; the
- *   `test:ui:static` script overrides it inline to `production`.
+ *   E2E production-mode flow overrides it to `production` (after
+ *   `bun run build:test`).
  */
 
 import { isTestCi } from "@/backend/lib/test-ci-env";

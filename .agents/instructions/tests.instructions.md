@@ -141,14 +141,12 @@ When modifying `test/scripts/run-test.ts`:
 
 - **E2E tests** (`test/ui/e2e/`) — Playwright E2E tests (e.g. Paymob live checkout).
 - **Build prerequisite** — When running E2E against a production build, run `bun run build:test` first.
-- **Static checks** (`test/ui/mobile-desktop-isolation.test.ts`) — Mobile/desktop import boundary scans.
+- No static/component UI test layer exists — UI verification is E2E-only (`test/ui/e2e/`).
 
 ```bash
 bun run build:test           # once before E2E against production (or after server code changes)
 bun run test:ui:e2e          # Playwright E2E
 bun run test:ui:e2e:paymob   # Paymob live checkout E2E
-bun run test:ui:static       # mobile/desktop isolation checks
-bun run test:ui              # static UI checks
 bun run test:ui:kill         # stop stale test servers (test port only — never dev/QA ports)
 ```
 
@@ -161,8 +159,6 @@ bun run test:ui:kill         # stop stale test servers (test port only — never
 - `bun run test:graphql` - GraphQL integration tests (dev server)
 - `bun run test:ui:e2e` - E2E tests (Playwright)
 - `bun run test:ui:e2e:paymob` - Paymob live checkout E2E
-- `bun run test:ui:static` - UI import isolation checks
-- `bun run test:ui` - static UI checks
 - `bun run test:ui:kill` - kill test servers on the test port only (never the dev server port)
 - `bun run test` - all tests across all layers
 

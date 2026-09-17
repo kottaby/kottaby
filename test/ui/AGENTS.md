@@ -29,9 +29,8 @@ bun run build:test
 | Layer | Path | Server | Notes |
 |-------|------|--------|-------|
 | E2E | `test/ui/e2e/` | Dev (default) or Production (`next start`) | Playwright via `bun:test`. Uses `setupBrowserLifecycle()` → `setupTestServerLifecycle()`. |
-| Static checks | `test/ui/mobile-desktop-isolation.test.ts` | None | Import-boundary scans only. |
 
-E2E tests in production mode require `build:test`.
+E2E tests in production mode require `build:test`. There is no static/component UI test layer — UI verification is E2E-only.
 
 ## Commands
 
@@ -40,8 +39,6 @@ bun run dev                 # Start dev server on port 3000 (required for dev-mo
 bun run build:test          # Build .next-test-prod (required for production-mode E2E)
 bun run test:ui:e2e         # Playwright E2E (dev server by default, reuses port 3000 if running)
 bun run test:ui:e2e:paymob  # Paymob live checkout E2E
-bun run test:ui:static      # Mobile/desktop isolation checks
-bun run test:ui             # Static UI checks
 bun run test:ui:kill        # Kill test servers on port 3099 only (never dev:3000 or start:4000)
 ```
 
