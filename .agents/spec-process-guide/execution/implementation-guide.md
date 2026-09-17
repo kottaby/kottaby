@@ -367,7 +367,7 @@ Table of files modified, methods refactored, test results.
 | Frontend components / views | `docs/frontend/` |
 | Frontend stores / state | `docs/frontend/` |
 | Frontend GraphQL / Apollo | `docs/frontend/` |
-| Testing (DB / UI / E2E / general) | `docs/testing/` |
+| Testing (DB / general) | `docs/testing/` |
 | i18n / locale | `docs/i18n/` |
 | Auth / security | `docs/auth/` |
 | App Router / Next.js | `docs/app/` |

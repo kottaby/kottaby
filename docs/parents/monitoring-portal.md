@@ -285,10 +285,6 @@ The `parentMonitoring` namespace (62 typed slots covering portal root, child swi
 | Service unit | `bun run test/scripts/run-test.ts` | 126 pass (constant-denial oracle, BOLA, BFLA, BOPLA, TOCTOU, pagination clamp, mapper boundary arms) |
 | Cross-actor journeys (J1-J4) | `bun run test/scripts/run-test.ts` | 13 pass (teacher completes session → parent reads report; student severs link → parent loses access; admin override link → parent gains access; unlinked probe → constant 403) |
 | GraphQL integration (wire) | `bun run test/scripts/run-test.ts` | 27 pass (role×op matrix, Bearer auth, `extensions.code`, en/ar localized copy) |
-| UI components | `bun run test:ui:components` | 59 pass (mocked Apollo state matrix — per-child reads re-keyed by `studentId` never leak cross-child rows) |
-| E2E | N/A | Forward item (DEV1-019 — sibling sprint_4 ticket) |
-
-**Total: 318 tests passing across all layers.**
 
 ### Quality gate (vs Phase 0 baseline)
 

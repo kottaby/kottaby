@@ -124,7 +124,7 @@ export const DISPUTED_STATUS: Record<string, true> = {
  * clause, never by widening this table (which would leak the CTA onto
  * teacher rows).
  */
-export const DISPUTABLE_STATUSES: Record<string, true> = {
+const DISPUTABLE_STATUSES: Record<string, true> = {
   [SessionStatus.Scheduled]: true,
   [SessionStatus.Started]: true,
 };

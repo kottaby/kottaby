@@ -216,6 +216,3 @@ export function resolveNavItemLabel(
     : handshakeCodeLabels[item.labelKey];
   return typeof value === "string" ? value : item.labelKey;
 }
-
-/** Re-exported for the dashboard view's stat-card icon (notifications). */
-export { NotificationsIcon };

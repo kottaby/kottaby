@@ -285,7 +285,7 @@ Solution:
 # Wrong Test Level
 1. Unit test business logic
 2. Integration test component interactions
-3. E2E test critical user workflows
+3. Journey test critical user workflows
 4. Don't over-test at wrong level
 ```
 

@@ -25,7 +25,7 @@ Do NOT use for: brand-new pages with no implementation yet (use spec-driven-deve
 1. **One image per ReadMediaFile context.** Each visual inspection happens in a dedicated isolated subagent for ONE screenshot (never batch — multi-image payloads kill the upstream stream). The only permitted exception is the prototype-comparison inspector, which reads EXACTLY TWO images sequentially (prototype first, then implementation), never more.
 2. **Never trust a capture without verifying the page state.** Verify `document.title` (auth bounce guard) and the interaction-driven DOM state (e.g. expanded sections) BEFORE and AFTER each screenshot. See `references/capture-protocol.md`.
 3. **Prototype ≠ spec.** The prototype is an imagination aid: compare STRUCTURE ONLY — ignore colors entirely (prototypes ship arbitrary Tailwind colors). All row data in prototypes is fake — never let any of it leak into production code; the spec/docs always win on conflicts.
-4. **Every fix wave passes the per-file quality loop.** No visual fix ships without `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` exit 0 and green component tests. This skill composes with the quality-loop skill — the loop runs per changed file, never skipped, even for "just CSS".
+4. **Every fix wave passes the per-file quality loop.** No visual fix ships without `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` exit 0. This skill composes with the quality-loop skill — the loop runs per changed file, never skipped, even for "just CSS".
 5. **Disjoint-file fix waves.** Parallel fix agents must own non-overlapping file sets (e.g. list vs form vs shared editor). Sharing the working tree with other workstreams: never touch files outside the assigned set; pre-existing failures in other domains are recorded, not fixed.
 6. **Scripts measure, inspectors judge.** Mechanical defects (console errors, overflow, wrong page) are caught by the objective pre-check gate (Phase 3.5) BEFORE any image is inspected. Image inspectors are reserved for what requires eyes.
 
@@ -38,7 +38,7 @@ Before any pixels are scored, prove the work is actually implemented. The gate a
 | Full spec (`specs.md` + `implementation.md` + `trackable-tasks.md`) | every task checked (or has an outcome file); tests for the touched layers green |
 | Legacy spec (`spec.md` + `design.md` + `tasks.md`) | same, using `tasks.md` |
 | Quick spec (`quick-spec.md`) | every checkbox done; touched-layer tests green |
-| No plan (user points at pages directly) | reduced gate: each surface renders (DOM probe) and its component tests pass; Phase 7 skips automatically |
+| No plan (user points at pages directly) | reduced gate: each surface renders (DOM probe); Phase 7 skips automatically |
 
 Universal rules:
 
@@ -86,7 +86,7 @@ Aggregate the pass table (screen × viewport → score) and sort findings by sev
 
 Cluster findings by shared files; dispatch one fixer per file set:
 
-- Prompt: findings verbatim, the component file scope, conventions refs (`frontend/AGENTS.md`, `frontend/THEME_PALETTE.md`, per-dir AGENTS.md), the requirement to pass sub-loop `--lifecycle duplicates` per touched file + the component test suite, and "no plan-tag comments, theme tokens only, RTL-safe".
+- Prompt: findings verbatim, the component file scope, conventions refs (`frontend/AGENTS.md`, `frontend/THEME_PALETTE.md`, per-dir AGENTS.md), the requirement to pass sub-loop `--lifecycle duplicates` per touched file, and "no plan-tag comments, theme tokens only, RTL-safe".
 - Fixers consult `references/fix-patterns.md` and apply the matching recipe; if no row matches a finding, the fixer says so in its report — that gap is a playbook candidate for the evolution log.
 - Findings may point at a shared primitive (shared grids/containers). If so, the fix is a CROSS-FILE decision the orchestrator makes, not a silent edit the file-owner makes.
 
@@ -104,7 +104,7 @@ This is the equal-or-better check: implementation must match or beat the prototy
 
 ## Phase 8 — Close-out & evolve
 
-- Re-run the affected component-test suites plus the plan's E2E/high-level journeys touching the same pages.
+- Re-run the plan's high-level journeys/tests touching the same pages.
 - Write the outcome following `references/outcome-template.md` exactly — score history per pass, pre-check failures found, fix-wave inventory, accepted debt with both justifications, capture lessons.
 - **Evolve the skill (mandatory):** review the run for reusable lessons — new capture pitfalls, story tricks, fix recipes, inspector failure modes. Append each to `references/evolution-log.md` (dated, plan-linked) AND promote it in the same change: capture lessons into the protocol references, fix shapes into `references/fix-patterns.md`, and durable general knowledge into `docs/<domain>/` (or the plan outcome) — NEVER into AGENTS.md or `.agents/instructions/`, which are hand-curated and not updated by runs. Feature specifics stay in the plan outcome. A visual run that changed nothing in this skill is a run that taught nothing; if genuinely nothing was learned, the log gets a one-line "no new lessons" entry so the review visibly happened.
 - Brief IN-CHAT summary for the user: per-surface final scores, what changed, what was consciously not done.

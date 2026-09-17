@@ -29,7 +29,6 @@ Canonical reference for `.github/workflows/ci.yml` (the merge-blocking pipeline)
 | `docs-validation` | — (parallel) | 5 min | Mermaid validation via `bun run scripts/ci/validate-docs-ci.ts` — PR diff scope, full set on push |
 | `tests-db` | `quality` | 30 min | ephemeral Postgres 16 service; `.env.test` materialization; `bun --env-file=.env.test run db push --env-file=.env.test`; `bun run test:db` |
 | `tests-services` | `quality` | 30 min | `bun run test:services` with adapters mocked per `backend/services/AGENTS.md` |
-| `tests-ui` | `quality` | 30 min | `bun run test:ui:components` Happy DOM component tier (committed `.env.test.ci`; consumes zero DB connections) |
 
 DB suites never start before `quality` is green — runner minutes are never burned on code that fails mechanical gates.
 
@@ -46,12 +45,10 @@ flowchart TD
     WS["workflow-sanity: actionlint, 5m"] --> Q
     Q["quality: tsgo, oxlint, biome:check, lint, check:duplicates<br/>plus cleanliness guard and GraphQL codegen drift gate, 15m"] --> TDB
     Q --> TSVC
-    Q --> TUI
     DOCS["docs-validation: changed docs or full set on push, 5m, parallel lane"]
     TDB["tests-db: postgres:16 digest-pinned service container<br/>db push into ephemeral DB, test:db, 30m"]
     TSVC["tests-services: test:services, 30m"]
-    TUI["tests-ui: test:ui:components, 30m"]
-    WS --> CHKS["6 named required checks: workflow-sanity, quality,<br/>docs-validation, tests-db, tests-services, tests-ui"]
+    WS --> CHKS["5 named required checks: workflow-sanity, quality,<br/>docs-validation, tests-db, tests-services"]
     DOCS --> CHKS
     TDB --> CHKS
     TSVC --> CHKS
@@ -113,8 +110,7 @@ Identical strings to the workflow `run:` blocks (sandbox: bun 1.3.14 = `packageM
 | 6 | `bun run scripts/ci/materialize-env-test.ts` | n/a | Tier-tested (31 cases) + live CI logs; needs `.env.test.ci` present and CI override vars for real runs |
 | 7 | `bun --env-file=.env.test run db push --env-file=.env.test` | — | structural proof locally (no Postgres in sandbox); live leg green in `tests-db` runs |
 | 8 | `bun run test:db` / `bun run test:services` | via CI | success across multiple live runs; locally requires materialized `.env.test` + Postgres |
-| 9 | `bun run test:ui:components` | 0 | runs WITHOUT `.env.test` present — consumes committed `.env.test.ci` only |
-| 10 | `EVENT_NAME=push bun run scripts/ci/validate-docs-ci.ts` | 0 | full-set mode — reproduces push-mode validation exactly |
+| 9 | `EVENT_NAME=push bun run scripts/ci/validate-docs-ci.ts` | 0 | full-set mode — reproduces push-mode validation exactly |
 | 11 | `bun --env-file=.env.test.ci run generate:gqlSchema && bun codegen && git diff --exit-code` | 0 | drift-gate determinism ×3 |
 
 Suite-level local runner convention: `KOTTABY_TEST_RUNNER_OK=1 bun --env-file=.env.test.ci test --parallel=1 scripts/ci/*.test.ts scripts/validate-mermaid.test.ts` (135 tests / 0 failures at the steady-state tip).

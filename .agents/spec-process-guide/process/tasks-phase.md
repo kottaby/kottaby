@@ -282,7 +282,7 @@ Every feature plan MUST end with a knowledge propagation task that:
 | Backend types / enums | `docs/backend/` | — |
 | Frontend components / views / stores | `docs/frontend/` | — |
 | Frontend GraphQL / Apollo | `docs/frontend/` | — |
-| Testing (DB / UI / E2E) | `docs/testing/` | — |
+| Testing (DB / general) | `docs/testing/` | — |
 | i18n / locale | `docs/i18n/` | — |
 | Auth / security | `docs/auth/` | — |
 | App Router / Next.js | `docs/app/` | — |
@@ -612,7 +612,7 @@ This example demonstrates complex dependency management and multiple sequencing 
   - Create directory structure for models, services, repositories, and API layers
   - Define TypeScript interfaces for Product, Category, Inventory, and Order types
   - Set up configuration management for database, caching, and external services
-  - Configure testing framework with unit, integration, and e2e test support
+  - Configure testing framework with unit and integration test support
   - _Requirements: 1.1, 1.2_
 
 - [ ] 1.2 Create database schema and migrations
@@ -732,9 +732,9 @@ This example demonstrates complex dependency management and multiple sequencing 
   - Write performance tests to validate caching effectiveness
   - _Requirements: 8.1, 8.2_
 
-- [ ] 7. End-to-end integration and testing (depends on 6.1, 6.2, 6.3)
-- [ ] 7.1 Create comprehensive end-to-end test scenarios
-  - Write e2e tests for complete product lifecycle workflows
+- [ ] 7. Cross-service integration and workflow testing (depends on 6.1, 6.2, 6.3)
+- [ ] 7.1 Create comprehensive workflow journey test scenarios
+  - Write workflow journey tests for complete product lifecycle workflows
   - Test inventory management scenarios including edge cases
   - Validate category management and product assignment flows
   - Create performance tests for high-load scenarios
@@ -754,7 +754,7 @@ This example demonstrates complex dependency management and multiple sequencing 
 2. **Parallel Development Opportunities**: Tasks 2.1, 2.2, 2.3 can be worked on simultaneously after 1.x is complete
 3. **Risk Management**: Core functionality (models, repositories) before advanced features
 4. **Incremental Value**: Each completed section provides working, testable functionality
-5. **Comprehensive Testing**: Unit, integration, and e2e tests throughout
+5. **Comprehensive Testing**: Unit, integration, and workflow tests throughout
 6. **Real-world Complexity**: Handles concurrency, external integrations, and performance concerns
 
 ## Task Writing Best Practices

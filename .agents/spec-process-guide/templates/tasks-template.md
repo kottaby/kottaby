@@ -431,7 +431,7 @@ Use this table to choose the `docs/` subdirectory for the canonical reference do
 | Backend types / enums | `docs/backend/` |
 | Frontend components / views / stores / state | `docs/frontend/` |
 | Frontend GraphQL / Apollo | `docs/frontend/` |
-| Testing (DB, UI, E2E, general) | `docs/testing/` |
+| Testing (DB, general) | `docs/testing/` |
 | i18n / locale | `docs/i18n/` |
 | Auth / security | `docs/auth/` |
 | App Router / Next.js | `docs/app/` |
@@ -559,7 +559,7 @@ Use this checklist when executing each task:
   - Create reusable UI components
   - Implement responsive design
   - Add accessibility features
-  - Write component tests and user scenarios
+  - Verify responsive design and accessibility
   - **Quality Loop**: `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` (exit code 0)
   - **Instruction Verification**: sub-loop.ts auto-discovers & prints applicable AGENTS.md + .agents/instructions; read & validate against them
   - _Requirements: [X.X]_

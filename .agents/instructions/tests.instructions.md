@@ -139,17 +139,16 @@ When modifying `test/scripts/run-test.ts`:
 
 ### UI Tests (`test/ui/`)
 
-- **Production server for E2E** — `test/ui/e2e/` runs against `next start` (`.next-test-prod`), not `next dev`.
-- **Build prerequisite** — Run `bun run build:test` before `test:ui:e2e` or `test:ui`. Tests do not build automatically.
-- **Rebuild after server changes** — Re-run `build:test` after auth, middleware, API routes, or other server/runtime changes.
-- **Component tests** (`test/ui/components/`) — Happy DOM + mocked Apollo; no server, no `build:test` required.
-- **GraphQL vs UI** — `test:graphql` still uses the dev server (test-helper mutations). Only `test/ui/` defaults to production.
+- **E2E tests** (`test/ui/e2e/`) — Playwright E2E tests (e.g. Paymob live checkout).
+- **Build prerequisite** — When running E2E against a production build, run `bun run build:test` first.
+- **Static checks** (`test/ui/mobile-desktop-isolation.test.ts`) — Mobile/desktop import boundary scans.
 
 ```bash
-bun run build:test           # once before E2E (or after server code changes)
-bun run test:ui:components   # no build needed
-bun run test:ui:e2e          # requires build:test
-bun run test:ui              # components + e2e + static
+bun run build:test           # once before E2E against production (or after server code changes)
+bun run test:ui:e2e          # Playwright E2E
+bun run test:ui:e2e:paymob   # Paymob live checkout E2E
+bun run test:ui:static       # mobile/desktop isolation checks
+bun run test:ui              # static UI checks
 bun run test:ui:kill         # stop stale test servers (test port only — never dev/QA ports)
 ```
 
@@ -160,10 +159,10 @@ bun run test:ui:kill         # stop stale test servers (test port only — never
 - `bun run test:db:sequential` - sequential DB tests (debugging)
 - `bun run test:db:coverage` - database tests with coverage report
 - `bun run test:graphql` - GraphQL integration tests (dev server)
-- `bun run test:ui:components` - UI component tests (no server)
-- `bun run test:ui:e2e` - E2E tests (production server; run `build:test` first)
+- `bun run test:ui:e2e` - E2E tests (Playwright)
+- `bun run test:ui:e2e:paymob` - Paymob live checkout E2E
 - `bun run test:ui:static` - UI import isolation checks
-- `bun run test:ui` - all UI tests
+- `bun run test:ui` - static UI checks
 - `bun run test:ui:kill` - kill test servers on the test port only (never the dev server port)
 - `bun run test` - all tests across all layers
 

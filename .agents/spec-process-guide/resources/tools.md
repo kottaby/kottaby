@@ -582,7 +582,7 @@ jobs:
 | Diagramming | Mermaid | Code-based | Free | Medium | Excellent |
 | Diagramming | Lucidchart | Professional | Paid | Low | Good |
 | Testing | Jest | Unit testing | Free | Medium | Good |
-| Testing | Cypress | E2E testing | Free/Paid | Medium | Good |
+| Testing | Supertest / Fetch | Integration testing | Free | Low | Excellent |
 | CI/CD | GitHub Actions | GitHub integration | Free/Paid | Medium | Excellent |
 | CI/CD | Jenkins | Enterprise | Free | High | Good |
 

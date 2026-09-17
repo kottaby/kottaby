@@ -337,7 +337,7 @@ Tasks were defined without considering dependencies, leading to blocked work and
   - Create registration form with validation
   - Implement login form with error handling
   - Add authenticated user dashboard
-  - Write component tests and user interaction tests
+  - Implement accessible focus and keyboard navigation
   - _Requirements: 3.2, 3.3_
 ```
 

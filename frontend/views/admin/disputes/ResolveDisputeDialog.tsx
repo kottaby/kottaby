@@ -51,9 +51,6 @@ import { Common, Errors, Sessions, useAppTranslation } from "@/shared/locale";
  * icons only, ≥44px touch targets on the action buttons.
  */
 
-/** UI-seam cap for the optional arbitration note (mirrors the backend contract). */
-export const MAX_RESOLVE_NOTE_LENGTH = 500;
-
 interface ResolveDisputeDialogProps {
   /** Id of the disputed session being arbitrated. */
   readonly sessionId: string;

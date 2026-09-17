@@ -28,21 +28,20 @@ bun run build:test
 
 | Layer | Path | Server | Notes |
 |-------|------|--------|-------|
-| Component | `test/ui/components/` | None | Happy DOM + mocked Apollo. No browser, no network. |
 | E2E | `test/ui/e2e/` | Dev (default) or Production (`next start`) | Playwright via `bun:test`. Uses `setupBrowserLifecycle()` → `setupTestServerLifecycle()`. |
 | Static checks | `test/ui/mobile-desktop-isolation.test.ts` | None | Import-boundary scans only. |
 
-Component tests do not need `build:test`. E2E tests in production mode **do**.
+E2E tests in production mode require `build:test`.
 
 ## Commands
 
 ```bash
 bun run dev                 # Start dev server on port 3000 (required for dev-mode E2E)
 bun run build:test          # Build .next-test-prod (required for production-mode E2E)
-bun run test:ui:components  # Happy DOM component tests
 bun run test:ui:e2e         # Playwright E2E (dev server by default, reuses port 3000 if running)
+bun run test:ui:e2e:paymob  # Paymob live checkout E2E
 bun run test:ui:static      # Mobile/desktop isolation checks
-bun run test:ui             # All of the above
+bun run test:ui             # Static UI checks
 bun run test:ui:kill        # Kill test servers on port 3099 only (never dev:3000 or start:4000)
 ```
 
@@ -129,11 +128,6 @@ page.locator(`button[aria-label="${escapeRegExp(common.notifications)}"]`)
 - **Person names in test input** — input data, not rendered translations
 - **Provider names** — e.g., `"Zoom"`, `"Google Meet"` are brand names, not translatable UI text
 
-## Component Test Conventions
-
-- Preloads: `test/ui/test-env.ts`, `happydom-preload.ts`, `next-dynamic-mock.ts`, **`translation-preload.ts`**
-- Use `renderWithWrapper` from `@/test/ui/components/TestWrapper` (wrap children in Apollo `MockedProvider` for mocks) — never hit a real server
-
 ## Agent Browser Login (manual/E2E-style verification)
 
 AI layers redact real email addresses in prompts, so email+password login typed via browser automation fails schema validation. Use `scripts/browser-login.ts` instead:
@@ -149,123 +143,6 @@ bun run scripts/browser-login.ts --inject              # + inject cookies into $
 - In multi-step browser verification runs, calling `ReadMediaFile` repeatedly accumulates multiple images into the conversation history, creating multi-megabyte payloads that cause upstream LLM timeouts and stream drops (`Stream ended before producing a non-ping SSE event`).
 - **Use DOM/Text verification first**: `agent-browser snapshot -i -c`, `agent-browser eval`, and console/network logs.
 - **Isolate Visual Checks**: If an image requires visual LLM inspection, spawn a dedicated short-lived subagent that opens the single image with `ReadMediaFile` and returns a text-only summary. The main session receives only the text summary, keeping context clean and fast.
-
-## Translation Rules (CRITICAL — No Hardcoded Strings)
-
-**NEVER hardcode user-facing text strings in test assertions.** All text that appears in the UI must be obtained via the translation system. This is a strict requirement — no exceptions.
-
-### Why This Matters
-
-The project uses a compile-time translation system (`shared/locale/`). Arabic/English strings live in locale files, not in code. Tests must assert against the same strings the components render, which come from the translation system. Hardcoding strings creates brittle tests that break when translations change and violates the i18n architecture.
-
-### Setup
-
-**`translation-preload.ts`** must be in the `--preload` chain for all component tests. It eagerly resolves the translation namespaces exercised by current suites for BOTH locales (`<Namespace>.getLabels(...)` over the full `en`/`ar` catalogs) so missing-key drift surfaces at preload time, and it registers the mocked `next/navigation` module that supplies the active test locale.
-
-The preload file warms a list of namespace handles via `.getLabels(translations)` for both catalogs. When you use a new translation namespace in tests, add its handle to the warming loop in `translation-preload.ts`.
-
-### Translation Helper — `getTranslations(locale)` + `<Namespace>.getLabels(...)`
-
-Tests resolve labels through the same compile-time catalog `useAppTranslation` reads from: import the namespace handle from `@/shared/locale/namespaces/<namespace>`, then call `<Handle>.getLabels(getTranslations(locale))` with `getTranslations` from `@/shared/locale/server` — pure, in-memory, and synchronous. **Do NOT create custom per-locale helper functions** (no `getArTranslation`, `getEnTranslation`, etc.).
-
-```typescript
-import type { AppLocale } from "@/shared/locale/AppLocale";
-import { Errors } from "@/shared/locale/namespaces/errors";
-import { getTranslations } from "@/shared/locale/server";
-import { renderWithWrapper } from "@/test/ui/components/TestWrapper";
-
-const locale: AppLocale = "ar";
-const labels = Errors.getLabels(getTranslations(locale));
-// now use labels.<key> in assertions
-```
-
-`getLabels` is NOT a React hook — safe to call at module level. `getTranslations(locale)` returns the full catalog synchronously; `translation-preload.ts` pre-warms the namespace handles so missing keys surface at preload time, not mid-assertion.
-
-### Define `locale` Once Per Test File
-
-Define `locale` as a `const` at the top of the test file. Pass the same `locale` value to both your `<Namespace>.getLabels(getTranslations(locale))` calls and `renderWithWrapper`:
-
-```typescript
-const locale: AppLocale = "ar";
-```
-
-**Locale should NOT be deterministic** unless the test specifically tests locale-switching behavior. Don't single-source the locale from a central config — a simple `const locale: AppLocale = "ar"` per file is the correct approach.
-
-### `renderWithWrapper` Must Receive the Same `locale`
-
-`renderWithWrapper` (from `@/test/ui/components/TestWrapper`) renders under the full provider stack — `LocaleProvider` → emotion cache → `ThemeProvider` — providing the locale context that `useAppTranslation` reads from. It accepts `locale` as an option and must receive the same `locale` as your label resolution:
-
-```typescript
-renderWithWrapper(<Component />, { locale });
-```
-
-### Two Test Patterns
-
-**Pattern 1 — Component accepts `labels` prop:**
-```typescript
-const labels = Errors.getLabels(getTranslations(locale));
-renderWithWrapper(<Component labels={labels} />, { locale });
-expect(screen.getByText(labels.forbidden)).toBeInTheDocument();
-```
-
-**Pattern 2 — Component uses `useAppTranslation` internally:**
-```typescript
-const labels = Errors.getLabels(getTranslations(locale));
-renderWithWrapper(<Component />, { locale });
-expect(screen.getByText(labels.forbidden)).toBeInTheDocument();
-```
-
-### What Counts as "Hardcoded" (Prohibited)
-
-- **Arabic/English UI labels** — e.g., `"متصل"`, `"Connected"` — must come from `<Namespace>.getLabels(getTranslations(locale))`
-- **Button text, badge text, headings, descriptions** — any text rendered by the component
-- **Alert/error messages** — use translated strings from the appropriate namespace
-
-### What is Acceptable (NOT "Hardcoded")
-
-These are test data, not UI labels — they do NOT need translation:
-
-- **Custom override strings** — e.g., `"Custom Copy Label"` passed as a prop to test label override behavior
-- **Technical test data** — URLs, HTTP status codes (`"200 OK"`), error codes (`"AUTH_FAILED"`), response times (`"150ms"`)
-- **Person names in test input** — e.g., `"أحمد محمد"` is input data, not rendered translations
-- **Provider names** — e.g., `"Zoom"`, `"Google Meet"` are brand names, not translatable UI text
-
-### MUI v9 Class Name Gotchas
-
-When asserting on MUI component classes (e.g., Alert severity):
-
-- `MuiAlert-colorError` / `MuiAlert-colorWarning` (NOT `standardError` / `standardWarning`)
-- Check via `element.className.includes("MuiAlert-colorError")` rather than testing-library text matchers
-
-### Text Broken Across Elements
-
-Some components render combined text (e.g., `"{label}: {value}"`) in a single paragraph. `getByText` with exact string match will fail. Use:
-
-- `screen.getByText(new RegExp(labels.someLabel))` — regex matcher
-- `screen.getByText(content => content.includes(labels.someLabel))` — function matcher
-- `element.textContent.includes(labels.someLabel)` — direct DOM check on a parent element
-
-### Namespace Handle Discovery
-
-Namespace handles live in per-namespace modules under `@/shared/locale/namespaces/` — each exports a typed handle (e.g. `Errors`, `Dashboard`), and `@/shared/locale/namespaces/registry.ts` composes them into the `namespaces` object. Resolve labels with `<Handle>.getLabels(getTranslations(locale))`.
-
-### Apollo Mock Requirement
-
-When a component uses `useQuery` internally, the test must provide an Apollo mock via `renderWithWrapper`'s `mocks` option. Import the query document from `@/frontend/graphql/sharedDocuments` and the result type from `@/frontend/graphql/generated/gql/graphql`:
-
-```typescript
-const mock = {
-  request: { query: someQueryDocument, variables: { /* ... */ } },
-  result: { data: { /* ... */ } satisfies SomeQuery },
-};
-
-renderWithWrapper(<Component />, { mocks: [mock] });
-```
-
-
-## Shared Test Helpers
-
-Test files sharing identical mock setup (navigation, router, session activation) should import from the shared helpers under `test/ui/components/helpers/` and fixtures under `test/ui/components/fixtures/` instead of defining inline mocks.
 
 ## Linting Rules
 

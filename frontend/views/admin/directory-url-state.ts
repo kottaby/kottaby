@@ -41,8 +41,6 @@
  * the public barrel — consumers import from here only.
  */
 
-export type { ReadableSearchParams } from "@/frontend/views/admin/directory-url-state/shared";
-
 export {
   parseStudentsUrlState,
   serializeStudentsUrlState,
@@ -51,12 +49,10 @@ export {
 export {
   type ApplicantsUrlState,
   parseApplicantsUrlState,
-  serializeApplicantsUrlState,
 } from "@/frontend/views/admin/directory-url-state/teachers-applicants";
 
 export {
   parseTeachersDirectoryUrlState,
-  serializeTeachersDirectoryUrlState,
   type TeachersDirectoryUrlState,
 } from "@/frontend/views/admin/directory-url-state/teachers-directory";
 

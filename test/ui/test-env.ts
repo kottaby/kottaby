@@ -13,12 +13,10 @@
  * This preload adds only the UI-test posture:
  * - CI/test-server markers are normalized into the exact string shape
  *   understood by `backend/lib/test-ci-env.ts` (`isTestCi()`), and a run that
- *   reaches UI component tests without any sanctioned marker fails fast
+ *   reaches UI tests without any sanctioned marker fails fast
  *   instead of silently exercising production-ish assumptions.
  * - `TEST_SERVER_MODE` defaults to `dev` per `test/ui/AGENTS.md`; the
- *   `test:ui:components` / `test:ui:static` scripts override it inline to
- *   `production`. Component tests themselves are SERVERLESS: they render in a
- *   Happy DOM window with in-memory providers and never bind a port.
+ *   `test:ui:static` script overrides it inline to `production`.
  */
 
 import { isTestCi } from "@/backend/lib/test-ci-env";
@@ -45,6 +43,6 @@ process.env.TEST_SERVER ??= "1";
 // backend/db/test/ensure-env.ts.
 (process.env as { NODE_ENV?: string }).NODE_ENV ??= "test";
 
-// Component tests default to dev-mode server semantics per AGENTS.md; scripts
+// UI tests default to dev-mode server semantics per AGENTS.md; scripts
 // may still force TEST_SERVER_MODE=production for E2E/static entry points.
 process.env.TEST_SERVER_MODE ??= "dev";

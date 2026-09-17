@@ -500,9 +500,9 @@ sequenceDiagram
 - **Database Testing**: [Approach and tools]
 - **External Service Testing**: [Mocking strategy]
 
-### End-to-End Testing
+### Workflow Journey Testing
 - **User Scenarios**: [Key user journeys to test]
-- **Testing Tools**: [E2E testing framework]
+- **Testing Tools**: [Workflow journey test runner]
 - **Test Environment**: [Environment setup]
 
 ### Performance Testing

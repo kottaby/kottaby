@@ -87,31 +87,3 @@ export function createAppCssVarsTheme(
 
   return responsiveFontSizes(themeWithLocale);
 }
-
-/**
- * Build a single-mode theme (legacy shape, no `cssVariables`).
- *
- * Retained for Storybook (`StoryWrapper`) and component tests (`TestWrapper`)
- * which render a single preselected mode client-side and do not need the
- * cssVars / InitColorSchemeScript SSR machinery.
- */
-export function createAppTheme(mode: PaletteMode, direction: "rtl" | "ltr" = "ltr", locale: string = "en") {
-  const isLight = mode === "light";
-  const palette = isLight ? lightPalette : darkPalette;
-
-  const themeWithLocale = createTheme(
-    {
-      ...sharedFoundation(direction),
-
-      palette: {
-        mode,
-        ...palette,
-      },
-
-      components: components(),
-    },
-    ...locales(locale)
-  );
-
-  return responsiveFontSizes(themeWithLocale);
-}
