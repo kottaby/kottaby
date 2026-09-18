@@ -895,6 +895,6 @@ describe("StudentEvaluationService — source pins", () => {
   test("source: comments carry zero plan artifacts (no requirement ids, no plan/task references)", () => {
     expect(/REQ-\d/.test(serviceSource)).toBe(false);
     expect(/Task \d/.test(serviceSource)).toBe(false);
-    expect(/tasks\.md|plan\.md|sprint_3|plan-review/.test(serviceSource)).toBe(false);
+    expect(/tasks\.md|plan\.md|milestone_3_parent_portal_admin_governance|plan-review/.test(serviceSource)).toBe(false);
   });
 });

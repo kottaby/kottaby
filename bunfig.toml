@@ -22,10 +22,3 @@ preload = ["./test/scripts/test-runner-guard.ts", "./backend/db/test/logger-mock
 # [test.graphql]
 # preload = ["./backend/db/test/logger-mock.ts", "./backend/db/test/ensure-env.ts"]
 # root = "frontend/graphql/test/"
-
-# UI component tests: happydom + next/dynamic mock preloads are supplied via package.json
-# scripts (test:ui, test:ui:components, test:ui:e2e) because Bun only honors the single
-# [test] section in bunfig.toml - named profiles like [test.ui] below are ignored.
-# [test.ui]
-# preload = ["./backend/db/test/logger-mock.ts", "./backend/db/test/ensure-env.ts", "./test/ui/components/happydom-preload.ts", "./test/ui/components/next-dynamic-mock.ts"]
-# root = "test/ui/"

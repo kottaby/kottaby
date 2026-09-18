@@ -130,5 +130,5 @@ Log discipline: every denial emits exactly ONE bounded `logger.logDomainError` e
 - **Frontend:** `frontend/views/student/sessions/` (`RateTeacherDialog.tsx`, `useMyTeacherEvaluations.ts`, `useStudentSessionConfirm.ts`, `rateTeacherMutationError.ts`), mapping table `frontend/providers/apollo/error-link.map.ts`
 - **i18n:** `shared/locale/en/errors/index.ts:105–108` (+ `ar` mirror; en/ar parity mechanically pinned)
 - **Average-rating target column:** `backend/db/schema/teachers/teacher.ts:27,37`; existing 0–100 aggregate-reader precedent `backend/db/repo/admin/platform-analytics.repository.ts:359–403`
-- **Test locks:** `backend/db/test/repo/teachers/evaluation.repository.test.ts`, `backend/services/teachers/student-evaluation.service.test.ts`, `test/workflows/teachers/student-teacher-rating.journey.test.ts`, `test/ui/components/student/rate-teacher-dialog.test.tsx`
+- **Test locks:** `backend/db/test/repo/teachers/evaluation.repository.test.ts`, `backend/services/teachers/student-evaluation.service.test.ts`, `test/workflows/teachers/student-teacher-rating.journey.test.ts`
 - **Sibling canonical docs:** `docs/sessions/session-lifecycle.md` (completion handshake + consumer guidance), `docs/teachers/applicant-lifecycle.md` (the table's other consumer), `docs/graphql/error-handling-contract.md` + `docs/graphql/domain-error-extensions-code.md` (error transport)

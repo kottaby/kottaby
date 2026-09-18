@@ -24,6 +24,7 @@ export const adminStudentsAr: AdminStudentsLabels = {
   filters: {
     search: "بحث",
     searchPlaceholder: "ابحث بالاسم أو البريد الإلكتروني",
+    searchClearLabel: "مسح البحث",
     hasParent: "ربط ولي الأمر",
     language: "اللغة",
     apply: "تطبيق",

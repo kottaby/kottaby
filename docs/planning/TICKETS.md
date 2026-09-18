@@ -2,7 +2,7 @@
 
 > **Format:** `to-tickets` tracer-bullet vertical slices
 > **Source of truth:** `docs/specs/`, `backend/db/schema/`, `docs/scenarios/user-story-map.md`
-> **Related:** `docs/planning/SPRINT_PLAN.md`, `docs/planning/TEAM_ALLOCATION.md`
+> **Related:** `docs/planning/MILESTONE_PLAN.md`, `docs/planning/TEAM_ALLOCATION.md`
 
 ---
 
@@ -14,7 +14,7 @@ Each ticket follows the tracer-bullet format: a vertical slice cutting through e
 |---|---|
 | **Title** | Action-oriented title |
 | **Owner Stream** | Dev 1 / Dev 2 / Dev 3 / Shared |
-| **Sprint** | Sprint 0, 1, 2, 3, or 4 |
+| **Milestone** | Milestone 0, 1, 2, 3, or 4 |
 | **Story Points** | Fibonacci sizing (1, 2, 3, 5, 8) |
 | **Blocked By** | Ticket prerequisites |
 | **Description** | Specific functional boundaries |
@@ -23,7 +23,7 @@ Each ticket follows the tracer-bullet format: a vertical slice cutting through e
 
 ---
 
-## Sprint 0 — Foundation Tickets
+## Milestone 0 — Foundation Tickets
 
 ---
 
@@ -32,7 +32,7 @@ Each ticket follows the tracer-bullet format: a vertical slice cutting through e
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 (Shared) |
-| **Sprint** | 0 |
+| **Milestone** | 0 |
 | **Story Points** | 5 |
 | **Blocked By** | None — can start immediately |
 
@@ -68,7 +68,7 @@ And the Drizzle schema type-checks (`bun tsgo`)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 0 |
+| **Milestone** | 0 |
 | **Story Points** | 5 |
 | **Blocked By** | Database Schema Migration |
 
@@ -118,7 +118,7 @@ Then a parents record is created
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 0 |
+| **Milestone** | 0 |
 | **Story Points** | 2 |
 | **Blocked By** | User Registration with Role-Specific Child Table Creation |
 
@@ -151,7 +151,7 @@ Then a second recitation record is created (1:M relationship)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 0 |
+| **Milestone** | 0 |
 | **Story Points** | 3 |
 | **Blocked By** | User Registration with Role-Specific Child Table Creation |
 
@@ -182,7 +182,7 @@ Then the trial session balance is decremented
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 (Shared) |
-| **Sprint** | 0 |
+| **Milestone** | 0 |
 | **Story Points** | 5 |
 | **Blocked By** | Database Schema Migration |
 
@@ -224,7 +224,7 @@ Then the request is rejected with 401
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 (Shared) |
-| **Sprint** | 0 |
+| **Milestone** | 0 |
 | **Story Points** | 3 |
 | **Blocked By** | JWT Authentication Service |
 
@@ -276,7 +276,7 @@ Then access is denied with 403
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 (Shared) |
-| **Sprint** | 0 |
+| **Milestone** | 0 |
 | **Story Points** | 3 |
 | **Blocked By** | Database Schema Migration |
 
@@ -304,7 +304,7 @@ And the types are validated at compile time
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 (Shared) |
-| **Sprint** | 0 |
+| **Milestone** | 0 |
 | **Story Points** | 5 |
 | **Blocked By** | None — can start immediately |
 
@@ -333,7 +333,7 @@ And the PR cannot be merged if any check fails
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 (Shared) |
-| **Sprint** | 0 |
+| **Milestone** | 0 |
 | **Story Points** | 3 |
 | **Blocked By** | None — can start immediately |
 
@@ -367,7 +367,7 @@ And validation errors include field-level details
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 (Shared) |
-| **Sprint** | 0 |
+| **Milestone** | 0 |
 | **Story Points** | 3 |
 | **Blocked By** | Shared Error Handling & Response Contracts |
 
@@ -394,7 +394,7 @@ And the response is returned in standardized format
 
 ---
 
-## Sprint 1 — Core Domain MVP Tickets
+## Milestone 1 — Core Domain MVP Tickets
 
 ---
 
@@ -403,7 +403,7 @@ And the response is returned in standardized format
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 3 |
 | **Blocked By** | User Registration with Role-Specific Child Table Creation |
 
@@ -450,7 +450,7 @@ Then access is denied with 403
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 5 |
 | **Blocked By** | Plan Catalog CRUD (Admin Only) |
 
@@ -498,7 +498,7 @@ Then a new subscription period is created (renewal)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 5 |
 | **Blocked By** | Subscription Purchase via Payment Gateway |
 
@@ -542,7 +542,7 @@ Then the request is rejected with 422 "Insufficient balance"
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 3 |
 | **Blocked By** | Segregated Session Balance Crediting |
 
@@ -585,7 +585,7 @@ Then the balance reflects sessions remaining in the current period
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 5 |
 | **Blocked By** | Subscription Validity Window & Expiry |
 
@@ -637,7 +637,7 @@ And a new subscription is created with the new plan's session_count
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 3 |
 | **Blocked By** | Role-Based Authorization Middleware |
 
@@ -680,7 +680,7 @@ And last_attempt_at is updated
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 3 |
 | **Blocked By** | Teacher Applicant Registration & Applicants Table, Subscription Purchase via Payment Gateway |
 
@@ -721,7 +721,7 @@ And verification_attempts is incremented
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 5 |
 | **Blocked By** | Verification Plan Purchase (5 Sessions) |
 
@@ -766,7 +766,7 @@ Then the request is rejected with 422 "No evaluation sessions remaining"
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 5 |
 | **Blocked By** | 5-Session Evaluation Loop Booking |
 
@@ -820,7 +820,7 @@ And a students record is created for the failed applicant
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 5 |
 | **Blocked By** | Evaluation Rubric Scoring (≥80% Threshold) |
 
@@ -874,7 +874,7 @@ And they can subscribe to plans and attend sessions during cooldown
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 3 |
 | **Blocked By** | Cooldown State Machine (1-Month Tajweed / 3-Month Hifz) |
 
@@ -918,7 +918,7 @@ And their students record is preserved (historical data)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 3 |
 | **Blocked By** | Cooldown State Machine (1-Month Tajweed / 3-Month Hifz) |
 
@@ -964,7 +964,7 @@ And the action is logged in audit_logs
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 5 |
 | **Blocked By** | Database Schema Migration, Role-Based Authorization Middleware |
 
@@ -1025,7 +1025,7 @@ Then the transition is rejected (INV-S2)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 3 |
 | **Blocked By** | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
 
@@ -1067,7 +1067,7 @@ Then the session transitions to 'completed' (refund/partial refund) or stays 'co
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 5 |
 | **Blocked By** | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
 
@@ -1109,7 +1109,7 @@ And grades are 0-100 (check constraints)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 1 |
+| **Milestone** | 1 |
 | **Story Points** | 2 |
 | **Blocked By** | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
 
@@ -1138,7 +1138,7 @@ Then the attempt is rejected (unique constraint)
 
 ---
 
-## Sprint 2 — Matching, Notifications & Escrow Tickets
+## Milestone 2 — Matching, Notifications & Escrow Tickets
 
 ---
 
@@ -1147,7 +1147,7 @@ Then the attempt is rejected (unique constraint)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 3 |
 | **Blocked By** | Subscription Validity Window & Expiry |
 
@@ -1182,7 +1182,7 @@ And students subscribing to the plan get progress tracking for these lessons
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 5 |
 | **Blocked By** | Tajweed Curriculum Lessons CRUD |
 
@@ -1220,7 +1220,7 @@ Then progress remains at the last lesson (curriculum complete)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 3 |
 | **Blocked By** | Student Progress Tracking & Increment |
 
@@ -1255,7 +1255,7 @@ Then the teacher sees "First session — diagnostic"
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 3 |
 | **Blocked By** | Cooldown State Machine (1-Month Tajweed / 3-Month Hifz) |
 
@@ -1300,7 +1300,7 @@ And the teacher cannot toggle to Available during the session
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 5 |
 | **Blocked By** | Teacher Availability Toggle (Available/Unavailable) |
 
@@ -1340,7 +1340,7 @@ Then the teacher is NOT auto-set to offline (in-session lock takes priority)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 3 |
 | **Blocked By** | Teacher Availability Toggle (Available/Unavailable) |
 
@@ -1378,7 +1378,7 @@ Then the teacher's status returns to Available only if they are still active (ap
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 5 |
 | **Blocked By** | Session Report & Homework Infrastructure |
 
@@ -1424,7 +1424,7 @@ Then all homework assignments are visible (cross-teacher continuity)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 3 |
 | **Blocked By** | Session Report Submission with Homework (Jadid & Madi) |
 
@@ -1459,7 +1459,7 @@ And non-contiguous assignments are supported
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 8 |
 | **Blocked By** | Teacher Availability Toggle (Available/Unavailable), Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
 
@@ -1511,7 +1511,7 @@ Then an empty result is returned with a message "No teachers available"
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 5 |
 | **Blocked By** | On-Demand Matching Algorithm (Filter/Sort Pipeline) |
 
@@ -1555,7 +1555,7 @@ Then teachers are sorted by average_rating descending
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 8 |
 | **Blocked By** | API Gateway & Routing Skeleton |
 
@@ -1603,7 +1603,7 @@ Then only valid notification_type enum values are accepted
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 3 |
 | **Blocked By** | Real-Time Notification Engine (WebSocket) |
 
@@ -1655,7 +1655,7 @@ Then the student is offered alternative available teachers
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 5 |
 | **Blocked By** | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
 
@@ -1706,7 +1706,7 @@ And the dispute is sent to admin for arbitration
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 5 |
 | **Blocked By** | Dual-Confirmation Completion Handshake (24h Timeout), Segregated Session Balance Crediting |
 
@@ -1755,7 +1755,7 @@ And no session is created
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 5 |
 | **Blocked By** | Fee Escrow: Hold at Request, Decrement at Completion |
 
@@ -1801,7 +1801,7 @@ Then NO teacher_transaction is created (no earning for cancelled sessions)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 2 |
+| **Milestone** | 2 |
 | **Story Points** | 5 |
 | **Blocked By** | Teacher Wallet Crediting (Earning Transactions) |
 
@@ -1846,7 +1846,7 @@ Then the attempt is rejected (INV-W6: financial immutability)
 
 ---
 
-## Sprint 3 — Parent Portal & Admin Governance Tickets
+## Milestone 3 — Parent Portal & Admin Governance Tickets
 
 ---
 
@@ -1855,7 +1855,7 @@ Then the attempt is rejected (INV-W6: financial immutability)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 2 |
 | **Blocked By** | User Registration with Role-Specific Child Table Creation |
 
@@ -1894,7 +1894,7 @@ Then the corresponding student is found
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 5 |
 | **Blocked By** | Student Handshake Code Generation |
 
@@ -1948,7 +1948,7 @@ Then the attempt is rejected (B.12: one parent per student)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 3 |
 | **Blocked By** | Parent-Child Link Request Workflow (7-Day Expiry) |
 
@@ -1990,7 +1990,7 @@ And the parent cannot monitor the student
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 8 |
 | **Blocked By** | Student Confirmation of Parent Link, Session Request Notification to Teacher |
 
@@ -2040,7 +2040,7 @@ Then they can switch between children's views
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 3 |
 | **Blocked By** | Parent Read-Only Monitoring Portal, Real-Time Notification Engine (WebSocket) |
 
@@ -2075,7 +2075,7 @@ Then they are taken to the session report view in the monitoring portal
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 3 |
 | **Blocked By** | Dual-Confirmation Completion Handshake (24h Timeout) |
 
@@ -2110,7 +2110,7 @@ Then the attempt is rejected with 422 "Session not completed"
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 3 |
 | **Blocked By** | Student Evaluation Submission (Teacher Rating) |
 
@@ -2145,7 +2145,7 @@ Then teacher.average_rating = 0 (default)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 5 |
 | **Blocked By** | Cooldown State Machine (1-Month Tajweed / 3-Month Hifz), Teacher Wallet Crediting (Earning Transactions) |
 
@@ -2186,7 +2186,7 @@ And the teacher's is_approved is set to false during re-evaluation
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 3 |
 | **Blocked By** | Session Report Submission with Homework (Jadid & Madi) |
 
@@ -2223,7 +2223,7 @@ Then they see all homework assignments, grades, and progress over time
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 5 |
 | **Blocked By** | Role-Based Authorization Middleware |
 
@@ -2268,7 +2268,7 @@ Then access is denied with 403
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 3 |
 | **Blocked By** | Admin CRUD: Users, Teachers, Students, Parents |
 
@@ -2316,7 +2316,7 @@ Then the attempt is rejected (INV-U4: no hard deletes)
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 3 |
 | **Blocked By** | Admin CRUD: Users, Teachers, Students, Parents |
 
@@ -2359,7 +2359,7 @@ Then access is denied with 403
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 5 |
 | **Blocked By** | Admin CRUD: Users, Teachers, Students, Parents, Admin Subscription Management (Extend/Renew/Cancel/Upgrade/Downgrade) |
 
@@ -2408,7 +2408,7 @@ Then only valid payment_gateway enum values are accepted (including offline type
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 5 |
 | **Blocked By** | Admin CRUD: Users, Teachers, Students, Parents |
 
@@ -2458,7 +2458,7 @@ And the results show all administrative actions in chronological order
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 5 |
 | **Blocked By** | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) |
 
@@ -2511,7 +2511,7 @@ And the action is logged in audit_logs
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 5 |
 | **Blocked By** | Dual-Confirmation Completion Handshake (24h Timeout) |
 
@@ -2566,7 +2566,7 @@ And the action is logged in audit_logs
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 5 |
 | **Blocked By** | Teacher Wallet Crediting (Earning Transactions) |
 
@@ -2621,7 +2621,7 @@ And the action is logged in audit_logs with action_type='adjust'
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 5 |
 | **Blocked By** | Admin CRUD: Users, Teachers, Students, Parents |
 
@@ -2661,7 +2661,7 @@ Then they see detailed breakdowns and trends
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 3 |
+| **Milestone** | 3 |
 | **Story Points** | 3 |
 | **Blocked By** | Real-Time Notification Engine (WebSocket) |
 
@@ -2697,7 +2697,7 @@ Then only users with active subscriptions to that plan receive the notification
 
 ---
 
-## Sprint 4 — Integration, Security & Launch Tickets
+## Milestone 4 — Integration, Security & Launch Tickets
 
 ---
 
@@ -2706,9 +2706,9 @@ Then only users with active subscriptions to that plan receive the notification
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 4 |
+| **Milestone** | 4 |
 | **Story Points** | 5 |
-| **Blocked By** | All Sprint 1–3 tickets |
+| **Blocked By** | All Milestone 1–3 tickets |
 
 **Description & Scope:**
 End-to-end integration tests covering the complete student journey: registration → plan subscription → session booking → session completion → dual confirmation → parent notification.
@@ -2737,7 +2737,7 @@ Then all steps succeed and data is consistent across all tables
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 4 |
+| **Milestone** | 4 |
 | **Story Points** | 5 |
 | **Blocked By** | Parent Read-Only Monitoring Portal, Parent Session Completion Notification Display |
 
@@ -2768,7 +2768,7 @@ Then all steps succeed and parent sees correct read-only data
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 1 |
-| **Sprint** | 4 |
+| **Milestone** | 4 |
 | **Story Points** | 3 |
 | **Blocked By** | Admin Subscription Management (Extend/Renew/Cancel/Upgrade/Downgrade) |
 
@@ -2800,9 +2800,9 @@ Then all steps succeed and balances are correct at each stage
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 4 |
+| **Milestone** | 4 |
 | **Story Points** | 5 |
-| **Blocked By** | All Sprint 1–3 tickets |
+| **Blocked By** | All Milestone 1–3 tickets |
 
 **Description & Scope:**
 Comprehensive security hardening: input validation on all endpoints, SQL injection prevention (parameterized queries), XSS prevention, CSRF protection, rate limiting, and security headers.
@@ -2839,7 +2839,7 @@ And no SQL injection or XSS is possible
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 4 |
+| **Milestone** | 4 |
 | **Story Points** | 3 |
 | **Blocked By** | Immutable Audit Logging for All Admin Actions |
 
@@ -2875,9 +2875,9 @@ And no actions are missing from the log
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 2 |
-| **Sprint** | 4 |
+| **Milestone** | 4 |
 | **Story Points** | 5 |
-| **Blocked By** | All Sprint 1–3 tickets |
+| **Blocked By** | All Milestone 1–3 tickets |
 
 **Description & Scope:**
 Automated tests that verify all state machine invariants from `docs/specs/state-machine-invariants.md`. Tests cover all 10 state machines and 50+ invariants.
@@ -2913,9 +2913,9 @@ Then every invariant is tested and passes:
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 4 |
+| **Milestone** | 4 |
 | **Story Points** | 8 |
-| **Blocked By** | All Sprint 1–3 tickets |
+| **Blocked By** | All Milestone 1–3 tickets |
 
 **Description & Scope:**
 Load testing with target concurrency (100+ concurrent sessions). Performance optimization: database query optimization, index verification, N+1 query elimination, caching strategy.
@@ -2951,7 +2951,7 @@ And results are paginated
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 4 |
+| **Milestone** | 4 |
 | **Story Points** | 5 |
 | **Blocked By** | None — can start immediately |
 
@@ -2987,7 +2987,7 @@ And the disaster recovery plan is documented
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 4 |
+| **Milestone** | 4 |
 | **Story Points** | 5 |
 | **Blocked By** | Fee Escrow: Hold at Request, Decrement at Completion, Teacher Wallet Crediting (Earning Transactions) |
 
@@ -3031,9 +3031,9 @@ And the balance is non-negative
 | Field | Value |
 |---|---|
 | **Owner Stream** | Dev 3 |
-| **Sprint** | 4 |
+| **Milestone** | 4 |
 | **Story Points** | 5 |
-| **Blocked By** | All Sprint 4 tickets |
+| **Blocked By** | All Milestone 4 tickets |
 
 **Description & Scope:**
 Execute the production launch checklist from `docs/planning/PRODUCTION_READINESS.md`. Final verification before opening the platform to real Shuyukh and students.
@@ -3068,7 +3068,7 @@ And the platform is ready for production launch
 
 ## Ticket Summary
 
-| Stream | Sprint 0 | Sprint 1 | Sprint 2 | Sprint 3 | Sprint 4 | Total |
+| Stream | Milestone 0 | Milestone 1 | Milestone 2 | Milestone 3 | Milestone 4 | Total |
 |---|---|---|---|---|---|---|
 | Dev 1 | 4 tickets | 5 tickets | 3 tickets | 5 tickets | 3 tickets | 20 tickets |
 | Dev 2 | 3 tickets | 7 tickets | 5 tickets | 4 tickets | 3 tickets | 22 tickets |
@@ -3077,7 +3077,7 @@ And the platform is ready for production launch
 
 ### Story Point Summary
 
-| Stream | Sprint 0 | Sprint 1 | Sprint 2 | Sprint 3 | Sprint 4 | Total SP |
+| Stream | Milestone 0 | Milestone 1 | Milestone 2 | Milestone 3 | Milestone 4 | Total SP |
 |---|---|---|---|---|---|---|
 | Dev 1 | 15 | 21 | 11 | 21 | 13 | 81 |
 | Dev 2 | 11 | 27 | 19 | 14 | 13 | 84 |

@@ -295,7 +295,6 @@ Every implementation task (X.Y) in `trackable-tasks.md` must follow the 5-stage 
 
 **When to defer tests:**
 - Simple utility functions (test in batch)
-- UI component tests (can batch at phase end)
 - E2E & Penetration tests (requires complete feature — executed in Phase 5)
 
 **Evidence:** whatsapp "Task 4 builders shipped without @live-comm tests; Task 5 adapter shipped without integration tests" — integration issues discovered late. Interleaved tests provide immediate feedback.

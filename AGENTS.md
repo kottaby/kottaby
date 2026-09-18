@@ -38,7 +38,7 @@ bun run generate:gqlSchema     # Generate GraphQL schema from Pothos
 bun codegen                    # Generate TypeScript types from schema
 
 # Testing (layer-specific)
-bun run build:test             # Build production bundle for UI/E2E tests (.next-test-prod) — REQUIRED before test:ui:e2e
+bun run build:test             # Build production bundle (.next-test-prod) — REQUIRED before production-mode Paymob E2E (test:ui:e2e:paymob)
 bun run test                   # All tests
 bun run test:db                # Database repository tests (parallel via test/scripts/run-db-tests-parallel.ts)
 bun run test:db:sequential     # Database tests (sequential, for debugging)
@@ -47,10 +47,7 @@ bun run test:integration:sequential  # Integration tests (sequential, for debugg
 bun run test:services          # Backend services tests (parallel via test/scripts/run-services-tests-parallel.ts)
 bun run test:services:sequential # Backend services tests (sequential, for debugging)
 bun run test:graphql           # GraphQL integration tests (dev server via test/scripts/run-server-tests.ts)
-bun run test:ui:components     # UI component tests (Happy DOM, no server)
-bun run test:ui:e2e            # End-to-end tests (dev/production server — test/scripts/run-server-tests.ts --e2e)
-bun run test:ui                # All UI tests (components + e2e + static)
-bun run test:ui:kill           # Kill test servers on port 3099 only (never dev:3000 or start:4000)
+bun run test:ui:e2e:paymob     # Paymob live checkout E2E (dev/production server — test/scripts/run-server-tests.ts --e2e)
 
 # Run database tests with log capture (AI agents MUST use this instead of raw `bun test`)
 bun run test/scripts/run-test.ts <test-path>        # Run with log capture
@@ -397,9 +394,8 @@ After reading the applicable instruction files and AGENTS.md, subagents check fo
 - `backend/db/test/repo/` - Repository unit tests (100% coverage required)
 - `backend/db/test/logic/` - Business logic integration tests
 - `frontend/graphql/test/` - GraphQL integration tests (dev server; use testClient, not raw fetch)
-- `test/ui/` - UI tests
-- `test/ui/components/` - Component tests (Happy DOM + mocked Apollo; no server)
-- `test/ui/e2e/` - End-to-end tests (production server; requires `bun run build:test` first)
+- `test/ui/` - UI tests (E2E-only; no static/component UI test layer exists)
+- `test/ui/e2e/` - End-to-end tests (Paymob checkout suite)
 
 ## Linting Rules
 

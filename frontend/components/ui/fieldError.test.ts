@@ -2,10 +2,10 @@
  * Colocated unit tests for `fieldError.ts` — pure-function tier ONLY.
  *
  * Render-tier component tests (PermissionDeniedFallback / RetryableNotice via
- * Happy DOM + Testing Library) are DEFERRED: the `test/ui/` scaffold this
- * repo's package.json scripts expect (happydom-preload.ts /
- * translation-preload.ts / next-dynamic-mock.ts / TestWrapper) does not exist
- * in-tree. No scaffold was faked to force this tier.
+ * Happy DOM + Testing Library) are out of scope: the static/component UI test
+ * tier was removed (UI verification is E2E-only — the Paymob checkout E2E
+ * is the sole browser-tier suite), so no such scaffold exists in-tree. No
+ * scaffold was faked to force this tier.
  *
  * Assertion discipline: these tests assert STRUCTURE, not user-facing copy —
  * no hardcoded UI strings are introduced here (messages are opaque pass-through

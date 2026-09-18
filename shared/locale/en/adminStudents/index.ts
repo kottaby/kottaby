@@ -24,6 +24,7 @@ export const adminStudentsEn: AdminStudentsLabels = {
   filters: {
     search: "Search",
     searchPlaceholder: "Search by name or email",
+    searchClearLabel: "Clear search",
     hasParent: "Parent link",
     language: "Language",
     apply: "Apply",

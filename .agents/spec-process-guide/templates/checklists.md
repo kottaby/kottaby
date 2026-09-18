@@ -162,7 +162,7 @@ This document provides comprehensive checklists for each phase of the spec-drive
 - [ ] **Testing Tasks**: Comprehensive testing tasks are included
 - [ ] **4-Tier test enforcement**: Every implementation task carries the X.Y.TE subtask (Tier 1–4 framework applied per task) — not a generic "write tests" bullet
 - [ ] **Journey tasks for cross-actor workflows**: Every multi-role flow in the requirements has a test-first `test/workflows/<domain>/<journey>.test.ts` task (see `docs/testing/workflow-journey-tests.md`)
-- [ ] **Penetration/E2E tasks present where applicable** (not silently omitted for backend-heavy features)
+- [ ] **Penetration/Security tasks present where applicable** (not silently omitted for backend-heavy features)
 - [ ] **Documentation Tasks**: Documentation updates are planned
 - [ ] **Knowledge Propagation Task**: Final task to propagate outcome learnings by creating/consolidating a canonical document under `docs/<domain>/` is included. AGENTS.md and `.agents/instructions/` are hand-curated rule files and are NEVER updated from plan work
 
@@ -181,7 +181,7 @@ This document provides comprehensive checklists for each phase of the spec-drive
 - [ ] **Timeline Risks**: Schedule risks and mitigation strategies are planned
 
 #### Quality Assurance
-- [ ] **Testing Strategy**: Unit, integration, and E2E testing is planned
+- [ ] **Testing Strategy**: Unit, integration, and workflow journey testing is planned
 - [ ] **Performance Testing**: Performance validation approach is defined
 - [ ] **Security Testing**: Security validation procedures are included
 - [ ] **User Acceptance**: User validation and feedback processes are planned
@@ -433,7 +433,7 @@ Track the effectiveness of your spec-driven development process:
 #### Process Efficiency Metrics
 - **Spec Creation Time:** Hours spent on each phase of spec development
 - **Review Cycle Time:** Days from spec submission to approval
-- **Implementation Velocity:** Story points or features completed per sprint
+- **Implementation Velocity:** Story points or features completed per milestone
 - **Knowledge Transfer Success:** % of team members who can work on spec'd features
 
 #### Measurement Guidelines

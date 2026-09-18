@@ -119,7 +119,7 @@ bun run db:sqlite:studio    # Browse data
 
 ```bash
 bun run test                # Full test suite
-bun run test:ui:e2e         # Playwright end-to-end (run bun run build:test first)
+bun run test:ui:e2e:paymob  # Paymob live end-to-end (run bun run build:test first)
 bun quality-gate            # Types → lint → format → duplication, all gates
 bun run tsgo                # Fast type checking
 ```

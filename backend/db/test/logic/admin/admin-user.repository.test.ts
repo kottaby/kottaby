@@ -193,13 +193,14 @@ describe("AdminUserRepository — Tier 1: filter matrix + projection coverage", 
 
   test("role filter narrows to the matching role only (×4 roles)", async () => {
     await runInRollback(async tx => {
-      const adminUser = await createTestUser(tx, { role: "admin" });
+      const probeTag = "RoleFilterProbe";
+      const adminUser = await createTestUser(tx, { role: "admin", fullName: `${probeTag} Admin` });
       await createTestAdmin(tx, adminUser.id);
-      const teacherUser = await createTestUser(tx, { role: "teacher" });
+      const teacherUser = await createTestUser(tx, { role: "teacher", fullName: `${probeTag} Teacher` });
       await createTestApplicant(tx, teacherUser.id);
-      const studentUser = await createTestUser(tx, { role: "student" });
+      const studentUser = await createTestUser(tx, { role: "student", fullName: `${probeTag} Student` });
       await createTestStudent(tx, studentUser.id);
-      const parentUser = await createTestUser(tx, { role: "parent" });
+      const parentUser = await createTestUser(tx, { role: "parent", fullName: `${probeTag} Parent` });
       await createTestParent(tx, parentUser.id);
 
       const fixtureMap = {
@@ -213,18 +214,28 @@ describe("AdminUserRepository — Tier 1: filter matrix + projection coverage", 
       // (no `await` inside the loop).
       const roleResults = await Promise.all(
         (["admin", "teacher", "student", "parent"] as const).map(role =>
-          AdminUserRepository.listDirectory({ role }, 100, 0, tx).then(rows => ({ role, rows }))
+          AdminUserRepository.listDirectory(
+            { role, searchPattern: serviceEscapedSearchPattern(probeTag) },
+            100,
+            0,
+            tx
+          ).then(rows => ({ role, rows }))
         )
       );
       for (const { role, rows } of roleResults) {
         for (const row of rows) {
           expect(row.role).toBe(role);
         }
-        expect(rows.map(r => r.id)).toContain(fixtureMap[role].id);
+        expect(rows.map(r => r.id)).toEqual([fixtureMap[role].id]);
       }
 
       // Cross-role exclusion: the admin user is NOT in the student set.
-      const studentRows = await AdminUserRepository.listDirectory({ role: "student" }, 100, 0, tx);
+      const studentRows = await AdminUserRepository.listDirectory(
+        { role: "student", searchPattern: serviceEscapedSearchPattern(probeTag) },
+        100,
+        0,
+        tx
+      );
       expect(studentRows.map(r => r.id)).not.toContain(adminUser.id);
     });
   });

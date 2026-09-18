@@ -220,7 +220,7 @@ stages:
   - integration: Integration test execution
   - security: Security vulnerability scanning
   - performance: Performance regression testing
-  - e2e: End-to-end test execution
+  - workflows: Journey workflow test execution
 ```
 
 ## Quality Gates and Checkpoints
@@ -399,7 +399,7 @@ stages:
 **Symptoms**: Tests require frequent updates
 **Solutions**:
 - Improve test design and abstraction
-- Use page object patterns for UI tests
+- Use reusable fixtures and assertions
 - Reduce coupling between tests and implementation
 - Regular test refactoring
 

@@ -72,7 +72,7 @@ Before executing any task, verify:
 3. **Tasks reference requirements**: Each task should have `_Requirements: REQ-N_` traceability tags.
 4. **No stale in-progress markers**: No `[-]` markers from a previous incomplete run (if found, resume from that point).
 5. **Journey coverage (cross-actor workflows)**: If `specs.md` contains a "Cross-Actor Workflow Scenarios" / journeys section, every captured journey MUST have a corresponding `test/workflows/<domain>/<journey>.test.ts` task. If missing, pause and flag it to the user before executing — the plan is incomplete.
-6. **Test-kind inventory**: Scan the plan for which test layers it mandates (repo `test:db`, services `test:services`, journeys `bun test test/workflows`, GraphQL `test:graphql`, UI components, E2E). Record the inventory in memory — the Test-Layer Coverage Gate (below) verifies all of them ran before completion.
+6. **Test-kind inventory**: Scan the plan for which test layers it mandates (repo `test:db`, services `test:services`, journeys `bun test test/workflows`, GraphQL `test:graphql`, E2E/Paymob). Record the inventory in memory — the Test-Layer Coverage Gate (below) verifies all of them ran before completion.
 7. **X.Y subtask pipeline presence (PLAN-INDEPENDENT MANDATE)**: Check whether implementation tasks carry the mandatory `X.Y.QL` / `X.Y.TE` / `X.Y.SEC` / `X.Y.SR` / `X.Y.IV` subtask pipeline. **If the plan text omits it, that is a plan deficiency, not permission to skip**: the orchestrator MUST inject the pipeline into every per-subagent prompt at dispatch time (see Per-Task Execution Flow). Same rule for the 4-Tier framework in `X.Y.TE` — it applies to every implementation task even when the plan never mentions it.
 
 ### Step 3: Establish the Plan Inventory
@@ -384,7 +384,6 @@ Each builder/adapter/service task MUST include paired tests as subtasks. This is
 
 **When to defer tests:**
 - Simple utility functions — batch at phase end
-- UI component tests — batch at phase end
 - E2E & Penetration tests — requires complete feature (executed in Phase 5 / review wave)
 
 **Evidence:** whatsapp Task 4 builders shipped without tests; integration issues discovered late. Interleaved tests provide immediate feedback.
@@ -510,8 +509,7 @@ Before the Knowledge Propagation task, verify every test layer the plan mandated
 | Service unit | plan's `backend/services/**/*.test.ts` tasks ran green | `bun run test:services` |
 | **Cross-actor journeys** | every journey from the specs' journeys section ran green | `bun test test/workflows` |
 | GraphQL integration | plan's resolver/mutation test tasks ran green | `bun run test:graphql` |
-| UI components | plan's component test tasks ran green | `bun run test:ui:components` |
-| E2E | only if the plan mandated it | `bun run test:ui:e2e` |
+| E2E | only if the plan mandated it (Paymob live tests) | `bun run test:ui:e2e:paymob` |
 
 If a prescribed layer has no tasks or never ran, stop and either execute it or get an explicit user decision to defer (with a `deferred-items.md` row). Do not silently skip.
 
@@ -723,7 +721,6 @@ At the end of implementation, provide the user with:
 - Service unit: ✅ / ❌ (test:services)
 - Cross-actor journeys: ✅ / ❌ / N/A (bun test test/workflows — N/A only when specs define no journeys)
 - GraphQL integration: ✅ / ❌ (test:graphql)
-- UI components: ✅ / ❌ (test:ui:components)
 - E2E: ✅ / ❌ / N/A (only if mandated)
 
 ### Knowledge Propagation

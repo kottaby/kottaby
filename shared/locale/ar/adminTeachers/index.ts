@@ -41,6 +41,7 @@ export const adminTeachersAr: AdminTeachersLabels = {
   filters: {
     search: "بحث",
     searchPlaceholder: "ابحث بالاسم أو البريد الإلكتروني",
+    searchClearLabel: "مسح البحث",
     approval: "الاعتماد",
     online: "حالة الاتصال",
     evaluator: "مقيّم",

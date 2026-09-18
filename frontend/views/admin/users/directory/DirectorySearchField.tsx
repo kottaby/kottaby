@@ -36,6 +36,7 @@ export function DirectorySearchField({ id, labels, value, onChange }: DirectoryS
       id={id}
       placeholder={labels.filters.searchPlaceholder}
       ariaLabel={labels.filters.search}
+      clearLabel={labels.filters.searchClearLabel}
       value={value}
       onChange={onChange}
       sx={directorySearchFieldSx}

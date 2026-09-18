@@ -3,13 +3,13 @@
 **Invoke the `spec-driven-development` skill** (`.agents/skills/spec-driven-development`) and follow it end-to-end — requirements → design → tasks → Phase 1.5 review gate — using its templates in `.agents/spec-process-guide/templates/`. Do not re-derive its rules here; the skill is the source of truth for structure, subtask pipelines, and quality gates.
 
 ## Inputs
-- **Ticket**: `{{ticket_id}}` — read its section in `docs/planning/TICKETS.md`; derive sprint from `| **Sprint** |`; kebab-case the title.
+- **Ticket**: `{{ticket_id}}` — read its section in `docs/planning/TICKETS.md`; derive milestone from `| **Milestone** |`; kebab-case the title.
 - **Extra focus**: {{extra_instructions}}
 
 ## Verify-then-claim (compute BEFORE writing)
 - Inspect real code before labelling EXISTING/UPDATE/EXTEND; prose-only ⇒ CREATE. Ground truth lives in `backend/db/schema/`, `backend/types/`, `backend/services/`, `backend/graphql/`, `docs/specs/`, `docs/workflows/`.
 - **Every cited `path:line` and symbol must be verified with grep/view** — off-by-one line refs (`guards.ts:27-34` vs real `:123`) and invented type names (`LocaleType` doesn't exist — services take `locale: string`) are known failure modes. Check helper signatures, not just names.
-- **Plan directory**: `ai/plans/sprint_<n>/{{ticket_id}}-<slug>/` — cite this exact path in every header, self-reference, and ledger.
+- **Plan directory**: `ai/plans/milestone_<n>/{{ticket_id}}-<slug>/` — cite this exact path in every header, self-reference, and ledger.
 
 ## Post-generation audit (MANDATORY — never skip)
 1. **Truncation check**: read the LAST line of each artifact; if it ends mid-sentence/mid-table, the phase hit `max_tokens` — complete the remaining sections manually, preserving existing content.

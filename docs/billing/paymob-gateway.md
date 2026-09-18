@@ -62,7 +62,7 @@ intention (`paymob.mapper.ts`). Revisit this posture only if Paymob replaces the
 checkout form with tokenized URLs.
 
 Refund / void / capture and saved-card (CIT/MIT) endpoints are intentionally NOT wired — see the
-deferral notes in `ai/plans/sprint_1/subscription-purchase-payment-gateway/deferred-items.md` and
+deferral notes in `ai/plans/milestone_1_core_domain_mvp/subscription-purchase-payment-gateway/deferred-items.md` and
 the mirror under `.agents/skills/paymob-payments/references/docs/manage-payment-apis/`.
 
 ### Intention request essentials

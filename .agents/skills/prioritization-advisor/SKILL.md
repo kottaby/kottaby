@@ -25,7 +25,7 @@ This is not a scoring calculator—it's a decision guide that matches prioritiza
 
 ## Input
 
-**Works best with:** What you're trying to prioritize and why now (sprint planning, roadmap, stakeholder fight).
+**Works best with:** What you're trying to prioritize and why now (milestone planning, roadmap, stakeholder fight).
 **Also useful:** Product stage, team size, data availability, and frameworks you've tried that failed.
 
 Anything supplied with the invocation itself — text after the skill name, a pasted context dump, or an appended `ARGUMENTS:` line — counts as answers already given. Use it and skip whatever it covers; don't re-ask.

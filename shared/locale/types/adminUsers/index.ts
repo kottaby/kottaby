@@ -166,6 +166,8 @@ export interface AdminUsersLabels {
     readonly search: string;
     /** Placeholder shown inside an empty search input. */
     readonly searchPlaceholder: string;
+    /** Accessible label for the clear-search button inside the search input. */
+    readonly searchClearLabel: string;
     /** "Clear filters" button — restores the directory to its unfiltered state. */
     readonly clear: string;
     /** First quick-filter chip on mobile — clears the role filter to show every role. */

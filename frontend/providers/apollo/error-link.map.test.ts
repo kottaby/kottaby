@@ -20,12 +20,13 @@
  *
  * i18n ADAPTATION NOTE: the component-tier `readTranslation(handle, locale)`
  *   / `TestWrapper` / `translation-preload.ts` scaffold is ABSENT from the
- *   tree (`test/ui/` holds only its AGENTS.md), so this unit-tier suite
+ *   tree (the static/component UI test tier was removed; only the Paymob
+ *   checkout E2E remains under `test/ui/`), so this unit-tier suite
  *   resolves every expected user-facing string through `getDefaultTranslations()`
  *   (`shared/locale/server.ts` — the same MessagesSchema the namespace handles
  *   wrap) and probes AR parity by direct namespace-object access. No copy
- *   string is hardcoded; fixture field texts are technical test data
- *   (`test/ui/AGENTS.md` "What Counts as Acceptable").
+ *   string is hardcoded; fixture field texts are technical test data,
+ *   never rendered UI copy.
  *
  * RUNS VIA (in-sandbox): bun run test/scripts/run-test.ts
  *   frontend/providers/apollo/error-link.map.test.ts — pure unit tier, no

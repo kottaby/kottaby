@@ -3,7 +3,7 @@
 # z-ai vision with EXACTLY two images: prototype first, implementation second.
 set -u
 cd /home/z/my-project
-P=ai/plans/sprint_2/fee_escrow_and_teacher_wallet_crediting-crediting/prototype
+P=ai/plans/milestone_2_matching_notifications_escrow/fee_escrow_and_teacher_wallet_crediting-crediting/prototype
 S=scratch/screenshots
 OUT=scratch/screenshots/comparisons
 mkdir -p "$OUT"

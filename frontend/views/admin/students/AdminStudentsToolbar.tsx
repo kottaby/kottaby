@@ -108,6 +108,7 @@ export function AdminStudentsToolbar({
         id={SEARCH_ID}
         placeholder={labels.filters.searchPlaceholder}
         ariaLabel={labels.filters.search}
+        clearLabel={labels.filters.searchClearLabel}
         value={directory.searchInput}
         onChange={directory.setSearchInput}
       />

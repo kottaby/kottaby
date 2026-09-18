@@ -1,6 +1,8 @@
 /**
- * UI test environment bootstrap — FIRST preload of every `test:ui*` entry
- * point (see `package.json` scripts + adopted `test/ui/AGENTS.md`).
+ * UI test environment bootstrap — preloaded by `test/scripts/run-server-tests.ts`
+ * in `--e2e` mode, which the Paymob live checkout runner
+ * (`bun run test:ui:e2e:paymob` — see `package.json` scripts and the adopted
+ * `test/ui/AGENTS.md`) uses.
  *
  * Responsibilities (intentionally tiny — the heavy lifting is already done by
  * the bunfig.toml global preloads, which run BEFORE this file):
@@ -13,12 +15,11 @@
  * This preload adds only the UI-test posture:
  * - CI/test-server markers are normalized into the exact string shape
  *   understood by `backend/lib/test-ci-env.ts` (`isTestCi()`), and a run that
- *   reaches UI component tests without any sanctioned marker fails fast
+ *   reaches UI tests without any sanctioned marker fails fast
  *   instead of silently exercising production-ish assumptions.
  * - `TEST_SERVER_MODE` defaults to `dev` per `test/ui/AGENTS.md`; the
- *   `test:ui:components` / `test:ui:static` scripts override it inline to
- *   `production`. Component tests themselves are SERVERLESS: they render in a
- *   Happy DOM window with in-memory providers and never bind a port.
+ *   E2E production-mode flow overrides it to `production` (after
+ *   `bun run build:test`).
  */
 
 import { isTestCi } from "@/backend/lib/test-ci-env";
@@ -33,7 +34,7 @@ if (process.env.TEST_CI === "1") {
 if (!isTestCi()) {
   throw new Error(
     "[test-env] UI tests require a sanctioned test environment: run through " +
-      "`bun run test:ui*` with .env.test materialized (TEST_CI=1) or under real CI."
+      "`bun run test:ui:e2e:paymob` with .env.test materialized (TEST_CI=1) or under real CI."
   );
 }
 
@@ -45,6 +46,7 @@ process.env.TEST_SERVER ??= "1";
 // backend/db/test/ensure-env.ts.
 (process.env as { NODE_ENV?: string }).NODE_ENV ??= "test";
 
-// Component tests default to dev-mode server semantics per AGENTS.md; scripts
-// may still force TEST_SERVER_MODE=production for E2E/static entry points.
+// The runner defaults the server to dev-mode semantics per AGENTS.md;
+// the E2E production-mode flow forces TEST_SERVER_MODE=production (after
+// `bun run build:test`).
 process.env.TEST_SERVER_MODE ??= "dev";

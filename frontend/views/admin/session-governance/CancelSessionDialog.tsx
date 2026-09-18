@@ -36,7 +36,7 @@ import { AdminSessionGovernance, Common, useAppTranslation } from "@/shared/loca
  */
 
 /** UI-seam cap for the optional cancel reason (mirrors the backend boundary constant). */
-export const MAX_CANCEL_REASON_LENGTH = 330;
+const MAX_CANCEL_REASON_LENGTH = 330;
 
 interface CancelSessionDialogProps {
   /** The session being cancelled (drives the testids). */

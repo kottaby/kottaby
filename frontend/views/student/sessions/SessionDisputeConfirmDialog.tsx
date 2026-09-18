@@ -49,7 +49,7 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
  */
 
 /** UI-seam cap for the required dispute reason (mirrors the backend contract). */
-export const MAX_DISPUTE_REASON_LENGTH = 500;
+const MAX_DISPUTE_REASON_LENGTH = 500;
 
 // The mutation-binding vocabulary (types + generation arms + the student
 // surface's binding resolver) lives in the sibling non-component module

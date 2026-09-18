@@ -28,11 +28,8 @@ const config: KnipConfig = {
     "backend/graphql/mutation/index.ts",
 
     // Bun --preload test roots — loaded via `bun test --preload <file>` CLI flag,
-    // never statically imported (package.json scripts: test:ui:components, test:ui:e2e, etc.)
+    // never statically imported (package.json script: test:ui:e2e:paymob)
     "test/ui/test-env.ts",
-    "test/ui/components/happydom-preload.ts",
-    "test/ui/components/next-dynamic-mock.ts",
-    "test/ui/components/parent/monitoring/helpers.tsx",
 
     // Bun test runners invoked by path string only (run-locked-cmd wrapper args
     // in package.json scripts + the AGENTS.md-documented AI runner) — knip

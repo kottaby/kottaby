@@ -16,7 +16,7 @@ import { NotificationType } from "@/frontend/graphql/generated/gql/graphql";
 export const STUDENT_LINK_REQUESTS_ROUTE = "/student/link-requests";
 
 /** The admin arbitration console — the landing surface for dispute rows. */
-export const ADMIN_DISPUTES_ROUTE = "/disputes";
+const ADMIN_DISPUTES_ROUTE = "/disputes";
 
 /**
  * The student sessions route — ONE definition site for every student
@@ -29,7 +29,7 @@ export const ADMIN_DISPUTES_ROUTE = "/disputes";
 export const STUDENT_SESSIONS_ROUTE = "/student/sessions";
 
 /** The teacher's session list — the landing surface for teacher session rows. */
-export const TEACHER_SESSIONS_ROUTE = "/teacher/sessions";
+const TEACHER_SESSIONS_ROUTE = "/teacher/sessions";
 
 /** Fallback row target — the notifications feed page (the unchanged default). */
 const NOTIFICATIONS_FEED_ROUTE = "/notifications";

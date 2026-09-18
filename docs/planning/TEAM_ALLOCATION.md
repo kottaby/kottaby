@@ -1,7 +1,7 @@
 # Draft Academy — Team Allocation & Stream Ownership
 
 > **Source of truth:** `docs/specs/`, `backend/db/schema/`, `DELIVERY_PLAN_PROMPT.md`
-> **Related:** `docs/planning/ROADMAP.md`, `docs/planning/SPRINT_PLAN.md`, `docs/planning/TICKETS.md`
+> **Related:** `docs/planning/ROADMAP.md`, `docs/planning/MILESTONE_PLAN.md`, `docs/planning/TICKETS.md`
 
 ---
 
@@ -33,15 +33,15 @@ Draft Academy is built by a **3-developer team** organized into **vertical trace
 | **Parent Pairing Handshake** | Unique handshake code generation, parent link request workflow, student confirmation, 7-day expiry | A.2 (parent_id FK), A.3 (handshake_code), B.12 (one parent per student), B.13 (parent multiple children), B.14 (7-day expiry) |
 | **Parent Supervision Portal** | Read-only monitoring of linked children's sessions, reports, homework, evaluations, progress | — |
 
-### Sprint Allocation
+### Milestone Allocation
 
-| Sprint | Focus | Tickets |
+| Milestone | Focus | Tickets |
 |---|---|---|
-| Sprint 0 | Schema migrations, user registration, role-based child table creation | Database Schema Migration through Free Trial Session Provisioning |
-| Sprint 1 | Plan catalog, subscription purchase, session balance crediting, free trial | Plan Catalog CRUD (Admin Only) through Admin Subscription Management (Extend/Renew/Cancel/Upgrade/Downgrade) |
-| Sprint 2 | Tajweed curriculum lessons, progress tracking | Tajweed Curriculum Lessons CRUD through Teacher Preparation View (Student Progress Before Session) |
-| Sprint 3 | Parent handshake portal, parent monitoring portal | Student Handshake Code Generation through Parent Session Completion Notification Display |
-| Sprint 4 | E2E integration tests, parent portal polish | End-to-End Integration Tests: Student Journey through End-to-End Integration Tests: Subscription Lifecycle |
+| Milestone 0 | Schema migrations, user registration, role-based child table creation | Database Schema Migration through Free Trial Session Provisioning |
+| Milestone 1 | Plan catalog, subscription purchase, session balance crediting, free trial | Plan Catalog CRUD (Admin Only) through Admin Subscription Management (Extend/Renew/Cancel/Upgrade/Downgrade) |
+| Milestone 2 | Tajweed curriculum lessons, progress tracking | Tajweed Curriculum Lessons CRUD through Teacher Preparation View (Student Progress Before Session) |
+| Milestone 3 | Parent handshake portal, parent monitoring portal | Student Handshake Code Generation through Parent Session Completion Notification Display |
+| Milestone 4 | E2E integration tests, parent portal polish | End-to-End Integration Tests: Student Journey through End-to-End Integration Tests: Subscription Lifecycle |
 
 ---
 
@@ -58,15 +58,15 @@ Draft Academy is built by a **3-developer team** organized into **vertical trace
 | **Session Reports & Homework** | Session report submission, homework assignment (Jadid new memorization & Madi review), Surah/Juz enum tracking | B.11 (Surah/Juz enum), C.4 (reports.teacher_id removed), C.5 (recitation 1:1 session) |
 | **Re-Evaluation** | Admin-ordered re-evaluation with teacher wallet deduction | B.5 (re-eval paid by teacher) |
 
-### Sprint Allocation
+### Milestone Allocation
 
-| Sprint | Focus | Tickets |
+| Milestone | Focus | Tickets |
 |---|---|---|
-| Sprint 0 | Auth & RBAC middleware, role-based access contracts | JWT Authentication Service through Shared Types & Interface Contracts |
-| Sprint 1 | Applicant registration, verification plan, 5-session evaluation loop, cooldown | Teacher Applicant Registration & Applicants Table through Admin Override of Evaluation Results |
-| Sprint 2 | Teacher availability toggle, in-session locking, session report & homework submission | Teacher Availability Toggle (Available/Unavailable) through Surah/Juz Enum Homework Tracking |
-| Sprint 3 | Evaluation system (student ratings → teacher rating), re-evaluation workflow | Student Evaluation Submission (Teacher Rating) through Admin Academic Tracking (Memorization & Revision Milestones) |
-| Sprint 4 | Security hardening, audit trail verification | Security Hardening: Input Validation & SQL Injection Prevention through State Machine Invariant Verification Tests |
+| Milestone 0 | Auth & RBAC middleware, role-based access contracts | JWT Authentication Service through Shared Types & Interface Contracts |
+| Milestone 1 | Applicant registration, verification plan, 5-session evaluation loop, cooldown | Teacher Applicant Registration & Applicants Table through Admin Override of Evaluation Results |
+| Milestone 2 | Teacher availability toggle, in-session locking, session report & homework submission | Teacher Availability Toggle (Available/Unavailable) through Surah/Juz Enum Homework Tracking |
+| Milestone 3 | Evaluation system (student ratings → teacher rating), re-evaluation workflow | Student Evaluation Submission (Teacher Rating) through Admin Academic Tracking (Memorization & Revision Milestones) |
+| Milestone 4 | Security hardening, audit trail verification | Security Hardening: Input Validation & SQL Injection Prevention through State Machine Invariant Verification Tests |
 
 ---
 
@@ -85,15 +85,15 @@ Draft Academy is built by a **3-developer team** organized into **vertical trace
 | **Audit Logging** | Immutable audit trail for all admin actions | A.5 (audit_logs table) |
 | **Admin Governance** | Full CRUD, session governance, financial auditing, platform analytics, broadcast notifications | — |
 
-### Sprint Allocation
+### Milestone Allocation
 
-| Sprint | Focus | Tickets |
+| Milestone | Focus | Tickets |
 |---|---|---|
-| Sprint 0 | CI/CD pipeline, Mermaid validation, shared types & interfaces | CI/CD Pipeline with Mermaid Validation through API Gateway & Routing Skeleton |
-| Sprint 1 | Basic session lifecycle (scheduled → started → completed/cancelled), session creation | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) through Recitation Record per Session (1:1) |
-| Sprint 2 | Matching algorithm, notification engine, dual-confirmation escrow, wallet & transactions | On-Demand Matching Algorithm (Filter/Sort Pipeline) through Teacher Withdrawal Workflow & Admin Approval |
-| Sprint 3 | Admin governance, audit logging, cold-start bootstrapping, direct onboarding, dispute resolution | Admin CRUD: Users, Teachers, Students, Parents through Dispute Resolution with Admin Arbitration |
-| Sprint 4 | Load testing, disaster recovery, production launch checklist | Load Testing & Performance Optimization through Production Launch Checklist Execution |
+| Milestone 0 | CI/CD pipeline, Mermaid validation, shared types & interfaces | CI/CD Pipeline with Mermaid Validation through API Gateway & Routing Skeleton |
+| Milestone 1 | Basic session lifecycle (scheduled → started → completed/cancelled), session creation | Session Creation & Lifecycle (Scheduled → Started → Completed/Cancelled) through Recitation Record per Session (1:1) |
+| Milestone 2 | Matching algorithm, notification engine, dual-confirmation escrow, wallet & transactions | On-Demand Matching Algorithm (Filter/Sort Pipeline) through Teacher Withdrawal Workflow & Admin Approval |
+| Milestone 3 | Admin governance, audit logging, cold-start bootstrapping, direct onboarding, dispute resolution | Admin CRUD: Users, Teachers, Students, Parents through Dispute Resolution with Admin Arbitration |
+| Milestone 4 | Load testing, disaster recovery, production launch checklist | Load Testing & Performance Optimization through Production Launch Checklist Execution |
 
 ---
 
@@ -176,9 +176,9 @@ These are the shared contracts between streams. Each contract defines the interf
 ```
 main (protected)
   ├── develop (integration branch)
-  │     ├── dev1/sprint-N/feature-xxx   (Dev 1 feature branches)
-  │     ├── dev2/sprint-N/feature-xxx   (Dev 2 feature branches)
-  │     └── dev3/sprint-N/feature-xxx   (Dev 3 feature branches)
+  │     ├── dev1/milestone-N/feature-xxx   (Dev 1 feature branches)
+  │     ├── dev2/milestone-N/feature-xxx   (Dev 2 feature branches)
+  │     └── dev3/milestone-N/feature-xxx   (Dev 3 feature branches)
   └── release/vX.Y.Z                     (release branches)
 ```
 
@@ -188,7 +188,7 @@ main (protected)
 |---|---|
 | **`main` is protected** | No direct pushes. Only release merges via PR. |
 | **`develop` is the integration branch** | All feature branches merge into `develop` via PR. |
-| **Feature branch naming** | `dev{N}/sprint-{N}/{kebab-case-feature}` |
+| **Feature branch naming** | `dev{N}/milestone-{N}/{kebab-case-feature}` |
 | **PR target** | All PRs target `develop`. Release PRs target `main`. |
 | **Merge strategy** | Squash-and-merge for feature PRs. Merge-commit for release PRs. |
 

@@ -69,7 +69,7 @@ Specifications serve as more than just planning documents—they're communicatio
 - Spec-driven development places greater emphasis on upfront design
 - More structured documentation requirements
 - Designed to work within agile frameworks rather than replace them
-- Can be applied to individual features within agile sprints
+- Can be applied to individual features within agile milestones
 
 ### Test-Driven Development (TDD)
 

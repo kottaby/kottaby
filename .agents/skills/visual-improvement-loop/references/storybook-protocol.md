@@ -8,7 +8,7 @@ Delegate to a coder subagent. Prompt must require:
 
 1. Follow existing repo story conventions: find existing `*.stories.tsx` files and copy their structure, titles/args/decorator setup; read `.storybook/main.ts` + `.storybook/preview.tsx` to inherit global decorators (theme, locale, RTL) instead of reinventing.
 2. Placement: `<Name>.stories.tsx` next to the component (or wherever repo convention actually puts them — verify with existing stories instead of assuming).
-3. Apollo mocks: same convention as the repo's test layer uses (`MockedProvider` + generated typed documents; replicate the mock-production pattern from the matching component tests in `test/ui/components/`).
+3. Apollo mocks: `MockedProvider` + generated typed documents.
 4. Zustand stores: seed via decorator components that set initial state on mount and `reset()` on unmount, so stories never leak state between stories.
 5. i18n: components must use their normal `useAppTranslation` path — the stories must work in BOTH EN and AR via the preview's locale global (`globals=locale:en|ar`); no hardcoded strings.
 6. Fake data in stories is allowed and expected (obviously-fake but realistic names) — stories are fixture surfaces by design. Production code never ships fixture data.

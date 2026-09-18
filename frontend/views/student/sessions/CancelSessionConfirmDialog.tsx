@@ -37,7 +37,7 @@ import { Errors, Sessions, useAppTranslation } from "@/shared/locale";
  */
 
 /** UI-seam cap for the optional cancel reason (mirrors the backend contract). */
-export const MAX_CANCEL_REASON_LENGTH = 500;
+const MAX_CANCEL_REASON_LENGTH = 500;
 
 interface CancelSessionConfirmDialogProps {
   /** Id of the session being cancelled. */
