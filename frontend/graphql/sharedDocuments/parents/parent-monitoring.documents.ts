@@ -17,8 +17,9 @@ import type {
  * Parent read-only monitoring portal GraphQL documents — the shared
  * `TypedDocumentNode` operations consumed by the portal views in
  * `frontend/views/parent/monitoring/` (children list, child detail
- * header + progress, attendance / reports / homework tabs) plus the
- * root container's completion-notification deep-link resolution.
+ * header + progress, attendance / reports / homework / evaluations
+ * tabs) plus the root container's completion-notification deep-link
+ * resolution.
  *
  * Self-scoped surface: every per-student read carries ONLY the
  * `studentId` targeting argument plus optional pagination (`page` /
