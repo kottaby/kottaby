@@ -348,7 +348,7 @@ async function postAnonymous(
  * the shipped error contract: single-item envelope, a correlated requestId,
  * and NEVER a stacktrace (no leaked internals). The `data` channel follows the
  * GraphQL spec for non-nullable root fields: `null` when the field error
- * nulls the whole data object (all five portal fields are non-nullable).
+ * nulls the whole data object (all six portal fields are non-nullable).
  */
 function expectDenialCode(
   body: Record<string, unknown>,
@@ -787,7 +787,7 @@ afterAll(async () => {
 
 // ─── Matrix: anonymous tier (401) ────────────────────────────────────────────
 
-describe("wire matrix — anonymous tier (credential-less caller × 5 ops)", () => {
+describe("wire matrix — anonymous tier (credential-less caller × 6 ops)", () => {
   test("myLinkedChildren answers UNAUTHORIZED for anonymous callers", async () => {
     const result = await testClient.query({
       query: gql`

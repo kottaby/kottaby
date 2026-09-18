@@ -52,6 +52,7 @@ import {
   parseSessionId,
   resolveSessionFlow,
   type SessionResolutionInputs,
+  type SessionTarget,
 } from "@/frontend/views/parent/monitoring/ParentChildrenRootContainer.helpers";
 import { getDefaultTranslations, loadAllTranslations } from "@/shared/locale/server";
 
@@ -59,7 +60,7 @@ import { getDefaultTranslations, loadAllTranslations } from "@/shared/locale/ser
 // The resolved pair fixture — the closed two-field read answer
 
 const PAIR = { sessionId: 2077, studentId: 314 };
-const PAIR_COPY: { sessionId: number; studentId: number } = { ...PAIR };
+const PAIR_COPY: SessionTarget = { ...PAIR };
 
 /** Baseline decision inputs: the pre-feature root with no pointer. */
 function inputs(overrides: Partial<SessionResolutionInputs> = {}): SessionResolutionInputs {

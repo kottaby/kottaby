@@ -1394,6 +1394,11 @@ describe("ParentMonitoringService — getSessionTarget", () => {
             id === limiterParentId ? { ...parentUser, id: limiterParentId } : null
           )
         );
+        // The pass-through denials (calls 1..30) deny at the session read,
+        // so the lookup is mocked at the persistence seam — the constant
+        // missing-session oracle keeps the limiter arm deterministic
+        // without a live row read.
+        mockSessionRow(null);
 
         // The test-env bypass keeps the limiter inert everywhere else in
         // this suite; this test alone disables it so the REAL limiter arm

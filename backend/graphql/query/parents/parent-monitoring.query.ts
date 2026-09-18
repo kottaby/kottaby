@@ -9,7 +9,7 @@
  *  - Resolver delegates to the services layer with locale propagation
  *    (`backend/graphql/AGENTS.md`); no business logic inline.
  *
- * The five fields back the parent dashboard's monitoring surfaces:
+ * The six fields back the parent dashboard's monitoring surfaces:
  *  - `myLinkedChildren` — the caller's confirmed-linked children, oldest
  *    first, soft-deleted children excluded. Zero-argument: identity is
  *    derived EXCLUSIVELY from the verified context (`ctx.user.id`). The
