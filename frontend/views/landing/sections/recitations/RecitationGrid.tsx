@@ -1,5 +1,5 @@
 import { Box, Stack, Typography } from "@mui/material";
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 
 interface RecitationItem {
   readonly name: string;
@@ -7,8 +7,15 @@ interface RecitationItem {
   readonly popular?: boolean;
 }
 
-/** Recitation grid (or empty state) for the filtered list. */
-export function RecitationGrid({
+/**
+ * Recitation grid (or empty state) for the filtered list.
+ *
+ * Performance optimization:
+ * Wrapped in `memo` to avoid re-rendering the entire grid layout and item stacks when
+ * parent container state updates if the filtered recitations array reference and
+ * `noResultsLabel` remain unchanged.
+ */
+export const RecitationGrid = memo(function RecitationGrid({
   filtered,
   noResultsLabel,
 }: Readonly<{ filtered: readonly RecitationItem[]; noResultsLabel: string }>): ReactNode {
@@ -85,4 +92,4 @@ export function RecitationGrid({
       ))}
     </Box>
   );
-}
+});
