@@ -194,13 +194,13 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
 
 ### Task 4.5 — Mid-Point Backend Review Gate
 
-- [ ] 4.5 Backend-scoped review wave over Task 3-4 files (blocking before frontend work)
+- [x] 4.5 Backend-scoped review wave over Task 3-4 files (blocking before frontend work)
   - Dispatch review subagents in parallel, SCOPED to Task 3-4 files only: **review-backend** (`backend/services/parents/parent-monitoring.service.ts` + test, `backend/graphql/query/parents/parent-monitoring.query.ts`), **review-types** (`backend/types/parents/parent-monitoring.types.ts`), **review-config** (codegen/SDL regen artifacts — no env-config or drizzle changes should exist; assert that).
   - Grep-locks asserted and recorded: (a) `git diff backend/db/schema/` is EMPTY (R-K); (b) zero `Mutation` fields added (R-K); (c) zero changes in `session-report-notification.service.ts` / engine / WS envelope (R-A); (d) zero changes under `shared/locale/{types,en,ar}/notifications/` (R-A).
   - Aggregate findings; dispatch per-file fix subagents using `.agents/instructions/backend.instructions.md` as guardrails; re-run `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` per fixed file; iterate until zero backend-specific findings.
   - TE: N/A (review wave; Task 3-4 suites already green) · SEC: this gate IS the backend security audit of record (R4 log discipline re-checked)
-  - [ ] 4.5.SR **Semantic Review**: reviewers' findings cross-checked against research-00 §3 rulings R-C/R-K and §4 frozen signatures — every mitigation has a verifying artifact
-  - [ ] 4.5.IV **Instruction Verification**: reviewers cite the layer AGENTS.md/instructions their findings derive from
+  - [x] 4.5.SR **Semantic Review**: reviewers' findings cross-checked against research-00 §3 rulings R-C/R-K and §4 frozen signatures — every mitigation has a verifying artifact
+  - [x] 4.5.IV **Instruction Verification**: reviewers cite the layer AGENTS.md/instructions their findings derive from
   - Write outcome: `outcome/midpoint-review-R1.md`
   - _Requirements: REQ-060_
 

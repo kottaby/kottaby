@@ -7,7 +7,7 @@
  * mutations, zero notifications. The service is the authorization spine
  * for the portal: every per-student read funnels through ONE gate
  * (`requireLinkedChild`) run inside the SAME transaction as the data
- * reads, so the link grant and the row scan share one READ COMMITTED
+ * reads, so the link grant and the row scan share one repeatable read
  * snapshot — a severance that lands mid-flight cannot extend a returned
  * payload (the TOCTOU seal).
  *
