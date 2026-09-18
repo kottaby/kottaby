@@ -67,6 +67,7 @@ export function EvaluationsTab(props: Readonly<EvaluationsTabProps>): ReactNode 
     commonT,
     t,
     locale,
+    props.session,
     searchState,
     setSearchState,
     refetch
@@ -83,6 +84,8 @@ export function EvaluationsTab(props: Readonly<EvaluationsTabProps>): ReactNode 
 
 export interface EvaluationsTabProps {
   readonly studentId: number;
+  /** The `?session=` deep-link pointer — the evaluation row of this session highlights. */
+  readonly session: number | null;
   /** Page-level recovery affordance rendered inside the tab's FORBIDDEN fallback. */
   readonly deniedAction?: Readonly<{ readonly label: string; readonly onAction: () => void }>;
 }

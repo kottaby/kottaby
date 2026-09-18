@@ -2,10 +2,11 @@
 
 import { AutoStoriesOutlined, ReplayOutlined } from "@mui/icons-material";
 import { Card, Skeleton, Stack, Typography } from "@mui/material";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import type { ParentChildHomeworkQuery_parentChildHomework_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { HomeworkTrackBlock } from "@/frontend/views/parent/monitoring/HomeworkTab.parts.helpers";
+import { isDeepLinkTargetRow } from "@/frontend/views/parent/monitoring/ParentChildDetailContainer.helpers";
 import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 
 const HOMEWORK_SKELETON_KEYS: readonly string[] = ["homework-skeleton-1", "homework-skeleton-2", "homework-skeleton-3"];
@@ -39,22 +40,36 @@ export function HomeworkRow({
   row,
   labels,
   locale,
+  deepLinkSessionId,
 }: Readonly<{
   row: ParentChildHomeworkQuery_parentChildHomework_items;
   labels: ParentMonitoringLabels;
   locale: string;
+  deepLinkSessionId: number | null;
 }>): ReactNode {
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const isDeepLinkTarget = isDeepLinkTargetRow(deepLinkSessionId, row.sessionId);
+  useEffect(() => {
+    if (isDeepLinkTarget && rowRef.current !== null) {
+      rowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [isDeepLinkTarget]);
   return (
     <Card
+      ref={rowRef}
       variant="outlined"
       data-testid="parent-homework-row"
+      aria-current={isDeepLinkTarget ? "true" : undefined}
       sx={theme => ({
         display: "flex",
         flexDirection: "column",
         gap: 1.5,
         padding: { xs: 2, sm: 2.5 },
         borderRadius: 2,
-        borderColor: theme.palette.border.main,
+        borderColor: isDeepLinkTarget ? theme.palette.primary.main : theme.palette.border.main,
+        borderWidth: isDeepLinkTarget ? 2 : 1,
+        borderInlineStart: 4,
+        borderInlineStartColor: isDeepLinkTarget ? theme.palette.primary.main : theme.palette.divider,
         transition: theme.transitions.create(["box-shadow", "border-color"], {
           duration: theme.transitions.duration.shorter,
         }),

@@ -57,6 +57,7 @@ export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
     commonT,
     t,
     locale,
+    props.session,
     searchState,
     setSearchState,
     refetch
@@ -115,6 +116,8 @@ export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
 
 export interface HomeworkTabProps {
   readonly studentId: number;
+  /** The `?session=` deep-link pointer — the homework row of this session highlights. */
+  readonly session: number | null;
   /** Page-level recovery affordance rendered inside the tab's FORBIDDEN fallback. */
   readonly deniedAction?: Readonly<{ readonly label: string; readonly onAction: () => void }>;
 }

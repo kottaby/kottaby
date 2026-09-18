@@ -256,17 +256,17 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
 
 ### Task 8 — Tab session threading (R-G)
 
-- [ ] 8.1 Thread the session highlight to homework + evaluations tabs
+- [x] 8.1 Thread the session highlight to homework + evaluations tabs
   - MODIFY `frontend/views/parent/monitoring/ParentChildDetailContainer.tabs.tsx` — `renderTabContent` (`:34-50`) passes the `session` highlight pointer to `HomeworkTab` and `EvaluationsTab`.
   - MODIFY `HomeworkTab*` and `EvaluationsTab*` files — apply the SAME highlight + `scrollIntoView` mechanism as `ReportsTab.parts.tsx:54-79`.
   - VERIFY `ParentHomeworkEntryReturnType` carries `sessionId`; if missing, add it to the closed projection + mapper + documents + codegen (research-00 R-G "verify at implementation").
   - Content promise (REQ-014): ONE link surfaces report + homework + evaluation — report row carries `teacherNotes` + `studentRatingByTeacher`; homework row carries the assignment. The `notifications` copy stays byte-frozen (R-A).
   - Tab tests mirroring the ReportsTab highlight pattern (`ReportsTab.parts.tsx:54-79`); run via `bun run test/scripts/run-test.ts <path>`.
-  - [ ] 8.1.QL **Quality Loop**: sub-loop exit 0 on every touched file (tabs first, then parts, then any types/mapper, then tests)
-  - [ ] 8.1.TE **Test Engineering**: Tier 1 highlight branches on both tabs; Tier 2 session id absent from the page data (no crash, no scroll); Tier 3 rapid tab switches while highlight pending (no stale scroll); Tier 4 no data leaks for a session not in the child's own rows
-  - [ ] 8.1.SEC **Security & Tenancy Audit**: highlight only ever matches rows already gated to the linked child (no new fetch, no id widening)
-  - [ ] 8.1.SR **Semantic Review**: highlight mechanism identical to ReportsTab (no divergent second highlight implementation — duplicates gate); if `sessionId` was added to the projection, the SDL/codegen regen from Task 4 was re-run and committed
-  - [ ] 8.1.IV **Instruction Verification**: `frontend/views/AGENTS.md` + `frontend.instructions.md` (+ backend types instructions if the projection changed) read
+  - [x] 8.1.QL **Quality Loop**: sub-loop exit 0 on every touched file (tabs first, then parts, then any types/mapper, then tests)
+  - [x] 8.1.TE **Test Engineering**: Tier 1 highlight branches on both tabs; Tier 2 session id absent from the page data (no crash, no scroll); Tier 3 rapid tab switches while highlight pending (no stale scroll); Tier 4 no data leaks for a session not in the child's own rows
+  - [x] 8.1.SEC **Security & Tenancy Audit**: highlight only ever matches rows already gated to the linked child (no new fetch, no id widening)
+  - [x] 8.1.SR **Semantic Review**: highlight mechanism identical to ReportsTab (no divergent second highlight implementation — duplicates gate); if `sessionId` was added to the projection, the SDL/codegen regen from Task 4 was re-run and committed
+  - [x] 8.1.IV **Instruction Verification**: `frontend/views/AGENTS.md` + `frontend.instructions.md` (+ backend types instructions if the projection changed) read
   - Write outcome: `outcome/8.1-tab-threading-outcome.md`
   - _Requirements: REQ-013, REQ-014_
 

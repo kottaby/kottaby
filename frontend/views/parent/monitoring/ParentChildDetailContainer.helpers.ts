@@ -19,6 +19,16 @@ export function buildDetailUrl(studentId: string | number, tab: TabKey, session:
   return `/parent/children/${studentId}?${params.toString()}`;
 }
 
+/**
+ * Whether a row is the `?session=` deep link's highlight target: the
+ * pointer is present and equals the row's owning session id. This is the
+ * one match rule every content tab's row (reports, homework, evaluations)
+ * applies, so a single link highlights the same session's row on every tab.
+ */
+export function isDeepLinkTargetRow(deepLinkSessionId: number | null, rowSessionId: number): boolean {
+  return deepLinkSessionId !== null && deepLinkSessionId === rowSessionId;
+}
+
 export const TAB_LABEL_KEYS: Readonly<
   Record<TabKey, "tabAttendance" | "tabReports" | "tabHomework" | "tabEvaluations" | "tabProgress">
 > = {
