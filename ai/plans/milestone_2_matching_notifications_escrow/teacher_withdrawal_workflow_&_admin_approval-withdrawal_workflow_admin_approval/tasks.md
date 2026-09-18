@@ -148,16 +148,16 @@
 
 ## Phase 4 — Consolidation, Final Gate & Knowledge Propagation
 
-### - [ ] 4.1 Traceability Matrix & Verification Consolidation — `outcome/verification-matrix.md`
+### - [x] 4.1 Traceability Matrix & Verification Consolidation — `outcome/verification-matrix.md`
 - Consolidate the Phase 1–3 evidence into ONE matrix covering EVERY REQ (REQ-001..REQ-803): REQ → ticket AC → code `path:line` → test citation `file:line` → green-run result → notes/deviations.
 - Cross-check the actor table + ordered step list from `specs.md` §Journey against journey citations; every cross-actor EARS criterion must have a green step.
 - Record the reconciliation rulings as PROVEN rows: REQ-104 (422 → typed `WALLET_INSUFFICIENT_FUNDS` code), REQ-202 (reserve-at-request), REQ-203/302 (restore-on-reject), REQ-602/603 (doc repairs now landed).
 - _Requirements: REQ-604, REQ-005, REQ-006_
-- [ ] 4.1.QL **Quality Loop**: markdown outcome — no sub-loop; verify table renders (no broken pipes).
-- [ ] 4.1.TE **Test Engineering**: matrix rows reference only suites that ran green THIS plan-run.
-- [ ] 4.1.SEC **Security & Tenancy Audit**: matrix includes the BOLA/BFLA/governance rows (REQ-501..505) with citations.
-- [ ] 4.1.SR **Semantic Review**: zero unresolved ❌/⚠️ rows; every "verified" claim carries a citation from this run.
-- [ ] 4.1.IV **Instruction Verification**: templates re-read (`tasks-template.md` traceability rules).
+- [x] 4.1.QL **Quality Loop**: markdown outcome — no sub-loop; verify table renders (no broken pipes).
+- [x] 4.1.TE **Test Engineering**: matrix rows reference only suites that ran green THIS plan-run.
+- [x] 4.1.SEC **Security & Tenancy Audit**: matrix includes the BOLA/BFLA/governance rows (REQ-501..505) with citations.
+- [x] 4.1.SR **Semantic Review**: zero unresolved ❌/⚠️ rows; every "verified" claim carries a citation from this run.
+- [x] 4.1.IV **Instruction Verification**: templates re-read (`tasks-template.md` traceability rules).
 
 ### - [ ] 4.2 Final Gate: Deferred-Items Enforcement & Baseline Compare
 - Enforce the ledger: `grep -cE '^\| D[0-9]+ .*\| (❌|⚠️) ' ai/plans/milestone_2_matching_notifications_escrow/teacher_withdrawal_workflow_&_admin_approval-withdrawal_workflow_admin_approval/deferred-items.md` — expected 0 (all rows are ✅ Done or 🔄 Open forward-contracts with named owners, per `deferred-items.md`'s status legend; the row-scoped pattern avoids matching the legend's own vocabulary lines).
