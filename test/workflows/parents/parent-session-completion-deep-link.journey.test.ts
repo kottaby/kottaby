@@ -370,6 +370,7 @@ describe("Journey — parent session-completion deep link", () => {
         role: "teacher",
         locale: LOCALE_EN,
         fullName: `${RUN_PREFIX} teacher T`,
+        email: `${RUN_PREFIX}.teacher-t@journey.test`,
       });
       const teacherTRow = await createTestTeacherRow(tx, teacherT.id, { isApproved: true });
       tracked.register(users, teacherT.id);
@@ -380,6 +381,7 @@ describe("Journey — parent session-completion deep link", () => {
         role: "parent",
         locale: LOCALE_EN,
         fullName: `${RUN_PREFIX} parent P`,
+        email: `${RUN_PREFIX}.parent-p@journey.test`,
       });
       const parentPRow = await createTestParent(tx, parentP.id);
       tracked.register(users, parentP.id);
@@ -390,6 +392,7 @@ describe("Journey — parent session-completion deep link", () => {
         role: "parent",
         locale: LOCALE_EN,
         fullName: `${RUN_PREFIX} parent PF`,
+        email: `${RUN_PREFIX}.parent-pf@journey.test`,
       });
       const parentPFRow = await createTestParent(tx, parentPF.id);
       tracked.register(users, parentPF.id);
@@ -400,6 +403,7 @@ describe("Journey — parent session-completion deep link", () => {
         role: "student",
         locale: LOCALE_EN,
         fullName: `${RUN_PREFIX} student S1`,
+        email: `${RUN_PREFIX}.student-s1@journey.test`,
       });
       const studentS1Row = await createTestStudent(tx, studentS1.id, { balanceTrial: 1 });
       tracked.register(users, studentS1.id);
@@ -410,6 +414,7 @@ describe("Journey — parent session-completion deep link", () => {
         role: "student",
         locale: LOCALE_EN,
         fullName: `${RUN_PREFIX} student S2`,
+        email: `${RUN_PREFIX}.student-s2@journey.test`,
       });
       const studentS2Row = await createTestStudent(tx, studentS2.id, { balanceTrial: 1 });
       tracked.register(users, studentS2.id);

@@ -14,7 +14,7 @@
  *    participant surface).
  *  - `id` is the FIRST exposed field on every entity-shaped object and
  *    non-nullable (`t.exposeID` → `ID!`) — Apollo normalization requires a
- *    stable entity key at the first field. The four page wrapper objects
+ *    stable entity key at the first field. The three page wrapper objects
  *    and the value objects (`ParentHomeworkTrack`, `ParentHomeworkPosition`,
  *    `ParentChildProgress`, `ParentSessionTarget`) carry no row id and
  *    expose their structural fields directly.

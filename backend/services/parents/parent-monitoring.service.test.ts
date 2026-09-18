@@ -27,9 +27,9 @@
  *    ValidationError; the 2^31 safe integer collapsing to the constant
  *    nonexistent-session denial).
  *  - Tier 3 (chaos): concurrent mixed reads on one parent via
- *    `Promise.allSettled` (five methods issued concurrently against the
- *    SAME parentActorId — each call resolves independently against the
- *    shared mocked repos).
+ *    `Promise.allSettled` (five of the six namespace methods issued
+ *    concurrently against the SAME parentActorId — each call resolves
+ *    independently against the shared mocked repos).
  *  - Tier 4 (security): the denial oracle — every per-student method
  *    denies with the SAME constant ForbiddenError + localized message +
  *    ONE bounded logDomainError whose context bag is exactly
@@ -649,7 +649,7 @@ describe("ParentMonitoringService — Tier 2 (boundary arms)", () => {
 // ─── Tier 3 — concurrent mixed calls on one parent ─────────────────────────
 
 describe("ParentMonitoringService — Tier 3 (concurrent mixed calls on one parent)", () => {
-  test("Promise.allSettled over all five methods resolves independently against shared mocked repos", async () => {
+  test("Promise.allSettled over five of the six namespace methods resolves independently against shared mocked repos", async () => {
     await runInRollback(async tx => {
       mockActorAndGateSuccess();
       trackSpy(

@@ -39,10 +39,13 @@
  *  - Per-student reads open ONE `withTransaction` and run the
  *    `requireLinkedChild` gate FIRST, before any data read, all inside
  *    the same transaction snapshot.
- *  - Constant-shape denial: a missing id, a foreign id, a never-linked
- *    id, a severed child, and a malformed id are byte-indistinguishable
- *    to the caller — the gate throws the SAME constant `ForbiddenError`
- *    with ONE bounded `logDomainError` (never logging child fields).
+ *  - Constant-shape denial: for the per-student reads, a missing id, a
+ *    foreign id, a never-linked id, a severed child, and a malformed id
+ *    are byte-indistinguishable to the caller — the link gate throws the
+ *    SAME constant `ForbiddenError` with ONE bounded `logDomainError`
+ *    (never logging child fields). `getSessionTarget` is the deliberate
+ *    exception: a malformed sessionId rejects as a distinguishable
+ *    `ValidationError` before any gate or read runs.
  *  - Pagination: `page >= 1`, `pageSize` clamped to [1, 50]; effective
  *    values echoed in every page payload; an out-of-range page yields
  *    empty `items` next to the true `totalCount` — never a fabricated
