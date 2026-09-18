@@ -51,7 +51,7 @@
 
 ## Phase 1 — Journey Gap-Fill (the ONE uncovered ticket-AC arm)
 
-### - [ ] 1.1 Journey Leg: Re-Settle on a `failed` Withdrawal — `test/workflows/billing/admin-financial-auditing.journey.test.ts` (EXTEND) · `outcome/1.1-journey-gapfill-outcome.md`
+### - [x] 1.1 Journey Leg: Re-Settle on a `failed` Withdrawal — `test/workflows/billing/admin-financial-auditing.journey.test.ts` (EXTEND) · `outcome/1.1-journey-gapfill-outcome.md`
 - Append a **step-8 leg** inside the EXISTING describe (same file, same cast, same `TrackedFixtures` registry, same `publishReceipts` spy — NO new journey file, NO new cast, NO registry changes). This is the only ticket-AC arm with no journey leg anywhere today: step 6 covers the `completed` loser-arm only (`:814-829`); finsec step F covers direct-DB UPDATE only (`test/workflows/billing/financial-safety-verification.journey.test.ts:714-752`).
 - Leg steps (insert AFTER step 7, keeping existing steps 1–7 byte-identical — diff-check step bodies before finishing):
   1. Fund check: read teacherB's wallet row (`readWalletRow(teacherB.userId)`) and record the balance (wallet was funded 300.00 at `:392`; earlier steps' net effect is already asserted there — this leg needs its OWN fresh withdrawal).
@@ -66,28 +66,28 @@
 - Enum discipline: `TransactionStatus`/`TransactionType` are ALREADY value-imported in this file — no new imports unless a helper needs one; never raw string literals.
 - Run: `bun run test/scripts/run-test.ts test/workflows/billing/admin-financial-auditing.journey.test.ts` until green; then the whole billing journey dir (`bun run test/scripts/run-test.ts test/workflows/billing/admin-financial-auditing.journey.test.ts` + the sibling file) — both files green.
 - _Requirements: REQ-601, REQ-402, REQ-504, REQ-505, REQ-506_
-- [ ] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts test/workflows/billing/admin-financial-auditing.journey.test.ts --lifecycle duplicates` (exit 0).
-- [ ] 1.1.TE **Test Engineering**: this leg IS Tier 1–4 delivery — Tier 1 both re-settle branches on the failed row; Tier 2 the exact-decimal balance equality; Tier 3 the leg composes with the file's existing concurrent steps (run order stability — run the file twice); Tier 4 the denial path is an adversarial replay attempt by a legitimately-authenticated actor.
-- [ ] 1.1.SEC **Security & Tenancy Audit**: the re-settle attempts use a REAL admin actor (honest authorization); the teacher's wallet is never read by id from client input — identity flows from the actor factory; zero rows mutate on denial.
-- [ ] 1.1.SR **Semantic Review**: existing steps 1–7 byte-identical (diff-verify); no `runInRollback`; tracked cleanup covers the new ledger row (`ledgerTxnIds`); no plan-artifact references in test comments; no hardcoded user-facing strings.
-- [ ] 1.1.IV **Instruction Verification**: read `test/workflows/AGENTS.md` + `.agents/instructions/tests.instructions.md` (auto-printed by sub-loop).
+- [x] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts test/workflows/billing/admin-financial-auditing.journey.test.ts --lifecycle duplicates` (exit 0).
+- [x] 1.1.TE **Test Engineering**: this leg IS Tier 1–4 delivery — Tier 1 both re-settle branches on the failed row; Tier 2 the exact-decimal balance equality; Tier 3 the leg composes with the file's existing concurrent steps (run order stability — run the file twice); Tier 4 the denial path is an adversarial replay attempt by a legitimately-authenticated actor.
+- [x] 1.1.SEC **Security & Tenancy Audit**: the re-settle attempts use a REAL admin actor (honest authorization); the teacher's wallet is never read by id from client input — identity flows from the actor factory; zero rows mutate on denial.
+- [x] 1.1.SR **Semantic Review**: existing steps 1–7 byte-identical (diff-verify); no `runInRollback`; tracked cleanup covers the new ledger row (`ledgerTxnIds`); no plan-artifact references in test comments; no hardcoded user-facing strings.
+- [x] 1.1.IV **Instruction Verification**: read `test/workflows/AGENTS.md` + `.agents/instructions/tests.instructions.md` (auto-printed by sub-loop).
 
 ---
 
 ## Phase 2 — Doc Repairs (documentation-only; no runtime surface)
 
-### - [ ] 2.1 DBML Check Repair — `db/schema.dbml:372` (UPDATE) · `outcome/2.1-dbml-repair-outcome.md`
+### - [x] 2.1 DBML Check Repair — `db/schema.dbml:372` (UPDATE) · `outcome/2.1-dbml-repair-outcome.md`
 - Change the `teacher_transaction.amount` column check from `check: \`amount >= 0\`` to `check: \`amount > 0\`` — aligning the DBML (documentation) with the authoritative Drizzle CHECK `teacher_transaction_amount_check` (`backend/db/schema/billing/teacher-transaction.ts:50`), which the tests actually prove (`financial-immutability.test.ts` constraint probes; ticket AC relies on the stricter bound).
 - No migration, no schema change — the DB CHECK already says `> 0`; only the stale DBML annotation drifts (`db/schema.dbml:372`).
 - Verify the DBML/mermaid CI validation still passes if the repo gates it (the M0 pipeline `ai/finished_plans/milestone_0_foundation/cicd-pipeline-with-dbml-mermaid-validati/`); otherwise verify by inspection + the dbml lint if available.
 - _Requirements: REQ-602_
-- [ ] 2.1.QL **Quality Loop**: `db/schema.dbml` is not TypeScript — sub-loop does not apply; record the inspection + any validation command output in the outcome.
-- [ ] 2.1.TE **Test Engineering**: n/a (documentation) — the underlying constraint is already test-proven (citied in the outcome).
-- [ ] 2.1.SEC **Security & Tenancy Audit**: n/a.
-- [ ] 2.1.SR **Semantic Review**: DBML now matches the Drizzle schema AND the live DB CHECK (all three agree at `> 0`); INV-W8's doc wording stays untouched (D6 ledger row — the invariants doc is edited only by its owner).
-- [ ] 2.1.IV **Instruction Verification**: root `AGENTS.md` doc conventions re-read.
+- [x] 2.1.QL **Quality Loop**: `db/schema.dbml` is not TypeScript — sub-loop does not apply; record the inspection + any validation command output in the outcome.
+- [x] 2.1.TE **Test Engineering**: n/a (documentation) — the underlying constraint is already test-proven (citied in the outcome).
+- [x] 2.1.SEC **Security & Tenancy Audit**: n/a.
+- [x] 2.1.SR **Semantic Review**: DBML now matches the Drizzle schema AND the live DB CHECK (all three agree at `> 0`); INV-W8's doc wording stays untouched (D6 ledger row — the invariants doc is edited only by its owner).
+- [x] 2.1.IV **Instruction Verification**: root `AGENTS.md` doc conventions re-read.
 
-### - [ ] 2.2 Workflow-Diagram Wording Repair — `docs/workflows/03-session-lifecycle-escrow.md` §6.3 (UPDATE) · `outcome/2.2-diagram-repair-outcome.md`
+### - [x] 2.2 Workflow-Diagram Wording Repair — `docs/workflows/03-session-lifecycle-escrow.md` §6.3 (UPDATE) · `outcome/2.2-diagram-repair-outcome.md`
 - Repair the withdrawal sequence diagram so the approve branch reflects the shipped **reserve-at-request, settle-at-decision** model instead of the superseded debit-at-approval wording:
   - Request step (`:147-148` region): keep "Create teacher_transaction (type = withdrawal, status = pending)" and ADD the reserve semantics — "Reserve: deduct wallet.balance (guarded `balance >= amount`)".
   - Approve branch (`:153` "Deduct from wallet.balance"): replace with "Settle the reservation: status pending → completed (balance already reserved at request)".
@@ -95,11 +95,11 @@
   - Keep the mermaid structure, the audit-trail step, and all other lines untouched.
 - Cross-check against the canonical model (`docs/billing/admin-financial-auditing.md` §2 `:46-60`) — the diagram must agree with the doc verbatim in semantics, not necessarily wording.
 - _Requirements: REQ-603_
-- [ ] 2.2.QL **Quality Loop**: markdown file — sub-loop does not apply; verify the mermaid block still renders (the repo's mermaid validation, if gated) and record in the outcome.
-- [ ] 2.2.TE **Test Engineering**: n/a (documentation) — semantics are re-proven by the journey re-runs (Phase 3).
-- [ ] 2.2.SEC **Security & Tenancy Audit**: n/a.
-- [ ] 2.2.SR **Semantic Review**: diagram now matches REQ-202's binding ruling exactly; no other section of the doc was touched (diff shows only §6.3 lines).
-- [ ] 2.2.IV **Instruction Verification**: root `AGENTS.md` doc conventions re-read.
+- [x] 2.2.QL **Quality Loop**: markdown file — sub-loop does not apply; verify the mermaid block still renders (the repo's mermaid validation, if gated) and record in the outcome.
+- [x] 2.2.TE **Test Engineering**: n/a (documentation) — semantics are re-proven by the journey re-runs (Phase 3).
+- [x] 2.2.SEC **Security & Tenancy Audit**: n/a.
+- [x] 2.2.SR **Semantic Review**: diagram now matches REQ-202's binding ruling exactly; no other section of the doc was touched (diff shows only §6.3 lines).
+- [x] 2.2.IV **Instruction Verification**: root `AGENTS.md` doc conventions re-read.
 
 ---
 
