@@ -47,15 +47,15 @@
 
 ## Phase 2 — Backend: Repositories & Services
 
-- [ ] **2. Extend — repo + service + mutation**
+- [x] **2. Extend — repo + service + mutation**
   - Repo: add `extendActiveOnce` to `backend/db/repo/billing/subscription.repository.ts` per plan.md §3.1 (guarded UPDATE: `WHERE id AND status='active'`; set `endDate = endDate + INTERVAL '<days> days'` server-side via parameterised SQL interval multiply or JS-computed new date — pick ONE: compute `newEndDate = new Date(oldEndDate.getTime() + days * 86_400_000)` in the SERVICE (matches the `MS_PER_DAY` precedent at `subscription-activation.service.ts:118,384`), repo SETs the absolute value with the guard).
   - Service: implement `extendSubscription` in NEW `backend/services/billing/subscription-admin.service.ts` + audit contract helper in `subscription-admin.helpers.ts` (`entityType: "subscription"`, `actionType: AuditActionType.Update`, details `{ previousEndDate, newEndDate, addedDays }`).
   - Validation: `days` integer ≥ 1; resulting window ≤ `MAX_INTERVAL_DAYS` (import constant from `plan-catalog.helpers.ts:46-60`).
   - GraphQL: `adminExtendSubscription` in NEW `backend/graphql/mutation/billing/subscription-admin.mutation.ts`; input type in NEW `backend/graphql/pothos/billing/subscription-admin.pothos.ts`; side-effect wire in both billing barrels.
-  - [ ] 2.QL: sub-loop on each modified/new file (exit 0).
-  - [ ] 2.TE: repo test additions in `backend/db/test/logic/billing/subscription.repository.test.ts` (extend happy path, replay→zero-row path, wrong-status path) via `runInRollback` + `expectRepoError`; service test `backend/services/billing/subscription-admin.service.test.ts` (NEW — mock repo boundary? NO: services in this repo run against the DB per file-convention — mirror `subscription-expiry.service.test.ts` approach; four-tier framework: branch, boundary (days=0, days=3650+, non-active statuses ×5), chaos replay).
-  - [ ] 2.SEC: BOLA (id from input, but caller is admin — fine); BOPLA (explicit patch); BFLA (service re-asserts `assertActorAdmin`).
-  - [ ] 2.SR / 2.IV per protocol.
+  - [x] 2.QL: sub-loop on each modified/new file (exit 0).
+  - [x] 2.TE: repo test additions in `backend/db/test/logic/billing/subscription.repository.test.ts` (extend happy path, replay→zero-row path, wrong-status path) via `runInRollback` + `expectRepoError`; service test `backend/services/billing/subscription-admin.service.test.ts` (NEW — mock repo boundary? NO: services in this repo run against the DB per file-convention — mirror `subscription-expiry.service.test.ts` approach; four-tier framework: branch, boundary (days=0, days=3650+, non-active statuses ×5), chaos replay).
+  - [x] 2.SEC: BOLA (id from input, but caller is admin — fine); BOPLA (explicit patch); BFLA (service re-asserts `assertActorAdmin`).
+  - [x] 2.SR / 2.IV per protocol.
   - _Requirements: REQ-1, REQ-6, REQ-7_
 
 - [ ] **3. Renew expired subscription**

@@ -8,6 +8,9 @@
  *    time and has no named exports.
  *  - Wired via side-effect barrels: this barrel → `mutation/index.ts` →
  *    `gqlSchema.ts`.
- *  - `wallet.mutation.ts` registers `requestWithdrawal`.
+ *  - `wallet.mutation.ts` registers `requestWithdrawal`;
+ *    `subscription-admin.mutation.ts` registers the admin-gated
+ *    subscription lifecycle mutations (`adminExtendSubscription`).
  */
+import "./subscription-admin.mutation";
 import "./wallet.mutation";

@@ -157,6 +157,48 @@ export namespace SubscriptionRepository {
   }
 
   /**
+   * Extends an `active` subscription's validity window to an absolute,
+   * service-computed end date.
+   *
+   * A single guarded `UPDATE … WHERE id = ? AND status = 'active' AND
+   * end_date = ? … RETURNING` stamps the new window end plus an explicit
+   * `updated_at`. The `end_date` equality predicate is the concurrency
+   * lock: an identical double-submit (or any concurrent writer that moved
+   * the window — the expiry sweep, a cancellation) matches zero rows and
+   * returns `null`, so a replay can never shift the window a second time.
+   * Genuinely new extensions stack legitimately: the caller re-reads the
+   * row and supplies its CURRENT end date as `previousEndDate`, which the
+   * predicate then matches. `status` is deliberately never touched — an
+   * extension keeps the row `active`.
+   *
+   * @returns The extended row, or null when the subscription does not
+   *          exist, is no longer active, or its end date is no longer
+   *          `previousEndDate` (replay / lost race).
+   */
+  export async function extendActiveOnce(
+    id: number,
+    patch: { previousEndDate: Date; newEndDate: Date },
+    tx?: DBTransaction
+  ): Promise<SubscriptionSelectType | null> {
+    const executor = tx ?? db;
+    const [row] = await executor
+      .update(subscriptions)
+      .set({
+        endDate: patch.newEndDate,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(subscriptions.id, id),
+          eq(subscriptions.status, SubscriptionStatus.Active),
+          eq(subscriptions.endDate, patch.previousEndDate)
+        )
+      )
+      .returning();
+    return row ?? null;
+  }
+
+  /**
    * Lists every subscription owned by one user, newest first.
    *
    * Owner-scoped by design — the only listing predicate is `user_id`

@@ -1,0 +1,600 @@
+/**
+ * SubscriptionAdminService tests — the admin extend flow (validation,
+ * admin gate, guarded window transition, the exactly-one audit row, and
+ * the idempotent replay conflict) against the live database on REAL
+ * repositories.
+ *
+ * Per `backend/db/test/AGENTS.md` (the DB-backed service-test rules the
+ * sibling billing suites apply):
+ *  - Every transactional case runs inside `runInRollback`; the `tx` is
+ *    propagated to the service as its `outerTx` seam so the whole flow
+ *    executes as a SAVEPOINT on the caller's transaction. The exception
+ *    is the true-concurrency chaos case, which needs REAL independent
+ *    transactions (committed fixtures + FK-ordered teardown below).
+ *  - Entities are created ONLY via `entity-setup.ts` helpers — never seed
+ *    data.
+ *  - NO `expect(...).rejects.toThrow()` — every induced denial is
+ *    asserted through a try/catch helper, never through a pinned
+ *    rejection inside the rollback wrapper.
+ *  - Log seams are SPIED (never real output assertions): every spy is
+ *    tracked and restored per test (bun reuses ONE mock per object+method
+ *    pair until restored).
+ *
+ * Coverage map:
+ *  - Tier 1 (branch): an active subscription extends with exactly one
+ *    `Update` audit row on the `subscription` entity whose details carry
+ *    the ISO window bounds and the integer day count; every non-active
+ *    lifecycle state (pending / expired / cancelled / suspended), a
+ *    missing row, a fractional day count, a non-positive day count, a
+ *    non-admin actor, and an anonymous actor each deny with ZERO writes
+ *    and ZERO audit rows.
+ *  - Tier 2 (boundary): the minimal one-day extension shifts the window
+ *    by exactly one day; a windowless active row denies; an extension
+ *    that would push the resulting window past the interval ceiling
+ *    denies while an extension landing exactly ON the ceiling commits.
+ *  - Tier 3 (chaos): the guarded-transition replay — a lost race between
+ *    the read and the write surfaces the idempotent conflict with zero
+ *    audit rows (stubbed seam probe inside the rollback), and two
+ *    concurrent identical double-submits on independent transactions
+ *    partition across the row lock: exactly one window shift, exactly one
+ *    audit row, the loser receives the conflict.
+ *  - Tier 4 (abuse): the non-admin denial is probed for the full
+ *    zero-side-effect contract — row byte-identical, zero audit rows by
+ *    actor AND by entity; the audit details vocabulary is pinned to
+ *    ids/ints/ISO strings only (no free text ever enters the trail).
+ */
+
+import { afterEach, describe, expect, spyOn, test } from "bun:test";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/backend/db";
+import { SubscriptionRepository } from "@/backend/db/repo";
+import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
+import { plans } from "@/backend/db/schema/billing/plans";
+import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
+import { createTestPlan, createTestSubscription, createTestUser } from "@/backend/db/test/entity-setup";
+import { runInRollback } from "@/backend/db/test/test-utils";
+import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
+import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
+import { ConflictError, DomainError, ForbiddenError, UnauthorizedError, ValidationError } from "@/backend/lib/errors";
+import { logger } from "@/backend/lib/logger";
+import { SubscriptionAdminService } from "@/backend/services/billing/subscription-admin.service";
+import type {
+  DBTransaction,
+  ExtendSubscriptionSubmitInput,
+  SubscriptionSelectType,
+  UserSelectType,
+} from "@/backend/types";
+import { getServerTranslations } from "@/shared/locale/server-graphql";
+import { deleteUsersByIds } from "@/test/helpers/db-cleanup";
+import { isPgliteProvider } from "@/test/helpers/skip-when-pglite";
+
+/** Concurrent-transaction cases run ONLY on a real multi-connection PostgreSQL. */
+const testOnRealPostgres = isPgliteProvider() ? test.skip : test;
+
+/** One day in milliseconds — the service's extension arithmetic unit. */
+const MS_PER_DAY = 86_400_000;
+
+/** The audit entity label minted by the subscription-admin audit contract. */
+const SUBSCRIPTION_ENTITY_TYPE = "subscription";
+
+/** Sentinel actorId expressing an anonymous caller (the admin gate ladder). */
+const ANONYMOUS_ACTOR_ID = 0;
+
+/** The errors-namespace translations for the default test locale. */
+function t() {
+  return getServerTranslations("en").errorsTranslations;
+}
+
+/**
+ * Registry of every spy created during the currently running test. bun's
+ * `spyOn` reuses ONE mock per object+method pair until it is restored, so
+ * an unrestored mock keeps accumulating `mock.calls` across tests and
+ * poisons later call-count assertions — every spy is registered here and
+ * restored by the file-level `afterEach`.
+ */
+const trackedSpies: Array<{ restore(): void }> = [];
+
+function trackSpy<T extends { mockRestore(): void }>(spy: T): T {
+  trackedSpies.push({ restore: () => spy.mockRestore() });
+  return spy;
+}
+
+afterEach(() => {
+  for (const entry of trackedSpies) {
+    entry.restore();
+  }
+  trackedSpies.length = 0;
+});
+
+/** Creates one admin actor (user row with the admin role). */
+async function createAdmin(tx: DBTransaction): Promise<number> {
+  const adminUser = await createTestUser(tx, { role: "admin" });
+  return adminUser.id;
+}
+
+/** One student owner + one active subscription with a deterministic window. */
+interface ActiveFixture {
+  readonly owner: UserSelectType;
+  readonly subscription: SubscriptionSelectType;
+}
+
+async function createActiveSubscription(
+  tx: DBTransaction,
+  overrides: Partial<SubscriptionSelectType> = {}
+): Promise<ActiveFixture> {
+  const owner = await createTestUser(tx, { role: "student" });
+  const plan = await createTestPlan(tx);
+  const now = new Date();
+  const subscription = await createTestSubscription(tx, owner.id, plan.id, {
+    status: SubscriptionStatus.Active,
+    startDate: now,
+    endDate: new Date(now.getTime() + 30 * MS_PER_DAY),
+    ...overrides,
+  });
+  return { owner, subscription };
+}
+
+/** The extend payload for one subscription (day count is the caller's knob). */
+function extendInput(subscriptionId: number, days: number): ExtendSubscriptionSubmitInput {
+  return { subscriptionId, days };
+}
+
+/**
+ * Try/catch rejection helper (never `.rejects.toThrow()` inside
+ * `runInRollback` — deadlocks). Returns the caught `Error`; fails the
+ * test when the call resolves successfully.
+ */
+async function expectServiceError(fn: () => Promise<unknown>): Promise<Error> {
+  let errorCaught: unknown = null;
+  try {
+    await fn();
+  } catch (error) {
+    errorCaught = error;
+  }
+  if (errorCaught === null) {
+    throw new Error("expectServiceError: expected the call to throw, but it resolved successfully");
+  }
+  if (!(errorCaught instanceof Error)) {
+    throw new Error(`expectServiceError: caught non-Error throw: ${JSON.stringify(errorCaught)}`);
+  }
+  return errorCaught;
+}
+
+/** Type-guard read of a caught rejection's `extensions.code` (the typed DomainError contract). */
+function rejectionCode(error: unknown): string {
+  return error instanceof DomainError ? error.code : "";
+}
+
+/** Pins a caught denial to exactly the expected code + translated message. */
+function expectDomainDenial(error: Error, code: string, message: string): void {
+  expect(error).toBeInstanceOf(DomainError);
+  expect(rejectionCode(error)).toBe(code);
+  expect(error.message).toBe(message);
+}
+
+/** Read-back oracle: the subscription row for one id (on the tx). */
+async function readSubscription(tx: DBTransaction, subscriptionId: number): Promise<SubscriptionSelectType> {
+  const [row] = await tx.select().from(subscriptions).where(eq(subscriptions.id, subscriptionId)).limit(1);
+  if (!row) {
+    throw new Error(`readSubscription: no row for subscription ${subscriptionId}`);
+  }
+  return row;
+}
+
+/** Audit rows ABOUT one subscription (the exactly-once oracle). */
+async function readAuditsForSubscription(tx: DBTransaction, subscriptionId: number) {
+  return tx
+    .select()
+    .from(auditLogs)
+    .where(and(eq(auditLogs.entityType, SUBSCRIPTION_ENTITY_TYPE), eq(auditLogs.entityId, subscriptionId)));
+}
+
+/** Audit rows WRITTEN BY one actor (the denial-zero-writes oracle). */
+async function countAuditsForActor(tx: DBTransaction, actorId: number): Promise<number> {
+  return tx.$count(auditLogs, eq(auditLogs.actorId, actorId));
+}
+
+/**
+ * Non-active denial probe for ONE fixture: the localized active-only
+ * conflict, the row untouched, and zero audit rows about the entity.
+ */
+async function expectExtendDenied(tx: DBTransaction, adminId: number, fixture: ActiveFixture): Promise<void> {
+  const error = await expectServiceError(() =>
+    SubscriptionAdminService.extendSubscription(extendInput(fixture.subscription.id, 7), adminId, "en", tx)
+  );
+  expect(error).toBeInstanceOf(ConflictError);
+  expectDomainDenial(error, "CONFLICT", t().subscriptionAdmin.notActive);
+
+  const reread = await readSubscription(tx, fixture.subscription.id);
+  expect(reread.status).toBe(fixture.subscription.status);
+  expect(reread.endDate).toEqual(fixture.subscription.endDate);
+  expect(await readAuditsForSubscription(tx, fixture.subscription.id)).toHaveLength(0);
+}
+
+/**
+ * Day-count rejection probe: the pre-DB VALIDATION denial with the row
+ * and the audit trail untouched.
+ */
+async function expectDaysRejected(
+  tx: DBTransaction,
+  adminId: number,
+  subscriptionId: number,
+  days: number
+): Promise<void> {
+  const error = await expectServiceError(() =>
+    SubscriptionAdminService.extendSubscription(extendInput(subscriptionId, days), adminId, "en", tx)
+  );
+  expect(error).toBeInstanceOf(ValidationError);
+  expectDomainDenial(error, "VALIDATION", t().badRequest);
+  expect(await readAuditsForSubscription(tx, subscriptionId)).toHaveLength(0);
+}
+
+// ─── Tier 1: branches ─────────────────────────────────────────────────────
+
+describe("SubscriptionAdminService.extendSubscription — branches (Tier 1)", () => {
+  test("extends an active subscription: exact window shift + exactly one Update audit row", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { subscription } = await createActiveSubscription(tx);
+      const previousEndDate = subscription.endDate;
+      if (!previousEndDate) {
+        throw new Error("fixture failure: active row has no window end");
+      }
+      const newEndDate = new Date(previousEndDate.getTime() + 14 * MS_PER_DAY);
+
+      const result = await SubscriptionAdminService.extendSubscription(
+        extendInput(subscription.id, 14),
+        adminId,
+        "en",
+        tx
+      );
+
+      expect(result.id).toBe(subscription.id);
+      expect(result.status).toBe(SubscriptionStatus.Active);
+      expect(result.endDate).toEqual(newEndDate);
+
+      const audits = await readAuditsForSubscription(tx, subscription.id);
+      expect(audits).toHaveLength(1);
+      const audit = audits[0];
+      if (!audit) {
+        throw new Error("audit row vanished");
+      }
+      expect(audit.actorId).toBe(adminId);
+      expect(audit.actionType).toBe(AuditActionType.Update);
+      expect(audit.entityType).toBe(SUBSCRIPTION_ENTITY_TYPE);
+      if (audit.details === null) {
+        throw new Error("audit details vanished");
+      }
+      // The details vocabulary is ids/ints/ISO strings only — parsed back
+      // to the exact triple, no free text ever entered the trail.
+      expect(JSON.parse(audit.details)).toEqual({
+        previousEndDate: previousEndDate.toISOString(),
+        newEndDate: newEndDate.toISOString(),
+        addedDays: 14,
+      });
+    });
+  });
+
+  test("denies a pending subscription with the active-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const pending = await createActiveSubscription(tx, { status: SubscriptionStatus.Pending, endDate: null });
+      await expectExtendDenied(tx, adminId, pending);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies an expired subscription with the active-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      // A TRUE expired-status row: the sweep owns the active → expired
+      // transition, so an active row whose window has merely closed is still
+      // legitimately extendable — the fixture must flip the status itself.
+      const now = new Date();
+      const expired = await createActiveSubscription(tx, {
+        status: SubscriptionStatus.Expired,
+        endDate: new Date(now.getTime() - 5 * MS_PER_DAY),
+      });
+      await expectExtendDenied(tx, adminId, expired);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies a cancelled subscription with the active-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const cancelled = await createActiveSubscription(tx, { status: SubscriptionStatus.Cancelled });
+      await expectExtendDenied(tx, adminId, cancelled);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies a suspended subscription with the active-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const suspended = await createActiveSubscription(tx, { status: SubscriptionStatus.Suspended });
+      await expectExtendDenied(tx, adminId, suspended);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies an unknown subscription id with the same active-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.extendSubscription(extendInput(99999999, 7), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().subscriptionAdmin.notActive);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("rejects a fractional day count pre-DB with zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { subscription } = await createActiveSubscription(tx);
+
+      await expectDaysRejected(tx, adminId, subscription.id, 2.5);
+
+      expect((await readSubscription(tx, subscription.id)).endDate).toEqual(subscription.endDate);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("rejects non-positive day counts pre-DB with zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { subscription } = await createActiveSubscription(tx);
+
+      await expectDaysRejected(tx, adminId, subscription.id, 0);
+      await expectDaysRejected(tx, adminId, subscription.id, -5);
+
+      expect((await readSubscription(tx, subscription.id)).endDate).toEqual(subscription.endDate);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies a non-admin actor before any write: row byte-identical, zero audit rows", async () => {
+    await runInRollback(async tx => {
+      const student = await createTestUser(tx, { role: "student" });
+      const { subscription } = await createActiveSubscription(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.extendSubscription(extendInput(subscription.id, 7), student.id, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ForbiddenError);
+      expectDomainDenial(error, "FORBIDDEN", t().forbidden);
+      const reread = await readSubscription(tx, subscription.id);
+      expect(reread.status).toBe(subscription.status);
+      expect(reread.endDate).toEqual(subscription.endDate);
+      expect(reread.updatedAt).toEqual(subscription.updatedAt);
+      expect(await countAuditsForActor(tx, student.id)).toBe(0);
+      expect(await readAuditsForSubscription(tx, subscription.id)).toHaveLength(0);
+    });
+  });
+
+  test("denies an anonymous actor with UNAUTHORIZED and zero audit rows", async () => {
+    await runInRollback(async tx => {
+      const { subscription } = await createActiveSubscription(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.extendSubscription(extendInput(subscription.id, 7), ANONYMOUS_ACTOR_ID, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(UnauthorizedError);
+      expectDomainDenial(error, "UNAUTHORIZED", t().unauthorized);
+      expect(await readAuditsForSubscription(tx, subscription.id)).toHaveLength(0);
+    });
+  });
+});
+
+// ─── Tier 2: boundaries ───────────────────────────────────────────────────
+
+describe("SubscriptionAdminService.extendSubscription — boundaries (Tier 2)", () => {
+  test("days = 1: the minimal extension shifts the window by exactly one day", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { subscription } = await createActiveSubscription(tx);
+      const previousEndDate = subscription.endDate;
+      if (!previousEndDate) {
+        throw new Error("fixture failure: active row has no window end");
+      }
+
+      const result = await SubscriptionAdminService.extendSubscription(
+        extendInput(subscription.id, 1),
+        adminId,
+        "en",
+        tx
+      );
+
+      expect(result.endDate).toEqual(new Date(previousEndDate.getTime() + MS_PER_DAY));
+      expect((await readAuditsForSubscription(tx, subscription.id))[0]?.actionType).toBe(AuditActionType.Update);
+    });
+  });
+
+  test("a windowless active row denies with the active-only conflict", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const windowless = await createActiveSubscription(tx, { endDate: null });
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.extendSubscription(extendInput(windowless.subscription.id, 7), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().subscriptionAdmin.notActive);
+      expect((await readSubscription(tx, windowless.subscription.id)).endDate).toBeNull();
+      expect(await readAuditsForSubscription(tx, windowless.subscription.id)).toHaveLength(0);
+    });
+  });
+
+  test("an extension past the interval ceiling denies; exactly ON the ceiling commits", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+
+      // One day past the ceiling: the resulting window spans start + 3651
+      // days → the localized ceiling reject, row and trail untouched.
+      const overTheLine = await createActiveSubscription(tx);
+      const pastCeilingError = await expectServiceError(() =>
+        SubscriptionAdminService.extendSubscription(
+          extendInput(overTheLine.subscription.id, 3651 - 30),
+          adminId,
+          "en",
+          tx
+        )
+      );
+      expect(pastCeilingError).toBeInstanceOf(ValidationError);
+      expectDomainDenial(pastCeilingError, "VALIDATION", t().subscriptionAdmin.prorationOverflow);
+      expect((await readSubscription(tx, overTheLine.subscription.id)).endDate).toEqual(
+        overTheLine.subscription.endDate
+      );
+      expect(await readAuditsForSubscription(tx, overTheLine.subscription.id)).toHaveLength(0);
+
+      // Exactly on the ceiling: start + 3650 days → commits (inclusive
+      // bound). The expected end derives from the FIXTURE's own window end
+      // (never a separately captured clock — the two can drift by ms).
+      const onTheLine = await createActiveSubscription(tx);
+      const onTheLinePrevEnd = onTheLine.subscription.endDate;
+      if (!onTheLinePrevEnd) {
+        throw new Error("fixture failure: active row has no window end");
+      }
+      const result = await SubscriptionAdminService.extendSubscription(
+        extendInput(onTheLine.subscription.id, 3650 - 30),
+        adminId,
+        "en",
+        tx
+      );
+      expect(result.endDate).toEqual(new Date(onTheLinePrevEnd.getTime() + (3650 - 30) * MS_PER_DAY));
+      expect(await readAuditsForSubscription(tx, onTheLine.subscription.id)).toHaveLength(1);
+    });
+  });
+});
+
+// ─── Tier 3: chaos (replay + true concurrency) ────────────────────────────
+
+describe("SubscriptionAdminService.extendSubscription — chaos (Tier 3)", () => {
+  test("a replay that lost the guarded race surfaces the idempotent conflict with zero audit rows", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { subscription } = await createActiveSubscription(tx);
+
+      // Simulates the lost race: between this transaction's read and its
+      // write, a concurrent writer moved the window, so the guarded UPDATE
+      // matches zero rows. The REAL guarded statement stays fully
+      // exercised by the true-concurrency case below; this probe pins the
+      // service contract for the zero-row branch (localized conflict, one
+      // bounded log, no audit row).
+      const replayStub = trackSpy(spyOn(SubscriptionRepository, "extendActiveOnce"));
+      replayStub.mockImplementation(async () => null);
+      const domainErrorSpy = trackSpy(spyOn(logger, "logDomainError"));
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.extendSubscription(extendInput(subscription.id, 7), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().conflict);
+      expect(domainErrorSpy).toHaveBeenCalledTimes(1);
+      expect(await readAuditsForSubscription(tx, subscription.id)).toHaveLength(0);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  testOnRealPostgres(
+    "concurrent identical double-submits: exactly one window shift and one audit row, the loser conflicts",
+    async () => {
+      // Committed fixtures — the production path opens its OWN transaction
+      // per call, so the race needs real committed entities.
+      const fixture = await db.transaction(async fixtureTx => {
+        const admin = await createTestUser(fixtureTx, { role: "admin" });
+        const owner = await createTestUser(fixtureTx, { role: "student" });
+        const plan = await createTestPlan(fixtureTx);
+        const subscription = await createTestSubscription(fixtureTx, owner.id, plan.id, {
+          status: SubscriptionStatus.Active,
+          startDate: new Date(),
+          endDate: new Date(Date.now() + 30 * MS_PER_DAY),
+        });
+        return {
+          adminId: admin.id,
+          ownerId: owner.id,
+          planId: plan.id,
+          subscriptionId: subscription.id,
+          previousEndDate: subscription.endDate,
+        };
+      });
+      if (!fixture.previousEndDate) {
+        throw new Error("fixture failure: active row has no window end");
+      }
+
+      // Deterministic lost-race interleaving: hold BOTH calls right after
+      // their row read (each inside its own top-level transaction) and
+      // release them together, so both guarded UPDATEs contend on the SAME
+      // previous end date. Without the barrier the second call's read can
+      // land after the first commit — a legitimately STACKED extension by
+      // design (the service re-reads the current window), not the lost
+      // race this probe pins. The real guarded statement, row lock, and
+      // audit write below stay fully exercised.
+      const realFindById = SubscriptionRepository.findById;
+      let readersArrived = 0;
+      let releaseReaders!: () => void;
+      const readersBarrier = new Promise<void>(resolve => {
+        releaseReaders = resolve;
+      });
+      const findByIdStub = trackSpy(spyOn(SubscriptionRepository, "findById"));
+      findByIdStub.mockImplementation(async (id, executor) => {
+        const row = await realFindById(id, executor);
+        readersArrived += 1;
+        if (readersArrived === 2) {
+          releaseReaders();
+        }
+        await readersBarrier;
+        return row;
+      });
+
+      try {
+        const [first, second] = await Promise.allSettled([
+          SubscriptionAdminService.extendSubscription(extendInput(fixture.subscriptionId, 10), fixture.adminId, "en"),
+          SubscriptionAdminService.extendSubscription(extendInput(fixture.subscriptionId, 10), fixture.adminId, "en"),
+        ]);
+
+        // Exactly one call commits; the loser receives the idempotent
+        // conflict instead of a second window shift.
+        const outcomes = [first, second];
+        const fulfilled = outcomes.filter(entry => entry.status === "fulfilled");
+        const rejected = outcomes.filter(entry => entry.status === "rejected");
+        expect(fulfilled).toHaveLength(1);
+        expect(rejected).toHaveLength(1);
+        const loserReason = rejected[0]?.status === "rejected" ? rejected[0].reason : null;
+        expect(loserReason).toBeInstanceOf(ConflictError);
+        expect(rejectionCode(loserReason)).toBe("CONFLICT");
+
+        // The window shifted by exactly ONE extension — never two.
+        const reread = await db
+          .select()
+          .from(subscriptions)
+          .where(eq(subscriptions.id, fixture.subscriptionId))
+          .limit(1);
+        expect(reread[0]?.endDate).toEqual(new Date(fixture.previousEndDate.getTime() + 10 * MS_PER_DAY));
+        expect(reread[0]?.status).toBe(SubscriptionStatus.Active);
+
+        const audits = await db
+          .select()
+          .from(auditLogs)
+          .where(
+            and(eq(auditLogs.entityType, SUBSCRIPTION_ENTITY_TYPE), eq(auditLogs.entityId, fixture.subscriptionId))
+          );
+        expect(audits).toHaveLength(1);
+      } finally {
+        // FK-ordered teardown of the committed fixtures; the committed
+        // audit row (append-only table) is removed first under suspended
+        // delete triggers, keyed by the acting admin.
+        await deleteUsersByIds([fixture.adminId, fixture.ownerId]);
+        await db.delete(plans).where(eq(plans.id, fixture.planId));
+      }
+    }
+  );
+});

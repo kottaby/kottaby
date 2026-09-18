@@ -2,10 +2,11 @@
  * SubscriptionRepository tests — 4-Tier verification suite.
  *
  * Tier 1: Happy-path data access (insert, findById, findByPaymentReference,
- *         listByUserId ordering).
+ *         listByUserId ordering, extendActiveOnce window shift).
  * Tier 2: Boundary conditions (unknown ids, unknown references, empty list).
  * Tier 3: Chaos & concurrency (guarded activation: zero-row replay on an
- *         already-activated subscription).
+ *         already-activated subscription; guarded extension: zero-row
+ *         replay once the window moved, wrong-status denial).
  * Tier 4: Security & constraints (the partial unique index on
  *         `payment_reference` rejects a colliding insert with the raw
  *         PostgreSQL unique violation — 23505 — untranslated).
@@ -25,7 +26,7 @@ import { createTestPlan, createTestUser } from "@/backend/db/test/entity-setup";
 import { hasPostgresErrorCode } from "@/backend/db/test/pg-error";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
-import type { DBTransaction } from "@/backend/types";
+import type { DBTransaction, SubscriptionSelectType } from "@/backend/types";
 
 /** PostgreSQL error code for `unique_violation`. */
 const PG_UNIQUE_VIOLATION = "23505";
@@ -67,6 +68,49 @@ async function countSubscriptionsFor(tx: DBTransaction, userId: number): Promise
     .from(subscriptions)
     .where(eq(subscriptions.userId, userId));
   return row?.value ?? 0;
+}
+
+/** Creates one subscription row in the requested lifecycle state (window stamped for every state). */
+async function createSubscriptionInStatus(
+  tx: DBTransaction,
+  status: SubscriptionStatus
+): Promise<SubscriptionSelectType> {
+  const { userId, planId } = await createPurchaserAndPlan(tx);
+  const startDate = new Date("2026-02-01T00:00:00Z");
+  const endDate = new Date("2026-03-01T00:00:00Z");
+  const inserted = await SubscriptionRepository.insertSubscription({ userId, planId, startDate, endDate }, tx);
+  if (status === SubscriptionStatus.Active) {
+    const activated = await SubscriptionRepository.activatePendingOnce(
+      inserted.id,
+      { startDate, endDate, paymentVerifiedAt: new Date("2026-01-31T12:00:00Z") },
+      tx
+    );
+    if (!activated) {
+      throw new Error("fixture failure: activation matched zero rows");
+    }
+    return activated;
+  }
+  await tx.update(subscriptions).set({ status }).where(eq(subscriptions.id, inserted.id));
+  const row = await SubscriptionRepository.findById(inserted.id, tx);
+  if (!row) {
+    throw new Error("fixture failure: subscription row vanished");
+  }
+  return row;
+}
+
+/** Denial probe for one lifecycle state: zero rows matched, row untouched. */
+async function expectExtendDeniedForStatus(tx: DBTransaction, status: SubscriptionStatus): Promise<void> {
+  const row = await createSubscriptionInStatus(tx, status);
+  const windowEnd = row.endDate ?? new Date("2026-03-01T00:00:00Z");
+  const denied = await SubscriptionRepository.extendActiveOnce(
+    row.id,
+    { previousEndDate: windowEnd, newEndDate: new Date("2026-03-31T00:00:00Z") },
+    tx
+  );
+  expect(denied).toBeNull();
+  const reread = await SubscriptionRepository.findById(row.id, tx);
+  expect(reread?.status).toBe(status);
+  expect(reread?.endDate).toEqual(row.endDate);
 }
 
 describe("SubscriptionRepository", () => {
@@ -211,6 +255,86 @@ describe("SubscriptionRepository", () => {
       expect(
         await SubscriptionRepository.activatePendingOnce(99999999, { startDate, endDate, paymentVerifiedAt }, tx)
       ).toBeNull();
+    });
+  });
+
+  // ─── Tier 1 + 3: Guarded extension (window shift / zero-row replay) ────
+
+  test("extendActiveOnce shifts an active row's window to the exact requested end date", async () => {
+    await runInRollback(async tx => {
+      const active = await createSubscriptionInStatus(tx, SubscriptionStatus.Active);
+      const previousEndDate = active.endDate;
+      if (!previousEndDate) {
+        throw new Error("fixture failure: active row has no window end");
+      }
+      const newEndDate = new Date(previousEndDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      const extended = await SubscriptionRepository.extendActiveOnce(active.id, { previousEndDate, newEndDate }, tx);
+
+      expect(extended).not.toBeNull();
+      if (extended) {
+        expect(extended.id).toBe(active.id);
+        expect(extended.status).toBe(SubscriptionStatus.Active);
+        expect(extended.startDate).toEqual(active.startDate);
+        expect(extended.endDate).toEqual(newEndDate);
+        // The write is an explicit two-column patch: every other column
+        // (owner, plan, payment triple) rides through untouched.
+        expect(extended.userId).toBe(active.userId);
+        expect(extended.planId).toBe(active.planId);
+        expect(extended.paymentMethod).toBeNull();
+        expect(extended.paymentVerifiedAt).toEqual(active.paymentVerifiedAt);
+        expect(extended.updatedAt.getTime()).toBeGreaterThanOrEqual(active.updatedAt.getTime());
+      }
+
+      const reread = await SubscriptionRepository.findById(active.id, tx);
+      expect(reread?.endDate).toEqual(newEndDate);
+      expect(reread?.status).toBe(SubscriptionStatus.Active);
+    });
+  });
+
+  test("extendActiveOnce replays as zero rows once the window moved — no second shift", async () => {
+    await runInRollback(async tx => {
+      const active = await createSubscriptionInStatus(tx, SubscriptionStatus.Active);
+      const previousEndDate = active.endDate;
+      if (!previousEndDate) {
+        throw new Error("fixture failure: active row has no window end");
+      }
+      const extendedEnd = new Date(previousEndDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const first = await SubscriptionRepository.extendActiveOnce(
+        active.id,
+        { previousEndDate, newEndDate: extendedEnd },
+        tx
+      );
+      expect(first).not.toBeNull();
+
+      // Identical replay: the end_date predicate no longer matches (the
+      // window already moved) — zero rows, null, nothing mutated.
+      const replayed = await SubscriptionRepository.extendActiveOnce(
+        active.id,
+        { previousEndDate, newEndDate: extendedEnd },
+        tx
+      );
+      expect(replayed).toBeNull();
+
+      const reread = await SubscriptionRepository.findById(active.id, tx);
+      expect(reread?.endDate).toEqual(extendedEnd);
+
+      // An unknown id matches zero rows through the same guarded predicate.
+      expect(
+        await SubscriptionRepository.extendActiveOnce(99999999, { previousEndDate, newEndDate: extendedEnd }, tx)
+      ).toBeNull();
+    });
+  });
+
+  test("extendActiveOnce denies every non-active lifecycle state", async () => {
+    await runInRollback(async tx => {
+      // The guarded predicate folds `status = 'active'` into the WHERE, so
+      // each non-active state denies with zero rows and an untouched row —
+      // one probe per lifecycle state.
+      await expectExtendDeniedForStatus(tx, SubscriptionStatus.Pending);
+      await expectExtendDeniedForStatus(tx, SubscriptionStatus.Expired);
+      await expectExtendDeniedForStatus(tx, SubscriptionStatus.Cancelled);
+      await expectExtendDeniedForStatus(tx, SubscriptionStatus.Suspended);
     });
   });
 
