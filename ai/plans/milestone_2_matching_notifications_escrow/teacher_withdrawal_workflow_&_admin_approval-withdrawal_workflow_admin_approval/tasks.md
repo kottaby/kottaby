@@ -105,7 +105,7 @@
 
 ## Phase 3 — Verification Re-Run Matrix (the proof work)
 
-### - [ ] 3.1 Teacher-Side Request Suites (green re-runs with captured evidence) — `backend/services/billing/wallet.service.test.ts`, `backend/db/test/repo/billing/wallet.repository.test.ts`
+### - [x] 3.1 Teacher-Side Request Suites (green re-runs with captured evidence) — `backend/services/billing/wallet.service.test.ts`, `backend/db/test/repo/billing/wallet.repository.test.ts`
 - Run both suites via `bun run test/scripts/run-test.ts <path>`; capture pass/fail counts into `outcome/3.1-teacher-request-outcome.md` as an AC → code `path:line` → test `:line` → green-run table:
   - AC1 pending row + reserve debit: `wallet.service.test.ts:169` (happy path), `wallet.repository.test.ts:341` (`debitForWithdrawalOnce`).
   - AC4 amount matrix: `wallet.service.test.ts:251` (`WALLET_INVALID_AMOUNT`), `:237` (exact-balance boundary).
@@ -113,36 +113,36 @@
   - Funds-guard races: `wallet.repository.test.ts:819` + `:780` (`Promise.allSettled` — arbitration ∥ withdrawal, exactly one debit lands; the two-REQUEST drain race is finsec step D, re-cited in task 3.3).
 - Also capture the wire-level leg already living in the admin-finance GraphQL suite (teacher request leg): `frontend/graphql/test/admin/admin-finance.integration.test.ts:638-647` — re-run happens in 3.3.
 - _Requirements: REQ-101, REQ-102, REQ-103, REQ-104, REQ-007, REQ-501, REQ-505_
-- [ ] 3.1.QL **Quality Loop**: read-only re-runs — no file edits; record run-test `--last` output in the outcome.
-- [ ] 3.1.TE **Test Engineering**: this IS the verification deliverable for the teacher leg — every REQ-101..104 clause must appear with a passing citation.
-- [ ] 3.1.SEC **Security & Tenancy Audit**: confirm the request surface stays BOLA-proof (zero-arg `myWallet`, amount-only input) while re-reading the cited lines.
-- [ ] 3.1.SR **Semantic Review**: any test failure is investigated to root cause — a red suite is a finding, not a skip.
-- [ ] 3.1.IV **Instruction Verification**: read the suites' layer AGENTS.md (backend tests) as printed by any sub-loop output from earlier phases.
+- [x] 3.1.QL **Quality Loop**: read-only re-runs — no file edits; record run-test `--last` output in the outcome.
+- [x] 3.1.TE **Test Engineering**: this IS the verification deliverable for the teacher leg — every REQ-101..104 clause must appear with a passing citation.
+- [x] 3.1.SEC **Security & Tenancy Audit**: confirm the request surface stays BOLA-proof (zero-arg `myWallet`, amount-only input) while re-reading the cited lines.
+- [x] 3.1.SR **Semantic Review**: any test failure is investigated to root cause — a red suite is a finding, not a skip.
+- [x] 3.1.IV **Instruction Verification**: read the suites' layer AGENTS.md (backend tests) as printed by any sub-loop output from earlier phases.
 
-### - [ ] 3.2 Admin Settlement + Immutability Suites — `backend/services/billing/admin-financial-auditing.service.test.ts`, `backend/db/test/repo/billing/wallet.repository.admin.test.ts`, `backend/db/test/logic/billing/financial-immutability.test.ts`
+### - [x] 3.2 Admin Settlement + Immutability Suites — `backend/services/billing/admin-financial-auditing.service.test.ts`, `backend/db/test/repo/billing/wallet.repository.admin.test.ts`, `backend/db/test/logic/billing/financial-immutability.test.ts`
 - Run all three via `bun run test/scripts/run-test.ts <path>`; capture into `outcome/3.2-admin-settlement-outcome.md`:
   - AC2 approve: `admin-financial-auditing.service.test.ts:324` (completed + one `Override` audit row), `:803` (already-completed denial), `:824` (earning-row denial), `:900` (double-approve race — exactly one wins).
   - AC3 reject: `:378` (failed + restore + `reasonPresent` audit), `:424` (reason validation), `:846` + `:876` (rollback integrity).
   - AC5 immutability: `wallet.repository.admin.test.ts:573-638` (trigger-freeze proofs), `financial-immutability.test.ts:364` (direct UPDATE rejected), `:383` (DELETE rejected), `:428` (type relabeling rejected), `:457` (compensating-row doctrine), `wallet.repository.test.ts:419` (repo namespace closure — no update/delete primitive).
 - _Requirements: REQ-201, REQ-202, REQ-203, REQ-301, REQ-302, REQ-303, REQ-401, REQ-402, REQ-502, REQ-503, REQ-504, REQ-803_
-- [ ] 3.2.QL **Quality Loop**: read-only re-runs; record output in the outcome.
-- [ ] 3.2.TE **Test Engineering**: every REQ-2xx/3xx/4xx clause carries a passing citation in the evidence table.
-- [ ] 3.2.SEC **Security & Tenancy Audit**: confirm the governance gate + audit-row-fate invariants while re-reading the cited lines (`assertActorAdminActive` arms at `admin-financial-auditing.service.ts:194,281`).
-- [ ] 3.2.SR **Semantic Review**: probe reads are disambiguation-only (never the write decision) — re-confirm while reading `settleWithdrawalOnce` (`wallet.repository.admin.helpers.ts:302-322`).
-- [ ] 3.2.IV **Instruction Verification**: layer AGENTS.md as printed by earlier sub-loop runs.
+- [x] 3.2.QL **Quality Loop**: read-only re-runs; record output in the outcome.
+- [x] 3.2.TE **Test Engineering**: every REQ-2xx/3xx/4xx clause carries a passing citation in the evidence table.
+- [x] 3.2.SEC **Security & Tenancy Audit**: confirm the governance gate + audit-row-fate invariants while re-reading the cited lines (`assertActorAdminActive` arms at `admin-financial-auditing.service.ts:194,281`).
+- [x] 3.2.SR **Semantic Review**: probe reads are disambiguation-only (never the write decision) — re-confirm while reading `settleWithdrawalOnce` (`wallet.repository.admin.helpers.ts:302-322`).
+- [x] 3.2.IV **Instruction Verification**: layer AGENTS.md as printed by earlier sub-loop runs.
 
-### - [ ] 3.3 Cross-Actor Journey + Wire Suites — `test/workflows/billing/admin-financial-auditing.journey.test.ts`, `test/workflows/billing/financial-safety-verification.journey.test.ts`, `frontend/graphql/test/admin/admin-finance.integration.test.ts`
+### - [x] 3.3 Cross-Actor Journey + Wire Suites — `test/workflows/billing/admin-financial-auditing.journey.test.ts`, `test/workflows/billing/financial-safety-verification.journey.test.ts`, `frontend/graphql/test/admin/admin-finance.integration.test.ts`
 - Re-run BOTH journeys via `bun run test/scripts/run-test.ts` (they must be green INCLUDING the new step-8 leg from task 1.1); run the GraphQL integration suite via its harness (`bun run test:graphql` or the run-test wrapper as the suite header directs — `describeGraphqlSuite` + `setupTestServerLifecycle` + `testClient`).
 - Capture into `outcome/3.3-journey-wire-outcome.md`:
   - Journey step 1 (request → approve → queue drain → teacher sees settled state) `:485-543`; step 2 (request → reject → restore) `:546-581`; step 5 (denials + suspended-admin governance) `:719-805`; step 6 (concurrent double settle) `:806-848`; step 7 (settle ∥ new-request race) `:849-915`; NEW step 8 (failed-row re-settle denial) — task 1.1.
   - Finsec step D (drain race) `:565-593`; step D2 (amount fuzz) `:616-639`; step F (append-only trigger) `:714-752`.
   - Wire tiers: anonymous `UNAUTHORIZED` ×6 `admin-finance.integration.test.ts:381-445`; non-admin `FORBIDDEN` ×6 `:455-543`; request → queue → approve leg `:636-689`; reject leg `:690-730`.
 - _Requirements: REQ-601, REQ-605, REQ-502, REQ-506, REQ-801, REQ-802_
-- [ ] 3.3.QL **Quality Loop**: no edits here (the journey file was gated in 1.1) — record run output.
-- [ ] 3.3.TE **Test Engineering**: the consolidated cross-actor proof — actor table + ordered steps from `specs.md` §Journey each map to a green step citation.
-- [ ] 3.3.SEC **Security & Tenancy Audit**: wire tiers re-prove BFLA on all six admin operations; the journey re-proves honest-role authorization.
-- [ ] 3.3.SR **Semantic Review**: journeys ran WITHOUT `runInRollback`; fixtures committed + tracked cleanup verified green.
-- [ ] 3.3.IV **Instruction Verification**: `test/workflows/AGENTS.md` + `frontend/graphql/test/AGENTS.md` re-read.
+- [x] 3.3.QL **Quality Loop**: no edits here (the journey file was gated in 1.1) — record run output.
+- [x] 3.3.TE **Test Engineering**: the consolidated cross-actor proof — actor table + ordered steps from `specs.md` §Journey each map to a green step citation.
+- [x] 3.3.SEC **Security & Tenancy Audit**: wire tiers re-prove BFLA on all six admin operations; the journey re-proves honest-role authorization.
+- [x] 3.3.SR **Semantic Review**: journeys ran WITHOUT `runInRollback`; fixtures committed + tracked cleanup verified green.
+- [x] 3.3.IV **Instruction Verification**: `test/workflows/AGENTS.md` + `frontend/graphql/test/AGENTS.md` re-read.
 
 ---
 
