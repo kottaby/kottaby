@@ -58,13 +58,13 @@
   - [x] 2.SR / 2.IV per protocol.
   - _Requirements: REQ-1, REQ-6, REQ-7_
 
-- [ ] **3. Renew expired subscription**
+- [x] **3. Renew expired subscription**
   - Repo: add `insertSubscription` reuse (existing) — plus junction insert reusing `studentSubscriptions` insert inside the service tx (verbatim from `subscription-purchase.service.ts:418` pattern).
   - Service: `renewSubscription`:
     1. `assertActorAdmin`; 2. read source row (must exist + `expired`); 3. claim key `renew:<sourceId>` via `SubscriptionPurchaseIdempotencyRepository.insertClaim` (userId = subscription.userId); 4. read plan fresh, fail closed if `balanceLane` null; 5. insert new subscription `{ status: active, startDate: now, endDate: now+intervalDays×MS_PER_DAY, paymentMethod: null, paymentReference: null, paymentVerifiedAt: null }`; 6. `creditLaneBalance(userId, lane, plan.sessionCount, tx)`; 7. junction insert; 8. `updateClaimSubscriptionId(claimId, newSub.id)`; 9. audit Create row with details from REQ-2.3.
   - Claim-conflict (23505 on the renew key) ⇒ read the claim, fetch its `subscriptionId`, return that row (REPLAY, no error).
   - GraphQL: `adminRenewSubscription`.
-  - [ ] 3.QL / 3.TE (service + repo replay paths; claim conflict returns first result; lane credit asserted) / 3.SEC / 3.SR / 3.IV.
+  - [x] 3.QL / 3.TE (service + repo replay paths; claim conflict returns first result; lane credit asserted) / 3.SEC / 3.SR / 3.IV.
   - _Requirements: REQ-2, REQ-6, REQ-7_
 
 - [ ] **4. Cancel (balance-preserving)**

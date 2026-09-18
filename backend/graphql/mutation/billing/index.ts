@@ -10,7 +10,8 @@
  *    `gqlSchema.ts`.
  *  - `wallet.mutation.ts` registers `requestWithdrawal`;
  *    `subscription-admin.mutation.ts` registers the admin-gated
- *    subscription lifecycle mutations (`adminExtendSubscription`).
+ *    subscription lifecycle mutations (`adminExtendSubscription`,
+ *    `adminRenewSubscription`).
  */
 import "./subscription-admin.mutation";
 import "./wallet.mutation";

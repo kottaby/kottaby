@@ -18,24 +18,54 @@
  * row and extends from its current window — while an identical replay
  * that lost the guarded race surfaces an idempotent conflict instead of
  * a second shift.
+ *
+ * Renew semantics: the source row must be `expired` — the expiry sweep
+ * owns the active → expired transition, so renewal is the recovery path
+ * for a lapsed period (an active row takes extend; a pending row is
+ * payment-owned). A fresh plan read supplies the period arithmetic and
+ * the credit lane (fail-closed when the lane is not configured), the new
+ * row opens at the renewal instant, and the owner's lane is credited the
+ * plan's full session count. The idempotency claim `renew:<sourceId>` is
+ * inserted before any result write — the flow's atomicity point: a
+ * duplicate renew replays the first result through the claim's
+ * subscription pointer instead of creating a second period, while a
+ * committed claim that cannot resolve to a same-owner row (its result
+ * row was deleted — the set-null FK) surfaces the localized
+ * already-renewed conflict.
  */
 
+import { PlanRepository } from "@/backend/db/repo/billing/plan.repository";
 import { SubscriptionRepository } from "@/backend/db/repo/billing/subscription.repository";
+import { SubscriptionPurchaseIdempotencyRepository } from "@/backend/db/repo/billing/subscription-purchase-idempotency.repository";
+import { StudentRepository } from "@/backend/db/repo/students/student.repository";
+import { studentSubscriptions } from "@/backend/db/schema/billing/student-subscriptions";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
+import type { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
-import { ConflictError, ValidationError } from "@/backend/lib/errors";
+import { ConflictError, isPgUniqueViolation, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { assertActorAdmin } from "@/backend/services/admin/admin-gate.helpers";
 import { AuditService } from "@/backend/services/admin/audit.service";
 import { MAX_INTERVAL_DAYS } from "@/backend/services/billing/plan-catalog.helpers";
 import {
   buildSubscriptionAuditContract,
+  SUBSCRIPTION_ADMIN_CLAIM_PREFIXES,
+  subscriptionCreditLaneMemberOf,
   toSubscriptionAdminDomainError,
   toSubscriptionAdminReturnType,
 } from "@/backend/services/billing/subscription-admin.helpers";
-import type { DBTransaction, ExtendSubscriptionSubmitInput, SubscriptionReturnType } from "@/backend/types";
+import type {
+  DBTransaction,
+  ExtendSubscriptionSubmitInput,
+  PlanSelectType,
+  RenewSubscriptionSubmitInput,
+  SubscriptionPurchaseIdempotencySelectType,
+  SubscriptionReturnType,
+  SubscriptionSelectType,
+} from "@/backend/types";
 import { getServerTranslations } from "@/shared/locale/server-graphql";
+import type { ErrorsLabels } from "@/shared/locale/types/errors";
 
 /** Milliseconds per day — the extension window arithmetic. */
 const MS_PER_DAY = 86_400_000;
@@ -48,6 +78,159 @@ const MS_PER_DAY = 86_400_000;
  * idiom).
  */
 const STATUS_ACTIVE: string = SubscriptionStatus.Active;
+
+/**
+ * The expired-status member, widened to a plain string: the same
+ * read-row guard idiom as the active-status twin — renew is the
+ * sweep-owned `expired` state's only writer recovery path.
+ */
+const STATUS_EXPIRED: string = SubscriptionStatus.Expired;
+
+/**
+ * Resolves a duplicate renew claim to its REPLAYED first result: the
+ * claim's subscription pointer is loaded and returned as the row the
+ * original renewal created. A pointer that resolves to nothing (the
+ * set-null FK after the result row's deletion — the aborted-original
+ * shape) or to a foreign owner cannot be replayed: the localized
+ * already-renewed conflict denies instead of re-creating anything.
+ */
+async function resolveRenewalReplayRow(
+  source: SubscriptionSelectType,
+  scopedTx: DBTransaction,
+  tErrors: ErrorsLabels
+): Promise<SubscriptionSelectType> {
+  const claimKey = `${SUBSCRIPTION_ADMIN_CLAIM_PREFIXES.renew}:${source.id}`;
+  const priorClaim = await SubscriptionPurchaseIdempotencyRepository.findByKey(claimKey, scopedTx);
+  const replayedId = priorClaim?.subscriptionId ?? null;
+  if (replayedId === null) {
+    // The set-null FK after the result row's deletion (or an aborted
+    // original): the claim is spent but points at nothing.
+    logger.logDomainError("Subscription renew denied: claim exists without a subscription pointer", {
+      code: "CONFLICT",
+      entity: "subscriptions",
+      entityId: source.id,
+    });
+    throw new ConflictError(tErrors.subscriptionAdmin.alreadyRenewed);
+  }
+  const replayed = await SubscriptionRepository.findById(replayedId, scopedTx);
+  if (replayed === null) {
+    logger.logDomainError("Subscription renew denied: claim pointer resolves to no subscription row", {
+      code: "CONFLICT",
+      entity: "subscriptions",
+      entityId: source.id,
+    });
+    throw new ConflictError(tErrors.subscriptionAdmin.alreadyRenewed);
+  }
+  if (replayed.userId !== source.userId) {
+    // The key space is server-constructed here, but the shared claim
+    // store also carries client-supplied purchase keys — a foreign-owner
+    // pointer is never replayed to this caller.
+    logger.logDomainError("Subscription renew denied: claim's first result belongs to another owner", {
+      code: "CONFLICT",
+      entity: "subscriptions",
+      entityId: source.id,
+    });
+    throw new ConflictError(tErrors.subscriptionAdmin.alreadyRenewed);
+  }
+  return replayed;
+}
+
+/**
+ * The renewal's fresh plan read with its fail-closed guards: the
+ * snapshot is the plan row's CURRENT content (activity is a
+ * purchase-time property; the credit lane is not), and a missing row or
+ * an unconfigured lane aborts the renewal — the caller's transaction
+ * rolls the just-inserted claim back with it. The stored lane resolves
+ * to its canonical credit-lane member here, so the caller receives a
+ * certified lane instead of a nullable column.
+ */
+async function readRenewalPlan(
+  source: SubscriptionSelectType,
+  scopedTx: DBTransaction,
+  tErrors: ErrorsLabels
+): Promise<{ plan: PlanSelectType; lane: SubscriptionCreditLane }> {
+  const plan = await PlanRepository.findById(source.planId, scopedTx);
+  if (plan === null) {
+    logger.logDomainError("Subscription renew denied: plan row missing", {
+      code: "CONFLICT",
+      entity: "plans",
+      entityId: source.planId,
+    });
+    throw new ConflictError(tErrors.conflict);
+  }
+  if (plan.balanceLane === null) {
+    logger.logDomainError("Subscription renew denied: plan balance lane is not configured", {
+      code: "CONFLICT",
+      entity: "plans",
+      entityId: source.planId,
+    });
+    throw new ConflictError(tErrors.conflict);
+  }
+  return { plan, lane: subscriptionCreditLaneMemberOf(plan.balanceLane, tErrors) };
+}
+
+/**
+ * Inserts the renewal's fresh subscription row: one captured instant
+ * governs the window (start = the renewal moment, end = start + the
+ * plan's interval), the lifecycle state opens `active`, and the admin
+ * renewal carries no gateway payload — the payment columns stay
+ * explicitly null.
+ */
+async function insertRenewedSubscription(
+  source: SubscriptionSelectType,
+  plan: PlanSelectType,
+  scopedTx: DBTransaction
+): Promise<SubscriptionSelectType> {
+  const renewalInstant = new Date();
+  return SubscriptionRepository.insertSubscription(
+    {
+      userId: source.userId,
+      planId: source.planId,
+      status: SubscriptionStatus.Active,
+      startDate: renewalInstant,
+      endDate: new Date(renewalInstant.getTime() + plan.intervalDays * MS_PER_DAY),
+      paymentMethod: null,
+      paymentReference: null,
+      paymentVerifiedAt: null,
+    },
+    scopedTx
+  );
+}
+
+/**
+ * Settles the renewal's balance side effects in order: the owner's lane
+ * is credited the plan's full session count (the lane arrives
+ * pre-resolved through the helpers' fail-closed member lookup — zero
+ * rows means the owner's student row vanished, unreachable through the
+ * FK restrict, and fails closed rather than committing a period without
+ * its credit), the student↔subscription junction row is inserted, and
+ * the claim's subscription pointer is backfilled — the claim and the
+ * renewal commit atomically.
+ */
+async function settleRenewalSideEffects(
+  source: SubscriptionSelectType,
+  lane: SubscriptionCreditLane,
+  creditedSessions: number,
+  created: SubscriptionSelectType,
+  claimId: number,
+  tErrors: ErrorsLabels,
+  scopedTx: DBTransaction
+): Promise<void> {
+  const credited = await StudentRepository.creditLaneBalance(source.userId, lane, creditedSessions, scopedTx);
+  if (credited === null) {
+    logger.logDomainError("Subscription renew denied: owner student row vanished before the lane credit", {
+      code: "CONFLICT",
+      entity: "subscriptions",
+      entityId: source.id,
+    });
+    throw new ConflictError(tErrors.conflict);
+  }
+  await scopedTx.insert(studentSubscriptions).values({
+    studentId: source.userId,
+    subscriptionId: created.id,
+  });
+  await SubscriptionPurchaseIdempotencyRepository.updateClaimSubscriptionId(claimId, created.id, scopedTx);
+}
 
 export namespace SubscriptionAdminService {
   /**
@@ -157,6 +340,107 @@ export namespace SubscriptionAdminService {
         );
 
         return toSubscriptionAdminReturnType(extended, tErrors);
+      });
+    } catch (error: unknown) {
+      throw toSubscriptionAdminDomainError(error, tErrors);
+    }
+  }
+
+  /**
+   * Renews an `expired` subscription into a fresh active period.
+   *
+   * Fail-closed sequence: the admin gate re-asserts the actor's role
+   * with zero writes on denial, the source row must exist and be
+   * `expired` (the expiry sweep owns the active → expired transition —
+   * active rows take extend, pending rows are payment-owned), and the
+   * idempotency claim `renew:<sourceId>` is inserted inside the flow's
+   * transaction BEFORE any result write, making the claim insert the
+   * atomicity point for the whole renewal. A duplicate claim (23505)
+   * resolves to a REPLAY: the claim's subscription pointer is loaded and
+   * returned as the first result — no second period, no second credit,
+   * no audit row. A committed claim that cannot resolve to a same-owner
+   * row surfaces the localized already-renewed conflict instead. On the
+   * winning path the fresh plan read supplies the period arithmetic and
+   * the credit lane (fail-closed when the lane is not configured — the
+   * transaction rolls the claim back with it), the fresh period + lane
+   * credit + junction row + claim backfill commit together, and exactly
+   * ONE audit row (`Create` on the `subscription` entity, details
+   * `{ renewedFromSubscriptionId, planId, creditedSessions,
+   * intervalDays }` — ids and integers only) shares the transaction's
+   * fate.
+   *
+   * @param input  The validated submit payload (subscription id); the id
+   *     arrives pre-coerced through the strict numeric parse.
+   * @param actorId  The acting admin's user id (never client input).
+   * @param locale  Locale for the localized denial messages.
+   * @param tx  Optional caller transaction to join (test path:
+   *     SAVEPOINT) — the whole flow participates in the caller's unit.
+   * @returns The renewed row (or, on a replay, the first renewal's row)
+   *     in its canonical read shape.
+   */
+  export async function renewSubscription(
+    input: RenewSubscriptionSubmitInput,
+    actorId: number,
+    locale: string,
+    tx?: DBTransaction
+  ): Promise<SubscriptionReturnType> {
+    const tErrors = getServerTranslations(locale).errorsTranslations;
+
+    // Defense-in-depth BFLA gate — zero writes, zero audit rows on denial.
+    await assertActorAdmin(actorId, locale, tx);
+
+    try {
+      return await withTransaction(tx, async scopedTx => {
+        // The source row is the renewal's premise: it must exist and be
+        // `expired`. The status comparison rides the enum member's string
+        // identity — never a bare literal.
+        const source = await SubscriptionRepository.findById(input.subscriptionId, scopedTx);
+        if (source?.status !== STATUS_EXPIRED) {
+          logger.logDomainError("Subscription renew denied: source row missing or not expired", {
+            code: "CONFLICT",
+            entity: "subscriptions",
+            entityId: input.subscriptionId,
+          });
+          throw new ConflictError(tErrors.subscriptionAdmin.notExpired);
+        }
+
+        // The idempotency claim — savepoint-bracketed so a duplicate key
+        // poisons only the savepoint, keeping this transaction readable
+        // for the replay lookup (the purchase flow's claim idiom). The
+        // key is SERVER-CONSTRUCTED from the source row's id — the caller
+        // never supplies claim material on this surface.
+        const claimKey = `${SUBSCRIPTION_ADMIN_CLAIM_PREFIXES.renew}:${source.id}`;
+        let claim: SubscriptionPurchaseIdempotencySelectType;
+        try {
+          claim = await scopedTx.transaction(claimTx =>
+            SubscriptionPurchaseIdempotencyRepository.insertClaim(
+              { idempotencyKey: claimKey, userId: source.userId },
+              claimTx
+            )
+          );
+        } catch (error: unknown) {
+          if (!isPgUniqueViolation(error)) {
+            throw error;
+          }
+          return toSubscriptionAdminReturnType(await resolveRenewalReplayRow(source, scopedTx, tErrors), tErrors);
+        }
+
+        const { plan, lane } = await readRenewalPlan(source, scopedTx, tErrors);
+
+        const created = await insertRenewedSubscription(source, plan, scopedTx);
+        await settleRenewalSideEffects(source, lane, plan.sessionCount, created, claim.id, tErrors, scopedTx);
+
+        await AuditService.createAuditLog(
+          buildSubscriptionAuditContract(actorId, AuditActionType.Create, created.id, {
+            renewedFromSubscriptionId: source.id,
+            planId: source.planId,
+            creditedSessions: plan.sessionCount,
+            intervalDays: plan.intervalDays,
+          }),
+          scopedTx
+        );
+
+        return toSubscriptionAdminReturnType(created, tErrors);
       });
     } catch (error: unknown) {
       throw toSubscriptionAdminDomainError(error, tErrors);

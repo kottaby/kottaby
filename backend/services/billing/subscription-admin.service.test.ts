@@ -1,8 +1,8 @@
 /**
- * SubscriptionAdminService tests — the admin extend flow (validation,
- * admin gate, guarded window transition, the exactly-one audit row, and
- * the idempotent replay conflict) against the live database on REAL
- * repositories.
+ * SubscriptionAdminService tests — the admin extend + renew flows
+ * (validation, admin gate, guarded/claimed write transitions, the
+ * exactly-one audit rows, and the replay/claim-conflict semantics)
+ * against the live database on REAL repositories.
  *
  * Per `backend/db/test/AGENTS.md` (the DB-backed service-test rules the
  * sibling billing suites apply):
@@ -42,18 +42,44 @@
  *    zero-side-effect contract — row byte-identical, zero audit rows by
  *    actor AND by entity; the audit details vocabulary is pinned to
  *    ids/ints/ISO strings only (no free text ever enters the trail).
+ *  - Renew: the expired source renews into a fresh active period (window
+ *    = start + the plan's interval, no gateway payload), the lane is
+ *    credited exactly plan.sessionCount, the junction row exists, the
+ *    claim is backfilled, and ONE `Create` audit row carries the
+ *    `{ renewedFromSubscriptionId, planId, creditedSessions,
+ *    intervalDays }` ids/ints details; every non-expired status (active/
+ *    pending/cancelled/suspended) and an unknown id deny with zero
+ *    writes/claims/audits; a lane-less plan fails closed leaving no
+ *    claim residue; a pre-existing claim replays its pointed row (no
+ *    second insert, no double credit) while a pointer-less claim
+ *    conflicts with the localized already-renewed copy; two concurrent
+ *    renews partition across the claim's unique index — both fulfill
+ *    with the SAME first result.
  */
 
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/backend/db";
-import { SubscriptionRepository } from "@/backend/db/repo";
+import {
+  StudentRepository,
+  SubscriptionPurchaseIdempotencyRepository,
+  SubscriptionRepository,
+} from "@/backend/db/repo";
 import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { plans } from "@/backend/db/schema/billing/plans";
+import { studentSubscriptions } from "@/backend/db/schema/billing/student-subscriptions";
+import { subscriptionPurchaseIdempotency } from "@/backend/db/schema/billing/subscription-purchase-idempotency";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
-import { createTestPlan, createTestSubscription, createTestUser } from "@/backend/db/test/entity-setup";
+import { students } from "@/backend/db/schema/students/students";
+import {
+  createTestPlan,
+  createTestStudent,
+  createTestSubscription,
+  createTestUser,
+} from "@/backend/db/test/entity-setup";
 import { runInRollback } from "@/backend/db/test/test-utils";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
+import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { ConflictError, DomainError, ForbiddenError, UnauthorizedError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
@@ -61,6 +87,8 @@ import { SubscriptionAdminService } from "@/backend/services/billing/subscriptio
 import type {
   DBTransaction,
   ExtendSubscriptionSubmitInput,
+  PlanSelectType,
+  RenewSubscriptionSubmitInput,
   SubscriptionSelectType,
   UserSelectType,
 } from "@/backend/types";
@@ -227,6 +255,100 @@ async function expectDaysRejected(
   expect(error).toBeInstanceOf(ValidationError);
   expectDomainDenial(error, "VALIDATION", t().badRequest);
   expect(await readAuditsForSubscription(tx, subscriptionId)).toHaveLength(0);
+}
+
+// ─── Renew fixtures & probes ───────────────────────────────────────────────
+
+/** One expired source row + its owner (students row included) + its plan. */
+interface RenewFixture {
+  readonly owner: UserSelectType;
+  readonly plan: PlanSelectType;
+  readonly source: SubscriptionSelectType;
+}
+
+/**
+ * Creates the renew surface's fixture: the owner's `students` row must
+ * exist (the junction insert and the lane credit both key on it), the
+ * plan carries a configured Hifz lane, and the source row is a TRUE
+ * expired-status row (the sweep owns the active → expired transition).
+ */
+async function createExpiredFixture(
+  tx: DBTransaction,
+  overrides: {
+    planOverrides?: Partial<PlanSelectType>;
+    subscriptionOverrides?: Partial<SubscriptionSelectType>;
+  } = {}
+): Promise<RenewFixture> {
+  const owner = await createTestUser(tx, { role: "student" });
+  await createTestStudent(tx, owner.id);
+  const plan = await createTestPlan(tx, {
+    balanceLane: SubscriptionCreditLane.Hifz,
+    ...overrides.planOverrides,
+  });
+  const now = new Date();
+  const source = await createTestSubscription(tx, owner.id, plan.id, {
+    status: SubscriptionStatus.Expired,
+    startDate: new Date(now.getTime() - 35 * MS_PER_DAY),
+    endDate: new Date(now.getTime() - 5 * MS_PER_DAY),
+    ...overrides.subscriptionOverrides,
+  });
+  return { owner, plan, source };
+}
+
+/** The renew payload for one source subscription. */
+function renewInput(subscriptionId: number): RenewSubscriptionSubmitInput {
+  return { subscriptionId };
+}
+
+/** The owner's Hifz lane balance (the fixture lane — the renewal credit target). */
+async function readHifzBalance(tx: DBTransaction, studentId: number): Promise<number> {
+  const [row] = await tx
+    .select({ balance: students.balanceHifz })
+    .from(students)
+    .where(eq(students.id, studentId))
+    .limit(1);
+  if (row?.balance == null) {
+    throw new Error("readHifzBalance: no students row for the renewal fixture owner");
+  }
+  return row.balance;
+}
+
+/** Wholesale-count reads for the zero-writes proofs. */
+async function countSubscriptionsForOwner(tx: DBTransaction, ownerId: number): Promise<number> {
+  return tx.$count(subscriptions, eq(subscriptions.userId, ownerId));
+}
+
+/** The idempotency claim row for one key, or null when the key is unclaimed. */
+async function readClaim(tx: DBTransaction, key: string) {
+  const [row] = await tx
+    .select()
+    .from(subscriptionPurchaseIdempotency)
+    .where(eq(subscriptionPurchaseIdempotency.idempotencyKey, key))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Junction rows tying one subscription to any student. */
+async function countJunctionRows(tx: DBTransaction, subscriptionId: number): Promise<number> {
+  return tx.$count(studentSubscriptions, eq(studentSubscriptions.subscriptionId, subscriptionId));
+}
+
+/**
+ * Expired-only denial probe for ONE fixture: the localized not-expired
+ * conflict with zero writes — the source row is the owner's ONLY
+ * subscription row, no claim exists, the lane is untouched, and no audit
+ * row exists about the source.
+ */
+async function expectRenewDeniedForStatus(tx: DBTransaction, adminId: number, fixture: RenewFixture): Promise<void> {
+  const error = await expectServiceError(() =>
+    SubscriptionAdminService.renewSubscription(renewInput(fixture.source.id), adminId, "en", tx)
+  );
+  expect(error).toBeInstanceOf(ConflictError);
+  expectDomainDenial(error, "CONFLICT", t().subscriptionAdmin.notExpired);
+  expect(await countSubscriptionsForOwner(tx, fixture.owner.id)).toBe(1);
+  expect(await readClaim(tx, `renew:${fixture.source.id}`)).toBeNull();
+  expect(await readHifzBalance(tx, fixture.owner.id)).toBe(0);
+  expect(await readAuditsForSubscription(tx, fixture.source.id)).toHaveLength(0);
 }
 
 // ─── Tier 1: branches ─────────────────────────────────────────────────────
@@ -588,6 +710,353 @@ describe("SubscriptionAdminService.extendSubscription — chaos (Tier 3)", () =>
             and(eq(auditLogs.entityType, SUBSCRIPTION_ENTITY_TYPE), eq(auditLogs.entityId, fixture.subscriptionId))
           );
         expect(audits).toHaveLength(1);
+      } finally {
+        // FK-ordered teardown of the committed fixtures; the committed
+        // audit row (append-only table) is removed first under suspended
+        // delete triggers, keyed by the acting admin.
+        await deleteUsersByIds([fixture.adminId, fixture.ownerId]);
+        await db.delete(plans).where(eq(plans.id, fixture.planId));
+      }
+    }
+  );
+});
+// ─── Renew: branches (Tier 1) ──────────────────────────────────────────────
+
+describe("SubscriptionAdminService.renewSubscription — branches (Tier 1)", () => {
+  test("renews an expired subscription: fresh active period + full lane credit + junction + backfilled claim + one Create audit row", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, plan, source } = await createExpiredFixture(tx);
+      const callStart = new Date();
+
+      const result = await SubscriptionAdminService.renewSubscription(renewInput(source.id), adminId, "en", tx);
+
+      const callEnd = new Date();
+      // The returned row IS the fresh period: same owner + plan, active,
+      // opening at the renewal instant with EXACTLY the fixture plan's
+      // interval length (window arithmetic bound to fixture data — never
+      // a separately captured clock).
+      expect(result.id).not.toBe(source.id);
+      expect(result.userId).toBe(owner.id);
+      expect(result.planId).toBe(plan.id);
+      expect(result.status).toBe(SubscriptionStatus.Active);
+      if (result.startDate === null || result.endDate === null) {
+        throw new Error("renewal returned a windowless row");
+      }
+      expect(result.startDate.getTime()).toBeGreaterThanOrEqual(callStart.getTime());
+      expect(result.startDate.getTime()).toBeLessThanOrEqual(callEnd.getTime());
+      expect(result.endDate.getTime() - result.startDate.getTime()).toBe(plan.intervalDays * MS_PER_DAY);
+      // An admin renewal carries no gateway payload.
+      expect(result.paymentMethod).toBeNull();
+      expect(result.paymentReference).toBeNull();
+      expect(result.paymentVerifiedAt).toBeNull();
+
+      // Persisted: exactly one NEW row beside the untouched expired source.
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(2);
+      const sourceReread = await readSubscription(tx, source.id);
+      expect(sourceReread.status).toBe(SubscriptionStatus.Expired);
+      expect(sourceReread.endDate).toEqual(source.endDate);
+
+      // The lane was credited exactly the plan's full session count.
+      expect(await readHifzBalance(tx, owner.id)).toBe(plan.sessionCount);
+
+      // The junction row ties the fresh period to the student.
+      expect(await countJunctionRows(tx, result.id)).toBe(1);
+
+      // The claim was created and backfilled to the fresh row.
+      const claim = await readClaim(tx, `renew:${source.id}`);
+      expect(claim?.userId).toBe(owner.id);
+      expect(claim?.subscriptionId).toBe(result.id);
+
+      // Exactly ONE audit row about the FRESH row — Create with the
+      // ids/ints details vocabulary parsed back verbatim; the source row
+      // minted nothing.
+      const audits = await readAuditsForSubscription(tx, result.id);
+      expect(audits).toHaveLength(1);
+      const audit = audits[0];
+      if (!audit) {
+        throw new Error("audit row vanished");
+      }
+      expect(audit.actorId).toBe(adminId);
+      expect(audit.actionType).toBe(AuditActionType.Create);
+      expect(audit.entityType).toBe(SUBSCRIPTION_ENTITY_TYPE);
+      if (audit.details === null) {
+        throw new Error("audit details vanished");
+      }
+      expect(JSON.parse(audit.details)).toEqual({
+        renewedFromSubscriptionId: source.id,
+        planId: plan.id,
+        creditedSessions: plan.sessionCount,
+        intervalDays: plan.intervalDays,
+      });
+      expect(await readAuditsForSubscription(tx, source.id)).toHaveLength(0);
+    });
+  });
+
+  test("denies an active subscription with the expired-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const active = await createExpiredFixture(tx, { subscriptionOverrides: { status: SubscriptionStatus.Active } });
+      await expectRenewDeniedForStatus(tx, adminId, active);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies a pending subscription with the expired-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const pending = await createExpiredFixture(tx, {
+        subscriptionOverrides: { status: SubscriptionStatus.Pending, endDate: null },
+      });
+      await expectRenewDeniedForStatus(tx, adminId, pending);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies a cancelled subscription with the expired-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const cancelled = await createExpiredFixture(tx, {
+        subscriptionOverrides: { status: SubscriptionStatus.Cancelled },
+      });
+      await expectRenewDeniedForStatus(tx, adminId, cancelled);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies a suspended subscription with the expired-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const suspended = await createExpiredFixture(tx, {
+        subscriptionOverrides: { status: SubscriptionStatus.Suspended },
+      });
+      await expectRenewDeniedForStatus(tx, adminId, suspended);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies an unknown subscription id with the same expired-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.renewSubscription(renewInput(99999999), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().subscriptionAdmin.notExpired);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("fail-closed: a source plan without a configured lane denies with zero writes — the claim does not survive", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, source } = await createExpiredFixture(tx, {
+        planOverrides: { balanceLane: null },
+      });
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.renewSubscription(renewInput(source.id), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().conflict);
+      // Zero writes — and the claim that was inserted BEFORE the plan
+      // read rolled back with the transaction: the deny leaves no
+      // idempotency residue.
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(1);
+      expect(await readClaim(tx, `renew:${source.id}`)).toBeNull();
+      expect(await readHifzBalance(tx, owner.id)).toBe(0);
+      expect(await readAuditsForSubscription(tx, source.id)).toHaveLength(0);
+    });
+  });
+
+  test("denies a non-admin actor before any write: row byte-identical, zero claims, zero audit rows", async () => {
+    await runInRollback(async tx => {
+      const student = await createTestUser(tx, { role: "student" });
+      const { owner, source } = await createExpiredFixture(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.renewSubscription(renewInput(source.id), student.id, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ForbiddenError);
+      expectDomainDenial(error, "FORBIDDEN", t().forbidden);
+      const reread = await readSubscription(tx, source.id);
+      expect(reread.status).toBe(source.status);
+      expect(reread.endDate).toEqual(source.endDate);
+      expect(reread.updatedAt).toEqual(source.updatedAt);
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(1);
+      expect(await readClaim(tx, `renew:${source.id}`)).toBeNull();
+      expect(await countAuditsForActor(tx, student.id)).toBe(0);
+    });
+  });
+
+  test("denies an anonymous actor with UNAUTHORIZED and zero audit rows", async () => {
+    await runInRollback(async tx => {
+      const { source } = await createExpiredFixture(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.renewSubscription(renewInput(source.id), ANONYMOUS_ACTOR_ID, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(UnauthorizedError);
+      expectDomainDenial(error, "UNAUTHORIZED", t().unauthorized);
+      expect(await readAuditsForSubscription(tx, source.id)).toHaveLength(0);
+    });
+  });
+});
+
+// ─── Renew: boundaries + replay + chaos (Tier 2/3) ─────────────────────────
+
+describe("SubscriptionAdminService.renewSubscription — boundaries, replay, chaos (Tier 2/3)", () => {
+  test("an inactive plan still renews: the fresh read supplies the snapshot — activity is a purchase-time property", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, plan, source } = await createExpiredFixture(tx, {
+        planOverrides: { isActive: false, deactivatedAt: new Date() },
+      });
+
+      const result = await SubscriptionAdminService.renewSubscription(renewInput(source.id), adminId, "en", tx);
+
+      expect(result.status).toBe(SubscriptionStatus.Active);
+      expect(result.planId).toBe(plan.id);
+      expect(await readHifzBalance(tx, owner.id)).toBe(plan.sessionCount);
+    });
+  });
+
+  test("a replayed renew returns the FIRST result: no second insert, no double credit, no audit", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, plan, source } = await createExpiredFixture(tx);
+      // The first renewal already committed: its active result row plus
+      // its claim, backfilled and pointing at that row.
+      const priorResult = await createTestSubscription(tx, owner.id, plan.id, {
+        status: SubscriptionStatus.Active,
+        startDate: new Date(Date.now() - 2 * MS_PER_DAY),
+        endDate: new Date(Date.now() + 28 * MS_PER_DAY),
+      });
+      const claim = await SubscriptionPurchaseIdempotencyRepository.insertClaim(
+        { idempotencyKey: `renew:${source.id}`, userId: owner.id },
+        tx
+      );
+      await SubscriptionPurchaseIdempotencyRepository.updateClaimSubscriptionId(claim.id, priorResult.id, tx);
+      // The first renewal's lane credit already landed.
+      await StudentRepository.creditLaneBalance(owner.id, SubscriptionCreditLane.Hifz, plan.sessionCount, tx);
+
+      const result = await SubscriptionAdminService.renewSubscription(renewInput(source.id), adminId, "en", tx);
+
+      // The FIRST result is returned — not a fresh period.
+      expect(result.id).toBe(priorResult.id);
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(2);
+      // No second credit: the balance STILL holds exactly one grant (a
+      // double credit would read twice the plan's session count).
+      expect(await readHifzBalance(tx, owner.id)).toBe(plan.sessionCount);
+      // No audit row was minted for the replay, and the claim pointer is
+      // untouched.
+      expect(await readAuditsForSubscription(tx, priorResult.id)).toHaveLength(0);
+      expect((await readClaim(tx, `renew:${source.id}`))?.subscriptionId).toBe(priorResult.id);
+    });
+  });
+
+  test("a committed claim without a resolvable result conflicts with the localized already-renewed copy", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, source } = await createExpiredFixture(tx);
+      // The claim row committed but its subscription pointer is null —
+      // the set-null FK after the result row's deletion (the aborted-
+      // original shape): the replay cannot resolve to any row.
+      await SubscriptionPurchaseIdempotencyRepository.insertClaim(
+        { idempotencyKey: `renew:${source.id}`, userId: owner.id },
+        tx
+      );
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.renewSubscription(renewInput(source.id), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().subscriptionAdmin.alreadyRenewed);
+      // Zero writes: the expired source is the owner's only row, the
+      // lane untouched, no audit row about the source.
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(1);
+      expect(await readHifzBalance(tx, owner.id)).toBe(0);
+      expect(await readAuditsForSubscription(tx, source.id)).toHaveLength(0);
+    });
+  });
+
+  testOnRealPostgres(
+    "concurrent identical renews: both calls fulfill with the FIRST result — one new period, one credit, one audit",
+    async () => {
+      // Committed fixtures — the production path opens its OWN transaction
+      // per call, so the race needs real committed entities.
+      const fixture = await db.transaction(async fixtureTx => {
+        const admin = await createTestUser(fixtureTx, { role: "admin" });
+        const owner = await createTestUser(fixtureTx, { role: "student" });
+        await createTestStudent(fixtureTx, owner.id);
+        const plan = await createTestPlan(fixtureTx, { balanceLane: SubscriptionCreditLane.Hifz });
+        const now = new Date();
+        const source = await createTestSubscription(fixtureTx, owner.id, plan.id, {
+          status: SubscriptionStatus.Expired,
+          startDate: new Date(now.getTime() - 35 * MS_PER_DAY),
+          endDate: new Date(now.getTime() - 5 * MS_PER_DAY),
+        });
+        return {
+          adminId: admin.id,
+          ownerId: owner.id,
+          planId: plan.id,
+          sourceId: source.id,
+          sessionCount: plan.sessionCount,
+        };
+      });
+
+      try {
+        // No read barrier is needed: the claim's unique index IS the
+        // serialization point — the loser's claim insert blocks until the
+        // winner's transaction commits, then replays the winner's row.
+        const [first, second] = await Promise.allSettled([
+          SubscriptionAdminService.renewSubscription(renewInput(fixture.sourceId), fixture.adminId, "en"),
+          SubscriptionAdminService.renewSubscription(renewInput(fixture.sourceId), fixture.adminId, "en"),
+        ]);
+        if (first.status === "rejected" || second.status === "rejected") {
+          throw new Error(
+            `both renews must fulfill: ${JSON.stringify([
+              first.status === "rejected" ? String(first.reason) : "",
+              second.status === "rejected" ? String(second.reason) : "",
+            ])}`
+          );
+        }
+
+        // Both calls return the SAME first result.
+        expect(first.value.id).toBe(second.value.id);
+
+        // Exactly one fresh period beside the untouched expired source.
+        const rows = await db.select().from(subscriptions).where(eq(subscriptions.userId, fixture.ownerId));
+        expect(rows).toHaveLength(2);
+        const fresh = rows.find(row => row.id === first.value.id);
+        expect(fresh?.status).toBe(SubscriptionStatus.Active);
+        const rereadSource = rows.find(row => row.id === fixture.sourceId);
+        expect(rereadSource?.status).toBe(SubscriptionStatus.Expired);
+
+        // One full lane credit — never two.
+        const [studentRow] = await db.select().from(students).where(eq(students.id, fixture.ownerId)).limit(1);
+        expect(studentRow?.balanceHifz).toBe(fixture.sessionCount);
+
+        // One claim with the backfilled pointer, and exactly one audit
+        // row about the fresh result.
+        const [claimRow] = await db
+          .select()
+          .from(subscriptionPurchaseIdempotency)
+          .where(eq(subscriptionPurchaseIdempotency.idempotencyKey, `renew:${fixture.sourceId}`))
+          .limit(1);
+        expect(claimRow?.subscriptionId).toBe(first.value.id);
+        const audits = await db
+          .select()
+          .from(auditLogs)
+          .where(and(eq(auditLogs.entityType, SUBSCRIPTION_ENTITY_TYPE), eq(auditLogs.entityId, first.value.id)));
+        expect(audits).toHaveLength(1);
+        expect(audits[0]?.actionType).toBe(AuditActionType.Create);
       } finally {
         // FK-ordered teardown of the committed fixtures; the committed
         // audit row (append-only table) is removed first under suspended

@@ -24,16 +24,34 @@
 
 import type { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
+import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { ConflictError, isPgUniqueViolation, NotFoundError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import type { AuditLogWriteContract, SubscriptionReturnType, SubscriptionSelectType } from "@/backend/types";
+import type {
+  AuditLogWriteContract,
+  PlanSelectType,
+  SubscriptionReturnType,
+  SubscriptionSelectType,
+} from "@/backend/types";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
 
 /**
  * The `entity_type` label minted into every subscription-admin audit row.
  */
 export const SUBSCRIPTION_AUDIT_ENTITY_TYPE = "subscription";
+
+/**
+ * Server-constructed idempotency-claim key prefixes for the admin
+ * subscription flows. The caller never supplies claim material on this
+ * surface — the claim identity is derived from the targeted row's id, so
+ * the shared claim store's key space stays server-owned (the purchase
+ * surface's client-header keys are a different, client-supplied space).
+ */
+export const SUBSCRIPTION_ADMIN_CLAIM_PREFIXES = {
+  /** `renew:<sourceSubscriptionId>` — one fresh period per expired source row. */
+  renew: "renew",
+} as const;
 
 /**
  * Composes the audit-log write contract for a subscription lifecycle
@@ -98,6 +116,7 @@ export function toSubscriptionAdminDomainError(error: unknown, tErrors: ErrorsLa
  */
 const SUBSCRIPTION_STATUS_MEMBERS = Object.values(SubscriptionStatus);
 const PAYMENT_GATEWAY_MEMBERS = Object.values(PaymentGateway);
+const SUBSCRIPTION_CREDIT_LANE_MEMBERS = Object.values(SubscriptionCreditLane);
 
 /**
  * Fail-closed abort for a stored value outside a closed vocabulary — an
@@ -119,6 +138,29 @@ function subscriptionStatusMemberOf(
     abortRowMapping(
       "stored subscription status is not a member of the closed status vocabulary",
       { storedStatus: status },
+      tErrors
+    );
+  }
+  return member;
+}
+
+/**
+ * Resolves a stored plan `balance_lane` onto its canonical
+ * `SubscriptionCreditLane` member — the same total, fail-closed lookup
+ * as the status/gateway mappers (the renewal lane credit keys on it). An
+ * unresolvable stored lane is an internal invariant breach (the pgEnum
+ * constrains every writable value); ONE correlated diagnostic, then the
+ * localized conflict copy — never a cast, never a guessed lane.
+ */
+export function subscriptionCreditLaneMemberOf(
+  lane: PlanSelectType["balanceLane"] & string,
+  tErrors: ErrorsLabels
+): SubscriptionCreditLane {
+  const member = SUBSCRIPTION_CREDIT_LANE_MEMBERS.find(value => (value as string) === lane);
+  if (member === undefined) {
+    abortRowMapping(
+      "stored plan balance lane is not a member of the closed credit-lane vocabulary",
+      { storedLane: lane },
       tErrors
     );
   }

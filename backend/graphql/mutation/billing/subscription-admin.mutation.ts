@@ -1,5 +1,6 @@
 /**
- * Admin subscription-management mutations — `adminExtendSubscription`.
+ * Admin subscription-management mutations — `adminExtendSubscription` +
+ * `adminRenewSubscription`.
  *
  * Contract:
  *  - `adminExtendSubscription(input: ExtendSubscriptionInput!):
@@ -8,6 +9,15 @@
  *    construction) and the new window end is computed server-side from
  *    the row's stored `endDate` (the payload cannot dictate a target
  *    date).
+ *  - `adminRenewSubscription(input: RenewSubscriptionInput!):
+ *    StudentSubscription!` — admin-only; the expired-source selector is
+ *    the only client material. The renewal's plan snapshot, window
+ *    arithmetic, lane credit, and the server-constructed
+ *    `renew:<sourceId>` idempotency claim are all derived server-side. A
+ *    duplicate renew REPLAYS the first result through the claim's
+ *    subscription pointer (no error, no second period, no second
+ *    credit); a claim that cannot resolve to a same-owner row surfaces
+ *    the localized already-renewed conflict.
  *  - The subscription id arrives as a wire `ID` and is coerced to the
  *    numeric row key through the strict numeric parse
  *    (`coerceSubscriptionId`) before it reaches the service — a
@@ -36,7 +46,10 @@
  */
 
 import { SubscriptionPothosObject } from "@/backend/graphql/pothos/billing/subscription.pothos";
-import { ExtendSubscriptionInput } from "@/backend/graphql/pothos/billing/subscription-admin.pothos";
+import {
+  ExtendSubscriptionInput,
+  RenewSubscriptionInput,
+} from "@/backend/graphql/pothos/billing/subscription-admin.pothos";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { adminOnlyAuthScopes, requireAdminUser } from "@/backend/graphql/shared";
 import { coerceSubscriptionId } from "@/backend/services/billing/subscription-admin.helpers";
@@ -64,6 +77,32 @@ gqlSchemaBuilder.mutationField("adminExtendSubscription", t =>
           subscriptionId: coerceSubscriptionId(args.input.subscriptionId, tErrors),
           days: args.input.days,
         },
+        user.id,
+        ctx.locale
+      );
+    },
+  })
+);
+
+// Side-effect: register the `adminRenewSubscription` mutation field.
+gqlSchemaBuilder.mutationField("adminRenewSubscription", t =>
+  t.field({
+    type: SubscriptionPothosObject,
+    description:
+      "Renews an expired subscription into a fresh active period: a new row (same owner, fresh plan snapshot), the owner's lane credited the plan's full session count, and the student junction row. Admin-only; a duplicate renew replays the first result.",
+    authScopes: adminOnlyAuthScopes,
+    args: {
+      input: t.arg({
+        type: RenewSubscriptionInput,
+        required: true,
+        description: "The expired subscription selector.",
+      }),
+    },
+    resolve: async (_root, args, ctx) => {
+      const user = await requireAdminUser(ctx);
+      const tErrors = await ctx.t("errorsTranslations");
+      return SubscriptionAdminService.renewSubscription(
+        { subscriptionId: coerceSubscriptionId(args.input.subscriptionId, tErrors) },
         user.id,
         ctx.locale
       );
