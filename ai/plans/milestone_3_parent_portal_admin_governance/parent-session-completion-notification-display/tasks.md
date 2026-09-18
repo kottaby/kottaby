@@ -272,7 +272,7 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
 
 ### Task 9 — Post-Implementation Review Wave + Final Quality Gates
 
-- [ ] 9.1 Review wave + final gate + ledger enforcement
+- [x] 9.1 Review wave + final gate + ledger enforcement
   - Dispatch review subagents in parallel, SCOPED to files this plan created/modified: **review-types** (`backend/types/parents/parent-monitoring.types.ts`), **review-backend** (service + query module + wire/schema tests), **review-frontend** (documents, cache, resolver, call sites, root container, tabs, page shell), **security-probing** (constant-denial oracle uniformity en/ar, `$all` authScopes, R4 log discipline, no payload/emitter widening).
   - Grep-locks re-asserted: (a) `git diff backend/db/schema/` EMPTY (R-K); (b) zero mutations added; (c) emitter / engine / WS envelope / drawer-feed-badge-toast components byte-unchanged outside the two authorized call sites (R-A); (d) zero `Translation.` enum references, zero two-arg `getTranslations`, zero `@/frontend/utils/logger`, zero next-intl/`getBackendTranslations`/`shared/messages/` anywhere in the plan delta.
   - Fix findings per-file; re-run `bun run scripts/health/sub-loop.ts <file> --lifecycle duplicates` until zero findings; nits → `deferred-items.md`.
@@ -280,8 +280,8 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
   - Deferred-items enforcement (BLOCKING): `grep -c "❌\|⚠️" ai/plans/milestone_3_parent_portal_admin_governance/parent-session-completion-notification-display/deferred-items.md` = 0 unresolved.
   - Re-run the journey lane to confirm J1 is green end-to-end: `bun run test/scripts/run-test.ts test/workflows/parents/parent-session-completion-deep-link.journey.test.ts`.
   - TE: N/A (review wave; all suites already green) · SEC: this task IS the security audit of record
-  - [ ] 9.1.SR **Semantic Review**: outcome directory complete (one file per task); no orphan carry-overs
-  - [ ] 9.1.IV **Instruction Verification**: quality-gate rules respected (no cache clearing anywhere in this plan)
+  - [x] 9.1.SR **Semantic Review**: outcome directory complete (one file per task); no orphan carry-overs
+  - [x] 9.1.IV **Instruction Verification**: quality-gate rules respected (no cache clearing anywhere in this plan)
   - Write outcome: `outcome/9.1-post-implementation-review-outcome.md`
   - _Requirements: REQ-060, REQ-020, REQ-021_
 
