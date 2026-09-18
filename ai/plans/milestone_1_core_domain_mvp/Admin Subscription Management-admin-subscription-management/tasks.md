@@ -16,7 +16,7 @@
 
 ## Phase 0 — Baseline
 
-- [ ] **0. Establish baseline & ledger**
+- [x] **0. Establish baseline & ledger**
   - Capture: `bun tsgo 2>&1 | grep -c "error TS"` → `/tmp/baseline-tsgo.txt`; `bun biome:check 2>&1 | grep -c "warn"` → `/tmp/baseline-biome.txt`; `bun run scripts/lint-service.ts --json --id baseline > /tmp/baseline-lint.json`.
   - Verify `deferred-items.md` exists at plan root (it does — created with this plan).
   - Write `outcome/0-baseline-outcome.md` with the three counts.
