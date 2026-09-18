@@ -361,12 +361,12 @@ Use this checklist when executing each task:
 
 ALL of the following MUST hold before the plan is marked finished:
 
-- [ ] Every task checkbox in this file is `[x]` with its `outcome/<task-id>-outcome.md`.
-- [ ] `bun quality-gate` green end-to-end; baseline deltas vs Task 0 are zero or fully attributed.
-- [ ] Journey J1 green via `bun run test/scripts/run-test.ts test/workflows/parents/parent-session-completion-deep-link.journey.test.ts`; service/wire/resolver/container/tab suites green via their approved runners.
-- [ ] R-A: emission substrate byte-frozen (diff-proof recorded in 4.5/9.1); `notifications` copy unchanged.
-- [ ] R-K: `git diff backend/db/schema/` empty; zero new mutations, seeds, env keys.
-- [ ] R-F: Parent-cell coverage added to the already-reconciled (out-of-band 2026-09-17) suite — `frontend/lib/notification-route-resolution.test.ts` fully green.
-- [ ] R-D/R-B: entry link `/parent/children?session=<id>` → canonical `/parent/children/<studentId>?tab=reports&session=<id>`; zero new routes/nav; Mobile Bottom Nav: N/A — none exists.
-- [ ] `deferred-items.md` has zero unresolved `❌`/`⚠️` rows.
-- [ ] `docs/parents/monitoring-portal.md` DEV1-017 display-contract section extended; AGENTS.md/`.agents/instructions` untouched.
+- [x] Every task checkbox in this file is `[x]` with its `outcome/<task-id>-outcome.md`.
+- [x] `bun quality-gate` green end-to-end; baseline deltas vs Task 0 are zero or fully attributed.
+- [x] Journey J1 green via `bun run test/scripts/run-test.ts test/workflows/parents/parent-session-completion-deep-link.journey.test.ts`; service/wire/resolver/container/tab suites green via their approved runners.
+- [x] R-A: emission substrate byte-frozen (diff-proof recorded in 4.5/9.1); `notifications` copy unchanged.
+- [x] R-K: `git diff backend/db/schema/` empty; zero new mutations, seeds, env keys.
+- [x] R-F: Parent-cell coverage added to the already-reconciled (out-of-band 2026-09-17) suite — `frontend/lib/notification-route-resolution.test.ts` fully green.
+- [x] R-D/R-B: entry link `/parent/children?session=<id>` → canonical `/parent/children/<studentId>?tab=reports&session=<id>`; zero new routes/nav; Mobile Bottom Nav: N/A — none exists.
+- [x] `deferred-items.md` has zero unresolved `❌`/`⚠️` rows.
+- [x] `docs/parents/monitoring-portal.md` DEV1-017 display-contract section extended; AGENTS.md/`.agents/instructions` untouched.
