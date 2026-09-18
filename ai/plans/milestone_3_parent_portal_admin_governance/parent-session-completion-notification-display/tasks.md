@@ -206,20 +206,20 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
 
 ### Task 5 — Frontend documents + Apollo cache
 
-- [ ] 5.1 `parentSessionTargetQueryDocument` + cache policy (R-I, R-J)
+- [x] 5.1 `parentSessionTargetQueryDocument` + cache policy (R-I, R-J)
   - MODIFY `frontend/graphql/sharedDocuments/parents/parent-monitoring.documents.ts` — add `parentSessionTargetQueryDocument` (naming `{Field}QueryDocument`) selecting `sessionId` + `studentId` exactly; `TypedDocumentNode`-typed against generated types; docblock; NO `useLazyQuery` (stateful `useQuery` only). Document sends ONLY `sessionId` — never identity/role hints.
   - MODIFY `frontend/providers/apollo/apolloCache.ts` — append `ParentSessionTarget: { keyFields: false }` beside the existing portal no-id entries (`:114-118`); the type carries NO `id` (closed two-field projection).
-  - [ ] 5.1.QL **Quality Loop**: sub-loop exit 0 on both files (documents first, then cache)
-  - [ ] 5.1.TE **Test Engineering**: EXTEND `frontend/graphql/sharedDocuments/parents/parent-monitoring.documents.test.ts` — shape/selection assertions for the new document; run via `bun run test/scripts/run-test.ts <path>` (Tier 1; Tier 2: no `id` in the selection — cache policy holds)
-  - [ ] 5.1.SEC **Security & Tenancy Audit**: REQ-021 — grep-check the request body: no parent id / role / auth fields, only `sessionId`
-  - [ ] 5.1.SR **Semantic Review**: selection set matches the closed projection (no over-fetch); cache entry exactly the one new type — nothing more
-  - [ ] 5.1.IV **Instruction Verification**: `frontend/graphql/sharedDocuments/AGENTS.md` + `frontend/graphql/AGENTS.md` + `frontend.instructions.md` read
+  - [x] 5.1.QL **Quality Loop**: sub-loop exit 0 on both files (documents first, then cache)
+  - [x] 5.1.TE **Test Engineering**: EXTEND `frontend/graphql/sharedDocuments/parents/parent-monitoring.documents.test.ts` — shape/selection assertions for the new document; run via `bun run test/scripts/run-test.ts <path>` (Tier 1; Tier 2: no `id` in the selection — cache policy holds)
+  - [x] 5.1.SEC **Security & Tenancy Audit**: REQ-021 — grep-check the request body: no parent id / role / auth fields, only `sessionId`
+  - [x] 5.1.SR **Semantic Review**: selection set matches the closed projection (no over-fetch); cache entry exactly the one new type — nothing more
+  - [x] 5.1.IV **Instruction Verification**: `frontend/graphql/sharedDocuments/AGENTS.md` + `frontend/graphql/AGENTS.md` + `frontend.instructions.md` read
   - Write outcome: `outcome/5.1-documents-cache-outcome.md`
   - _Requirements: REQ-031_
 
 ### Task 6 — Resolver Parent cell + call sites + Parent-cell test coverage (R-E/R-F)
 
-- [ ] 6.1 4th parameter, builder cell, both call sites, Parent-cell test coverage
+- [x] 6.1 4th parameter, builder cell, both call sites, Parent-cell test coverage
   - MODIFY `frontend/lib/notification-route-resolution.ts`:
     - Signature becomes `resolveNotificationRoute(relatedEntityType, notificationType?, role?, relatedEntityId?: string | number | null)` (wire rows carry `number | null`).
     - Matrix value type widens to `string | ((relatedEntityId: string) => string)`.
@@ -228,11 +228,11 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
     - New exported constant `PARENT_PORTAL_ROOT_ROUTE = "/parent/children"`.
   - MODIFY both call sites to pass the row's `relatedEntityId`: `frontend/views/notifications/feed/NotificationList.tsx` AND `frontend/components/ui/NotificationDrawerBody.tsx`.
   - MODIFY `frontend/lib/notification-route-resolution.test.ts` — the stale-arg reconciliation landed OUT-OF-BAND 2026-09-17, pre-implementation (suite green, 8/8 — do NOT redo it); ADD Parent-cell coverage: SessionCompletion + Parent + id → entry URL built; absent id → feed; empty-string id → feed; other types + Parent → feed; Student/Teacher cells unchanged (static strings).
-  - [ ] 6.1.QL **Quality Loop**: sub-loop exit 0 on all four files
-  - [ ] 6.1.TE **Test Engineering**: resolver cases above (Tier 1); Tier 2 boundary: `relatedEntityId` `null`/`undefined`/`""`/`"0"`/numeric-string/numeric; Tier 3: concurrent resolution calls stateless (pure function — assert); Tier 4: fabricated types/roles fall to feed, never a fabricated URL
-  - [ ] 6.1.SEC **Security & Tenancy Audit**: builder output is a static route family — no unencoded interpolation of foreign data beyond the numeric session id; the feed/drawer rows for foreign tenants were never receivable (substrate, unchanged)
-  - [ ] 6.1.SR **Semantic Review**: role-less stage byte-unchanged; no dead branches; baseline vs Task 0 — suite stays green with the new Parent-cell cases passing and NOTHING else regressed
-  - [ ] 6.1.IV **Instruction Verification**: `frontend/AGENTS.md` + `frontend.instructions.md` (+ views AGENTS.md for call sites) read
+  - [x] 6.1.QL **Quality Loop**: sub-loop exit 0 on all four files
+  - [x] 6.1.TE **Test Engineering**: resolver cases above (Tier 1); Tier 2 boundary: `relatedEntityId` `null`/`undefined`/`""`/`"0"`/numeric-string/numeric; Tier 3: concurrent resolution calls stateless (pure function — assert); Tier 4: fabricated types/roles fall to feed, never a fabricated URL
+  - [x] 6.1.SEC **Security & Tenancy Audit**: builder output is a static route family — no unencoded interpolation of foreign data beyond the numeric session id; the feed/drawer rows for foreign tenants were never receivable (substrate, unchanged)
+  - [x] 6.1.SR **Semantic Review**: role-less stage byte-unchanged; no dead branches; baseline vs Task 0 — suite stays green with the new Parent-cell cases passing and NOTHING else regressed
+  - [x] 6.1.IV **Instruction Verification**: `frontend/AGENTS.md` + `frontend.instructions.md` (+ views AGENTS.md for call sites) read
   - Write outcome: `outcome/6.1-resolver-outcome.md`
   - _Requirements: REQ-010, REQ-015, REQ-060_
 

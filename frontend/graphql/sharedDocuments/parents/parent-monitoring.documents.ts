@@ -9,28 +9,34 @@ import type {
   ParentChildReportsQueryVariables,
   ParentChildSessionsQuery,
   ParentChildSessionsQueryVariables,
+  ParentSessionTargetQuery,
+  ParentSessionTargetQueryVariables,
 } from "@/frontend/graphql/generated/gql/graphql";
 
 /**
  * Parent read-only monitoring portal GraphQL documents — the shared
  * `TypedDocumentNode` operations consumed by the portal views in
  * `frontend/views/parent/monitoring/` (children list, child detail
- * header + progress, attendance / reports / homework tabs).
+ * header + progress, attendance / reports / homework tabs) plus the
+ * root container's completion-notification deep-link resolution.
  *
  * Self-scoped surface: every per-student read carries ONLY the
  * `studentId` targeting argument plus optional pagination (`page` /
- * `pageSize`) — parent identity is ALWAYS derived server-side from the
- * authenticated caller (BOLA: no `parentId` / `actorId` / `userId` /
- * role / auth hint exists anywhere in the documents). The list query is
- * zero-argument — the caller's verified identity IS the read scope.
+ * `pageSize`), and the deep-link resolution read carries ONLY the
+ * `sessionId` argument — parent identity is ALWAYS derived server-side
+ * from the authenticated caller (BOLA: no `parentId` / `actorId` /
+ * `userId` / role / auth hint exists anywhere in the documents). The
+ * list query is zero-argument — the caller's verified identity IS the
+ * read scope.
  *
  * `id` is selected FIRST on every entity-shaped object selection
  * (`ParentLinkedChild`, `ParentAttendanceEntry`, `ParentReportEntry`,
  * `ParentHomeworkEntry`) so Apollo Client normalizes them into cache
  * entries. The three page wrappers (`ParentAttendancePage`,
- * `ParentReportPage`, `ParentHomeworkPage`) and the three composite
- * value objects (`ParentHomeworkTrack`, `ParentHomeworkPosition`,
- * `ParentChildProgress`) carry no `id` and are registered with
+ * `ParentReportPage`, `ParentHomeworkPage`), the three composite value
+ * objects (`ParentHomeworkTrack`, `ParentHomeworkPosition`,
+ * `ParentChildProgress`), and the session-target resolution pair
+ * (`ParentSessionTarget`) carry no `id` and are registered with
  * `keyFields: false` in `frontend/providers/apollo/apolloCache.ts` —
  * they are embedded value types replaced wholesale on refetch.
  *
@@ -210,6 +216,36 @@ export const parentChildHomeworkQueryDocument: TypedDocumentNode<
       totalCount
       page
       pageSize
+    }
+  }
+`;
+
+/**
+ * `parentSessionTarget` query — the completion-notification deep-link
+ * resolution read: one session id resolved to the linked child it
+ * belongs to, so the portal root can navigate to that child's session
+ * report view.
+ *
+ * The `sessionId` is the ONLY variable — it is the session pointer the
+ * notification row carries; no identity/role hint exists (the
+ * linked-child grant is verified server-side against the authenticated
+ * caller, so foreign and nonexistent session ids deny identically).
+ * The result is the closed two-field pair (`sessionId` + `studentId`)
+ * with NO `id`: `ParentSessionTarget` is a value object, not an entity
+ * — registered with `keyFields: false` in
+ * `frontend/providers/apollo/apolloCache.ts` and read back through the
+ * root query field. The portal root container consumes it statefully
+ * via `useQuery` (NO `useLazyQuery`) while a session pointer is
+ * present.
+ */
+export const parentSessionTargetQueryDocument: TypedDocumentNode<
+  ParentSessionTargetQuery,
+  ParentSessionTargetQueryVariables
+> = gql`
+  query ParentSessionTarget($sessionId: Int!) {
+    parentSessionTarget(sessionId: $sessionId) {
+      sessionId
+      studentId
     }
   }
 `;

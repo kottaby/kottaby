@@ -116,6 +116,7 @@ const apolloCacheTypePolicies: NonNullable<InMemoryCacheConfig["typePolicies"]> 
   ParentHomeworkTrack: { keyFields: false },
   ParentHomeworkPosition: { keyFields: false },
   ParentChildProgress: { keyFields: false },
+  ParentSessionTarget: { keyFields: false },
   OnlineMeetingInfo: {
     keyFields: false,
   },
