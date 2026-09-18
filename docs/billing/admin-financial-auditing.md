@@ -288,3 +288,16 @@ Short list of environment/test lessons from shipping this feature that stay true
   `bun --env-file=.env.test run scripts/lint-service.ts …`, and migrations via
   `bun --env-file=.env.test run backend/db/scripts/migrate.ts` directly. Test runners
   (`bun run test/scripts/run-test.ts`) load env themselves.
+
+---
+
+## Verification addendum (2026-09-18)
+
+Closed-the-loop verification of this reference (plan: `ai/plans/milestone_2_matching_notifications_escrow/teacher_withdrawal_workflow_&_admin_approval-withdrawal_workflow_admin_approval/`) re-proved the settlement model end-to-end. Facts landed by that run, all cited against the live tree and the plan's outcome records:
+
+- **Failed-row re-settle denial is journey-proven (step 8, `test/workflows/billing/admin-financial-auditing.journey.test.ts:935-992`).** Re-attempting BOTH `approveWithdrawal` and `rejectWithdrawal` on a settled-`failed` row denies with the localized not-pending conflict (`withdrawalNotPending` via `ConflictError`), leaves the ledger row `failed`, byte-compares the restored balance unchanged, adds zero audit rows, and dispatches nothing.
+- **DBML ↔ Drizzle ↔ live DB now agree on the amount bound (three-way agreement).** The `teacher_transaction.amount` DBML annotation was repaired to `amount > 0` (`db/schema.dbml:372`), matching the authoritative Drizzle CHECK (`backend/db/schema/billing/teacher-transaction.ts:50`) and the live-DB `teacher_transaction_amount_check`; the strict bound is test-locked by the zero-amount-movement probe (`backend/db/test/repo/billing/wallet.repository.test.ts:725-742`, `constraintNameOf` === `teacher_transaction_amount_check`).
+- **The §6.3 sequence diagram (`docs/workflows/03-session-lifecycle-escrow.md:149-160`) now states the reserve-at-request model** — reserve at request (`:149`), settle the reservation at decision (`:155`), restore on reject (`:160`) — replacing the superseded debit-at-approval wording; structure and audit-trail step preserved, mermaid validation green.
+- **Race discipline re-proven on real connections:** concurrent double-settle and settle∥new-request journeys (`admin-financial-auditing.journey.test.ts:824-865` and `:867-933`) end with exactly one winner, one audit row, and one balance movement — the guarded pending predicate remains the arbiter (§7), no `SELECT FOR UPDATE` anywhere.
+- **Verification evidence base:** 8 suites green this plan-run — **142 tests / 0 failures** (150 executions counting the journey suite's consecutive stability re-run) — captured under real PostgreSQL 17.11 (`DB_PROVIDER=postgres`); consolidated per-suite results and anchors in `outcome/verification-matrix.md`; provider-switch record in `outcome/environment-addendum.md`.
+- **Zero-dispatch withdrawal behavior re-confirmed:** `backend/enum/notifications/notification-type.enum.ts:10-18` defines no withdrawal-related notification type, every settlement journey leg asserts `expectNoDispatches()` plus zero notification rows, and the withdrawal-notification forward contract (notifications deferred to future work) stays recorded in the plan's forward-item ledger (mapped in `outcome/verification-matrix.md`).

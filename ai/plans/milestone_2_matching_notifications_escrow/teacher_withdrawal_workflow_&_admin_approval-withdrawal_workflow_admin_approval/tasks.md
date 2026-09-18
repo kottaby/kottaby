@@ -170,17 +170,17 @@
 - [x] 4.2.SR **Semantic Review**: no dead code introduced; no cross-layer imports in the journey edit; enums value-imported; zero plan-artifact references in code comments.
 - [x] 4.2.IV **Instruction Verification**: sub-loop's printed AGENTS.md + instruction files re-validated.
 
-### - [ ] 4.3 Knowledge Propagation — `docs/billing/` addendum + outcome synthesis
+### - [x] 4.3 Knowledge Propagation — `docs/billing/` addendum + outcome synthesis
 - Read ALL files in `outcome/`; extract recurring patterns and pitfalls.
 - The canonical settlement doc ALREADY exists (`docs/billing/admin-financial-auditing.md`) — append a short "Verification addendum (2026-09-17)" noting: the failed-row re-settle journey arm now exists (step 8), the DBML check was repaired to `> 0`, and the workflow diagram §6.3 now matches the reserve-at-request model. Do NOT rewrite the doc.
 - AGENTS.md and `.agents/instructions/*.instructions.md` are hand-curated — NEVER updated from plan outcomes.
 - Write `outcome/4.3-knowledge-propagation-outcome.md` with the synthesis.
 - _Requirements: REQ-002_
-- [ ] 4.3.QL **Quality Loop**: sub-loop on the edited doc is n/a (markdown); inspection + repo doc validation only.
-- [ ] 4.3.TE **Test Engineering**: n/a.
-- [ ] 4.3.SEC **Security & Tenancy Audit**: n/a.
-- [ ] 4.3.SR **Semantic Review**: addendum states facts with citations; no scope creep into other sections.
-- [ ] 4.3.IV **Instruction Verification**: root `AGENTS.md` "AI Agent Communication Rules" (no summary files outside sanctioned docs) re-read.
+- [x] 4.3.QL **Quality Loop**: sub-loop on the edited doc is n/a (markdown); inspection + repo doc validation only.
+- [x] 4.3.TE **Test Engineering**: n/a.
+- [x] 4.3.SEC **Security & Tenancy Audit**: n/a.
+- [x] 4.3.SR **Semantic Review**: addendum states facts with citations; no scope creep into other sections.
+- [x] 4.3.IV **Instruction Verification**: root `AGENTS.md` "AI Agent Communication Rules" (no summary files outside sanctioned docs) re-read.
 
 ---
 
