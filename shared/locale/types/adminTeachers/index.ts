@@ -113,6 +113,8 @@ export interface AdminTeachersLabels {
     readonly search: string;
     /** Placeholder shown inside an empty search input. */
     readonly searchPlaceholder: string;
+    /** Accessible label for the clear-search button inside the search input. */
+    readonly searchClearLabel: string;
     /** Label for the approval filter select. */
     readonly approval: string;
     /** Label for the online-presence filter select. */

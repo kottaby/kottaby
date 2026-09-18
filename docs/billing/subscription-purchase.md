@@ -119,7 +119,7 @@ Money is a decimal **string** end-to-end (never a float, never arithmetic in the
 
 ### Swapping in a real gateway
 
-Sprint 2 replaces the mock by implementing `PaymentGatewayPort` behind the same factory and env key.
+Milestone 2 replaces the mock by implementing `PaymentGatewayPort` behind the same factory and env key.
 Zero domain/service/route changes are expected: services and the route consume only the port types,
 and the webhook security contract (§5) is enforced before the adapter parses anything. Adapter-layer
 normalization decisions (e.g. uppercase-hex signatures) belong to the new adapter, not to this

@@ -155,7 +155,6 @@ The `/audit` route accepts a sanitized deep-link seed so other admin surfaces ca
 - `backend/graphql/test/schema-surface.test.ts` — committed SDL byte-identity against a deterministic rebuild (pins the exact wire contract of §2).
 - `test/workflows/admin/audit-trail.journey.test.ts` — cross-actor journey: audited mutations land, denials write zero rows, the trail renders them.
 - `test/workflows/admin/audit-completeness.catalog.ts` + `backend/db/test/logic/audit/audit-census-drift.test.ts` + `test/workflows/admin/audit-completeness.journey.test.ts` — the completeness verification triad (§10.5): census ↔ shipped-mutation bijection lock and the execute-every-action journey.
-- `test/ui/components/admin/AuditTrailView.test.tsx` — component matrix: filter submit semantics, UTC-boundary wire pins, pagination echo, error seams, both locales.
 - `frontend/graphql/sharedDocuments/admin/audit-trail.documents.test.ts` + `frontend/providers/apollo/apolloCache.test.ts` — document/SDL agreement and cache-registration pins.
 
 ---

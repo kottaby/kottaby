@@ -34,8 +34,9 @@
  *  - FUZZ (text): unicode/RTL/bidi/control-char and injection-shaped
  *    title/body payloads store as literal text — byte-exact round-trip
  *    through the list surface (REQ-015/028). The rendering half of the
- *    hostile-text contract is asserted by this tier's client counterpart,
- *    `test/ui/components/notification-realtime.test.tsx` (chaos describe).
+ *    hostile-text contract has no client-side counterpart anymore: the
+ *    UI/browser test tier was removed (only the Paymob checkout E2E
+ *    remains).
  */
 import { describe, expect, test } from "bun:test";
 import { count, desc, eq } from "drizzle-orm";

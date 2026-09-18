@@ -12,8 +12,8 @@
  *      next submit produces NO projected pairs (empty projection ⇒ callers
  *      clear/replace stale server errors; rule-level client errors are then
  *      cleared natively by RHF's post-submit `reValidateMode:"onChange"`).
- *      Render-tier component tests stay deferred (no `test/ui` scaffold
- *      in-tree), nothing faked here.
+ *      Render-tier component tests stay out of scope (the static/component
+ *      UI test tier was removed), nothing faked here.
  *   3. `applyProjectedFieldErrors`: whitelist narrowing into the typed sink —
  *      the mock sink receives exactly the field:message pairs, unknown wire
  *      paths are skipped without unsafe casts, applied-count drives the
@@ -25,8 +25,8 @@
  *
  * i18n ADAPTATION NOTE: expected strings resolve via `getDefaultTranslations()`
  * / AR namespace-object parity probes — same mechanism as the error-link
- * mapping suite; fixture field messages are technical test data
- * (`test/ui/AGENTS.md` "What Counts as Acceptable").
+ * mapping suite; fixture field messages are technical test data,
+ * never rendered UI copy.
  *
  * RUNS VIA (in-sandbox): bun run test/scripts/run-test.ts frontend/lib/mutationFieldErrors.test.ts
  */

@@ -140,7 +140,7 @@ graph TD
 - Git integration
 - Automated workflows
 - Requirement tracking
-- Sprint planning
+- Milestone planning
 
 **Spec Integration**:
 - Create issues from requirements

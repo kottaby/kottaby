@@ -169,7 +169,7 @@ main/
 
 ### Regular Review Cycles
 - **Weekly:** Check for implementation discoveries
-- **Sprint End:** Review completed tasks against spec
+- **Milestone End:** Review completed tasks against spec
 - **Monthly:** Assess overall spec health and accuracy
 
 ### Spec Health Metrics

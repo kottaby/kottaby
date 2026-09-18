@@ -42,7 +42,7 @@ Three hard gates protect every closure:
 
 - [ ] Extract the ticket ID from the issue title (from its `[...]` prefix when present) and/or the issue body (overview text, ticket-catalog references).
 - [ ] Extract the ticket ID from the plan directory name (e.g. `recitation-selection-on-registration`) and from the plan's `plan.md`/`specs.md` header.
-- [ ] Compare semantically, not just by ID: the issue's Overview text and the plan's summary must describe the same feature. Ticket-IDs in adjacent sprints are easy to confuse (adjacent ticket IDs have been confused in practice).
+- [ ] Compare semantically, not just by ID: the issue's Overview text and the plan's summary must describe the same feature. Ticket-IDs in adjacent milestones are easy to confuse (adjacent ticket IDs have been confused in practice).
 - [ ] **Mismatch → BLOCK.** Do not comment, do not close. Instead:
   - Scan `ai/finished_plans/` and `ai/plans/` for the directory whose ticket ID or topic matches the issue.
   - Present the finding to the user and ask them to confirm the correct plan (or provide one) — an explicit AskUserQuestion with the candidate(s) found.
@@ -113,7 +113,7 @@ Closing as completed. 🎉
 > completion sentence that the outcome files do not support.
 
 - NEVER close an issue when the completion gate failed — incomplete `tasks.md`, a ❌ in `deferred-items.md` and outcomes claiming "not done" all block.
-- NEVER close against a plan the match gate has not confirmed for THIS issue; sibling tickets in the same sprint are the classic trap.
+- NEVER close against a plan the match gate has not confirmed for THIS issue; sibling tickets in the same milestone are the classic trap.
 - NEVER massage 🟡 criteria into ✅ in the comment. State the qualifier and the deferral owner.
 - ALWAYS prefer a progress comment (Step 4b) over silent closure when any criterion is graded 🟡 or the user asked not to close.
 

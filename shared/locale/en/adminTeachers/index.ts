@@ -41,6 +41,7 @@ export const adminTeachersEn: AdminTeachersLabels = {
   filters: {
     search: "Search",
     searchPlaceholder: "Search by name or email",
+    searchClearLabel: "Clear search",
     approval: "Approval",
     online: "Presence",
     evaluator: "Evaluator",

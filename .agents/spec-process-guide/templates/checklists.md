@@ -433,7 +433,7 @@ Track the effectiveness of your spec-driven development process:
 #### Process Efficiency Metrics
 - **Spec Creation Time:** Hours spent on each phase of spec development
 - **Review Cycle Time:** Days from spec submission to approval
-- **Implementation Velocity:** Story points or features completed per sprint
+- **Implementation Velocity:** Story points or features completed per milestone
 - **Knowledge Transfer Success:** % of team members who can work on spec'd features
 
 #### Measurement Guidelines

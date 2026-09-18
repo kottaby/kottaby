@@ -215,8 +215,8 @@ Shipped surface (all paths verified in-tree):
 | GraphQL surface (both queries + object) | `backend/graphql/query/students/handshake-code.query.ts`, `backend/graphql/pothos/students/handshake-code.pothos.ts` | `backend/graphql/test/handshake-code-surface.test.ts` (401/403 pre-resolver, two-field no-id shape) |
 | Apollo embedded-type registration | `frontend/providers/apollo/apolloCache.ts` (`HandshakeCodeLookup: { keyFields: false }`) | `frontend/providers/apollo/apolloCache.test.ts` |
 | GraphQL documents | `frontend/graphql/sharedDocuments/students/handshake-code.documents.ts` | `frontend/graphql/test/students/handshake-code.documents.test.ts`, `frontend/graphql/test/students/handshake-code.test.ts` |
-| Student self-read UI | `frontend/views/students/dashboard/HandshakeCodeCard.tsx` | `test/ui/components/students/HandshakeCodeCard.test.tsx` |
-| Parent discovery page + container | `app/(dashboard)/parent/handshake/page.tsx`, `frontend/views/parent/handshake/HandshakeDiscoveryContainer.tsx` | `test/ui/page-guards/parent-handshake-page.test.ts`, `test/ui/components/parent/HandshakeDiscoveryContainer.test.tsx` |
+| Student self-read UI | `frontend/views/students/dashboard/HandshakeCodeCard.tsx` | — |
+| Parent discovery page + container | `app/(dashboard)/parent/handshake/page.tsx`, `frontend/views/parent/handshake/HandshakeDiscoveryContainer.tsx` | — |
 | i18n (errors keys `handshakeCodeInvalid` / `studentHandshakeNotFound`; `handshakeCode` UI namespace, en/ar) | `shared/locale/**` | `shared/locale/handshakeCode-namespace.parity.test.ts` |
 | End-to-end journey | discovery by code (found / not-found / already-linked / governed) | `test/workflows/parents/handshake-discovery.test.ts` |
 

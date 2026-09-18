@@ -113,7 +113,7 @@ The arbitration surface's single-write-path ruling now covers **both dispute gen
 
 ## 11. Forward items
 
-Genuinely-deferred work is tracked in this ticket's plan ledger (`ai/plans/sprint_3/admin-session-governance/deferred-items.md`), all forward-owned and none blocking this surface's contract:
+Genuinely-deferred work is tracked in this ticket's plan ledger (`ai/plans/milestone_3_parent_portal_admin_governance/admin-session-governance/deferred-items.md`), all forward-owned and none blocking this surface's contract:
 
 - Bespoke rate limit for admin mutations (platform hardening stream).
 - Real-time admin dashboards over governance surfaces (analytics family).

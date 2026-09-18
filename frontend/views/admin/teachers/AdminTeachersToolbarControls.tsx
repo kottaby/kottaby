@@ -33,6 +33,7 @@ export function ToolbarSearchField({ id, labels, value, onChange }: ToolbarSearc
       id={id}
       placeholder={labels.filters.searchPlaceholder}
       ariaLabel={labels.filters.search}
+      clearLabel={labels.filters.searchClearLabel}
       value={value}
       onChange={onChange}
     />

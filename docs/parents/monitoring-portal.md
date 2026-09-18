@@ -305,7 +305,7 @@ Zero new errors/warnings introduced. No `oxlint-disable` / `jscpd:ignore` added.
 
 - **Deep curriculum-traversal statistics** → future curriculum ticket (the `progress` / `lessons` skeletons need a richer writer/read model).
 - **DEV1-017 deep-link target display** → sibling ticket (the emitter already writes `relatedEntityType` / `relatedEntityId`; the portal's report-tab deep-link `/parent/children/<studentId>?tab=reports&session=<id>` is the forward display contract).
-- **DEV1-019 E2E browser journey** → sibling sprint_4 ticket (covers the parent↔child journey end-to-end in a real browser).
+- **DEV1-019 E2E browser journey** → sibling milestone_4_integration_security_launch ticket (covers the parent↔child journey end-to-end in a real browser).
 - **First-class attendance table** → future product ticket IF richer attendance metrics are required.
 - **Rate limiting on parent child-id probing** → post-MVP security hardening (the constant-denial oracle already neutralizes enumeration; rate limiting is defense-in-depth).
 

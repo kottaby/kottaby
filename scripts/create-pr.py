@@ -9,7 +9,7 @@ BODY = """## Session Report & Homework Infrastructure — issue #75
 
 Closes #75
 
-Full implementation per `ai/plans/sprint_1/session-report-homework-infrastructure/`
+Full implementation per `ai/plans/milestone_1_core_domain_mvp/session-report-homework-infrastructure/`
 (spec-implementation protocol: outcome files, checkbox state machine, mid-point gate, review waves).
 
 ### Scope

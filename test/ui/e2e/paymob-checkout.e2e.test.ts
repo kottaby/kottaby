@@ -61,7 +61,7 @@ const SHOT_DIR = join(
   "..",
   "ai",
   "plans",
-  "sprint_1",
+  "milestone_1_core_domain_mvp",
   "paymob-gateway-integration",
   "outcome",
   "e2e-screenshots"

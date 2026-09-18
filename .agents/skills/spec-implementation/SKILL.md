@@ -509,7 +509,7 @@ Before the Knowledge Propagation task, verify every test layer the plan mandated
 | Service unit | plan's `backend/services/**/*.test.ts` tasks ran green | `bun run test:services` |
 | **Cross-actor journeys** | every journey from the specs' journeys section ran green | `bun test test/workflows` |
 | GraphQL integration | plan's resolver/mutation test tasks ran green | `bun run test:graphql` |
-| E2E | only if the plan mandated it (Paymob live tests) | `bun run test:ui:e2e` |
+| E2E | only if the plan mandated it (Paymob live tests) | `bun run test:ui:e2e:paymob` |
 
 If a prescribed layer has no tasks or never ran, stop and either execute it or get an explicit user decision to defer (with a `deferred-items.md` row). Do not silently skip.
 

@@ -78,6 +78,8 @@ export interface AdminStudentsLabels {
     readonly search: string;
     /** Placeholder shown inside an empty search input. */
     readonly searchPlaceholder: string;
+    /** Accessible label for the clear-search button inside the search input. */
+    readonly searchClearLabel: string;
     /** Label for the parent-link filter select. */
     readonly hasParent: string;
     /** Label for the language filter input (exact-match, applied on Enter). */

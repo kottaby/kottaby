@@ -101,7 +101,6 @@ only on success; domain rejections keep the key so the retry replays the same cl
 | Activation | `backend/services/billing/subscription-activation.service.test.ts` (students-first probe describe) |
 | GraphQL | `frontend/graphql/test/teachers/verification-plan-purchase.test.ts` |
 | Journey (cross-actor) | `test/workflows/teachers/verification-plan-purchase.journey.test.ts` |
-| UI components | `test/ui/components/teachers/VerificationPurchaseDialog.test.tsx` |
 | i18n parity | `shared/locale/applicant-namespace.parity.test.ts`, `shared/locale/errors-namespace.parity.test.ts` |
 
 ## Admin-audit note

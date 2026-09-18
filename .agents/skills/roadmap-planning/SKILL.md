@@ -82,7 +82,7 @@ Roadmap planning is the process of:
 - Reframing existing roadmap (shift from feature-driven to outcome-driven)
 
 ### When NOT to Use This
-- For tactical sprint planning (use backlog instead)
+- For tactical milestone planning (use backlog instead)
 - When strategy is unclear (run product-strategy-session first)
 - When stakeholders expect date commitments (address expectations first)
 

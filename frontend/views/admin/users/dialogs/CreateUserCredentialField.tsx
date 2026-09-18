@@ -14,6 +14,7 @@ import {
 } from "@mui/icons-material";
 import { IconButton, InputAdornment, Stack, TextField, Typography } from "@mui/material";
 import { type ReactNode, useState } from "react";
+import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 import { AdminDialogFieldLabel } from "@/frontend/views/admin/users/dialogs";
 import { Auth, useAppTranslation } from "@/shared/locale";
 import type { AdminUsersLabels } from "@/shared/locale/types/adminUsers";
@@ -58,9 +59,11 @@ export function CreateUserCredentialField({
                   aria-label={showPassword ? authLabels.hidePassword : authLabels.showPassword}
                   onClick={() => setShowPassword(prev => !prev)}
                   size="small"
-                  // Bare icon-only affordance — no border/ring; the
-                  // only visible state change is the hover wash.
+                  // Borderless icon-only affordance — the hover wash plus the
+                  // shared copper focus-visible ring (focusVisibleRingSx,
+                  // audit-R4 pattern from focusRing.ts) are the state changes.
                   sx={theme => ({
+                    ...focusVisibleRingSx,
                     border: "none",
                     boxShadow: "none",
                     backgroundColor: "transparent",

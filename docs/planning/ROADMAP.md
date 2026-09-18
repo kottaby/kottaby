@@ -1,27 +1,27 @@
 # Draft Academy — Delivery Roadmap
 
 > **Source of truth:** `docs/specs/`, `backend/db/schema/`, `docs/scenarios/user-story-map.md`
-> **Related:** `docs/planning/SPRINT_PLAN.md`, `docs/planning/TEAM_ALLOCATION.md`, `docs/planning/TICKETS.md`
+> **Related:** `docs/planning/MILESTONE_PLAN.md`, `docs/planning/TEAM_ALLOCATION.md`, `docs/planning/TICKETS.md`
 
 ---
 
 ## Overview
 
-Draft Academy is delivered across **5 milestones** (M0–M4) spanning **5 two-week sprints** (Sprint 0–4). Three vertical developer streams work in parallel, each owning a complete tracer-bullet slice through every layer (schema, API, UI, tests).
+Draft Academy is delivered across **5 milestones** (M0–M4) spanning **5 two-week milestones** (Milestone 0–4). Three vertical developer streams work in parallel, each owning a complete tracer-bullet slice through every layer (schema, API, UI, tests).
 
-| Milestone | Sprint | Duration | Theme |
+| Milestone | Milestone | Duration | Theme |
 |---|---|---|---|
-| **M0 — Foundation** | Sprint 0 | Weeks 1–2 | Shared schemas, auth, role contracts, CI/CD, validation suite |
-| **M1 — Core Domain MVP** | Sprint 1 | Weeks 3–4 | Student quotas, teacher verification loop, basic session engine |
-| **M2 — Matching & Escrow** | Sprint 2 | Weeks 5–6 | Smart matching, real-time notifications, dual-confirmation financial escrow |
-| **M3 — Parent & Admin Governance** | Sprint 3 | Weeks 7–8 | Parent handshake portal, super admin control room, advanced governance |
-| **M4 — Integration & Launch** | Sprint 4 | Weeks 9–10 | End-to-end integration, security & audit hardening, load testing, production launch |
+| **M0 — Foundation** | Milestone 0 | Weeks 1–2 | Shared schemas, auth, role contracts, CI/CD, validation suite |
+| **M1 — Core Domain MVP** | Milestone 1 | Weeks 3–4 | Student quotas, teacher verification loop, basic session engine |
+| **M2 — Matching & Escrow** | Milestone 2 | Weeks 5–6 | Smart matching, real-time notifications, dual-confirmation financial escrow |
+| **M3 — Parent & Admin Governance** | Milestone 3 | Weeks 7–8 | Parent handshake portal, super admin control room, advanced governance |
+| **M4 — Integration & Launch** | Milestone 4 | Weeks 9–10 | End-to-end integration, security & audit hardening, load testing, production launch |
 
 ---
 
 ## Milestone Details
 
-### M0 — Foundation (Sprint 0, Weeks 1–2)
+### M0 — Foundation (Milestone 0, Weeks 1–2)
 
 **Goal:** Establish the shared infrastructure, database schema, authentication, role-based access control, CI/CD pipeline, and validation suite that all three streams depend on.
 
@@ -39,7 +39,7 @@ Delivered checks (CI/CD Pipeline with Mermaid Validation): the CI/CD-green crite
 
 ---
 
-### M1 — Core Domain MVP (Sprint 1, Weeks 3–4)
+### M1 — Core Domain MVP (Milestone 1, Weeks 3–4)
 
 **Goal:** Deliver the core domain vertical slices: student subscription & quota management, teacher verification evaluation loop, and basic session lifecycle.
 
@@ -59,7 +59,7 @@ Delivered checks (CI/CD Pipeline with Mermaid Validation): the CI/CD-green crite
 
 ---
 
-### M2 — Matching, Notifications & Escrow (Sprint 2, Weeks 5–6)
+### M2 — Matching, Notifications & Escrow (Milestone 2, Weeks 5–6)
 
 **Goal:** Deliver the on-demand matching engine, real-time notification system, and dual-confirmation financial escrow.
 
@@ -80,7 +80,7 @@ Delivered checks (CI/CD Pipeline with Mermaid Validation): the CI/CD-green crite
 
 ---
 
-### M3 — Parent Portal & Admin Governance (Sprint 3, Weeks 7–8)
+### M3 — Parent Portal & Admin Governance (Milestone 3, Weeks 7–8)
 
 **Goal:** Deliver the parent supervision portal with handshake linking and the super admin control room with full governance capabilities.
 
@@ -108,7 +108,7 @@ Delivered checks (CI/CD Pipeline with Mermaid Validation): the CI/CD-green crite
 
 ---
 
-### M4 — Integration, Security & Launch (Sprint 4, Weeks 9–10)
+### M4 — Integration, Security & Launch (Milestone 4, Weeks 9–10)
 
 **Goal:** Harden the platform for production: end-to-end integration, security audit, financial safety verification, load testing, and launch.
 
@@ -209,7 +209,7 @@ Each milestone has a release gate that must be passed before the next milestone 
 
 | Risk | Probability | Impact | Mitigation |
 |---|---|---|---|
-| Cross-stream interface contract mismatch | Medium | High | Define contracts in M0; integration tests in every sprint |
+| Cross-stream interface contract mismatch | Medium | High | Define contracts in M0; integration tests in every milestone |
 | Escrow financial calculation edge cases | Medium | Critical | Comprehensive test scenarios in M2; financial immutability tests |
 | Real-time notification delivery reliability | Medium | High | WebSocket fallback to polling; retry queue in M2 |
 | Teacher availability race conditions | Low | High | In-session locking with database-level constraints |

@@ -65,6 +65,7 @@ export const adminUsersEn: AdminUsersLabels = {
     country: "Country",
     search: "Search",
     searchPlaceholder: "Search by name or email",
+    searchClearLabel: "Clear search",
     clear: "Clear filters",
     chipsAll: "All Roles",
   },

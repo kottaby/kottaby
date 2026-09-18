@@ -277,7 +277,7 @@
 >
 > **Decision:** This increment ships NO student purchase UI. The `purchaseSubscription` mutation
 > (student-only) and the `mySubscriptions` query ARE the purchase contract; the checkout funnel UX
-> belongs to the Sprint-2 real-gateway work, and a placeholder checkout page would be throwaway
+> belongs to the Milestone-2 real-gateway work, and a placeholder checkout page would be throwaway
 > work with a false UX signal. The only UI delta is the admin plan form's balance-lane select.
 >
 > **Spec impact:** `purchaseSubscription` denies every non-student role with `403 FORBIDDEN`

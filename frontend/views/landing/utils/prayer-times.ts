@@ -37,13 +37,16 @@ function hourAngleFor(declination: number, angleDeg: number): number {
   return toDeg(Math.acos(Math.min(1, Math.max(-1, cosH)))) / 15;
 }
 
+// Module-scoped — avoids re-instantiating the Intl formatter on every tick evaluation.
+const CAIRO_OFFSET_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Africa/Cairo",
+  timeZoneName: "longOffset",
+});
+
 /** DST-aware UTC offset (hours) for Africa/Cairo at the given instant. */
 export function cairoOffsetHours(date: Date): number {
   try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "Africa/Cairo",
-      timeZoneName: "longOffset",
-    }).formatToParts(date);
+    const parts = CAIRO_OFFSET_FORMATTER.formatToParts(date);
     const tz = parts.find(p => p.type === "timeZoneName")?.value ?? "GMT+03:00";
     const m = /GMT([+-])(\d{2}):(\d{2})/.exec(tz);
     if (!m) {

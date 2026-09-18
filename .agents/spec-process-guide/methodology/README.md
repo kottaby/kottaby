@@ -132,7 +132,7 @@ Specs serve as living documentation that preserves the reasoning behind design d
 - Spec-driven development places greater emphasis on upfront design
 - More structured documentation requirements
 - Designed to work within agile frameworks rather than replace them
-- Can be applied to individual features within agile sprints
+- Can be applied to individual features within agile milestones
 
 ### Test-Driven Development (TDD)
 
@@ -179,7 +179,7 @@ Specs serve as living documentation that preserves the reasoning behind design d
 
 Spec-driven development is designed to complement, not replace, existing development methodologies. It can be integrated into:
 
-- **Agile Sprints**: Use specs for larger user stories or epics
+- **Agile Milestones**: Use specs for larger user stories or epics
 - **Feature Branches**: Create specs before starting feature development
 - **Code Reviews**: Use specs as context for reviewing implementations
 - **Documentation Systems**: Integrate specs into existing documentation workflows

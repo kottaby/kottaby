@@ -1,7 +1,7 @@
 # Draft Academy — Production Readiness Checklist
 
 > **Source of truth:** `docs/specs/`, `backend/db/schema/`, `docs/planning/ROADMAP.md`
-> **Related:** `docs/planning/TICKETS.md`, `docs/planning/SPRINT_PLAN.md`
+> **Related:** `docs/planning/TICKETS.md`, `docs/planning/MILESTONE_PLAN.md`
 
 ---
 
@@ -242,7 +242,7 @@ This document defines the comprehensive production launch criteria for Draft Aca
 |---|---|---|---|
 | 5.3.1 | INV-B1: Balances are non-negative integers | Verify check constraints and default 0 | ✅ REQ-010 (Task 1.1 — CHECK-floor tiers `student.repository.test.ts`, schema `students.ts:42-45`) |
 | 5.3.2 | INV-B2: Full session count credited on activation | Verify balance credited immediately | ✅ REQ-013/017/018 (Tasks 1.1/2.1/2.2 — exact-delta lanes `subscription-activation.service.test.ts`, journey `subscription-purchase.journey.test.ts`) |
-| 5.3.3 | INV-B3: Unused sessions expire at end of interval (no carryover) | Verify expiry zeroes balance | ☐ WHY: expiry invariant is DEV1-008 scope (deferred item D5) — no expiry surface exists this sprint |
+| 5.3.3 | INV-B3: Unused sessions expire at end of interval (no carryover) | Verify expiry zeroes balance | ☐ WHY: expiry invariant is DEV1-008 scope (deferred item D5) — no expiry surface exists this milestone |
 | 5.3.4 | INV-B4: Cannot request session with zero balance | Verify request rejected | ✅ REQ-020/021 (Tasks 1.1/2.3 — denial + chaos `session-lifecycle.service.test.ts`, GraphQL pin `session-booking-balance.test.ts`) |
 | 5.3.5 | INV-B5: Segregated balances (Hifz/Tajweed/Reviews) | Verify correct-lane credit on activation and supported-lane hold/debit on booking (trial → hifz → tajweed ladder; `reviews` remains credit-only — never debited by booking holds) | ✅ REQ-015/018 (Tasks 1.1/2.3 — segregated-lane tiers `student.repository.test.ts`, lane-hit hold/debit ladder `session-lifecycle.service.test.ts`, webhook idempotency `subscription-activation.service.test.ts`) |
 | 5.3.6 | INV-B6: Admin can extend validity window | Verify admin extension works | ☐ |
@@ -363,7 +363,7 @@ This document defines the comprehensive production launch criteria for Draft Aca
 - [ ] All Section 8 (33 Decisions) verified
 - [ ] Drizzle schema in `backend/db/schema/` type-checks (`bun tsgo`)
 - [ ] `bun run scripts/validate-mermaid.ts` passes on all planning docs
-- [ ] All Sprint 4 tickets completed
+- [ ] All Milestone 4 tickets completed
 - [ ] All 5 sign-offs obtained
 
 **🚀 Launch Approved:** _______ (Date: _______)

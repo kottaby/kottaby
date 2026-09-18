@@ -129,7 +129,7 @@ stateDiagram-v2
 | Surface pins | `backend/graphql/test/schema-surface.test.ts` + `backend/graphql/test/sdl-static-assertions.test.ts` | SDL arg shapes + scope snapshots, codegen byte-identity, frozen mutation/query inventories. |
 | Locale | `shared/locale/sessions-namespace.parity.test.ts` + `shared/locale/errors-namespace.parity.test.ts` | The arbitration key inventory (en/ar parity + typed labels), including the two denial keys `disputeResolutionMismatch` / `partialRefundAmountInvalid`. |
 
-Race-harness conventions inherited from the lifecycle suites: same-connection `Promise.allSettled` serialization proves guarded-predicate semantics; cross-connection contention proofs need COMMITTED fixtures with tracked, zero-residue teardown. UI suites live under `test/ui/components/` (admin resolve dialog + case dialog + escrow chip; student dispute action + eligibility matrix).
+Race-harness conventions inherited from the lifecycle suites: same-connection `Promise.allSettled` serialization proves guarded-predicate semantics; cross-connection contention proofs need COMMITTED fixtures with tracked, zero-residue teardown.
 
 ## 12. Related Documents
 

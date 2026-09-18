@@ -415,7 +415,7 @@ Before resuming implementation:
 
 Sometimes the right answer is to **reduce scope** instead of upgrading the spec:
 
-- **Too complex for current sprint?** → Ship MVP, iterate later
+- **Too complex for current milestone?** → Ship MVP, iterate later
 - **Scope creep from stakeholders?** → Push back, keep original scope
 - **Perfectionism?** → Ship good enough, improve based on feedback
 

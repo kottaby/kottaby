@@ -35,7 +35,7 @@ argument. There is no HTTP server, no GraphQL resolver, no Apollo client — res
 | **Journey (this layer)** | `test/workflows/` | **Cross-actor workflows through real services, committed fixtures** |
 | Service unit | `backend/services/**/*.test.ts` | Single service, mocked externals, heavy mocking allowed |
 | GraphQL integration | `test/integration/` | Resolvers, schema, authorization over HTTP |
-| E2E | `test/ui/e2e/` | Browser-driven user flows |
+| E2E | `test/ui/e2e/` | Browser-driven Paymob checkout flow (the sole UI E2E suite) |
 
 Journeys fill the gap between service unit tests (one actor, mocked boundaries) and E2E (full
 stack, browser): they prove that a multi-step workflow behaves correctly when each step is taken

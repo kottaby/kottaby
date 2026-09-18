@@ -12,7 +12,7 @@ docs/planning/
 ├── README.md                  ← You are here
 ├── ROADMAP.md                 — Milestones M0–M4, Gantt chart, critical path, release gates
 ├── TEAM_ALLOCATION.md         — Dev 1/2/3 stream ownership, interface contracts, branching
-├── SPRINT_PLAN.md             — Sprint 0–4 breakdown, capacity, DoD, dependency matrix
+├── MILESTONE_PLAN.md             — Milestone 0–4 breakdown, capacity, DoD, dependency matrix
 ├── TICKETS.md                 — 69 tracer-bullet tickets with acceptance criteria
 └── PRODUCTION_READINESS.md    — Security, financial safety, launch checklist
 ```
@@ -25,7 +25,7 @@ docs/planning/
 |---|---|---|
 | **[ROADMAP.md](ROADMAP.md)** | Milestone-level delivery plan | 5 milestones (M0–M4), Mermaid Gantt chart, critical path, release gates, risk register |
 | **[TEAM_ALLOCATION.md](TEAM_ALLOCATION.md)** | Team structure & ownership | 3 vertical streams, 6 cross-stream interface contracts, branching strategy, PR review protocol, RACI matrix |
-| **[SPRINT_PLAN.md](SPRINT_PLAN.md)** | Sprint-by-sprint execution plan | 5 sprints (S0–S4), sprint backlogs, story points, DoD, dependency graphs, velocity tracking |
+| **[MILESTONE_PLAN.md](MILESTONE_PLAN.md)** | Milestone-by-milestone execution plan | 5 milestones (S0–S4), milestone backlogs, story points, DoD, dependency graphs, velocity tracking |
 | **[TICKETS.md](TICKETS.md)** | Granular work items | 69 tracer-bullet tickets, Fibonacci story points, Gherkin acceptance criteria, test scenarios, decision traceability |
 | **[PRODUCTION_READINESS.md](PRODUCTION_READINESS.md)** | Launch gate criteria | Data integrity, financial safeguards, real-time reliability, security, state machine invariants, 33-decision verification, sign-off |
 
@@ -33,7 +33,7 @@ docs/planning/
 
 ## 👥 The 3-Developer Vertical Streams
 
-| Stream | Developer | Domain | Sprint 0 | Sprint 1 | Sprint 2 | Sprint 3 | Sprint 4 |
+| Stream | Developer | Domain | Milestone 0 | Milestone 1 | Milestone 2 | Milestone 3 | Milestone 4 |
 |---|---|---|---|---|---|---|---|
 | **Student & Parent Experience** | Dev 1 | Registration, subscriptions, quotas, parent portal, curriculum | Schema, registration, recitation, trial | Plans, subscriptions, balances, expiry | Tajweed curriculum, progress | Parent handshake, monitoring portal | E2E integration tests |
 | **Teacher Lifecycle & Certification** | Dev 2 | Applicants, evaluation loop, cooldown, availability, reports, homework | Auth, RBAC, shared types | Applicant registration, 5-session loop, scoring, cooldown | Availability, in-session lock, reports, homework | Student ratings, re-evaluation, academic tracking | Security hardening, invariant tests |
@@ -43,13 +43,13 @@ docs/planning/
 
 ## 🗺️ Milestone Summary
 
-| Milestone | Sprint | Theme | Release Gate |
+| Milestone | Milestone | Theme | Release Gate |
 |---|---|---|---|
-| **M0** | Sprint 0 | Foundation: schema, auth, CI/CD | Schema validates, auth works, CI/CD green |
-| **M1** | Sprint 1 | Core Domain MVP: subscriptions, verification, sessions | Student subscribes & books; applicant completes evaluation |
-| **M2** | Sprint 2 | Matching, notifications, escrow | Student browses, requests, completes with escrow; notifications fire |
-| **M3** | Sprint 3 | Parent portal, admin governance | Parent links & monitors; admin governs with audit logging |
-| **M4** | Sprint 4 | Integration, security, launch | All production readiness criteria met |
+| **M0** | Milestone 0 | Foundation: schema, auth, CI/CD | Schema validates, auth works, CI/CD green |
+| **M1** | Milestone 1 | Core Domain MVP: subscriptions, verification, sessions | Student subscribes & books; applicant completes evaluation |
+| **M2** | Milestone 2 | Matching, notifications, escrow | Student browses, requests, completes with escrow; notifications fire |
+| **M3** | Milestone 3 | Parent portal, admin governance | Parent links & monitors; admin governs with audit logging |
+| **M4** | Milestone 4 | Integration, security, launch | All production readiness criteria met |
 
 ---
 
@@ -57,8 +57,8 @@ docs/planning/
 
 | Metric | Value |
 |---|---|
-| Total sprints | 5 (Sprint 0–4) |
-| Sprint cadence | 2 weeks |
+| Total milestones | 5 (Milestone 0–4) |
+| Milestone cadence | 2 weeks |
 | Total duration | 10 weeks |
 | Total tickets | 69 |
 | Total story points | 292 |
@@ -92,9 +92,9 @@ See the [Decision Coverage table in TICKETS.md](TICKETS.md#decision-coverage) fo
 
 | Artifact | Validator | Command |
 |---|---|---|
-| `docs/planning/ROADMAP.md` (Gantt chart) | Mermaid | `bun run scripts/validate-mermaid.ts docs/planning/ROADMAP.md` |
-| `docs/planning/SPRINT_PLAN.md` (dependency graphs) | Mermaid | `bun run scripts/validate-mermaid.ts docs/planning/SPRINT_PLAN.md` |
-| All other `.mmd` / `.md` files with Mermaid | Mermaid | `bun run scripts/validate-mermaid.ts <file>` |
+| `docs/planning/ROADMAP.md` (Gantt chart) | Mermaid | `bun run scripts/validation/validate-mermaid.ts docs/planning/ROADMAP.md` |
+| `docs/planning/MILESTONE_PLAN.md` (dependency graphs) | Mermaid | `bun run scripts/validation/validate-mermaid.ts docs/planning/MILESTONE_PLAN.md` |
+| All other `.mmd` / `.md` files with Mermaid | Mermaid | `bun run scripts/validation/validate-mermaid.ts <file>` |
 
 ---
 
@@ -117,7 +117,7 @@ See the [Decision Coverage table in TICKETS.md](TICKETS.md#decision-coverage) fo
 
 1. **Start with ROADMAP.md** — understand the milestone-level plan, critical path, and release gates.
 2. **Review TEAM_ALLOCATION.md** — understand which developer owns which domain and the interface contracts between streams.
-3. **Dive into SPRINT_PLAN.md** — see the sprint-by-sprint breakdown with story points and dependencies.
+3. **Dive into MILESTONE_PLAN.md** — see the milestone-by-milestone breakdown with story points and dependencies.
 4. **Work tickets from TICKETS.md** — each ticket is a tracer-bullet vertical slice with acceptance criteria and test scenarios.
 5. **Check PRODUCTION_READINESS.md** — verify all launch criteria before going live.
 
@@ -133,12 +133,12 @@ See the [Decision Coverage table in TICKETS.md](TICKETS.md#decision-coverage) fo
 
 ---
 
-## 🎯 Sprint Goals at a Glance
+## 🎯 Milestone Goals at a Glance
 
-| Sprint | Goal | Key Deliverable |
+| Milestone | Goal | Key Deliverable |
 |---|---|---|
-| **Sprint 0** | Foundation | Schema migrated, auth working, CI/CD green |
-| **Sprint 1** | Core Domain MVP | Student subscribes & books; applicant completes evaluation loop |
-| **Sprint 2** | Matching & Escrow | Student browses, requests, completes with escrow; notifications fire |
-| **Sprint 3** | Parent & Admin | Parent links & monitors child; admin governs with audit logging |
-| **Sprint 4** | Integration & Launch | All E2E tests pass, security hardened, production launch approved |
+| **Milestone 0** | Foundation | Schema migrated, auth working, CI/CD green |
+| **Milestone 1** | Core Domain MVP | Student subscribes & books; applicant completes evaluation loop |
+| **Milestone 2** | Matching & Escrow | Student browses, requests, completes with escrow; notifications fire |
+| **Milestone 3** | Parent & Admin | Parent links & monitors child; admin governs with audit logging |
+| **Milestone 4** | Integration & Launch | All E2E tests pass, security hardened, production launch approved |

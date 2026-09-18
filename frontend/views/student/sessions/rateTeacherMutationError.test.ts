@@ -30,8 +30,8 @@
  *
  * FIXTURES: genuine Apollo Client v4 `CombinedGraphQLErrors` containers —
  * exactly what the mutation result hands the `onError` handler — mirroring
- * `error-link.map.test.ts`. Fixture field texts are technical test data
- * (`test/ui/AGENTS.md` "What Counts as Acceptable"); every expected
+ * `error-link.map.test.ts`. Fixture field texts are technical test data,
+ * never rendered UI copy; every expected
  * user-facing COPY the arms echo resolves through the real locale objects
  * (en resolved + ar parity-probed, same mechanism as the paired suites).
  *

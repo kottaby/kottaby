@@ -126,8 +126,8 @@ EXAMPLES:
   # Run all GraphQL integration tests:
   bun run test:graphql
 
-  # Run all E2E tests:
-  bun run test:ui:e2e
+  # Run the Paymob live checkout E2E suite:
+  bun run test:ui:e2e:paymob
 
   # Run a specific test file:
   bun run test:graphql frontend/graphql/test/auth/impersonation.test.ts

@@ -113,7 +113,7 @@ Specs serve as living documentation that preserves the reasoning behind design d
 
 Spec-driven development is designed to complement, not replace, existing development methodologies. It can be integrated into:
 
-- **Agile Sprints**: Use specs for larger user stories or epics
+- **Agile Milestones**: Use specs for larger user stories or epics
 - **Feature Branches**: Create specs before starting feature development
 - **Code Reviews**: Use specs as context for reviewing implementations
 - **Documentation Systems**: Integrate specs into existing documentation workflows

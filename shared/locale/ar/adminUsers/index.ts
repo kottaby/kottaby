@@ -65,6 +65,7 @@ export const adminUsersAr: AdminUsersLabels = {
     country: "الدولة",
     search: "بحث",
     searchPlaceholder: "ابحث بالاسم أو البريد الإلكتروني",
+    searchClearLabel: "مسح البحث",
     clear: "مسح المرشحات",
     chipsAll: "كل الأدوار",
   },

@@ -229,9 +229,9 @@ For scenarios that fall between "full spec" and "direct implementation":
 
 ### Agile/Scrum Integration
 - Use specs for larger user stories or epics
-- Create specs during sprint planning
+- Create specs during milestone planning
 - Reference specs during daily standups and reviews
-- Update specs based on sprint retrospective feedback
+- Update specs based on milestone retrospective feedback
 
 ### Continuous Integration
 - Include spec validation in CI pipeline
