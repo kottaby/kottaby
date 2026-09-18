@@ -30,22 +30,22 @@
 
 ## Phase 0 — Baseline & Gate
 
-### - [ ] 0.1 Baseline & Ledger — `outcome/0-baseline-outcome.md`, `deferred-items.md`
+### - [x] 0.1 Baseline & Ledger — `outcome/0-baseline-outcome.md`, `deferred-items.md`
 - Record baseline counts BEFORE any edit: `bun tsgo 2>&1 | grep "error TS" | wc -l`, `bun biome:check 2>&1 | grep -c "warn"`, `bun run scripts/lint-service.ts --json --id baseline` — into `/tmp/baseline-*.txt|json` and echoed into the outcome file.
 - Confirm `deferred-items.md` D1–D7 rows exist and are accurate.
 - _Requirements: REQ-001_
-- [ ] 0.1.QL **Quality Loop**: not a code task — no sub-loop run; record raw command output in the outcome.
-- [ ] 0.1.TE **Test Engineering**: n/a.
-- [ ] 0.1.SEC **Security & Tenancy Audit**: n/a.
-- [ ] 0.1.SR **Semantic Review**: baseline numbers quoted from real command output, never from memory.
-- [ ] 0.1.IV **Instruction Verification**: root `AGENTS.md` quality-workflow section re-read.
+- [x] 0.1.QL **Quality Loop**: not a code task — no sub-loop run; record raw command output in the outcome.
+- [x] 0.1.TE **Test Engineering**: n/a.
+- [x] 0.1.SEC **Security & Tenancy Audit**: n/a.
+- [x] 0.1.SR **Semantic Review**: baseline numbers quoted from real command output, never from memory.
+- [x] 0.1.IV **Instruction Verification**: root `AGENTS.md` quality-workflow section re-read.
 
-### - [ ] 0.2 Plan-Review Gate — `outcome/plan-review-R1.md`
+### - [x] 0.2 Plan-Review Gate — `outcome/plan-review-R1.md`
 - The planning session already recorded the Phase 1.5 verdict in `outcome/plan-review-R1.md` — read it; if implementation reveals drift, re-run the review and record R2 before continuing.
 - _Requirements: REQ-701_
-- [ ] 0.2.QL/.TE/.SEC: n/a (verification task).
-- [ ] 0.2.SR **Semantic Review**: any spec↔code drift discovered during execution is written back into specs/plan/tasks in the same commit.
-- [ ] 0.2.IV **Instruction Verification**: `.agents/spec-process-guide/` templates re-read.
+- [x] 0.2.QL/.TE/.SEC: n/a (verification task).
+- [x] 0.2.SR **Semantic Review**: any spec↔code drift discovered during execution is written back into specs/plan/tasks in the same commit.
+- [x] 0.2.IV **Instruction Verification**: `.agents/spec-process-guide/` templates re-read.
 
 ---
 
