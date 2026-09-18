@@ -56,3 +56,12 @@
 **Cumulative round ledger:** R1 — 2 LOW; R2 — 3 (1 LOW + 2 INFO); R3 — 0; R4 — 2 (1 LOW + 1 INFO); R5 — 6 (5 LOW + 1 INFO) → all fixed.
 
 **Next:** round 6 (independent) follows.
+## Round 7 fixes
+
+**Wave:** round 7 — 1 LOW, anchor precision only — zero code-behavior changes.
+
+1. **[LOW] Verification-matrix ±1 anchor drift (6 cells)** — `outcome/verification-matrix.md:59-60`: the REQ-601 step-8 journey-leg anchors had drifted +1 against live `test/workflows/billing/admin-financial-auditing.journey.test.ts` — both replay arms deny `:972-977` → `:973-978`; row still `failed` `:982-983` → `:984`; balance byte-equals restored `:984-985` → `:985-986`; audits still 1 `:986` → `:987`; delta 0 `:987` → `:988` — and the REQ-506 step-5 per-leg silent pair cited `:820-821` → live `:819-820`. All six cells re-verified live at the branch tip (c57618d) via `git show`/sed before correcting; nothing else touched.
+
+**Cumulative round ledger:** R1 — 2 LOW; R2 — 3 (1 LOW + 2 INFO); R3 — 0; R4 — 2 (1 LOW + 1 INFO); R5 — 6 (5 LOW + 1 INFO); R6 — 0 (independent, no findings); R7 — 1 LOW → fixed.
+
+**Next:** round 8 (independent) follows.
