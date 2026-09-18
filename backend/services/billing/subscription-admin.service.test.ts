@@ -55,6 +55,15 @@
  *    conflicts with the localized already-renewed copy; two concurrent
  *    renews partition across the claim's unique index — both fulfill
  *    with the SAME first result.
+ *  - Cancel: the active row flips to `cancelled` with the lane balances
+ *    BYTE-IDENTICAL before and after (balance-preserving — the sweep
+ *    zeroes, cancel never does); exactly ONE `Suspend` audit row carries
+ *    the `{ fromStatus, toStatus, reason? }` details with the trimmed
+ *    reason as the trail's only free text (omitted entirely when not
+ *    supplied, > 200 trimmed characters rejected pre-DB); every
+ *    non-active status denies with zero writes and zero audit rows while
+ *    an already-cancelled row replays as the idempotent conflict and a
+ *    vanished row as the canonical not-found denial.
  */
 
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
@@ -81,10 +90,18 @@ import { runInRollback } from "@/backend/db/test/test-utils";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
-import { ConflictError, DomainError, ForbiddenError, UnauthorizedError, ValidationError } from "@/backend/lib/errors";
+import {
+  ConflictError,
+  DomainError,
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { SubscriptionAdminService } from "@/backend/services/billing/subscription-admin.service";
 import type {
+  CancelSubscriptionSubmitInput,
   DBTransaction,
   ExtendSubscriptionSubmitInput,
   PlanSelectType,
@@ -349,6 +366,93 @@ async function expectRenewDeniedForStatus(tx: DBTransaction, adminId: number, fi
   expect(await readClaim(tx, `renew:${fixture.source.id}`)).toBeNull();
   expect(await readHifzBalance(tx, fixture.owner.id)).toBe(0);
   expect(await readAuditsForSubscription(tx, fixture.source.id)).toHaveLength(0);
+}
+
+// ─── Cancel fixtures & probes ──────────────────────────────────────────────
+
+/** The cancel payload for one subscription (the reason is the caller's knob). */
+function cancelInput(subscriptionId: number, reason?: string): CancelSubscriptionSubmitInput {
+  return reason === undefined ? { subscriptionId } : { subscriptionId, reason };
+}
+
+/**
+ * The owner's full lane-balance quadruple — the byte-identical oracle for
+ * the balance-preserving cancel proof (every column compared before and
+ * after, not just the fixture lane).
+ */
+async function readLaneBalances(tx: DBTransaction, studentId: number) {
+  const [row] = await tx
+    .select({
+      hifz: students.balanceHifz,
+      tajweed: students.balanceTajweed,
+      reviews: students.balanceReviews,
+      trial: students.balanceTrial,
+    })
+    .from(students)
+    .where(eq(students.id, studentId))
+    .limit(1);
+  if (!row) {
+    throw new Error("readLaneBalances: no students row for the cancel fixture owner");
+  }
+  return row;
+}
+
+/**
+ * One student owner + one ACTIVE subscription + a non-zero Hifz lane: the
+ * balance-preserving proof needs a lane actually carrying value before the
+ * cancel lands (a zero lane would make "preserved" trivially true).
+ */
+async function createCancellableFixture(
+  tx: DBTransaction,
+  overrides: Partial<SubscriptionSelectType> = {}
+): Promise<ActiveFixture> {
+  const owner = await createTestUser(tx, { role: "student" });
+  await createTestStudent(tx, owner.id);
+  const plan = await createTestPlan(tx, { balanceLane: SubscriptionCreditLane.Hifz });
+  const now = new Date();
+  const subscription = await createTestSubscription(tx, owner.id, plan.id, {
+    status: SubscriptionStatus.Active,
+    startDate: now,
+    endDate: new Date(now.getTime() + 30 * MS_PER_DAY),
+    ...overrides,
+  });
+  await StudentRepository.creditLaneBalance(owner.id, SubscriptionCreditLane.Hifz, plan.sessionCount, tx);
+  return { owner, subscription };
+}
+
+/**
+ * Cancel denial probe for ONE fixture: the expected localized conflict
+ * (the active-only deny, or the idempotent already-cancelled replay), the
+ * row untouched, the lane untouched, and zero audit rows about the entity.
+ */
+async function expectCancelDenied(
+  tx: DBTransaction,
+  adminId: number,
+  fixture: ActiveFixture,
+  expectedMessage: string
+): Promise<void> {
+  const error = await expectServiceError(() =>
+    SubscriptionAdminService.cancelSubscription(cancelInput(fixture.subscription.id), adminId, "en", tx)
+  );
+  expect(error).toBeInstanceOf(ConflictError);
+  expectDomainDenial(error, "CONFLICT", expectedMessage);
+
+  const reread = await readSubscription(tx, fixture.subscription.id);
+  expect(reread.status).toBe(fixture.subscription.status);
+  expect(reread.endDate).toEqual(fixture.subscription.endDate);
+  expect(await readAuditsForSubscription(tx, fixture.subscription.id)).toHaveLength(0);
+}
+
+/** Pins one cancel audit's details to EXACTLY the two status members — no reason key. */
+async function expectAuditDetailsWithoutReason(tx: DBTransaction, subscriptionId: number): Promise<void> {
+  const audit = (await readAuditsForSubscription(tx, subscriptionId))[0];
+  if (!audit?.details) {
+    throw new Error("audit row/details vanished");
+  }
+  expect(JSON.parse(audit.details)).toEqual({
+    fromStatus: SubscriptionStatus.Active,
+    toStatus: SubscriptionStatus.Cancelled,
+  });
 }
 
 // ─── Tier 1: branches ─────────────────────────────────────────────────────
@@ -1066,4 +1170,247 @@ describe("SubscriptionAdminService.renewSubscription — boundaries, replay, cha
       }
     }
   );
+});
+
+// ─── Cancel: branches (Tier 1) ─────────────────────────────────────────────
+
+describe("SubscriptionAdminService.cancelSubscription — branches (Tier 1)", () => {
+  test("cancels an active subscription: status flip + lane balances byte-identical + one Suspend audit row with the trimmed reason", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, subscription } = await createCancellableFixture(tx);
+      const lanesBefore = await readLaneBalances(tx, owner.id);
+      expect(lanesBefore.hifz).toBeGreaterThan(0);
+
+      const result = await SubscriptionAdminService.cancelSubscription(
+        cancelInput(subscription.id, "  duplicate account  "),
+        adminId,
+        "en",
+        tx
+      );
+
+      // The returned row IS the cancelled row: same owner + plan, every
+      // other column riding through untouched.
+      expect(result.id).toBe(subscription.id);
+      expect(result.status).toBe(SubscriptionStatus.Cancelled);
+      expect(result.userId).toBe(subscription.userId);
+      expect(result.planId).toBe(subscription.planId);
+      expect(result.endDate).toEqual(subscription.endDate);
+
+      // Balance-preserving: EVERY lane column is byte-identical before and
+      // after — cancel never destroys paid value (the sweep zeroes, the
+      // cancel does not).
+      const lanesAfter = await readLaneBalances(tx, owner.id);
+      expect(lanesAfter).toEqual(lanesBefore);
+
+      // Exactly ONE audit row about the cancelled row — Suspend with the
+      // exact details shape, the TRIMMED reason the trail's only free text.
+      const audits = await readAuditsForSubscription(tx, subscription.id);
+      expect(audits).toHaveLength(1);
+      const audit = audits[0];
+      if (!audit) {
+        throw new Error("audit row vanished");
+      }
+      expect(audit.actorId).toBe(adminId);
+      expect(audit.actionType).toBe(AuditActionType.Suspend);
+      expect(audit.entityType).toBe(SUBSCRIPTION_ENTITY_TYPE);
+      expect(audit.entityId).toBe(subscription.id);
+      if (audit.details === null) {
+        throw new Error("audit details vanished");
+      }
+      expect(JSON.parse(audit.details)).toEqual({
+        fromStatus: SubscriptionStatus.Active,
+        toStatus: SubscriptionStatus.Cancelled,
+        reason: "duplicate account",
+      });
+    });
+  });
+
+  test("stores no reason in the audit details when omitted or blank after trimming", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const omitted = await createCancellableFixture(tx);
+      const blank = await createCancellableFixture(tx);
+
+      const first = await SubscriptionAdminService.cancelSubscription(
+        cancelInput(omitted.subscription.id),
+        adminId,
+        "en",
+        tx
+      );
+      expect(first.status).toBe(SubscriptionStatus.Cancelled);
+
+      const second = await SubscriptionAdminService.cancelSubscription(
+        cancelInput(blank.subscription.id, "   "),
+        adminId,
+        "en",
+        tx
+      );
+      expect(second.status).toBe(SubscriptionStatus.Cancelled);
+
+      // Both trails carry EXACTLY the two status members — no reason key,
+      // no empty-string noise.
+      await expectAuditDetailsWithoutReason(tx, omitted.subscription.id);
+      await expectAuditDetailsWithoutReason(tx, blank.subscription.id);
+    });
+  });
+
+  test("denies a pending subscription with the active-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const pending = await createCancellableFixture(tx, {
+        status: SubscriptionStatus.Pending,
+        endDate: null,
+      });
+      await expectCancelDenied(tx, adminId, pending, t().subscriptionAdmin.notActive);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies an expired subscription with the active-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      // A TRUE expired-status row: the sweep owns the active → expired
+      // transition, so the fixture must flip the status itself.
+      const now = new Date();
+      const expired = await createCancellableFixture(tx, {
+        status: SubscriptionStatus.Expired,
+        endDate: new Date(now.getTime() - 5 * MS_PER_DAY),
+      });
+      await expectCancelDenied(tx, adminId, expired, t().subscriptionAdmin.notActive);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies a suspended subscription with the active-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const suspended = await createCancellableFixture(tx, { status: SubscriptionStatus.Suspended });
+      await expectCancelDenied(tx, adminId, suspended, t().subscriptionAdmin.notActive);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies an unknown subscription id with the canonical not-found denial and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.cancelSubscription(cancelInput(99999999), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(NotFoundError);
+      expectDomainDenial(error, "SUBSCRIPTION_NOT_FOUND", t().notFound);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies a non-admin actor before any write: row byte-identical, lane untouched, zero audit rows", async () => {
+    await runInRollback(async tx => {
+      const student = await createTestUser(tx, { role: "student" });
+      const { owner, subscription } = await createCancellableFixture(tx);
+      const lanesBefore = await readLaneBalances(tx, owner.id);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.cancelSubscription(cancelInput(subscription.id), student.id, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ForbiddenError);
+      expectDomainDenial(error, "FORBIDDEN", t().forbidden);
+      const reread = await readSubscription(tx, subscription.id);
+      expect(reread.status).toBe(subscription.status);
+      expect(reread.endDate).toEqual(subscription.endDate);
+      expect(reread.updatedAt).toEqual(subscription.updatedAt);
+      expect(await readLaneBalances(tx, owner.id)).toEqual(lanesBefore);
+      expect(await countAuditsForActor(tx, student.id)).toBe(0);
+      expect(await readAuditsForSubscription(tx, subscription.id)).toHaveLength(0);
+    });
+  });
+
+  test("denies an anonymous actor with UNAUTHORIZED and zero audit rows", async () => {
+    await runInRollback(async tx => {
+      const { subscription } = await createCancellableFixture(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.cancelSubscription(cancelInput(subscription.id), ANONYMOUS_ACTOR_ID, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(UnauthorizedError);
+      expectDomainDenial(error, "UNAUTHORIZED", t().unauthorized);
+      expect(await readAuditsForSubscription(tx, subscription.id)).toHaveLength(0);
+    });
+  });
+});
+
+// ─── Cancel: boundaries + replay (Tier 2/3) ────────────────────────────────
+
+describe("SubscriptionAdminService.cancelSubscription — boundaries + replay (Tier 2/3)", () => {
+  test("double-cancel replays as the idempotent conflict: no second write, no second audit row", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, subscription } = await createCancellableFixture(tx);
+      const lanesBefore = await readLaneBalances(tx, owner.id);
+
+      const first = await SubscriptionAdminService.cancelSubscription(cancelInput(subscription.id), adminId, "en", tx);
+      expect(first.status).toBe(SubscriptionStatus.Cancelled);
+
+      // The replayed cancel: the guarded UPDATE matches zero rows (the row
+      // is no longer active) and the fresh read resolves the row to the
+      // already-cancelled replay — the localized idempotent conflict on
+      // the DEFAULT code, never a custom machine key.
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.cancelSubscription(cancelInput(subscription.id), adminId, "en", tx)
+      );
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().conflict);
+
+      // Nothing happened twice: the row is cancelled once, exactly one
+      // audit row exists, and the lanes are still byte-identical.
+      expect((await readSubscription(tx, subscription.id)).status).toBe(SubscriptionStatus.Cancelled);
+      expect(await readAuditsForSubscription(tx, subscription.id)).toHaveLength(1);
+      expect(await readLaneBalances(tx, owner.id)).toEqual(lanesBefore);
+      expect(await countAuditsForActor(tx, adminId)).toBe(1);
+    });
+  });
+
+  test("rejects a reason longer than 200 trimmed characters pre-DB with zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { subscription } = await createCancellableFixture(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.cancelSubscription(cancelInput(subscription.id, "x".repeat(201)), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ValidationError);
+      expectDomainDenial(error, "VALIDATION", t().badRequest);
+      // Zero writes: the row is still active and the trail is untouched.
+      expect((await readSubscription(tx, subscription.id)).status).toBe(SubscriptionStatus.Active);
+      expect(await readAuditsForSubscription(tx, subscription.id)).toHaveLength(0);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("accepts a reason that is exactly 200 characters after trimming (inclusive bound)", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { subscription } = await createCancellableFixture(tx);
+      const paddedReason = `  ${"y".repeat(200)}  `;
+
+      const result = await SubscriptionAdminService.cancelSubscription(
+        cancelInput(subscription.id, paddedReason),
+        adminId,
+        "en",
+        tx
+      );
+
+      expect(result.status).toBe(SubscriptionStatus.Cancelled);
+      const audit = (await readAuditsForSubscription(tx, subscription.id))[0];
+      if (!audit?.details) {
+        throw new Error("audit row/details vanished");
+      }
+      // The stored reason is the TRIMMED body at the exact bound.
+      expect(JSON.parse(audit.details).reason).toBe("y".repeat(200));
+    });
+  });
 });

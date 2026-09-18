@@ -1,6 +1,6 @@
 /**
  * Admin subscription-management mutations — `adminExtendSubscription` +
- * `adminRenewSubscription`.
+ * `adminRenewSubscription` + `adminCancelSubscription`.
  *
  * Contract:
  *  - `adminExtendSubscription(input: ExtendSubscriptionInput!):
@@ -18,6 +18,13 @@
  *    subscription pointer (no error, no second period, no second
  *    credit); a claim that cannot resolve to a same-owner row surfaces
  *    the localized already-renewed conflict.
+ *  - `adminCancelSubscription(input: CancelSubscriptionInput!):
+ *    StudentSubscription!` — admin-only; flips an `active` row to
+ *    `cancelled` through the guarded single UPDATE while touching NO lane
+ *    balance (balance-preserving by design — the wire payload carries only
+ *    the selector and an optional free-text reason that the service trims
+ *    and bounds before the audit trail). An already-applied cancel
+ *    surfaces the localized idempotent conflict instead of a second write.
  *  - The subscription id arrives as a wire `ID` and is coerced to the
  *    numeric row key through the strict numeric parse
  *    (`coerceSubscriptionId`) before it reaches the service — a
@@ -47,6 +54,7 @@
 
 import { SubscriptionPothosObject } from "@/backend/graphql/pothos/billing/subscription.pothos";
 import {
+  CancelSubscriptionInput,
   ExtendSubscriptionInput,
   RenewSubscriptionInput,
 } from "@/backend/graphql/pothos/billing/subscription-admin.pothos";
@@ -103,6 +111,35 @@ gqlSchemaBuilder.mutationField("adminRenewSubscription", t =>
       const tErrors = await ctx.t("errorsTranslations");
       return SubscriptionAdminService.renewSubscription(
         { subscriptionId: coerceSubscriptionId(args.input.subscriptionId, tErrors) },
+        user.id,
+        ctx.locale
+      );
+    },
+  })
+);
+
+// Side-effect: register the `adminCancelSubscription` mutation field.
+gqlSchemaBuilder.mutationField("adminCancelSubscription", t =>
+  t.field({
+    type: SubscriptionPothosObject,
+    description:
+      "Cancels an active subscription while preserving its balance lanes untouched. Admin-only; a replay of an already-applied cancel surfaces an idempotent conflict instead of a second write.",
+    authScopes: adminOnlyAuthScopes,
+    args: {
+      input: t.arg({
+        type: CancelSubscriptionInput,
+        required: true,
+        description: "The active subscription selector and an optional bounded reason.",
+      }),
+    },
+    resolve: async (_root, args, ctx) => {
+      const user = await requireAdminUser(ctx);
+      const tErrors = await ctx.t("errorsTranslations");
+      return SubscriptionAdminService.cancelSubscription(
+        {
+          subscriptionId: coerceSubscriptionId(args.input.subscriptionId, tErrors),
+          reason: args.input.reason ?? undefined,
+        },
         user.id,
         ctx.locale
       );

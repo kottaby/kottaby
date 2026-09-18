@@ -67,11 +67,11 @@
   - [x] 3.QL / 3.TE (service + repo replay paths; claim conflict returns first result; lane credit asserted) / 3.SEC / 3.SR / 3.IV.
   - _Requirements: REQ-2, REQ-6, REQ-7_
 
-- [ ] **4. Cancel (balance-preserving)**
+- [x] **4. Cancel (balance-preserving)**
   - Repo: `cancelActiveOnce` per plan.md §3.1.
   - Service: `cancelSubscription` — assert admin; guarded flip; audit row `Suspend` + details `{ fromStatus:'active', toStatus:'cancelled', reason? }` (reason ≤ 200 chars, trimmed; never PII).
   - GraphQL: `adminCancelSubscription`.
-  - [ ] 4.QL / 4.TE (cancel active path; idempotent double-cancel → second call fails conflict localized; lane balances byte-identical before/after — assert via repo read; audit row presence) / 4.SEC / 4.SR / 4.IV.
+  - [x] 4.QL / 4.TE (cancel active path; idempotent double-cancel → second call fails conflict localized; lane balances byte-identical before/after — assert via repo read; audit row presence) / 4.SEC / 4.SR / 4.IV.
   - _Requirements: REQ-3, REQ-6, REQ-7_
 
 - [ ] **5. Plan change (upgrade/downgrade) with proration**

@@ -6,7 +6,9 @@
  * Tier 2: Boundary conditions (unknown ids, unknown references, empty list).
  * Tier 3: Chaos & concurrency (guarded activation: zero-row replay on an
  *         already-activated subscription; guarded extension: zero-row
- *         replay once the window moved, wrong-status denial).
+ *         replay once the window moved, wrong-status denial; guarded
+ *         cancellation: zero-row replay on an already-cancelled
+ *         subscription, wrong-status denial).
  * Tier 4: Security & constraints (the partial unique index on
  *         `payment_reference` rejects a colliding insert with the raw
  *         PostgreSQL unique violation — 23505 — untranslated).
@@ -107,6 +109,16 @@ async function expectExtendDeniedForStatus(tx: DBTransaction, status: Subscripti
     { previousEndDate: windowEnd, newEndDate: new Date("2026-03-31T00:00:00Z") },
     tx
   );
+  expect(denied).toBeNull();
+  const reread = await SubscriptionRepository.findById(row.id, tx);
+  expect(reread?.status).toBe(status);
+  expect(reread?.endDate).toEqual(row.endDate);
+}
+
+/** Cancellation denial probe for one lifecycle state: zero rows matched, row untouched. */
+async function expectCancelDeniedForStatus(tx: DBTransaction, status: SubscriptionStatus): Promise<void> {
+  const row = await createSubscriptionInStatus(tx, status);
+  const denied = await SubscriptionRepository.cancelActiveOnce(row.id, tx);
   expect(denied).toBeNull();
   const reread = await SubscriptionRepository.findById(row.id, tx);
   expect(reread?.status).toBe(status);
@@ -335,6 +347,68 @@ describe("SubscriptionRepository", () => {
       await expectExtendDeniedForStatus(tx, SubscriptionStatus.Expired);
       await expectExtendDeniedForStatus(tx, SubscriptionStatus.Cancelled);
       await expectExtendDeniedForStatus(tx, SubscriptionStatus.Suspended);
+    });
+  });
+
+  // ─── Tier 1 + 3: Guarded cancellation (active → cancelled) ─────────────
+
+  test("cancelActiveOnce flips an active row to cancelled, stamping updatedAt and touching nothing else", async () => {
+    await runInRollback(async tx => {
+      const active = await createSubscriptionInStatus(tx, SubscriptionStatus.Active);
+
+      const cancelled = await SubscriptionRepository.cancelActiveOnce(active.id, tx);
+
+      expect(cancelled).not.toBeNull();
+      if (cancelled) {
+        expect(cancelled.id).toBe(active.id);
+        expect(cancelled.status).toBe(SubscriptionStatus.Cancelled);
+        // The write is an explicit two-column patch (status + updatedAt):
+        // every other column — owner, plan, window, payment triple — rides
+        // through untouched, and no lane balance column is reachable here
+        // at all (cancel is balance-preserving by design).
+        expect(cancelled.userId).toBe(active.userId);
+        expect(cancelled.planId).toBe(active.planId);
+        expect(cancelled.startDate).toEqual(active.startDate);
+        expect(cancelled.endDate).toEqual(active.endDate);
+        expect(cancelled.paymentMethod).toBeNull();
+        expect(cancelled.paymentReference).toBe(active.paymentReference);
+        expect(cancelled.paymentVerifiedAt).toEqual(active.paymentVerifiedAt);
+        expect(cancelled.updatedAt.getTime()).toBeGreaterThanOrEqual(active.updatedAt.getTime());
+      }
+
+      const reread = await SubscriptionRepository.findById(active.id, tx);
+      expect(reread?.status).toBe(SubscriptionStatus.Cancelled);
+      expect(reread?.endDate).toEqual(active.endDate);
+    });
+  });
+
+  test("cancelActiveOnce replays as zero rows on double-cancel — the row stays cancelled", async () => {
+    await runInRollback(async tx => {
+      const active = await createSubscriptionInStatus(tx, SubscriptionStatus.Active);
+
+      const first = await SubscriptionRepository.cancelActiveOnce(active.id, tx);
+      expect(first?.status).toBe(SubscriptionStatus.Cancelled);
+
+      // Identical replay: the active predicate no longer matches — zero
+      // rows, null, nothing mutated by the second statement.
+      const replayed = await SubscriptionRepository.cancelActiveOnce(active.id, tx);
+      expect(replayed).toBeNull();
+      expect((await SubscriptionRepository.findById(active.id, tx))?.status).toBe(SubscriptionStatus.Cancelled);
+
+      // An unknown id matches zero rows through the same guarded predicate.
+      expect(await SubscriptionRepository.cancelActiveOnce(99999999, tx)).toBeNull();
+    });
+  });
+
+  test("cancelActiveOnce denies every non-active lifecycle state", async () => {
+    await runInRollback(async tx => {
+      // The guarded predicate folds `status = 'active'` into the WHERE, so
+      // each non-active state denies with zero rows and an untouched row —
+      // one probe per lifecycle state.
+      await expectCancelDeniedForStatus(tx, SubscriptionStatus.Pending);
+      await expectCancelDeniedForStatus(tx, SubscriptionStatus.Expired);
+      await expectCancelDeniedForStatus(tx, SubscriptionStatus.Cancelled);
+      await expectCancelDeniedForStatus(tx, SubscriptionStatus.Suspended);
     });
   });
 

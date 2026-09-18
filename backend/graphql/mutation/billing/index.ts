@@ -11,7 +11,7 @@
  *  - `wallet.mutation.ts` registers `requestWithdrawal`;
  *    `subscription-admin.mutation.ts` registers the admin-gated
  *    subscription lifecycle mutations (`adminExtendSubscription`,
- *    `adminRenewSubscription`).
+ *    `adminRenewSubscription`, `adminCancelSubscription`).
  */
 import "./subscription-admin.mutation";
 import "./wallet.mutation";

@@ -199,6 +199,37 @@ export namespace SubscriptionRepository {
   }
 
   /**
+   * Performs the atomic active → cancelled cancellation transition.
+   *
+   * A single guarded `UPDATE … WHERE id = ? AND status = 'active' …
+   * RETURNING` flips the lifecycle state and stamps an explicit
+   * `updated_at`. The `active` predicate in the WHERE clause is the
+   * concurrency lock: an identical double-submit, a row that already moved
+   * on (the sweep expired it, a plan change cancelled it), or an unknown id
+   * matches zero rows and returns `null` — the caller's
+   * replay-or-wrong-state signal, disambiguated by the service tier.
+   * Deliberately BALANCE-PRESERVING: the statement patches exactly
+   * `status` and `updated_at` — no lane balance column is read or written
+   * here (cancel must never destroy paid value; only the expiry sweep
+   * zeroes).
+   *
+   * @returns The cancelled row, or null when the subscription does not
+   *          exist or is not `active` (already cancelled — replay).
+   */
+  export async function cancelActiveOnce(id: number, tx?: DBTransaction): Promise<SubscriptionSelectType | null> {
+    const executor = tx ?? db;
+    const [row] = await executor
+      .update(subscriptions)
+      .set({
+        status: SubscriptionStatus.Cancelled,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(subscriptions.id, id), eq(subscriptions.status, SubscriptionStatus.Active)))
+      .returning();
+    return row ?? null;
+  }
+
+  /**
    * Lists every subscription owned by one user, newest first.
    *
    * Owner-scoped by design — the only listing predicate is `user_id`

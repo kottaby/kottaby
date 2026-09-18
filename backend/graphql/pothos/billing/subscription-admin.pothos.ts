@@ -1,6 +1,6 @@
 /**
  * Admin subscription-management Pothos inputs — `ExtendSubscriptionInput`
- * + `RenewSubscriptionInput`.
+ * + `RenewSubscriptionInput` + `CancelSubscriptionInput`.
  *
  * Input types are the GraphQL schema's BOPLA boundary: the whitelist
  * carries exactly the fields the service accepts, so smuggled fields die
@@ -21,6 +21,12 @@
  * server-constructed idempotency claim are all derived server-side from
  * the source row and its fresh plan read, so the wire payload has
  * nothing else to smuggle.
+ *
+ * `CancelSubscriptionInput` carries the active-source selector plus an
+ * OPTIONAL free-text reason: the flip is balance-preserving (no lane
+ * field exists to smuggle), and the reason is trimmed and bounded
+ * server-side before it can reach the audit trail — the wire length is
+ * advisory only.
  */
 
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
@@ -51,6 +57,26 @@ export const RenewSubscriptionInput = gqlSchemaBuilder.inputType("RenewSubscript
     subscriptionId: t.id({
       required: true,
       description: "ID of the expired subscription row to renew.",
+    }),
+  }),
+});
+
+/**
+ * Input for the `adminCancelSubscription` mutation. The reason is
+ * optional free text — trimmed and length-bounded server-side before it
+ * reaches the audit trail, so the wire value is advisory only.
+ */
+export const CancelSubscriptionInput = gqlSchemaBuilder.inputType("CancelSubscriptionInput", {
+  description: "Input for cancelling an active subscription while preserving its balance lanes.",
+  fields: t => ({
+    subscriptionId: t.id({
+      required: true,
+      description: "ID of the active subscription row to cancel.",
+    }),
+    reason: t.string({
+      required: false,
+      description:
+        "Optional free-text reason for the cancellation (trimmed and bounded to 200 characters server-side).",
     }),
   }),
 });

@@ -20,13 +20,17 @@
  *    string unions; the ReturnType's enum contract is applied through a
  *    total, fail-closed lookup over each closed vocabulary — never a
  *    cast, never a silent degrade.
+ *  - Cancel denials: the zero-row guarded flip is disambiguated into the
+ *    not-found miss, the idempotent already-cancelled replay conflict, or
+ *    the localized active-only deny; the optional free-text reason is
+ *    trimmed and bounded BEFORE any write and never enters a log.
  */
 
 import type { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
-import { ConflictError, isPgUniqueViolation, NotFoundError } from "@/backend/lib/errors";
+import { ConflictError, isPgUniqueViolation, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import type {
   AuditLogWriteContract,
@@ -52,6 +56,85 @@ export const SUBSCRIPTION_ADMIN_CLAIM_PREFIXES = {
   /** `renew:<sourceSubscriptionId>` — one fresh period per expired source row. */
   renew: "renew",
 } as const;
+
+/**
+ * The cancelled-status member, widened to a plain string: the same
+ * read-row guard idiom as the service's active/expired twins — the
+ * already-cancelled state is the guarded cancel's replay signature.
+ */
+const STATUS_CANCELLED: string = SubscriptionStatus.Cancelled;
+
+/**
+ * Hard bound for the optional cancel reason after trimming — the audit
+ * trail's ONLY free-text field on this surface, so it is the one detail
+ * that carries an explicit ceiling (ids, integers, and ISO date strings
+ * dominate everywhere else).
+ */
+export const CANCEL_REASON_MAX_LENGTH = 200;
+
+/**
+ * Validates and normalizes the optional cancel reason: trimmed, bounded
+ * (a longer submit is a caller bug → the localized validation reject), and
+ * collapsed to `undefined` when nothing survives trimming — blank noise is
+ * never minted into the trail. The reason NEVER enters a diagnostic log:
+ * denials carry ids only.
+ */
+export function normalizeCancelReason(
+  rawReason: string | undefined,
+  subscriptionId: number,
+  tErrors: ErrorsLabels
+): string | undefined {
+  const trimmed = rawReason?.trim();
+  if (trimmed === undefined || trimmed.length === 0) {
+    return undefined;
+  }
+  if (trimmed.length > CANCEL_REASON_MAX_LENGTH) {
+    logger.logDomainError("Subscription cancel denied: reason exceeds the bounded length", {
+      code: "VALIDATION",
+      entity: "subscriptions",
+      entityId: subscriptionId,
+    });
+    throw new ValidationError(tErrors.badRequest);
+  }
+  return trimmed;
+}
+
+/**
+ * Resolves a zero-row guarded cancel to its precise denial. The fresh read
+ * (the caller's executor observes whichever writer won the race) splits
+ * the three zero-row meanings: a vanished row is the canonical not-found
+ * denial, an already-cancelled row is the idempotent replay conflict (the
+ * denied call wrote nothing — the first cancel did), and any other status
+ * is the localized active-only deny. One bounded log each, ids only.
+ */
+export function resolveCancelDenial(
+  subscriptionId: number,
+  current: SubscriptionSelectType | null,
+  tErrors: ErrorsLabels
+): never {
+  if (current === null) {
+    logger.logDomainError("Subscription cancel denied: row does not exist", {
+      code: "NOT_FOUND",
+      entity: "subscriptions",
+      entityId: subscriptionId,
+    });
+    throw new NotFoundError("SUBSCRIPTION", tErrors.notFound);
+  }
+  if (current.status === STATUS_CANCELLED) {
+    logger.logDomainError("Subscription cancel denied: already cancelled (replay)", {
+      code: "CONFLICT",
+      entity: "subscriptions",
+      entityId: subscriptionId,
+    });
+    throw new ConflictError(tErrors.conflict);
+  }
+  logger.logDomainError("Subscription cancel denied: row is not active", {
+    code: "CONFLICT",
+    entity: "subscriptions",
+    entityId: subscriptionId,
+  });
+  throw new ConflictError(tErrors.subscriptionAdmin.notActive);
+}
 
 /**
  * Composes the audit-log write contract for a subscription lifecycle

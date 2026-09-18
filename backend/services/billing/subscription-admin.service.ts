@@ -32,6 +32,16 @@
  * committed claim that cannot resolve to a same-owner row (its result
  * row was deleted — the set-null FK) surfaces the localized
  * already-renewed conflict.
+ *
+ * Cancel semantics: the source row must be `active`, and the flip is
+ * BALANCE-PRESERVING — no lane balance column is read or written anywhere
+ * in the flow (deliberately asymmetric with the expiry sweep, which
+ * zeroes). The optional free-text reason is the audit trail's only free
+ * text: trimmed and bounded server-side before anything else runs. A
+ * zero-row guarded flip is disambiguated by a fresh read — an
+ * already-cancelled row is the idempotent replay conflict, a vanished row
+ * the canonical not-found denial, any other state the localized
+ * active-only deny.
  */
 
 import { PlanRepository } from "@/backend/db/repo/billing/plan.repository";
@@ -50,12 +60,15 @@ import { AuditService } from "@/backend/services/admin/audit.service";
 import { MAX_INTERVAL_DAYS } from "@/backend/services/billing/plan-catalog.helpers";
 import {
   buildSubscriptionAuditContract,
+  normalizeCancelReason,
+  resolveCancelDenial,
   SUBSCRIPTION_ADMIN_CLAIM_PREFIXES,
   subscriptionCreditLaneMemberOf,
   toSubscriptionAdminDomainError,
   toSubscriptionAdminReturnType,
 } from "@/backend/services/billing/subscription-admin.helpers";
 import type {
+  CancelSubscriptionSubmitInput,
   DBTransaction,
   ExtendSubscriptionSubmitInput,
   PlanSelectType,
@@ -441,6 +454,89 @@ export namespace SubscriptionAdminService {
         );
 
         return toSubscriptionAdminReturnType(created, tErrors);
+      });
+    } catch (error: unknown) {
+      throw toSubscriptionAdminDomainError(error, tErrors);
+    }
+  }
+
+  /**
+   * Cancels an `active` subscription WITHOUT touching any lane balance —
+   * the balance-preserving deny path (deliberately asymmetric with the
+   * expiry sweep, which zeroes).
+   *
+   * Fail-closed sequence: the optional free-text reason is trimmed and
+   * length-bounded pre-DB (it reaches the audit trail only inside the
+   * bound, and never enters a diagnostic log), the admin gate re-asserts
+   * the actor's role with zero writes on denial, and one transaction owns
+   * the guarded `cancelActiveOnce` transition plus the exactly-one audit
+   * row (`Suspend` on the `subscription` entity, details
+   * `{ fromStatus, toStatus, reason? }` — the reason is omitted entirely
+   * when not supplied). A zero-row guarded write is disambiguated by a
+   * fresh read on the same executor: a missing row denies with the
+   * canonical not-found error, an already-cancelled row surfaces the
+   * idempotent replay conflict (no second write, no second audit row),
+   * and any other state denies with the localized active-only conflict —
+   * all with zero writes. The guard lives entirely inside the UPDATE's
+   * WHERE (no read-then-write premise): the disambiguation read runs only
+   * after the write has already failed.
+   *
+   * @param input  The validated submit payload (subscription id + the
+   *     optional reason); the id arrives pre-coerced through the strict
+   *     numeric parse.
+   * @param actorId  The acting admin's user id (never client input).
+   * @param locale  Locale for the localized denial messages.
+   * @param tx  Optional caller transaction to join (test path:
+   *     SAVEPOINT) — the whole flow participates in the caller's unit.
+   * @returns The cancelled row in its canonical read shape.
+   */
+  export async function cancelSubscription(
+    input: CancelSubscriptionSubmitInput,
+    actorId: number,
+    locale: string,
+    tx?: DBTransaction
+  ): Promise<SubscriptionReturnType> {
+    const tErrors = getServerTranslations(locale).errorsTranslations;
+
+    // Pre-DB input validation — the optional reason is normalized before
+    // the gate or any write, so an overlong submit costs zero reads.
+    const reason = normalizeCancelReason(input.reason, input.subscriptionId, tErrors);
+
+    // Defense-in-depth BFLA gate — zero writes, zero audit rows on denial.
+    await assertActorAdmin(actorId, locale, tx);
+
+    try {
+      return await withTransaction(tx, async scopedTx => {
+        // The guarded single UPDATE is the write decision: its WHERE
+        // predicate re-asserts `active` under the row lock, so a
+        // concurrent writer (extend, plan change, sweep) or an identical
+        // double-submit matches zero rows instead of flipping twice. The
+        // statement patches ONLY status + updated_at — no lane balance
+        // column exists anywhere in this flow.
+        const cancelled = await SubscriptionRepository.cancelActiveOnce(input.subscriptionId, scopedTx);
+        if (cancelled === null) {
+          // Zero rows = replay, wrong state, or a missing row — the fresh
+          // read disambiguates and the chosen denial mints nothing.
+          const current = await SubscriptionRepository.findById(input.subscriptionId, scopedTx);
+          resolveCancelDenial(input.subscriptionId, current, tErrors);
+        }
+
+        // Exactly ONE audit row shares the transaction's fate. The
+        // from/to statuses flow from the enum members (the guard pins the
+        // from side); the reason is the trail's only free text.
+        const auditDetails: Record<string, unknown> = {
+          fromStatus: SubscriptionStatus.Active,
+          toStatus: SubscriptionStatus.Cancelled,
+        };
+        if (reason !== undefined) {
+          auditDetails.reason = reason;
+        }
+        await AuditService.createAuditLog(
+          buildSubscriptionAuditContract(actorId, AuditActionType.Suspend, cancelled.id, auditDetails),
+          scopedTx
+        );
+
+        return toSubscriptionAdminReturnType(cancelled, tErrors);
       });
     } catch (error: unknown) {
       throw toSubscriptionAdminDomainError(error, tErrors);
