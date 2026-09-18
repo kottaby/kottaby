@@ -967,8 +967,9 @@ describe("cross-actor journey: admin financial auditing (payout settlement + adj
     const adminAuditsBefore = await countAuditLogsForActor(adminActor.userId);
 
     // Re-settle attempts on the now-failed row: both settle paths fail
-    // closed through the real guarded-settle gate with the localized
-    // not-pending conflict.
+    // closed at the settlement PROBE with the localized not-pending conflict
+    // (service.ts:207-214 approve / :292-299 reject) — the guarded-UPDATE
+    // miss is the concurrent-race-only path, not this sequential replay.
     await expectNotPending(() =>
       AdminFinancialAuditingService.approveWithdrawal(adminActor.userId, pending.id, LOCALE)
     );

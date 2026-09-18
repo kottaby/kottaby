@@ -40,3 +40,19 @@
 **Cumulative round ledger:** R1 — 2 LOW fixed; R2 — 1 LOW + 2 INFO fixed; R3 — 0 (independent, no findings); R4 — 1 LOW + 1 INFO → fixed.
 
 **Next:** round 5 (independent) follows.
+## Round 5 fixes
+
+**Wave:** round 5 — combined 5-hat review: 5 LOW + 1 INFO, all documentation/anchor precision (one comment-only test-file edit) — zero code-behavior changes.
+
+1. **[LOW] Matrix REQ-008/REQ-702 rows predate ledger D9** — `outcome/verification-matrix.md:41,66`: both rows still counted "D1–D8"/"8/8 rows" after round 4 appended D9. Rows updated to D1–D9 / 9/9 rows 🔄 Open; REQ-702's mapping note extended with `D9→REQ-008/REQ-702` (planning-docs `>= 0` drift), REQ-008's Notes cell records the round-4 D9 addition; the §6 summary count carried the same stale figure and was corrected to "D1–D9 = 9".
+2. **[LOW] Dead per-leg zero-dispatch anchor (REQ-506 row)** — `outcome/verification-matrix.md:59`: the step-2 guard was cited `JRNL:610-611` (now `adjustmentInput(...)` args — dead after the step-8 insertions shifted lines); corrected to the live step-2 guard `:597-598` (`expectNoDispatches()` + DB-side zero-rows assert).
+3. **[LOW] Queue-read citations missed the surfaced-row read** — `outcome/verification-matrix.md:67,92,101`: all three `JRNL:529-538` cites covered settled-row asserts + the drain re-read, missing the queue read + surfaced-row assertions. All three rows now cite `:517-524`; the REQ-801 pagination row additionally keeps the drain-re-read evidence its old span had covered (drain re-read `:533-538`, absence assert `:539`).
+4. **[LOW] Addendum step-6 bullet mis-stated the race's actors** — `docs/billing/admin-financial-auditing.md:301`: "two admins approve the same pending request" is wrong — journey step 6 races two concurrent approve calls from the SAME admin actor (`adminActor.userId` twice, journey `:832-835`). Reworded to "two concurrent approve calls (same admin actor) target the same pending request"; bullet structure/length preserved.
+5. **[LOW] Stale spy-install anchor in deferred-items D1** — `deferred-items.md:19`: cited `admin-financial-auditing.journey.test.ts:429-433` for the spy install; the step-8 insertions moved it to `:445-447`. Anchor refreshed (the `:222-228` oracle-docblock cite and the rest of the row untouched).
+6. **[INFO] Step-8 replay comment named the wrong gate** — `test/workflows/billing/admin-financial-auditing.journey.test.ts:969-971`: the comment claimed both sequential replay denials fire "through the real guarded-settle gate"; for a sequential replay the denial fires at the settlement PROBE (`service.ts:207-214` approve / `:292-299` reject) — the guarded-UPDATE miss is the concurrent-race-only path. Comment-only precision fix; no behavior change.
+
+**Verification:** sub-loop `scripts/health/sub-loop.ts … --lifecycle duplicates` → **exit 0**; journey suite `bun run test/scripts/run-test.ts test/workflows/billing/admin-financial-auditing.journey.test.ts` → **8 pass / 0 fail**; every new markdown anchor re-verified at the branch tip via `git show`/sed (queue read `:517-524`, drain re-read `:533-538` + absence assert `:539`, step-2 guard `:597-598`, per-leg cites `:560-561`/`:820-821`/`:863-864`/`:990-991`, spy install `:445-447`, same-actor race `:832-835`, settlement probes `:207-214`/`:292-299`).
+
+**Cumulative round ledger:** R1 — 2 LOW; R2 — 3 (1 LOW + 2 INFO); R3 — 0; R4 — 2 (1 LOW + 1 INFO); R5 — 6 (5 LOW + 1 INFO) → all fixed.
+
+**Next:** round 6 (independent) follows.
