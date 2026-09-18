@@ -159,16 +159,16 @@
 - [x] 4.1.SR **Semantic Review**: zero unresolved ❌/⚠️ rows; every "verified" claim carries a citation from this run.
 - [x] 4.1.IV **Instruction Verification**: templates re-read (`tasks-template.md` traceability rules).
 
-### - [ ] 4.2 Final Gate: Deferred-Items Enforcement & Baseline Compare
+### - [x] 4.2 Final Gate: Deferred-Items Enforcement & Baseline Compare
 - Enforce the ledger: `grep -cE '^\| D[0-9]+ .*\| (❌|⚠️) ' ai/plans/milestone_2_matching_notifications_escrow/teacher_withdrawal_workflow_&_admin_approval-withdrawal_workflow_admin_approval/deferred-items.md` — expected 0 (all rows are ✅ Done or 🔄 Open forward-contracts with named owners, per `deferred-items.md`'s status legend; the row-scoped pattern avoids matching the legend's own vocabulary lines).
 - Compare current `bun tsgo` error count and `bun run scripts/lint-service.ts --json --id final` against the Phase-0 `/tmp/baseline-*` — document the delta (expected: 0 new errors; the journey-test edit is covered by its own sub-loop pass).
 - Mark every task in this file `[x]` as its gates pass.
 - _Requirements: REQ-001, REQ-002, REQ-003, REQ-004, REQ-702_
-- [ ] 4.2.QL **Quality Loop**: run `bun run scripts/health/sub-loop.ts test/workflows/billing/admin-financial-auditing.journey.test.ts --lifecycle duplicates` once more (the only TS file this plan edited) — exit 0.
-- [ ] 4.2.TE **Test Engineering**: final full-suite pass summary quoted from real output.
-- [ ] 4.2.SEC **Security & Tenancy Audit**: final sweep — no client-supplied id used without ownership/role proof anywhere the plan touched; tenancy filters intact.
-- [ ] 4.2.SR **Semantic Review**: no dead code introduced; no cross-layer imports in the journey edit; enums value-imported; zero plan-artifact references in code comments.
-- [ ] 4.2.IV **Instruction Verification**: sub-loop's printed AGENTS.md + instruction files re-validated.
+- [x] 4.2.QL **Quality Loop**: run `bun run scripts/health/sub-loop.ts test/workflows/billing/admin-financial-auditing.journey.test.ts --lifecycle duplicates` once more (the only TS file this plan edited) — exit 0.
+- [x] 4.2.TE **Test Engineering**: final full-suite pass summary quoted from real output.
+- [x] 4.2.SEC **Security & Tenancy Audit**: final sweep — no client-supplied id used without ownership/role proof anywhere the plan touched; tenancy filters intact.
+- [x] 4.2.SR **Semantic Review**: no dead code introduced; no cross-layer imports in the journey edit; enums value-imported; zero plan-artifact references in code comments.
+- [x] 4.2.IV **Instruction Verification**: sub-loop's printed AGENTS.md + instruction files re-validated.
 
 ### - [ ] 4.3 Knowledge Propagation — `docs/billing/` addendum + outcome synthesis
 - Read ALL files in `outcome/`; extract recurring patterns and pitfalls.
