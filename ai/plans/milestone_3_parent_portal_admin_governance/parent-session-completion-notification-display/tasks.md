@@ -287,14 +287,14 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
 
 ### Task 10 — Knowledge Propagation (MANDATORY final task)
 
-- [ ] 10.1 Extend the monitoring-portal canonical doc + outcome synthesis
+- [x] 10.1 Extend the monitoring-portal canonical doc + outcome synthesis
   - EXTEND `docs/parents/monitoring-portal.md` DEV1-017 display-contract section (`:307` area): the SessionCompletion deep-link contract — entry URL `/parent/children?session=<id>`, canonical R16 landing `/parent/children/<studentId>?tab=reports&session=<id>` (`:207`), two-hop resolution (R-D), the constant-denial oracle, and the one-link-three-tabs content promise (R-G). "Link invite, not content mirror" per `docs/sessions/session-report-homework.md:81`.
   - Read ALL outcome files in `outcome/` to synthesize carry-over knowledge.
   - AGENTS.md files and `.agents/instructions/*.instructions.md` are hand-curated: plan work NEVER creates or updates them. Durable knowledge goes to `docs/parents/monitoring-portal.md` and this plan's outcome files ONLY.
   - TE: N/A (documentation task) · SEC: N/A (docs only — verify no session/child PII in examples)
-  - [ ] 10.1.QL **Quality Loop**: sub-loop exit 0 on the edited `.md` (doc lint lanes apply)
-  - [ ] 10.1.SR **Semantic Review**: doc matches the SHIPPED behavior (cross-check against outcomes, not plan intent alone); markdown link integrity verified
-  - [ ] 10.1.IV **Instruction Verification**: `.agents/spec-process-guide/` docs conventions followed
+  - [x] 10.1.QL **Quality Loop**: sub-loop exit 0 on the edited `.md` (doc lint lanes apply)
+  - [x] 10.1.SR **Semantic Review**: doc matches the SHIPPED behavior (cross-check against outcomes, not plan intent alone); markdown link integrity verified
+  - [x] 10.1.IV **Instruction Verification**: `.agents/spec-process-guide/` docs conventions followed
   - Write outcome: `outcome/10-knowledge-propagation-outcome.md`
   - _Requirements: REQ-061_
 
