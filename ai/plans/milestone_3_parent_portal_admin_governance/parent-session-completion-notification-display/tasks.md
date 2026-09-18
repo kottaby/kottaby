@@ -238,7 +238,7 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
 
 ### Task 7 — Portal-root session resolution flow (R-D)
 
-- [ ] 7.1 Extract `?session=` + two-hop resolve in the root container
+- [x] 7.1 Extract `?session=` + two-hop resolve in the root container
   - MODIFY `app/(dashboard)/parent/children/page.tsx`: extract `?session=` from `searchParams` using the existing firstValueOf pattern and pass it through as a plain prop; server shell stays guard-only (no data fetch, no redirect on the server).
   - MODIFY `frontend/views/parent/monitoring/ParentChildrenRootContainer.tsx` (+parts/body files as needed):
     - Skip-guarded `useQuery(parentSessionTargetQueryDocument)` when `?session=` is present.
@@ -246,11 +246,11 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
     - On FORBIDDEN failure: show a transient localized notice using the Task 2 key (`useAppTranslation(ParentMonitoring)` handle constant), then fall through to the existing first-child auto-select.
     - Race suppression: while `?session=` is present and unresolved, the session flow owns navigation — the auto-select effect must not fire (R-D).
   - Container tests: success replace, failure notice + fallback, no auto-select race (mirror the existing root-container test conventions; run via `bun run test/scripts/run-test.ts <path>`).
-  - [ ] 7.1.QL **Quality Loop**: sub-loop exit 0 on every touched file (page shell, container, parts, tests)
-  - [ ] 7.1.TE **Test Engineering**: Tier 1 all three flow branches; Tier 2 absent/empty/malformed `?session=` value (non-numeric → treated as failure notice path, never a crash); Tier 3 auto-select-vs-resolution race (resolution pending ⇒ auto-select suppressed; resolution done ⇒ replace fired exactly once); Tier 4 unlinked-session probe renders zero child data
-  - [ ] 7.1.SEC **Security & Tenancy Audit**: resolution failure reveals nothing beyond the constant notice (existence non-disclosure client-side); no session fields rendered before the gate passes
-  - [ ] 7.1.SR **Semantic Review**: no parallel URL state divergence; MUI v9 `sx` only, no style props, no hardcoded colors; `next/navigation` conventions verified against `node_modules/next/dist/docs/` before writing
-  - [ ] 7.1.IV **Instruction Verification**: `app/AGENTS.md` + `frontend/views/AGENTS.md` + `frontend.instructions.md` read
+  - [x] 7.1.QL **Quality Loop**: sub-loop exit 0 on every touched file (page shell, container, parts, tests)
+  - [x] 7.1.TE **Test Engineering**: Tier 1 all three flow branches; Tier 2 absent/empty/malformed `?session=` value (non-numeric → treated as failure notice path, never a crash); Tier 3 auto-select-vs-resolution race (resolution pending ⇒ auto-select suppressed; resolution done ⇒ replace fired exactly once); Tier 4 unlinked-session probe renders zero child data
+  - [x] 7.1.SEC **Security & Tenancy Audit**: resolution failure reveals nothing beyond the constant notice (existence non-disclosure client-side); no session fields rendered before the gate passes
+  - [x] 7.1.SR **Semantic Review**: no parallel URL state divergence; MUI v9 `sx` only, no style props, no hardcoded colors; `next/navigation` conventions verified against `node_modules/next/dist/docs/` before writing
+  - [x] 7.1.IV **Instruction Verification**: `app/AGENTS.md` + `frontend/views/AGENTS.md` + `frontend.instructions.md` read
   - Write outcome: `outcome/7.1-portal-root-resolution-outcome.md`
   - _Requirements: REQ-011, REQ-012_
 
