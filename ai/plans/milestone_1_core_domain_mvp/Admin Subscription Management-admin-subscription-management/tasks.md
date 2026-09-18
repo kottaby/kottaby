@@ -31,7 +31,7 @@
 
 ## Phase 1 — Foundation (types, enum, i18n skeleton)
 
-- [ ] **1. Types + enum + i18n skeleton**
+- [x] **1. Types + enum + i18n skeleton**
   - Create `backend/types/billing/subscription-admin.types.ts` with the input/result types from plan.md §3.4 (ProrationComputation, Extend/Renew/Cancel/Change inputs); register `export * from "./subscription-admin.types"` in `backend/types/billing/index.ts`.
   - Create `backend/enum/billing/proration-direction.enum.ts` (`export enum ProrationDirection { Upgrade = "upgrade", Downgrade = "downgrade" }`); register in `backend/enum/billing/index.ts` (barrel re-export) — verify shape against `subscription-status.enum.ts:6-11`.
   - Extend errors namespace: add `subscriptionAdmin: { … }` group under errorsTranslations for the new denial messages (`notActive`, `notExpired`, `incompatibleLane`, `inactivePlan`, `samePlan`, `prorationOverflow`, `alreadyRenewed`, `alreadyPlanChanged`) — add to `shared/locale/types/errors/index.ts`, `shared/locale/en/errors/index.ts`, `shared/locale/ar/errors/index.ts` (verbatim translations, no machine-garbled Arabic).
