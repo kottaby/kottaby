@@ -1,6 +1,6 @@
 /**
- * ParentMonitoringPothosObjects — the ten GraphQL presentations backing the
- * parent portal read surfaces.
+ * ParentMonitoringPothosObjects — the eleven GraphQL presentations backing
+ * the parent portal read surfaces.
  *
  * Single Canonical Object Type Pattern (`backend/graphql/AGENTS.md`):
  *  - Backed EXCLUSIVELY by the canonical parent-monitoring return types from
@@ -15,8 +15,8 @@
  *  - `id` is the FIRST exposed field on every entity-shaped object and
  *    non-nullable (`t.exposeID` → `ID!`) — Apollo normalization requires a
  *    stable entity key at the first field. The four page wrapper objects
- *    and the two composite value objects (`ParentHomeworkTrack`,
- *    `ParentHomeworkPosition`, `ParentChildProgress`) carry no row id and
+ *    and the value objects (`ParentHomeworkTrack`, `ParentHomeworkPosition`,
+ *    `ParentChildProgress`, `ParentSessionTarget`) carry no row id and
  *    expose their structural fields directly.
  *  - Enum fields reference the ONCE-registered `SessionStatusPothosEnum`
  *    and `SurahJuzRefPothosEnum` from `shared/enum.pothos.ts`. Domain
@@ -59,6 +59,7 @@ import type {
   ParentLinkedChildReturnType,
   ParentReportEntryReturnType,
   ParentReportPageReturnType,
+  ParentSessionTargetReturnType,
 } from "@/backend/types/parents";
 
 /**
@@ -337,5 +338,25 @@ export const ParentChildProgressPothosObject = gqlSchemaBuilder
         nullable: true,
         resolve: parent => parent.latestMadiPosition,
       }),
+    }),
+  });
+
+/**
+ * The canonical `ParentSessionTarget` GraphQL object — the closed
+ * two-field resolution of a completion notification's session pointer:
+ * the session id plus the linked child who owns it. A value object with
+ * no row id — the portal root builds the deep-link landing URL from the
+ * pair alone, and nothing else about the session crosses the boundary.
+ */
+export const ParentSessionTargetPothosObject = gqlSchemaBuilder
+  .objectRef<ParentSessionTargetReturnType>("ParentSessionTarget")
+  .implement({
+    fields: t => ({
+      // The resolved session id — `Int!` (the pointer value the parent
+      // followed from the completion notification row).
+      sessionId: t.exposeInt("sessionId"),
+      // The linked child who owns the session — `Int!` (the landing
+      // route's student segment).
+      studentId: t.exposeInt("studentId"),
     }),
   });

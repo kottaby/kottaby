@@ -177,3 +177,15 @@ export interface ParentChildProgressReturnType {
   readonly latestJadidPosition: ParentHomeworkPositionReturnType | null;
   readonly latestMadiPosition: ParentHomeworkPositionReturnType | null;
 }
+
+/**
+ * The closed two-field resolution of a completion notification's session
+ * pointer: the session id the row carried plus the linked child who owns
+ * it. A value object with no row id — the portal builds the deep-link
+ * landing URL from the pair alone, and nothing else about the session is
+ * disclosed through it.
+ */
+export interface ParentSessionTargetReturnType {
+  readonly sessionId: number;
+  readonly studentId: number;
+}

@@ -16,6 +16,7 @@ export const parentMonitoringAr: ParentMonitoringLabels = {
   childrenEmptyTitle: "لا يوجد أبناء مرتبطون بعد",
   childrenEmptyBody: "بمجرد أن يؤكد طفلك طلب الربط، سيظهر هنا.",
   childrenEmptyCta: "إرسال طلب ربط",
+  sessionTargetUnavailableNotice: "تفاصيل هذه الجلسة لم تعد متاحة.",
 
   // ─── Detail page header ─────────────────────────────────────────────────
   detailPageTitle: (childName: string) => `تقدّم ${childName}`,

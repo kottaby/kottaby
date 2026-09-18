@@ -4,7 +4,8 @@
  *
  *  Surfaces covered:
  *  1. Portal root (`/parent/children`) — the linked-children list, child
- *     switcher, and the zero-children empty state with a handshake CTA.
+ *     switcher, the zero-children empty state with a handshake CTA, and
+ *     the transient notice for an unresolvable session deep link.
  *  2. Child detail (`/parent/children/<studentId>`) — header, MUI Tabs
  *     strip (attendance / reports / homework / evaluations / progress),
  *     per-tab empty states, and per-tab column headers.
@@ -56,6 +57,15 @@ export interface ParentMonitoringLabels {
   readonly childrenEmptyBody: string;
   /** CTA label deep-linking to the parent handshake route. */
   readonly childrenEmptyCta: string;
+  /**
+   * Transient inline notice shown on the portal root when a session
+   * deep link fails to resolve (stale link, severed link, or a session
+   * outside this parent's scope). States unavailability only — the copy
+   * MUST stay free of session ids, child names, grades, scores, notes,
+   * and digits (existence non-disclosure); the portal then falls through
+   * to its normal first-child behavior.
+   */
+  readonly sessionTargetUnavailableNotice: string;
 
   // ─── Detail page header ─────────────────────────────────────────────────
   /**

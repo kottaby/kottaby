@@ -1,5 +1,5 @@
 /**
- * Parent-monitoring portal queries — the five parent-only read surfaces.
+ * Parent-monitoring portal queries — the six parent-only read surfaces.
  *
  * Per `backend/graphql/query/AGENTS.md`:
  *  - NO named exports — the root fields register at import time via
@@ -30,6 +30,13 @@
  *  - `parentChildHomework(studentId: Int!, page: Int, pageSize: Int)` —
  *    homework rows with the two parallel Jadid/Madi track blocks, paged
  *    newest-session-first.
+ *  - `parentSessionTarget(sessionId: Int!)` — the closed `{ sessionId,
+ *    studentId }` pair resolving one completion-notification session
+ *    pointer onto the LINKED child who owns it (the deep-link landing
+ *    read). The only caller-supplied identity on the field is the
+ *    session id from the notification row's pointer; a missing or
+ *    foreign session collapses to the same constant denial — existence
+ *    non-disclosure for session-id probing.
  *
  * authScopes 401/403 split (verified against @pothos/plugin-scope-auth):
  *  - Every field carries the EXPLICIT `$all` conjunction (the proven
@@ -84,6 +91,7 @@ import {
   ParentHomeworkPagePothosObject,
   ParentLinkedChildPothosObject,
   ParentReportPagePothosObject,
+  ParentSessionTargetPothosObject,
 } from "@/backend/graphql/pothos/parents/parent-monitoring.pothos";
 import { UnauthorizedError } from "@/backend/lib/errors";
 import { ParentMonitoringService } from "@/backend/services";
@@ -235,6 +243,27 @@ gqlSchemaBuilder.queryField("parentChildHomework", t =>
         { page: args.page ?? undefined, pageSize: args.pageSize ?? undefined },
         ctx.locale
       );
+    },
+  })
+);
+
+// Side-effect: register the `parentSessionTarget` query field.
+gqlSchemaBuilder.queryField("parentSessionTarget", t =>
+  t.field({
+    type: ParentSessionTargetPothosObject,
+    args: {
+      sessionId: t.arg.int({ required: true }),
+    },
+    description:
+      "The closed id pair resolving one completion-notification session pointer: the session id plus the linked child who owns it. A missing or foreign session is indistinguishable on the wire — both collapse to the same constant denial (existence non-disclosure); a non-positive session id is rejected as a validation failure before any gate or read. The deep-link landing route is constructed from the pair alone.",
+    authScopes: parentOnlyAuthScopes,
+    resolve: async (_root, args, ctx) => {
+      // TypeScript narrowing only — see the `myLinkedChildren` note.
+      if (!ctx.user) {
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
+      }
+      return ParentMonitoringService.getSessionTarget(ctx.user.id, args.sessionId, ctx.locale);
     },
   })
 );

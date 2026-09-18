@@ -99,7 +99,7 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
 
 ### Task 0 — Pre-Implementation Baseline (MANDATORY)
 
-- [ ] 0.1 Record baseline + create deferred-items ledger
+- [x] 0.1 Record baseline + create deferred-items ledger
   - Record baseline error counts BEFORE any implementation:
     ```bash
     bun tsgo 2>&1 | grep "error TS" | wc -l > /tmp/baseline-tsgo.txt
@@ -109,17 +109,17 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
   - Record the resolver-suite status at implementation start in the outcome: `frontend/lib/notification-route-resolution.test.ts` was RED at planning (5 pass / 2 fail, stale type-first argument order — research-00 §2 history) → RECONCILED out-of-band 2026-09-17, pre-implementation (standalone fix outside this plan): now green, 8 pass / 0 fail via `bun run test/scripts/run-test.ts frontend/lib/notification-route-resolution.test.ts`. Record the CURRENT counts in the outcome so Task 6's Parent-cell additions are provably regression-free. Do NOT run raw `bun test` as a task step here — the fact is already verified in `research-00` §2.
   - Create ledger: `ai/plans/milestone_3_parent_portal_admin_governance/parent-session-completion-notification-display/deferred-items.md` (template `.agents/spec-process-guide/templates/deferred-items-template.md`); pre-seed the known forward items (e.g. DEV1-017 display-contract doc extension lands in Task 10).
   - Read ALL files in `outcome/` (research-00..04) before proceeding.
-  - [ ] 0.1.QL **Quality Loop**: N/A — no runtime code changed (ledger + outcome are `.md`)
-  - [ ] 0.1.TE **Test Engineering**: N/A — process task; baseline counts recorded verbatim
-  - [ ] 0.1.SEC **Security & Tenancy Audit**: N/A — no code surface
-  - [ ] 0.1.SR **Semantic Review**: baseline deltas attributable before implementation; ledger rows intact with zero `❌`/`⚠️`
-  - [ ] 0.1.IV **Instruction Verification**: read root `AGENTS.md` in full
+  - [x] 0.1.QL **Quality Loop**: N/A — no runtime code changed (ledger + outcome are `.md`)
+  - [x] 0.1.TE **Test Engineering**: N/A — process task; baseline counts recorded verbatim
+  - [x] 0.1.SEC **Security & Tenancy Audit**: N/A — no code surface
+  - [x] 0.1.SR **Semantic Review**: baseline deltas attributable before implementation; ledger rows intact with zero `❌`/`⚠️`
+  - [x] 0.1.IV **Instruction Verification**: read root `AGENTS.md` in full
   - Write outcome: `outcome/0-baseline-outcome.md`
   - _Requirements: REQ-000_
 
 ### Task 1 — Journey J1 (TEST-FIRST)
 
-- [ ] 1.1 Author journey J1: parent session-completion deep link
+- [x] 1.1 Author journey J1: parent session-completion deep link
   - CREATE `test/workflows/parents/parent-session-completion-deep-link.journey.test.ts` encoding research-00 §7 EXACTLY, TEST-FIRST (RED until Tasks 3-6 land):
     - Read `test/workflows/AGENTS.md` + `docs/testing/workflow-journey-tests.md` FIRST; precedent deep-link journey `test/workflows/parents/parent-monitoring.journey.test.ts:790-807`.
     - **Step 1** Teacher submits the session report → emission receipts prepared for student + linked parent, published post-commit — SPY the notification dispatch boundary (`docs/testing/workflow-journey-tests.md:86-92`), NEVER real channels.
@@ -130,33 +130,33 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
     - **Step 6** Negative: foreign parent → `getSessionTarget` throws the constant localized `ForbiddenError`, byte-identical to the nonexistent-session case.
     - Honest role auth via real user roles + localized error substrings (`docs/testing/workflow-journey-tests.md:77-84`); committed `beforeAll` fixtures + FK-safe tracked `afterAll` teardown (`:64-70`); NO `runInRollback` (`:55-58`).
   - Runner: `bun run test/scripts/run-test.ts test/workflows/parents/parent-session-completion-deep-link.journey.test.ts` — NEVER raw `bun test` on journeys; no `test:workflows` script exists.
-  - [ ] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts test/workflows/parents/parent-session-completion-deep-link.journey.test.ts --lifecycle duplicates` exit 0
-  - [ ] 1.1.TE **Test Engineering**: the journey IS the cross-tier contract (Tier 1: all six steps; Tier 2: absent/empty `relatedEntityId` row, foreign-session boundary; Tier 3: emission-before-read ordering; Tier 4: foreign-parent + unlinked-child denial probes)
-  - [ ] 1.1.SEC **Security & Tenancy Audit**: cross-actor table from research-00 §7 asserted verbatim (teacher cannot resolve parent sessions; student cannot resolve targets; parent cannot resolve foreign sessions)
-  - [ ] 1.1.SR **Semantic Review**: cleanup airtight (afterAll hard-deletes tracked fixtures even on failure); dispatch spy never leaks to real channels
-  - [ ] 1.1.IV **Instruction Verification**: `test/workflows/AGENTS.md` + `tests.instructions.md` read
+  - [x] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts test/workflows/parents/parent-session-completion-deep-link.journey.test.ts --lifecycle duplicates` exit 0
+  - [x] 1.1.TE **Test Engineering**: the journey IS the cross-tier contract (Tier 1: all six steps; Tier 2: absent/empty `relatedEntityId` row, foreign-session boundary; Tier 3: emission-before-read ordering; Tier 4: foreign-parent + unlinked-child denial probes)
+  - [x] 1.1.SEC **Security & Tenancy Audit**: cross-actor table from research-00 §7 asserted verbatim (teacher cannot resolve parent sessions; student cannot resolve targets; parent cannot resolve foreign sessions)
+  - [x] 1.1.SR **Semantic Review**: cleanup airtight (afterAll hard-deletes tracked fixtures even on failure); dispatch spy never leaks to real channels
+  - [x] 1.1.IV **Instruction Verification**: `test/workflows/AGENTS.md` + `tests.instructions.md` read
   - Write outcome: `outcome/1.1-journey-outcome.md`
   - _Requirements: REQ-051, REQ-016_
 
 ### Task 2 — i18n key triple (`sessionTargetUnavailableNotice`)
 
-- [ ] 2.1 Add the single `parentMonitoring` key family (R-H)
+- [x] 2.1 Add the single `parentMonitoring` key family (R-H)
   - MODIFY `shared/locale/types/parentMonitoring/index.ts` — add `sessionTargetUnavailableNotice: string` to the labels shape.
   - MODIFY `shared/locale/en/parentMonitoring/index.ts` — English copy.
   - MODIFY `shared/locale/ar/parentMonitoring/index.ts` — full Arabic parity, RTL-correct string.
   - `shared/locale/notifications-namespace.parity.test.ts` is byte-frozen (NOT touched — the `notifications` namespace is byte-frozen, R-A); the parity belt EXTENDED is `shared/locale/parentMonitoring-namespace.parity.test.ts` (the `parentMonitoring` namespace parity test) — extend it so the new key is pinned en/ar.
   - NO new namespace; NO `Translation.` enum (none exists); handle constants (`ParentMonitoring`) from `@/shared/locale` per `ParentChildrenRootContainer.tsx:22` convention; NO changes to `shared/locale/types/notifications/` or `en/ar/notifications/` copy.
-  - [ ] 2.1.QL **Quality Loop**: sub-loop exit 0 on all three touched files + the parity test file
-  - [ ] 2.1.TE **Test Engineering**: parity test extension proves en/ar key/shape parity for `sessionTargetUnavailableNotice` (Tier 1) including the RTL Arabic string (Tier 2); run via `bun run test/scripts/run-test.ts <parity-test-path>`
-  - [ ] 2.1.SEC **Security & Tenancy Audit**: N/A — copy-only; verify no session/child data strings hardcoded in the notice
-  - [ ] 2.1.SR **Semantic Review**: shared layer purity (no `@/frontend`/`@/backend` imports); exactly ONE key family added — nothing else in the namespace changed
-  - [ ] 2.1.IV **Instruction Verification**: `shared/AGENTS.md` + `shared/locale/AGENTS.md` + `tests.instructions.md` read
+  - [x] 2.1.QL **Quality Loop**: sub-loop exit 0 on all three touched files + the parity test file
+  - [x] 2.1.TE **Test Engineering**: parity test extension proves en/ar key/shape parity for `sessionTargetUnavailableNotice` (Tier 1) including the RTL Arabic string (Tier 2); run via `bun run test/scripts/run-test.ts <parity-test-path>`
+  - [x] 2.1.SEC **Security & Tenancy Audit**: N/A — copy-only; verify no session/child data strings hardcoded in the notice
+  - [x] 2.1.SR **Semantic Review**: shared layer purity (no `@/frontend`/`@/backend` imports); exactly ONE key family added — nothing else in the namespace changed
+  - [x] 2.1.IV **Instruction Verification**: `shared/AGENTS.md` + `shared/locale/AGENTS.md` + `tests.instructions.md` read
   - Write outcome: `outcome/2.1-i18n-outcome.md`
   - _Requirements: REQ-041_
 
 ### Task 3 — Backend read surface (`parentSessionTarget`)
 
-- [ ] 3.1 Type + service + query field (R-C, signatures frozen in research-00 §4)
+- [x] 3.1 Type + service + query field (R-C, signatures frozen in research-00 §4)
   - MODIFY `backend/types/parents/parent-monitoring.types.ts` — append verbatim:
     ```typescript
     export interface ParentSessionTargetReturnType {
@@ -169,11 +169,11 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
     Flow (research-00 §4): `isPositiveSafeInt(sessionId)` else `ValidationError` → `requireActor(parentActorId, UserRole.Parent, locale, tx, false)` → `enforcePortalRateLimit(parentActorId, locale)` → ONE repeatable-read transaction: `SessionRepository.findById(sessionId, tx)` → null ⇒ constant `ForbiddenError` via `getServerTranslations(locale)` denial copy; log context `{ code, entity: "sessions", entityId: sessionId, locale }` ONLY via `@/backend/lib/logger` `logDomainError` — never session row fields (R4) → `requireLinkedChild(parentActorId, row.studentId, locale, tx)` → return `{ sessionId: row.id, studentId: row.studentId }`.
     NO new repository method; NO new table (R-C/R-K).
   - MODIFY `backend/graphql/query/parents/parent-monitoring.query.ts` — add field `parentSessionTarget(sessionId: Int!): ParentSessionTarget!` (wire name; TS interface stays `ParentSessionTargetReturnType`) with `authScopes: parentOnlyAuthScopes` (the shared parent-scoped const at `parent-monitoring.query.ts:102-107` used by all five portal fields — NOT an inline duplicate object; load-bearing `$all` conjunction, portal R13); resolver delegates to `ParentMonitoringService.getSessionTarget(ctx.user.id, args.sessionId, ctx.locale)`; `UserRole` VALUE import. Register the `ParentSessionTarget` objectRef as `.objectRef<ParentSessionTargetReturnType>("ParentSessionTarget")` beside the existing parent-monitoring object refs — locate the registration file via the query file's existing imports; do NOT invent a location.
-  - [ ] 3.1.QL **Quality Loop**: sub-loop exit 0 per file, order: types → service → query file
-  - [ ] 3.1.TE **Test Engineering**: EXTEND `parent-monitoring.service.test.ts` per research-00 §8 — happy path; missing session → constant denial; foreign → constant denial; non-positive/non-integer `sessionId` → `ValidationError`; rate-limit passthrough; follow the file's existing mocking conventions. Run via `bun run test/scripts/run-test.ts <path>`. Tier 2: `sessionId` 0/-1/fractional/2^31; Tier 4: oracle-uniformity (nonexistent ≡ foreign copy byte-identical, en AND ar)
-  - [ ] 3.1.SEC **Security & Tenancy Audit**: BOLA — identity from `ctx.user.id` only, no parent-id arg; BFLA — non-parent roles denied pre-service by `$all` authScopes; composite relation — `requireLinkedChild` gates `row.studentId` before return; denial carries zero session fields (BOPLA output side)
-  - [ ] 3.1.SR **Semantic Review**: exactly one bounded log per denial; single transaction (gate + read sealed); enum VALUE imports; no dead branches
-  - [ ] 3.1.IV **Instruction Verification**: `backend/types|services|graphql AGENTS.md` + `backend.instructions.md` read per sub-loop discovery
+  - [x] 3.1.QL **Quality Loop**: sub-loop exit 0 per file, order: types → service → query file
+  - [x] 3.1.TE **Test Engineering**: EXTEND `parent-monitoring.service.test.ts` per research-00 §8 — happy path; missing session → constant denial; foreign → constant denial; non-positive/non-integer `sessionId` → `ValidationError`; rate-limit passthrough; follow the file's existing mocking conventions. Run via `bun run test/scripts/run-test.ts <path>`. Tier 2: `sessionId` 0/-1/fractional/2^31; Tier 4: oracle-uniformity (nonexistent ≡ foreign copy byte-identical, en AND ar)
+  - [x] 3.1.SEC **Security & Tenancy Audit**: BOLA — identity from `ctx.user.id` only, no parent-id arg; BFLA — non-parent roles denied pre-service by `$all` authScopes; composite relation — `requireLinkedChild` gates `row.studentId` before return; denial carries zero session fields (BOPLA output side)
+  - [x] 3.1.SR **Semantic Review**: exactly one bounded log per denial; single transaction (gate + read sealed); enum VALUE imports; no dead branches
+  - [x] 3.1.IV **Instruction Verification**: `backend/types|services|graphql AGENTS.md` + `backend.instructions.md` read per sub-loop discovery
   - Write outcome: `outcome/3.1-backend-read-surface-outcome.md`
   - _Requirements: REQ-020, REQ-030_
 

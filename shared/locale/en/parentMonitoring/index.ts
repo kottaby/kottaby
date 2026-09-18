@@ -13,6 +13,7 @@ export const parentMonitoringEn: ParentMonitoringLabels = {
   childrenEmptyTitle: "No linked children yet",
   childrenEmptyBody: "Once your child confirms your link request, they will appear here.",
   childrenEmptyCta: "Send a link request",
+  sessionTargetUnavailableNotice: "This session's details are no longer available.",
 
   // ─── Detail page header ─────────────────────────────────────────────────
   detailPageTitle: (childName: string) => `${childName}'s progress`,
