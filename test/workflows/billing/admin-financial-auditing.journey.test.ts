@@ -154,7 +154,7 @@ const TXN_ENTITY_TYPE = "teacher_transaction";
 const PAYOUT_PRIMARY = "100.00";
 const PAYOUT_REJECTED = "50.00";
 const PAYOUT_RACED = "20.00";
-/** Failed-row replay leg amount (a fresh request, rejected, then re-settled). */
+/** Failed-row replay leg amount (a fresh request, rejected, then re-attempted for settlement denial). */
 const PAYOUT_REJECTED_REPLAY = "60.00";
 /** Concurrent settle + new-request race amounts (step 7). */
 const PAYOUT_NEW_REQUEST = "15.00";
