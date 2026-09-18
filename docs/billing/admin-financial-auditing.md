@@ -116,7 +116,7 @@ rows still raise on any update.
 ## 4. Adjustment Vocabulary
 
 Manual balance corrections ride the EXISTING `transaction_type` vocabulary — no pgEnum change, no
-signed amounts (`teacher_transaction.amount` has a `>= 0` CHECK). Direction lives in the service
+signed amounts (`teacher_transaction.amount` has a `> 0` CHECK). Direction lives in the service
 enum `WalletAdjustmentDirection` (`backend/enum/billing/wallet-adjustment-direction.enum.ts`:
 `Credit`/`Debit`) and in the audit details — never as a column.
 

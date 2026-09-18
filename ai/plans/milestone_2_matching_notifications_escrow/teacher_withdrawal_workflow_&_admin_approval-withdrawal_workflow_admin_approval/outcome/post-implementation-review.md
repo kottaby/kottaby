@@ -26,3 +26,17 @@
 **Cumulative round ledger:** R1 — 2 LOW fixed (journey comment wording; addendum provenance paths). R2 — 1 LOW + 2 INFO fixed (race arithmetic split; full-path journey citation; §2 anchor provenance note).
 
 **Next:** round 3 (independent) follows.
+
+## Round 4 fixes
+
+**Wave:** round 4 — reviewers: backend + pentest (1 LOW + 1 INFO); types + frontend + docs (0). Both findings documentation-precision only — zero code-behavior changes.
+
+1. **[LOW] Stale `>= 0` bound in §4 of the canonical doc** — `docs/billing/admin-financial-auditing.md:119`: §4 claimed `teacher_transaction.amount` has a `>= 0` CHECK while the DB truth is `> 0` (`db/schema.dbml:372`, `backend/db/schema/billing/teacher-transaction.ts:50`, migration `20260914064155`), contradicting the doc's own verification addendum (:291-304). Before → after (one word): "signed amounts (`teacher_transaction.amount` has a `>= 0` CHECK)" → "signed amounts (`teacher_transaction.amount` has a `> 0` CHECK)". Nothing else in §4 touched.
+2. **[INFO] §3 anchor span in `outcome/4.3-knowledge-propagation-outcome.md`** — §3 recorded the addendum as "lines 291–303 … six fact bullets at :298–303"; the shipped addendum is seven bullets ending at :304. Append-only correction line at EOF: "Correction (round-4 review): the addendum spans :291-304 with seven fact bullets (the zero-dispatch bullet at :304 was outside the originally cited span)."
+3. **Ledger row D9** — appended to `deferred-items.md` (7-column format, after D8): planning artifacts still citing the stale `>= 0` bound (`docs/planning/PRODUCTION_READINESS.md:100,261`; `docs/planning/TICKETS.md:1793` as frozen historical ticket text, not a drift to repair) — discovered by round-4 review; owner: planning-docs owner; status 🔄 Open (forward contract); Verified By: Task 4.1 matrix; same drift class as D6/D8. Frozen planning docs are historical records — repair belongs to the planning-docs owner; nothing silently absorbed.
+
+**Verification:** `git diff` hunk inspection — only the four intended edits (§4 one-word bound fix; 4.3 correction append; ledger D9 row; this section). No code, test, or other doc file touched.
+
+**Cumulative round ledger:** R1 — 2 LOW fixed; R2 — 1 LOW + 2 INFO fixed; R3 — 0 (independent, no findings); R4 — 1 LOW + 1 INFO → fixed.
+
+**Next:** round 5 (independent) follows.
