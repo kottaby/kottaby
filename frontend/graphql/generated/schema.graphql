@@ -873,6 +873,11 @@ type ParentReportPage {
   totalCount: Int!
 }
 
+type ParentSessionTarget {
+  sessionId: Int!
+  studentId: Int!
+}
+
 """Gateway checkout descriptor for a purchase in flight."""
 type PaymentCheckout {
   """
@@ -1175,6 +1180,11 @@ type Query {
   The gated child's derived attendance entries (session rows), newest first, paged. Pagination is normalized before the database read and the effective values are echoed in the page payload; an out-of-range page yields empty items next to the true total count.
   """
   parentChildSessions(page: Int, pageSize: Int, studentId: Int!): ParentAttendancePage!
+
+  """
+  The closed id pair resolving one completion-notification session pointer: the session id plus the linked child who owns it. A missing or foreign session is indistinguishable on the wire — both collapse to the same constant denial (existence non-disclosure); a non-positive session id is rejected as a validation failure before any gate or read. The deep-link landing route is constructed from the pair alone.
+  """
+  parentSessionTarget(sessionId: Int!): ParentSessionTarget!
 
   """Returns the active subscription plans catalog for authenticated users."""
   planCatalog: [Plan!]!

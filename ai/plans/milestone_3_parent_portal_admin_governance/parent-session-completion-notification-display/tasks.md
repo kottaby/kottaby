@@ -179,16 +179,16 @@ Test-first display-only slice, sequenced foundation → backend → frontend. Th
 
 ### Task 4 — SDL regen + schema pin + wire matrix
 
-- [ ] 4.1 Codegen + SDL surface pin + wire tests (R-J)
+- [x] 4.1 Codegen + SDL surface pin + wire tests (R-J)
   - Run `bun run generate:gqlSchema` then `bun codegen`; commit the regenerated output (required after every schema change).
   - MODIFY `backend/graphql/test/schema-surface.test.ts` — the parent-monitoring field list (`:531-535` area) gains `parentSessionTarget`; pin arg shape `(sessionId: Int!)` and return type `ParentSessionTarget!` (wire name).
   - MODIFY `backend/graphql/test/parent-monitoring.wire.test.ts` — extend the role matrix per research-00 §8: anonymous → 401; wrong role (student/teacher/admin) → 403; parent + nonexistent session → constant FORBIDDEN; parent + foreign session → constant FORBIDDEN; parent + linked child's session → `{ studentId }`; en/ar denial copy parity. Real test server via the layer's `testClient` + `setupTestServerLifecycle` (matrix precedent `backend/graphql/test/parent-monitoring.wire.test.ts:669-1234`).
   - Run via `bun run test:graphql` (`package.json:36`).
-  - [ ] 4.1.QL **Quality Loop**: sub-loop exit 0 on both test files (generated output excluded from lint by config — verify, never hand-edit)
-  - [ ] 4.1.TE **Test Engineering**: the matrix IS Tier 1-4 (boundary: malformed/zero/negative `sessionId`; chaos: repeated probes; security: forged-role tokens, BFLA pre-service denial asserted via zero service invocation). Tier 4 includes the rename-drift probe: a deliberate temp rename of the field fails the SDL pin, then revert
-  - [ ] 4.1.SEC **Security & Tenancy Audit**: error envelopes carry `extensions.code`, no stack/session-field leaks; public-operations allowlist NEEDS NO new entries (authenticated field, never anonymous)
-  - [ ] 4.1.SR **Semantic Review**: generated diff reviewed — no schema churn beyond `parentSessionTarget` + the new object type
-  - [ ] 4.1.IV **Instruction Verification**: `backend/graphql/AGENTS.md` codegen rules + `tests.instructions.md` read
+  - [x] 4.1.QL **Quality Loop**: sub-loop exit 0 on both test files (generated output excluded from lint by config — verify, never hand-edit)
+  - [x] 4.1.TE **Test Engineering**: the matrix IS Tier 1-4 (boundary: malformed/zero/negative `sessionId`; chaos: repeated probes; security: forged-role tokens, BFLA pre-service denial asserted via zero service invocation). Tier 4 includes the rename-drift probe: a deliberate temp rename of the field fails the SDL pin, then revert
+  - [x] 4.1.SEC **Security & Tenancy Audit**: error envelopes carry `extensions.code`, no stack/session-field leaks; public-operations allowlist NEEDS NO new entries (authenticated field, never anonymous)
+  - [x] 4.1.SR **Semantic Review**: generated diff reviewed — no schema churn beyond `parentSessionTarget` + the new object type
+  - [x] 4.1.IV **Instruction Verification**: `backend/graphql/AGENTS.md` codegen rules + `tests.instructions.md` read
   - Write outcome: `outcome/4.1-sdl-wire-outcome.md`
   - _Requirements: REQ-021, REQ-031_
 
