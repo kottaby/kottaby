@@ -131,4 +131,118 @@ export const sessionsEn: SessionsLabels = {
   adminDisputeAnalyticsOpen: "Awaiting arbitration",
   adminDisputeAnalyticsResolved: "Resolved total",
   adminDisputeAnalyticsOutcomes: "Outcomes",
+
+  // ─── Session Report Submission (Jadid & Madi) ───────────────────────────────
+  sessionReportAction: "Session report",
+  viewHomeworkAction: "Homework",
+  reportDialogPrepareTitle: "Review prior homework",
+  reportDialogSubmitTitle: "Submit session report",
+  reportDialogReviewTitle: "Session report",
+  reportNotesLabel: "Notes",
+  reportNotesPlaceholder: "Record performance notes for this session (required, up to 2000 characters).",
+  reportNotesRequiredMessage: "Notes are required.",
+  reportNotesTooLongMessage: "Notes must be 2000 characters or fewer.",
+  reportRatingLabel: "Student rating",
+  reportRatingRequiredMessage: "A rating is required.",
+  reportSubmitLabel: "Submit report",
+  reportCancelLabel: "Cancel",
+  reportSubmitSuccessNotice: "Session report submitted.",
+  reportAlreadySubmittedNotice: "A report has already been submitted for this session.",
+  reportBlocksRequiredMessage: "At least one homework block (Jadid or Madi) is required.",
+  reportAyahRangeMessage: "From ayah must be less than or equal to to ayah.",
+  reportGradeRangeMessage: "Grades must be between 0 and 100.",
+  reportSurahJuzRequiredMessage: "Surah / Juz is required for a non-empty block.",
+  jadidSectionTitle: "New memorization (Jadid)",
+  madiSectionTitle: "Revision (Madi)",
+  fromAyahLabel: "From ayah",
+  toAyahLabel: "To ayah",
+  surahJuzPickerLabel: "Surah / Juz",
+  gradePreviousSectionTitle: "Grade previous homework",
+  reportFirstSessionHint: "This is the student's first session — there is no prior homework to grade.",
+  reportAlreadyGradedLabel: "Already graded",
+  reportGradeJadidLabel: "Jadid grade",
+  reportGradeMadiLabel: "Madi grade",
+  reportTrackEmptyLabel: "No assignment for this track.",
+  reportHistorySectionTitle: "Homework history",
+  reportHistoryEmptyMessage: "This student has no prior homework yet.",
+  reportSessionDateLabel: "Session date",
+  reportReviewedNotesLabel: "Teacher notes",
+  reportReviewedRatingLabel: "Student rating",
+  surahJuzLabel: (ref: string): string => {
+    // Five surah legs as equality-guard early returns (the function-size
+    // lint ceiling forbids 35 two-line cases in one switch body); the juz
+    // legs ride a switch below. The trailing default is the fail-closed
+    // fallback for an unknown ref.
+    if (ref === "surah_al_fatihah") return "Surah Al-Fātihah";
+    if (ref === "surah_al_baqarah") return "Surah Al-Baqarah";
+    if (ref === "surah_aal_imran") return "Surah Āl ʿImrān";
+    if (ref === "surah_an_nisa") return "Surah An-Nisāʾ";
+    if (ref === "surah_al_maidah") return "Surah Al-Māʾidah";
+    switch (ref) {
+      case "juz_1":
+        return "Juz 1";
+      case "juz_2":
+        return "Juz 2";
+      case "juz_3":
+        return "Juz 3";
+      case "juz_4":
+        return "Juz 4";
+      case "juz_5":
+        return "Juz 5";
+      case "juz_6":
+        return "Juz 6";
+      case "juz_7":
+        return "Juz 7";
+      case "juz_8":
+        return "Juz 8";
+      case "juz_9":
+        return "Juz 9";
+      case "juz_10":
+        return "Juz 10";
+      case "juz_11":
+        return "Juz 11";
+      case "juz_12":
+        return "Juz 12";
+      case "juz_13":
+        return "Juz 13";
+      case "juz_14":
+        return "Juz 14";
+      case "juz_15":
+        return "Juz 15";
+      case "juz_16":
+        return "Juz 16";
+      case "juz_17":
+        return "Juz 17";
+      case "juz_18":
+        return "Juz 18";
+      case "juz_19":
+        return "Juz 19";
+      case "juz_20":
+        return "Juz 20";
+      case "juz_21":
+        return "Juz 21";
+      case "juz_22":
+        return "Juz 22";
+      case "juz_23":
+        return "Juz 23";
+      case "juz_24":
+        return "Juz 24";
+      case "juz_25":
+        return "Juz 25";
+      case "juz_26":
+        return "Juz 26";
+      case "juz_27":
+        return "Juz 27";
+      case "juz_28":
+        return "Juz 28";
+      case "juz_29":
+        return "Juz 29";
+      case "juz_30":
+        return "Juz 30";
+      default:
+        // Fail-closed: an unknown ref rides the raw value verbatim so the
+        // UI never renders an empty string and the bug surfaces visibly.
+        return ref;
+    }
+  },
 };

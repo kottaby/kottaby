@@ -110,13 +110,24 @@ export interface TeacherActionsWiring {
   readonly inFlightSlots: InFlightSlots;
   readonly onStart: (sessionId: string) => void;
   readonly onComplete: (sessionId: string) => void;
+  /** Opens the homework viewer for a Started session (read-only). */
+  readonly onHomework: (sessionId: string) => void;
+  /** Opens the session report submission dialog for a Completed session. */
+  readonly onReport: (sessionId: string) => void;
 }
 
 /**
- * Lifecycle → affordance matrix: Start on `Scheduled`, Complete on `Started`,
- * NOTHING on terminal rows. Each descriptor disables while ITS OWN row+kind
- * slot is in flight (`isInFlight` over the per-row slot book) — sibling rows
- * and the other action kind stay interactive.
+ * Lifecycle → affordance matrix:
+ *  - `Scheduled` → Start
+ *  - `Started`    → Complete + Homework (read-only viewer)
+ *  - `Completed`  → Report (submission dialog; resolves prepare/submit/review
+ *    on open via the dialog's own mode resolution)
+ *  - terminal `Cancelled`/`Disputed` → [] (no affordances; the row stays
+ *    a pure read-only display).
+ * Each descriptor disables while ITS OWN row+kind slot is in flight
+ * (`isInFlight` over the per-row slot book) — sibling rows and the other
+ * action kind stay interactive. The Homework/Report actions carry NO
+ * in-flight slot (the dialog owns loading; the CTA is status-pure — no N+1).
  */
 export function teacherActionsForSession(
   session: MyTeacherSessionsQuery_myTeacherSessions_items,
@@ -137,6 +148,18 @@ export function teacherActionsForSession(
       label: wiring.t.completeSession,
       disabled: isInFlight(wiring.inFlightSlots, session.id, "complete"),
       onIntent: wiring.onComplete,
+    });
+    actions.push({
+      id: "homework",
+      label: wiring.t.viewHomeworkAction,
+      onIntent: wiring.onHomework,
+    });
+  }
+  if (session.status === SessionStatus.Completed) {
+    actions.push({
+      id: "report",
+      label: wiring.t.sessionReportAction,
+      onIntent: wiring.onReport,
     });
   }
   return actions;

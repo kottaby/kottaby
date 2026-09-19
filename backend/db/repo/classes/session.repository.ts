@@ -787,4 +787,37 @@ export namespace SessionRepository {
   ): Promise<SessionSelectType | null> {
     return arbitrationImpl.guardReassignTeacher(sessionId, newTeacherId, tx);
   }
+
+  /**
+   * Teacher↔student relationship probe: does ANY session row (any status)
+   * link this teacher (shared PK with `users.id`, stored verbatim on
+   * `session.teacher_id`) to this student? EXISTS-select only — no row
+   * data is projected, no lock is taken; the probe rides the caller's
+   * transaction when supplied and falls back to the pool otherwise.
+   *
+   * The composite index `session_teacher_id_student_id_idx` makes the probe
+   * indexed: the scan is O(1) on the relationship pair. The predicate fuses
+   * the teacher equality (`session.teacher_id = caller`) AND the student
+   * equality (`session.student_id = studentId`) inside ONE statement, so the
+   * tenancy decision lands SQL-side with zero post-filter surface — the
+   * caller's identity (a teacher user id shared-PK'd with `teacher.id`) is
+   * the probe's only authority, never client input.
+   *
+   * @returns `true` when at least one session links the caller (as teacher)
+   *          to the student; `false` for an unknown caller, an unknown
+   *          student, or a pair with zero shared sessions.
+   */
+  export async function existsSessionForTeacherStudent(
+    teacherUserId: number,
+    studentId: number,
+    tx?: DBTransaction
+  ): Promise<boolean> {
+    const executor = tx ?? db;
+    const rows = await executor
+      .select({ exists: sql`1`.as("exists") })
+      .from(session)
+      .where(and(eq(session.teacherId, teacherUserId), eq(session.studentId, studentId)))
+      .limit(1);
+    return rows.length > 0;
+  }
 }

@@ -4,6 +4,8 @@ import type {
   SessionHomeWorkQueryVariables,
   SessionReportQuery,
   SessionReportQueryVariables,
+  StudentHomeworkHistoryQuery,
+  StudentHomeworkHistoryQueryVariables,
   SubmitSessionReportMutation,
   SubmitSessionReportMutationVariables,
 } from "@/frontend/graphql/generated/gql/graphql";
@@ -104,6 +106,49 @@ export const sessionHomeworkQueryDocument: TypedDocumentNode<SessionHomeWorkQuer
       revisionSurahJuz
       createdAt
       updatedAt
+    }
+  }
+`;
+
+/**
+ * `studentHomeworkHistory(studentId: ID!, page: Int, pageSize: Int)` — the
+ * teacher-scoped cross-teacher homework history read. The role scope
+ * (`Teacher` only) fires BEFORE the resolver; the service runs the
+ * relationship gate + reads inside ONE REPEATABLE READ transaction. The
+ * pagination args carry NO GraphQL defaults — the service clamps them and
+ * the effective values echo back in the envelope, so an out-of-range page
+ * yields an empty `items` array next to the honest `totalCount`.
+ *
+ * Selection contract: `id` FIRST on the item selection (Apollo cache
+ * normalization); the EXACT 12 `SessionHomeWork` row columns; the four
+ * envelope fields (`totalCount`, `page`, `pageSize`, `items`) — nothing
+ * beyond the server contract. The `StudentHomeworkPage` wrapper has NO
+ * `id`, so consumers register `keyFields: false` in the Apollo cache
+ * `typePolicies` (see `frontend/providers/apollo/apolloCache.ts`).
+ */
+export const studentHomeworkHistoryQueryDocument: TypedDocumentNode<
+  StudentHomeworkHistoryQuery,
+  StudentHomeworkHistoryQueryVariables
+> = gql`
+  query StudentHomeworkHistory($studentId: ID!, $page: Int, $pageSize: Int) {
+    studentHomeworkHistory(studentId: $studentId, page: $page, pageSize: $pageSize) {
+      items {
+        id
+        sessionId
+        currentFromAyah
+        currentToAyah
+        currentGrade
+        currentSurahJuz
+        revisionFromAyah
+        revisionToAyah
+        revisionGrade
+        revisionSurahJuz
+        createdAt
+        updatedAt
+      }
+      totalCount
+      page
+      pageSize
     }
   }
 `;
