@@ -98,7 +98,7 @@
 - [x] 2.2.SR **Semantic Review**: fixtures committed + tracked; no seed rows; existing steps not weakened (diff-check step bodies).
 - [x] 2.2.IV **Instruction Verification**: read `test/workflows/AGENTS.md` + tests instructions.
 
-### - [ ] 2.3 Service: Atomic Aggregation Step — `backend/services/teachers/student-evaluation.service.ts` (EXTEND)
+### - [x] 2.3 Service: Atomic Aggregation Step — `backend/services/teachers/student-evaluation.service.ts` (EXTEND)
 - Implement the pipeline exactly per `plan.md` §4.1: inside `submitWithinTransaction` (`:122-175`), after `EvaluationRepository.insertOnce` (`:165-173`): (a) `aggregateLiveRatings(probe.teacherId, tx)`; (b) honest-null skip when `averageScore === null`; (c) `const averageRating = (aggregate.averageScore / SCORE_POINTS_PER_STAR).toFixed(2)` (reuse the existing constant `:74` — no second constant); (d) `TeacherRepository.updateAverageRating(probe.teacherId, averageRating, tx)`; (e) on `null` return — one bounded `logDenial(... "TEACHER_PROFILE_MISSING", "teacher", probe.teacherId, locale)` then `throw new Error(...)` (plain internal error, NOT a DomainError — D8).
 - Import `TeacherRepository` from the already-imported `@/backend/db/repo` barrel (`:47` — extend the existing named import, never add a second import statement of the same module).
 - Update the file header doc-comment: the cross-surface purity paragraph (`:35-37`) now names the teacher row's cached average as the second, same-transaction write target (keep: zero notification/audit/wallet/ledger/session-row writes); the pipeline-order paragraph names the aggregation step; `logDenial`'s JSDoc (`:79-86`) amended — the entity label follows `entityId`'s target table (`"teacher"` here, first non-session use).
@@ -107,11 +107,11 @@
 - Journey (2.2) MUST go green here; capture run output in the outcome.
 - Run: `bun run test/scripts/run-test.ts backend/services/teachers/student-evaluation.service.test.ts` and re-run the journey.
 - _Requirements: REQ-006, REQ-007, REQ-008, REQ-009, REQ-010, REQ-011.2_
-- [ ] 2.3.QL **Quality Loop**: sub-loop on the service file + its test file (exit 0).
-- [ ] 2.3.TE **Test Engineering**: Tier 1 full branch (happy + the honest-null skip — covered via the aggregate's empty-family unit tests and a direct-note in the outcome, since the branch is unreachable through the public flow by construction); Tier 2 boundaries (all-20 ⇒ `"1.00"`, all-100 ⇒ `"5.00"`); Tier 3 concurrent same-teacher submissions (`Promise.allSettled` — both commit, final value within family bounds, CHECK never violated); Tier 4 role/oracle matrix re-run green.
-- [ ] 2.3.SEC **Security & Tenancy Audit**: BOLA (server-derived teacher id), BOPLA (member-built payload), purity oracles, zero new denials/codes/keys.
-- [ ] 2.3.SR **Semantic Review**: no module-level state; no `finally`-side aggregation; no second 20 constant; zero plan-artifact references in comments; value-imported enums unchanged.
-- [ ] 2.3.IV **Instruction Verification**: read `backend/services/AGENTS.md`, `backend/AGENTS.md` + printed instructions.
+- [x] 2.3.QL **Quality Loop**: sub-loop on the service file + its test file (exit 0).
+- [x] 2.3.TE **Test Engineering**: Tier 1 full branch (happy + the honest-null skip — covered via the aggregate's empty-family unit tests and a direct-note in the outcome, since the branch is unreachable through the public flow by construction); Tier 2 boundaries (all-20 ⇒ `"1.00"`, all-100 ⇒ `"5.00"`); Tier 3 concurrent same-teacher submissions (`Promise.allSettled` — both commit, final value within family bounds, CHECK never violated); Tier 4 role/oracle matrix re-run green.
+- [x] 2.3.SEC **Security & Tenancy Audit**: BOLA (server-derived teacher id), BOPLA (member-built payload), purity oracles, zero new denials/codes/keys.
+- [x] 2.3.SR **Semantic Review**: no module-level state; no `finally`-side aggregation; no second 20 constant; zero plan-artifact references in comments; value-imported enums unchanged.
+- [x] 2.3.IV **Instruction Verification**: read `backend/services/AGENTS.md`, `backend/AGENTS.md` + printed instructions.
 
 ---
 
