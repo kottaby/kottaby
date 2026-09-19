@@ -8,7 +8,7 @@ import {
   PendingParentLinkRequestsCard,
   StudentUpNextCard,
 } from "@/frontend/views/students/dashboard";
-import { ApplicantStatusCard } from "@/frontend/views/teachers/dashboard";
+import { ApplicantStatusCard, TeacherUpNextCard } from "@/frontend/views/teachers/dashboard";
 import { getTranslations } from "@/shared/locale/server";
 import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
 
@@ -22,11 +22,14 @@ import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
  *  2. Renders the `DashboardView` client component, composing a
  *     role-specific content slot ABOVE the stat grid:
  *
- *     - Teacher → `<ApplicantStatusCard />`. The card is
+ *     - Teacher → `<ApplicantStatusCard />` + `<TeacherUpNextCard />`
+ *       composed as siblings. The applicant card is
  *       a pure UI affordance: the page guard above stays the only server-side
  *       boundary, the zero-argument `myApplicantProfile` query answers
  *       identity server-side, and applicant vs certified presentation comes
- *       entirely from the query payload. No new routes, no
+ *       entirely from the query payload. The up-next card follows the same
+ *       additive pattern (zero-prop client component, the identity-scoped
+ *       `myTeacherSessions` read) — no new routes, no
  *       extra guard logic.
  *     - Student → `<HandshakeCodeCard />` + `<PendingParentLinkRequestsCard />`
  *       + `<StudentUpNextCard />`
@@ -59,7 +62,12 @@ export async function createRoleDashboardPage(role: UserRole, path: string): Pro
 function resolveStatusSlot(role: UserRole): React.ReactNode {
   switch (role) {
     case UserRole.Teacher:
-      return <ApplicantStatusCard />;
+      return (
+        <Stack sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <ApplicantStatusCard />
+          <TeacherUpNextCard />
+        </Stack>
+      );
     case UserRole.Student:
       return (
         <Stack sx={{ display: "flex", flexDirection: "column", gap: 2 }}>

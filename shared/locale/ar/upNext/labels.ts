@@ -4,6 +4,7 @@ export const upNextAr: UpNextLabels = {
   upNextTitle: "ما التالي؟",
   upcomingHeading: "الجلسات القادمة",
   upcomingEmpty: "لا جلسات قادمة بعد — ستظهر هنا الجلسات التي تحجزها.",
+  upcomingEmptyTeacher: "لا جلسات قادمة بعد — ستظهر هنا الجلسات التي يحجزها الطلاب معك.",
   sessionLine: (id: number) => `الجلسة #${id}`,
   bookedPrefix: "حُجزت في",
   sessionsCta: "عرض الجلسات",
@@ -16,6 +17,12 @@ export const upNextAr: UpNextLabels = {
     return `${count} واجبًا بانتظار التقييم`;
   },
   homeworkAllGraded: "أحسنت! لا شيء بانتظار التقييم",
+  scheduledMoreLine: (count: number) => {
+    if (count === 1) return "جلسة واحدة إضافية مجدولة";
+    if (count === 2) return "جلساتان إضافيتان مجدولتان";
+    if (count <= 10) return `${count} جلسات إضافية مجدولة`;
+    return `${count} جلسة إضافية مجدولة`;
+  },
   loadingLabel: "جارٍ تحميل خطواتك التالية",
   errorBody: "تعذَّر تحميل خطواتك التالية.",
 };

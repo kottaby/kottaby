@@ -28,8 +28,16 @@ const ADMIN_DISPUTES_ROUTE = "/disputes";
  */
 export const STUDENT_SESSIONS_ROUTE = "/student/sessions";
 
-/** The teacher's session list — the landing surface for teacher session rows. */
-const TEACHER_SESSIONS_ROUTE = "/teacher/sessions";
+/**
+ * The teacher sessions route — ONE definition site for every teacher
+ * sessions-page navigation consumer (the teacher nav entry, the
+ * session-completion notification deep link, and the dashboard's
+ * up-next glance rows) so they never drift.
+ *
+ * Same leaf-module discipline as `STUDENT_SESSIONS_ROUTE` above:
+ * directive-free and framework-free, safe for nav/card/test consumers.
+ */
+export const TEACHER_SESSIONS_ROUTE = "/teacher/sessions";
 
 /**
  * The parent portal's linked-children root — the entry surface of the parent

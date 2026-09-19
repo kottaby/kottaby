@@ -1,17 +1,19 @@
 /**
- * UpNext namespace labels — the student dashboard's "What's next" card
- * (`/student/dashboard`): the glanceable continuation panel mounted in the
- * student status slot, surfacing the next booked sessions and the pending
- * homework count with direct links into the owning surfaces.
+ * UpNext namespace labels — the role dashboards' "What's next" glance
+ * cards: the student card (`/student/dashboard`, upcoming sessions +
+ * pending homework) and the teacher card (`/teacher/dashboard`, upcoming
+ * sessions + the scheduled tail), each surfacing a small discoverability
+ * window with direct links into the owning surfaces.
  *
  * Used by:
  *  - `frontend/views/students/dashboard/StudentUpNextCard.tsx`
- *    (`useAppTranslation(UpNext)` with property access).
+ *  - `frontend/views/teachers/dashboard/TeacherUpNextCard.tsx`
+ *    (both via `useAppTranslation(UpNext)` with property access).
  *
- * The card is a DISCOVERABILITY affordance — it renders at most a small
- * window of upcoming sessions and never owns lifecycle actions; every row
+ * The cards are DISCOVERABILITY affordances — they render at most a small
+ * window of upcoming sessions and never own lifecycle actions; every row
  * deep-links into the surface that owns the data (`/student/sessions`,
- * `/homework`).
+ * `/teacher/sessions`, `/homework`).
  *
  * All keys MUST have both `en` and `ar` implementations with EXACT key-set
  * parity (compile-typed on both leaves + `upNext-namespace.parity.test.ts`
@@ -24,6 +26,8 @@ export interface UpNextLabels {
   readonly upcomingHeading: string;
   /** Honest empty line — the student has no scheduled sessions. */
   readonly upcomingEmpty: string;
+  /** Honest empty line — the teacher has no scheduled sessions. */
+  readonly upcomingEmptyTeacher: string;
   /** Mini-row session reference — `{id}` session number. */
   readonly sessionLine: (id: number) => string;
   /** Mini-row meta prefix before the locale-formatted booking date. */
@@ -36,6 +40,8 @@ export interface UpNextLabels {
   readonly homeworkPendingLine: (count: number) => string;
   /** Homework row line — nothing awaiting grade (honest zero). */
   readonly homeworkAllGraded: string;
+  /** Truncated-window footer line — localized plural, `{count}` rows beyond the glance window. */
+  readonly scheduledMoreLine: (count: number) => string;
   /** Loading region aria-label (skeleton state). */
   readonly loadingLabel: string;
   /** Error-state body (query failure; retry copy comes from `Common`). */
