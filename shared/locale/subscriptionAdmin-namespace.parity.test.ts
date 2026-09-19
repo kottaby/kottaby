@@ -67,8 +67,13 @@ const FUNCTION_LEAF_PATHS = [
   "success.planChangeForfeited",
 ] as const;
 
-/** Probe count for the function leaves (any non-negative integer behaves). */
-const PROBE_COUNT = 3;
+/**
+ * Probe counts for the function leaves — the CLDR Arabic boundary set:
+ * one/two apply to n = 1/2 EXACTLY, few = 3–10, many = 11–99, and other =
+ * 100/101/102 with their ×100 re-entries (the adminBroadcasts counted-copy
+ * mechanism's probe set).
+ */
+const PROBE_COUNTS = [1, 2, 3, 10, 11, 99, 100, 101, 102] as const;
 
 /** Probe seam cap for the counter leaf (rides the second argument). */
 const PROBE_MAX = 200;
@@ -215,23 +220,86 @@ describe("function-leaf inventory — exactly the six count-bearing slots", () =
     expect(functionPaths).toEqual([...FUNCTION_LEAF_PATHS].toSorted((a, b) => a.localeCompare(b)));
   });
 
-  test("every function leaf resolves non-empty output carrying the probe count in BOTH locales", () => {
+  test("every function leaf resolves non-empty output carrying EACH probe count in BOTH locales", () => {
     for (const path of FUNCTION_LEAF_PATHS) {
       const arLeaf = leafValueOf(subscriptionAdminAr, path, "ar");
       const enLeaf = leafValueOf(subscriptionAdminEn, path, "en");
       if (!isCountLeaf(arLeaf) || !isCountLeaf(enLeaf)) {
         throw new Error(`subscriptionAdmin.${path} must be a count-bearing function on BOTH maps`);
       }
-      // The counter leaf carries the seam cap on its second argument; the
-      // other slots ignore it.
-      const arOutput = arLeaf(PROBE_COUNT, PROBE_MAX);
-      const enOutput = enLeaf(PROBE_COUNT, PROBE_MAX);
-      expect(arOutput.length).toBeGreaterThan(0);
-      expect(enOutput.length).toBeGreaterThan(0);
-      expect(enOutput).toContain(String(PROBE_COUNT));
-      expect(arOutput).toContain(String(PROBE_COUNT));
+      for (const count of PROBE_COUNTS) {
+        // The counter leaf carries the seam cap on its second argument; the
+        // other slots ignore it.
+        const arOutput = arLeaf(count, PROBE_MAX);
+        const enOutput = enLeaf(count, PROBE_MAX);
+        expect(arOutput.length).toBeGreaterThan(0);
+        expect(enOutput.length).toBeGreaterThan(0);
+        expect(enOutput).toContain(String(count));
+        // ar spells the CLDR one/two classes as words (جلسة واحدة / جلستين —
+        // exact-pinned by the plural-branch table below), so the ar digit
+        // carry applies from the counted-plural class upward (the
+        // adminBroadcasts placeholder-parity precedent: digit probes ride
+        // the numeric branches only).
+        if (count > 2) {
+          expect(arOutput).toContain(String(count));
+        } else {
+          expect(ARABIC_SCRIPT.test(arOutput)).toBe(true);
+        }
+      }
     }
   });
+});
+
+// ===========================================================================
+describe("counted-copy plural-branch pin — the CLDR boundary probes on BOTH maps", () => {
+  /** The four session-copy counted leaves (one shared branch-word table). */
+  const SESSION_COUNT_LEAF_PATHS = [
+    "changePlan.carried",
+    "changePlan.forfeited",
+    "success.planChangeCarried",
+    "success.planChangeForfeited",
+  ] as const;
+
+  /** Arabic branch word per boundary count: [count, session word, day word]. */
+  const CLDR_BRANCH_PROBES: readonly (readonly [number, string, string])[] = [
+    [1, "جلسة واحدة", "يوماً واحداً"],
+    [2, "جلستين", "يومين"],
+    [3, "جلسات", "أيام"],
+    [10, "جلسات", "أيام"],
+    [11, "جلسة", "يوماً"],
+    [99, "جلسة", "يوماً"],
+    [100, "جلسة", "يوماً"],
+    [101, "جلسة", "يوماً"],
+    [102, "جلسة", "يوماً"],
+  ];
+
+  // The Arabic session/day copy branches on the CLDR classes — singular
+  // (n = 1 EXACTLY), dual (n = 2 EXACTLY), counted-plural few (3–10),
+  // tamyiz-singular other (11–99 AND the 100/101/102 ×100 re-entries);
+  // the EN copy branches on 1 vs the rest (session/sessions, day/days).
+  test.each(CLDR_BRANCH_PROBES)(
+    "count %i renders the exact plural-branch word for the sessions + days copy",
+    (count, arSessionWord, arDayWord) => {
+      const enSessionWord = count === 1 ? "session" : "sessions";
+      const enDayWord = count === 1 ? "day" : "days";
+      for (const path of SESSION_COUNT_LEAF_PATHS) {
+        const arLeaf = leafValueOf(subscriptionAdminAr, path, "ar");
+        const enLeaf = leafValueOf(subscriptionAdminEn, path, "en");
+        if (!isCountLeaf(arLeaf) || !isCountLeaf(enLeaf)) {
+          throw new Error(`subscriptionAdmin.${path} must be a count-bearing function on BOTH maps`);
+        }
+        expect(arLeaf(count, PROBE_MAX)).toContain(arSessionWord);
+        expect(enLeaf(count, PROBE_MAX)).toContain(enSessionWord);
+      }
+      const arExtend = leafValueOf(subscriptionAdminAr, "success.extend", "ar");
+      const enExtend = leafValueOf(subscriptionAdminEn, "success.extend", "en");
+      if (!isCountLeaf(arExtend) || !isCountLeaf(enExtend)) {
+        throw new Error("subscriptionAdmin.success.extend must be a count-bearing function on BOTH maps");
+      }
+      expect(arExtend(count, PROBE_MAX)).toContain(arDayWord);
+      expect(enExtend(count, PROBE_MAX)).toContain(enDayWord);
+    }
+  );
 });
 
 // ===========================================================================
@@ -250,7 +318,9 @@ describe("no English fallthrough — ar map carries Arabic copy for every slot",
       if (!isCountLeaf(leaf)) {
         throw new Error(`subscriptionAdmin.ar.${path} must be a count-bearing function`);
       }
-      expect(ARABIC_SCRIPT.test(leaf(PROBE_COUNT))).toBe(true);
+      for (const count of PROBE_COUNTS) {
+        expect(ARABIC_SCRIPT.test(leaf(count))).toBe(true);
+      }
     }
   });
 });

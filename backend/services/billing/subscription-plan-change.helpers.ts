@@ -262,7 +262,6 @@ async function settlePlanChangeSideEffects(
     flowLabel: "plan change",
     zeroRowDetail: "settlement",
     studentId,
-    lane,
     writeLane: tx => StudentRepository.setLaneBalanceValue(studentId, lane, creditedSessions, tx),
     created,
     claimId,

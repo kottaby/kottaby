@@ -29,6 +29,7 @@
 import { PlanRepository } from "@/backend/db/repo/billing/plan.repository";
 import { SubscriptionRepository } from "@/backend/db/repo/billing/subscription.repository";
 import { SubscriptionPurchaseIdempotencyRepository } from "@/backend/db/repo/billing/subscription-purchase-idempotency.repository";
+import { StudentRepository } from "@/backend/db/repo/students/student.repository";
 import type { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
@@ -40,6 +41,7 @@ import type {
   AuditLogWriteContract,
   DBTransaction,
   PlanSelectType,
+  StudentSelectType,
   SubscriptionReturnType,
   SubscriptionSelectType,
 } from "@/backend/types";
@@ -87,6 +89,15 @@ export const SUBSCRIPTION_ADMIN_CLAIM_PREFIXES = {
 export function renewClaimKey(sourceSubscriptionId: number): string {
   return `${SUBSCRIPTION_ADMIN_CLAIM_PREFIXES.renew}:${sourceSubscriptionId}`;
 }
+
+/**
+ * The PostgreSQL `integer` column's hard ceiling (int4 max): every
+ * wire-supplied id coerces under it (a canonical decimal past it can never
+ * name a row), and the renew flow pre-checks its relative lane credit
+ * against it so the balance column can never be pushed out of range (a raw
+ * 22003 never surfaces as a 500).
+ */
+export const MAX_INT4 = 2_147_483_647;
 
 /** Milliseconds per day — the subscription window arithmetic unit shared by the extend, renew, and plan-change flows. */
 export const MS_PER_DAY = 86_400_000;
@@ -144,8 +155,8 @@ export async function resolveRenewalReplayRow(
  * The renewal's fresh plan read with its fail-closed guards: the
  * snapshot is the plan row's CURRENT content (activity is a
  * purchase-time property; the credit lane is not), and a missing row or
- * an unconfigured lane or an interval past the catalog's ceiling aborts
- * the renewal — the caller's transaction rolls the just-inserted claim
+ * an unconfigured lane or an interval past the catalog's ceiling or a
+ * lane balance without the credit's int4 headroom aborts the renewal — the caller's transaction rolls the just-inserted claim
  * back with it. The stored lane resolves to its canonical credit-lane
  * member here, so the caller receives a certified lane instead of a
  * nullable column.
@@ -194,7 +205,57 @@ export async function readRenewalPlan(
     });
     throw new ConflictError(tErrors.conflict);
   }
-  return { plan, lane: subscriptionCreditLaneMemberOf(plan.balanceLane, tErrors) };
+  const lane = subscriptionCreditLaneMemberOf(plan.balanceLane, tErrors);
+  await assertRenewalCreditHeadroom(source, plan, lane, scopedTx, tErrors);
+  return { plan, lane };
+}
+
+/**
+ * Frozen credit-lane → `students` row lane-column reader (the renew flow's
+ * mirror of the plan-change reader) — the headroom pre-check's balance
+ * source; a legacy NULL lane reads as zero.
+ */
+const RENEWAL_LANE_BALANCE_READERS: Readonly<
+  Record<SubscriptionCreditLane, (student: StudentSelectType) => number | null>
+> = Object.freeze({
+  [SubscriptionCreditLane.Hifz]: student => student.balanceHifz,
+  [SubscriptionCreditLane.Tajweed]: student => student.balanceTajweed,
+  [SubscriptionCreditLane.Reviews]: student => student.balanceReviews,
+});
+
+/**
+ * The renewal's credit-headroom pre-check: the renewal CREDITS the plan's
+ * full session count on top of the owner's current lane balance, and the
+ * balance column is a PostgreSQL int4 — a balance already past
+ * `MAX_INT4 - plan.sessionCount` would push the relative credit out of the
+ * column's range. The plan-change flow applies the same fail-closed
+ * posture to its prepared total; the renewal denies here with the
+ * localized conflict BEFORE the fresh period and its credit — never a raw
+ * 22003 surfacing as a 500. The owner read takes the plan-change owner
+ * read's `FOR UPDATE` recipe so the headroom read and the relative credit
+ * serialize against concurrent lane writes; a vanished owner row is left
+ * to the settlement's zero-row contract (the identical conflict at write
+ * time).
+ */
+async function assertRenewalCreditHeadroom(
+  source: SubscriptionSelectType,
+  plan: PlanSelectType,
+  lane: SubscriptionCreditLane,
+  scopedTx: DBTransaction,
+  tErrors: ErrorsLabels
+): Promise<void> {
+  const owner = await StudentRepository.findByIdForUpdate(source.userId, scopedTx);
+  if (owner === null) {
+    return; // the settlement's zero-row contract denies identically at write time
+  }
+  if ((RENEWAL_LANE_BALANCE_READERS[lane](owner) ?? 0) > MAX_INT4 - plan.sessionCount) {
+    logger.logDomainError("Subscription renew denied: the lane credit would overflow the balance column's int4 range", {
+      code: "CONFLICT",
+      entity: "subscriptions",
+      entityId: source.id,
+    });
+    throw new ConflictError(tErrors.conflict);
+  }
 }
 
 /**
@@ -313,12 +374,18 @@ export function buildSubscriptionAuditContract(
  * the one named on the wire — so a STRING is accepted only in canonical
  * decimal form (the `/^[1-9]\d*$/` gate the user-id twin applies), while
  * numeric input (direct service callers) keeps the strict `Number()`
- * parse. Any non-integer / non-positive result maps onto the canonical
- * `SUBSCRIPTION_NOT_FOUND` domain error.
+ * parse. Any non-integer / non-positive result — and any canonical decimal
+ * past the int4 id range (`MAX_INT4`; the column can never hold it) — maps
+ * onto the canonical `SUBSCRIPTION_NOT_FOUND` domain error.
  */
 export function coerceSubscriptionId(rawId: string | number, tErrors: ErrorsLabels): number {
-  const id = typeof rawId === "number" ? rawId : /^[1-9]\d*$/.test(rawId) ? Number(rawId) : Number.NaN;
-  if (!Number.isInteger(id) || id < 1) {
+  let id = Number.NaN;
+  if (typeof rawId === "number") {
+    id = rawId;
+  } else if (/^[1-9]\d*$/.test(rawId)) {
+    id = Number(rawId);
+  }
+  if (!Number.isInteger(id) || id < 1 || id > MAX_INT4) {
     logger.logDomainError("Subscription id failed strict numeric coercion", {
       code: "SUBSCRIPTION_NOT_FOUND",
       entity: "subscriptions",
@@ -329,20 +396,17 @@ export function coerceSubscriptionId(rawId: string | number, tErrors: ErrorsLabe
 }
 
 /**
- * The check-constraint (23514) leg of the write-error translation — walks
- * the thrown value's `Error.cause` chain (Drizzle wraps the driver error,
- * so the code lives on a cause) with a cycle-safe visited set. Reachable
- * as the fail-closed backstop of guarded balance writes whose values are
- * computed server-side: the lanes' `balance_* >= 0` CHECK constraints
- * trip only if a prepared value were negative, which the flows'
- * arithmetic never produces.
+ * The cycle-safe pg-error-code walker under the write-error translation
+ * legs — walks the thrown value's `Error.cause` chain (Drizzle wraps the
+ * driver error, so the code lives on a cause) with a cycle-safe visited
+ * set.
  */
-function isPgCheckViolation(error: unknown): boolean {
+function isPgErrorWithCode(error: unknown, code: string): boolean {
   let current: unknown = error;
   const seen = new Set<unknown>();
   while (current instanceof Error && !seen.has(current)) {
     seen.add(current);
-    if ("code" in current && current.code === "23514") {
+    if ("code" in current && current.code === code) {
       return true;
     }
     current = (current as { cause?: unknown }).cause;
@@ -351,17 +415,36 @@ function isPgCheckViolation(error: unknown): boolean {
 }
 
 /**
+ * The check-constraint (23514) leg — the fail-closed backstop of guarded
+ * balance writes whose values are computed server-side: the lanes'
+ * `balance_* >= 0` CHECK constraints trip only if a prepared value were
+ * negative, which the flows' arithmetic never produces.
+ */
+function isPgCheckViolation(error: unknown): boolean {
+  return isPgErrorWithCode(error, "23514");
+}
+
+/**
+ * The integer-out-of-range (22003) leg — the lane-balance column's int4
+ * ceiling reached through a write: the headroom pre-check's fail-closed
+ * backstop, translated beside the other violation legs so a raw driver
+ * error never surfaces as a 500.
+ */
+function isPgIntegerOutOfRange(error: unknown): boolean {
+  return isPgErrorWithCode(error, "22003");
+}
+
+/**
  * Maps PostgreSQL violations from subscription-admin writes onto their
  * canonical domain errors: uniqueness conflicts (the shared, cycle-safe
- * `23505` walker) and balance CHECK violations (the cycle-safe `23514`
- * walker) become the localized `ConflictError`. Any other failure is
- * returned untouched so the caller rethrows it verbatim.
+ * `23505` walker), balance CHECK violations (the cycle-safe `23514`
+ * walker), and integer-out-of-range writes (the cycle-safe `22003` walker
+ * — the lane column's int4 ceiling) become the localized `ConflictError`.
+ * Any other failure is returned untouched so the caller rethrows it
+ * verbatim.
  */
 export function toSubscriptionAdminDomainError(error: unknown, tErrors: ErrorsLabels): unknown {
-  if (isPgUniqueViolation(error)) {
-    return new ConflictError(tErrors.conflict, { cause: error });
-  }
-  if (isPgCheckViolation(error)) {
+  if (isPgUniqueViolation(error) || isPgCheckViolation(error) || isPgIntegerOutOfRange(error)) {
     return new ConflictError(tErrors.conflict, { cause: error });
   }
   return error;

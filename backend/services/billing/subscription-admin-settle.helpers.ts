@@ -77,7 +77,6 @@ export async function settleAdminSideEffects(options: {
   readonly flowLabel: string;
   readonly zeroRowDetail: string;
   readonly studentId: number;
-  readonly lane: SubscriptionCreditLane;
   readonly writeLane: (tx: DBTransaction) => Promise<StudentSelectType | null>;
   readonly created: SubscriptionSelectType;
   readonly claimId: number;
@@ -139,7 +138,6 @@ export async function settleRenewalSideEffects(
     flowLabel: "renew",
     zeroRowDetail: "credit",
     studentId: source.userId,
-    lane,
     writeLane: tx => StudentRepository.creditLaneBalance(source.userId, lane, creditedSessions, tx),
     created,
     claimId,

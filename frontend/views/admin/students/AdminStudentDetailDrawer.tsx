@@ -99,7 +99,7 @@ export function AdminStudentDetailDrawer({
         onCopyEmail={onCopyEmail}
       />
       <StudentDrawerBalancesSection student={student} labels={labels} />
-      <SubscriptionAdminSection userId={student.id} />
+      <SubscriptionAdminSection key={String(student.id)} userId={student.id} />
       <StudentDrawerPlacementSection student={student} labels={labels} />
       <StudentDrawerLanguagesSection student={student} labels={labels} />
       <StudentDrawerTrialSection student={student} labels={labels} locale={locale} />

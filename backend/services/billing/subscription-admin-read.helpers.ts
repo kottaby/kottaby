@@ -9,6 +9,7 @@
 
 import { ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
+import { MAX_INT4 } from "@/backend/services/billing/subscription-admin.helpers";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
 
 /**
@@ -20,8 +21,10 @@ import type { ErrorsLabels } from "@/shared/locale/types/errors";
  * one named on the wire — so a string is accepted only in canonical
  * decimal form (the resolver-guard module's documented wire-id
  * discipline), while numeric input (direct service callers) must already
- * be a positive safe integer. Any malformed value maps onto the canonical
- * localized VALIDATION denial — never a silent mis-target, never a 500.
+ * be a positive safe integer inside the int4 id range (`MAX_INT4` — the
+ * column can never hold a larger value). Any malformed value maps onto the
+ * canonical localized VALIDATION denial — never a silent mis-target, never
+ * a 500.
  */
 export function coerceUserId(rawId: string | number, tErrors: ErrorsLabels): number {
   let id: number;
@@ -32,7 +35,7 @@ export function coerceUserId(rawId: string | number, tErrors: ErrorsLabels): num
   } else {
     id = Number.NaN;
   }
-  if (!Number.isSafeInteger(id) || id < 1) {
+  if (!Number.isSafeInteger(id) || id < 1 || id > MAX_INT4) {
     logger.logDomainError("Subscription admin list denied: user id failed strict numeric coercion", {
       code: "VALIDATION",
       entity: "user",

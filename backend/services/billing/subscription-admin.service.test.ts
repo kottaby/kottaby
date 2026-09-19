@@ -57,7 +57,10 @@
  *    with the SAME first result; a client-style squatted key
  *    (`renew:<id>`) can no longer collide (the admin claim rides the
  *    reserved `subscription-admin:` namespace) and a source plan past the
- *    interval ceiling fails closed with the localized overflow copy.
+ *    interval ceiling fails closed with the localized overflow copy; an
+ *    out-of-int4-range id and a lane balance without the credit's int4
+ *    headroom each deny with the localized conflict (never a raw 22003
+ *    surfacing as a 500).
  *  - Cancel: the active row flips to `cancelled` with the lane balances
  *    BYTE-IDENTICAL before and after (balance-preserving — the sweep
  *    zeroes, cancel never does); exactly ONE `Suspend` audit row carries
@@ -1031,6 +1034,46 @@ describe("SubscriptionAdminService.renewSubscription — branches (Tier 1)", () 
       expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(1);
       expect(await readClaim(tx, renewClaimKey(source.id))).toBeNull();
       expect(await readHifzBalance(tx, owner.id)).toBe(0);
+      expect(await readAuditsForSubscription(tx, source.id)).toHaveLength(0);
+    });
+  });
+
+  test("fail-closed: an out-of-int4-range subscription id denies with the localized conflict — never a raw 22003 500", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, source } = await createExpiredFixture(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.renewSubscription(renewInput(3_000_000_003), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().conflict);
+      // Zero writes — the raw driver error maps beside the other legs.
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(1);
+      expect(await readAuditsForSubscription(tx, source.id)).toHaveLength(0);
+    });
+  });
+
+  test("fail-closed: a lane balance without int4 headroom for the credit denies before the fresh period", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, source } = await createExpiredFixture(tx);
+      // Top the lane up to the int4 ceiling itself: any relative credit —
+      // even the fixture plan's session count — would leave the column's
+      // range, so the headroom pre-check must deny before the insert.
+      await StudentRepository.creditLaneBalance(owner.id, SubscriptionCreditLane.Hifz, 2_147_483_647, tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.renewSubscription(renewInput(source.id), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().conflict);
+      // Zero writes — no fresh period, no claim residue, balance untouched.
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(1);
+      expect(await readClaim(tx, renewClaimKey(source.id))).toBeNull();
+      expect(await readHifzBalance(tx, owner.id)).toBe(2_147_483_647);
       expect(await readAuditsForSubscription(tx, source.id)).toHaveLength(0);
     });
   });
