@@ -51,6 +51,10 @@ export const subscriptionAdminEn: SubscriptionAdminLabels = {
       "The current subscription is cancelled and a fresh period opens on the selected plan. Only active plans crediting the same balance lane are eligible.",
     planLabel: "New plan",
     noPlans: "No other active plan credits the same balance lane.",
+    errorState: {
+      title: "Could not load plans",
+      message: "Something went wrong while loading the plan catalog. Retry to load the plans again.",
+    },
   },
   success: {
     extend: days => (days === 1 ? "Subscription extended by 1 day." : `Subscription extended by ${days} days.`),

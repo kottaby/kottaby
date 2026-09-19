@@ -124,6 +124,15 @@ export interface SubscriptionAdminLabels {
     readonly planLabel: string;
     /** Empty-options copy — no other active plan credits the same lane. */
     readonly noPlans: string;
+    /**
+     * Plan-catalog read failure inside the dialog — the directory
+     * error-alert recipe's title/message pair; the retry label is reused
+     * from the section-level `errorState.retry`.
+     */
+    readonly errorState: {
+      readonly title: string;
+      readonly message: string;
+    };
   };
 
   /** Success toasts handed to the section's feedback snackbar. */

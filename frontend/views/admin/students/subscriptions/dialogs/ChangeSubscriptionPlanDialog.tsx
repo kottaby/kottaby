@@ -92,7 +92,13 @@ export function ChangeSubscriptionPlanDialog({
 
   const renderPlanSelector = (): ReactNode => {
     if (plansError && !plansLoading) {
-      return <DirectoryErrorAlert labels={t.errorState} errorCode={plansErrorCode} onRetry={onRetryPlans} />;
+      return (
+        <DirectoryErrorAlert
+          labels={{ ...t.changePlan.errorState, retry: t.errorState.retry }}
+          errorCode={plansErrorCode}
+          onRetry={onRetryPlans}
+        />
+      );
     }
     if (!plansLoading && plans.length === 0) {
       return (

@@ -17,7 +17,7 @@
  *      is pinned under BOTH locales — a key dropped from both maps
  *      simultaneously still fails this suite.
  *   3. FUNCTION-LEAF INVENTORY — the count-bearing proration/success
- *      leaves plus the cancel reason counter are exactly the six declared
+ *      leaves plus the cancel reason counter are exactly the four declared
  *      function slots (no silent minting, no downgrade into a plain
  *      string) and each renders non-empty output carrying its probe count
  *      in BOTH locales.
@@ -210,7 +210,7 @@ describe("actions block — pinned under BOTH locales (four-action lifecycle inv
 });
 
 // ===========================================================================
-describe("function-leaf inventory — exactly the six count-bearing slots", () => {
+describe("function-leaf inventory — exactly the four count-bearing slots", () => {
   test("the function slots are EXACTLY the declared inventory (no minting, no downgrade)", () => {
     const functionPaths = sortedLeafPathsOf(subscriptionAdminAr).filter(path => {
       return typeof leafValueOf(subscriptionAdminAr, path, "ar") === "function";
