@@ -116,6 +116,12 @@ const apolloCacheTypePolicies: NonNullable<InMemoryCacheConfig["typePolicies"]> 
   ParentHomeworkTrack: { keyFields: false },
   ParentHomeworkPosition: { keyFields: false },
   ParentChildProgress: { keyFields: false },
+  // Teacher-scoped homework history pagination envelope — id-less wrapper
+  // over the canonical `SessionHomeWork` rows inside `items`; the rows
+  // themselves normalize via their `id` (no policy needed). Mirrors the
+  // `ParentHomeworkPage` precedent immediately above; without it every
+  // history read trips "Cache data may be lost" normalization warnings.
+  StudentHomeworkPage: { keyFields: false },
   OnlineMeetingInfo: {
     keyFields: false,
   },

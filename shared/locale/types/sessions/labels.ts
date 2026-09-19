@@ -283,4 +283,103 @@ export interface SessionsLabels {
   readonly adminDisputeAnalyticsResolved: string;
   /** Analytics section label — the per-outcome breakdown chips row. */
   readonly adminDisputeAnalyticsOutcomes: string;
+
+  // ─── Session Report Submission (Jadid & Madi) ───────────────────────────────
+  // Teacher CTA labels (pinned names — consumed by Task 4's arms matrix).
+  /** Teacher row action — submit the report for a completed session. */
+  readonly sessionReportAction: string;
+  /** Teacher row action — view the homework of a started session. */
+  readonly viewHomeworkAction: string;
+
+  // Dialog mode titles.
+  /** Dialog title — preparing the report (reading prior homework). */
+  readonly reportDialogPrepareTitle: string;
+  /** Dialog title — submitting the report (form state). */
+  readonly reportDialogSubmitTitle: string;
+  /** Dialog title — reviewing a submitted report (read-only). */
+  readonly reportDialogReviewTitle: string;
+
+  // Notes field.
+  /** Label — teacher notes (required, ≤2000 chars). */
+  readonly reportNotesLabel: string;
+  /** Placeholder for the notes field. */
+  readonly reportNotesPlaceholder: string;
+  /** Inline field error — notes are required. */
+  readonly reportNotesRequiredMessage: string;
+  /** Inline field error — notes exceed 2000 chars. */
+  readonly reportNotesTooLongMessage: string;
+
+  // Rating field.
+  /** Label — student rating by teacher (0–5). */
+  readonly reportRatingLabel: string;
+  /** Inline field error — rating is required. */
+  readonly reportRatingRequiredMessage: string;
+
+  // Submit / cancel CTAs and notices.
+  /** Submit button label. */
+  readonly reportSubmitLabel: string;
+  /** Cancel button label. */
+  readonly reportCancelLabel: string;
+  /** Success notice — the report was submitted. */
+  readonly reportSubmitSuccessNotice: string;
+  /** Info notice — a report was already submitted (replay safe). */
+  readonly reportAlreadySubmittedNotice: string;
+
+  // Validation messages (mirrors server vocabulary).
+  /** Inline field error — at least one homework block (Jadid OR Madi) is required. */
+  readonly reportBlocksRequiredMessage: string;
+  /** Inline field error — `fromAyah` must be ≤ `toAyah`. */
+  readonly reportAyahRangeMessage: string;
+  /** Inline field error — grades must be in 0–100. */
+  readonly reportGradeRangeMessage: string;
+  /** Inline field error — `surahJuz` is required for a non-empty block. */
+  readonly reportSurahJuzRequiredMessage: string;
+
+  // Assignment blocks.
+  /** Section heading — the new memorization (Jadid) block. */
+  readonly jadidSectionTitle: string;
+  /** Section heading — the revision (Madi) block. */
+  readonly madiSectionTitle: string;
+  /** Field label — start ayah of a block. */
+  readonly fromAyahLabel: string;
+  /** Field label — end ayah of a block. */
+  readonly toAyahLabel: string;
+  /** Field label — the Surah/Juz picker. */
+  readonly surahJuzPickerLabel: string;
+
+  // Grade-previous section (renders when prior homework exists).
+  /** Section heading — the previous-homework grading block. */
+  readonly gradePreviousSectionTitle: string;
+  /** First-session hint — no prior homework to evaluate. */
+  readonly reportFirstSessionHint: string;
+  /** Read-only chip — the previous homework was already graded. */
+  readonly reportAlreadyGradedLabel: string;
+  /** Field label — the Jadid track's grade input. */
+  readonly reportGradeJadidLabel: string;
+  /** Field label — the Madi track's grade input. */
+  readonly reportGradeMadiLabel: string;
+  /** Empty-state label — a track block is absent on the prior homework. */
+  readonly reportTrackEmptyLabel: string;
+
+  // History list (compact rows).
+  /** Section heading — the student's homework history list. */
+  readonly reportHistorySectionTitle: string;
+  /** Empty-state body — no prior homework exists for this student. */
+  readonly reportHistoryEmptyMessage: string;
+  /** Row meta label — the session's date. */
+  readonly reportSessionDateLabel: string;
+
+  // Review state (reuses the case-review display posture).
+  /** Meta label — the reviewed notes display. */
+  readonly reportReviewedNotesLabel: string;
+  /** Meta label — the reviewed rating display. */
+  readonly reportReviewedRatingLabel: string;
+
+  /**
+   * Resolves a `SurahJuzRef` enum member value to its localized display
+   * label. Returns the raw ref on an unknown key (fail-closed — never
+   * throws, never renders an empty string). Same signature in both locales;
+   * exhaustive over the 35-member vocabulary (5 surahs + 30 juz).
+   */
+  readonly surahJuzLabel: (ref: string) => string;
 }

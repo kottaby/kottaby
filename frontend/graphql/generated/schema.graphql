@@ -1197,6 +1197,7 @@ type Query {
   Read the dispute case for one session as its own student (student-only): the session row plus the participant-owned artifacts (report, homework, recitation — honest nulls when absent) and the teacher display name. Non-participants and unknown or malformed ids are indistinguishable localized not-found denials.
   """
   studentDisputeCase(id: ID!): StudentDisputeCase!
+  studentHomeworkHistory(page: Int, pageSize: Int, studentId: ID!): StudentHomeworkPage!
 
   """
   Read the dispute case for one session as its own teacher (teacher-only): the session row plus the participant-owned artifacts (report, homework, recitation — honest nulls when absent) and the student display name. Non-participants and unknown or malformed ids are indistinguishable localized not-found denials.
@@ -1349,6 +1350,13 @@ type StudentDisputeCase {
   report: SessionReport
   session: Session!
   teacherName: String
+}
+
+type StudentHomeworkPage {
+  items: [SessionHomeWork!]!
+  page: Int!
+  pageSize: Int!
+  totalCount: Int!
 }
 
 """A recorded payment a student made for a subscription."""
