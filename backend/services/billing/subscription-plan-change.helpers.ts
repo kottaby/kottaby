@@ -278,7 +278,11 @@ async function settlePlanChangeSideEffects(
  * against concurrent lane debits (a booking either lands BEFORE this read
  * and is honestly reflected in the proration, or blocks until after the
  * settlement commits — it can never commit in between and be silently
- * superseded by the prepared total). `tx` is always supplied here (the
+ * superseded by the prepared total). The lock is acquired only AFTER the
+ * source subscription row's guarded flip, so the flow takes its two row
+ * locks in the expiry sweep's order (subscriptions first, then the
+ * owner's students row) — the reverse order would let a concurrent
+ * sweep × plan-change race deadlock. `tx` is always supplied here (the
  * flow's transaction): a locking read without a transaction would release
  * its lock as soon as the statement finished. Fail-closed: a vanished
  * owner (unreachable through the FK restrict while the subscription
@@ -370,18 +374,26 @@ async function changeSubscriptionPlanTx(
   const lane = certifySourceLane(source.plan, tErrors);
   const target = await readPlanChangeTarget(input.newPlanId, source.plan, scopedTx, tErrors);
 
+  const claim = await insertPlanChangeClaim(source.subscription.id, source.subscription.userId, target.id, scopedTx);
+  if (claim === null) {
+    return resolvePlanChangeReplayRow(source, target, scopedTx, tErrors);
+  }
+
+  await cancelPlanChangeSource(source.subscription, tErrors, scopedTx);
+
   // The proration's remaining-sessions input is the student's CURRENT lane
   // balance for the OLD lane, read inside this transaction (flat lanes).
+  // The owner's FOR UPDATE lock is taken only AFTER the source row's
+  // guarded flip, so this flow acquires its two row locks in the expiry
+  // sweep's order (subscriptions first, then the owner's students row) —
+  // the reverse order would let a concurrent sweep × plan-change race
+  // deadlock (40P01). Held to the commit, the read→settle serialization
+  // is unchanged and the proration input semantics are identical.
   const student = await readPlanChangeOwner(source, tErrors, scopedTx);
   const proration = computeProration(
     { remainingSessions: studentLaneBalanceOf(student, lane), oldPlan: source.plan, newPlan: target },
     tErrors
   );
-
-  const claim = await insertPlanChangeClaim(source.subscription.id, source.subscription.userId, target.id, scopedTx);
-  if (claim === null) {
-    return resolvePlanChangeReplayRow(source, target, scopedTx, tErrors);
-  }
 
   // The credit: the target plan's full session count, plus the computed
   // carry on the upgrade leg — the downgrade forfeits the remainder
@@ -394,8 +406,6 @@ async function changeSubscriptionPlanTx(
   const direction = proration.direction;
   const creditedSessions =
     direction === ProrationDirection.Upgrade ? target.sessionCount + proration.carrySessions : target.sessionCount;
-
-  await cancelPlanChangeSource(source.subscription, tErrors, scopedTx);
 
   const created = await insertChangedSubscription(source.subscription, target, scopedTx);
   await settlePlanChangeSideEffects(

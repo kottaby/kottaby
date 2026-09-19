@@ -132,7 +132,8 @@ export namespace SubscriptionAdminService {
    *
    * Fail-closed sequence: the day count is validated pre-DB, the admin
    * gate re-asserts the actor's role with zero writes on denial, and one
-   * transaction owns the read, the guarded `extendActiveOnce` transition,
+   * transaction owns the locking read (`findByIdForUpdate` — the audit
+   * pre-image's serialization), the guarded `extendActiveOnce` transition,
    * and the exactly-one audit row (`Update` on the `subscription` entity,
    * details `{ previousEndDate, newEndDate, addedDays }` — ISO strings
    * and an integer only). A row that is missing, not `active`, or
@@ -193,7 +194,11 @@ export namespace SubscriptionAdminService {
 
     try {
       return await withTransaction(tx, async scopedTx => {
-        const subscription = await SubscriptionRepository.findById(input.subscriptionId, scopedTx);
+        // The opening read takes the row's FOR UPDATE lock (held to the
+        // transaction's end), so concurrent extends serialize read→write:
+        // the audit's `previousEndDate` below is always the TRUE pre-image
+        // of the winning write, never a stale READ COMMITTED snapshot.
+        const subscription = await SubscriptionRepository.findByIdForUpdate(input.subscriptionId, scopedTx);
         if (subscription?.status !== STATUS_ACTIVE || subscription.endDate === null) {
           logger.logDomainError("Subscription extend denied: row missing, not active, or windowless", {
             code: "CONFLICT",
@@ -221,10 +226,11 @@ export namespace SubscriptionAdminService {
         }
 
         // The guarded single UPDATE is the write decision: its WHERE
-        // predicate re-asserts `active` AND the read window end, so a
-        // concurrent writer (expiry sweep, cancellation) or an identical
-        // double-submit loses the race here (zero rows) instead of
-        // shifting the window twice.
+        // predicate re-asserts `active` AND the read window end as the
+        // fail-closed backstop behind the locking read — any caller whose
+        // target was computed from a superseded window (or whose row has
+        // since left `active`) matches zero rows here instead of shifting
+        // the window twice.
         const extended = await SubscriptionRepository.extendActiveOnce(
           subscription.id,
           { previousEndDate, newEndDate },

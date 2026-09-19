@@ -770,8 +770,36 @@ describe("SubscriptionAdminService.extendSubscription — chaos (Tier 3)", () =>
     });
   });
 
+  test("a deadlock-detected (40P01) repo failure maps onto the localized conflict — never a raw 500", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { subscription } = await createActiveSubscription(tx);
+
+      // The sweep × flow lock-order edge, unit-style: PostgreSQL's
+      // deadlock detector aborts the flow's locking read with 40P01. The
+      // raw driver error (the code attached to the error — the shape the
+      // cycle-safe walker reads) must map beside the other violation
+      // legs: the aborted transaction rolled back clean, so the caller
+      // sees the localized conflict, not a 500.
+      const deadlockStub = trackSpy(spyOn(SubscriptionRepository, "findByIdForUpdate"));
+      deadlockStub.mockImplementation(async () => {
+        throw Object.assign(new Error("deadlock detected"), { code: "40P01" });
+      });
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.extendSubscription(extendInput(subscription.id, 7), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().conflict);
+      // Zero writes — the aborted unit committed nothing.
+      expect(await readAuditsForSubscription(tx, subscription.id)).toHaveLength(0);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
   testOnRealPostgres(
-    "concurrent identical double-submits: exactly one window shift and one audit row, the loser conflicts",
+    "concurrent identical double-submits: the locking read serializes them — two stacked shifts, each audit recording its TRUE pre-image",
     async () => {
       // Committed fixtures — the production path opens its OWN transaction
       // per call, so the race needs real committed entities.
@@ -796,64 +824,60 @@ describe("SubscriptionAdminService.extendSubscription — chaos (Tier 3)", () =>
         throw new Error("fixture failure: active row has no window end");
       }
 
-      // Deterministic lost-race interleaving: hold BOTH calls right after
-      // their row read (each inside its own top-level transaction) and
-      // release them together, so both guarded UPDATEs contend on the SAME
-      // previous end date. Without the barrier the second call's read can
-      // land after the first commit — a legitimately STACKED extension by
-      // design (the service re-reads the current window), not the lost
-      // race this probe pins. The real guarded statement, row lock, and
-      // audit write below stay fully exercised.
-      const realFindById = SubscriptionRepository.findById;
-      let readersArrived = 0;
-      let releaseReaders!: () => void;
-      const readersBarrier = new Promise<void>(resolve => {
-        releaseReaders = resolve;
-      });
-      const findByIdStub = trackSpy(spyOn(SubscriptionRepository, "findById"));
-      findByIdStub.mockImplementation(async (id, executor) => {
-        const row = await realFindById(id, executor);
-        readersArrived += 1;
-        if (readersArrived === 2) {
-          releaseReaders();
-        }
-        await readersBarrier;
-        return row;
-      });
-
+      // The locking read serializes the pair: the second call's
+      // `findByIdForUpdate` blocks on the row lock until the first
+      // transaction commits, then re-reads the MOVED window (READ
+      // COMMITTED re-evaluation), so the second extension stacks from the
+      // first's committed result and its audit records the TRUE pre-image
+      // — the stale-snapshot pre-image this locking read exists to
+      // prevent is unreachable. No barrier is needed (one would deadlock:
+      // the second read cannot return while the first holds the lock).
       try {
         const [first, second] = await Promise.allSettled([
           SubscriptionAdminService.extendSubscription(extendInput(fixture.subscriptionId, 10), fixture.adminId, "en"),
           SubscriptionAdminService.extendSubscription(extendInput(fixture.subscriptionId, 10), fixture.adminId, "en"),
         ]);
 
-        // Exactly one call commits; the loser receives the idempotent
-        // conflict instead of a second window shift.
-        const outcomes = [first, second];
-        const fulfilled = outcomes.filter(entry => entry.status === "fulfilled");
-        const rejected = outcomes.filter(entry => entry.status === "rejected");
-        expect(fulfilled).toHaveLength(1);
-        expect(rejected).toHaveLength(1);
-        const loserReason = rejected[0]?.status === "rejected" ? rejected[0].reason : null;
-        expect(loserReason).toBeInstanceOf(ConflictError);
-        expect(rejectionCode(loserReason)).toBe("CONFLICT");
+        // Both serialize onto the locked row: two legitimate stacked
+        // shifts, no loser — each call computes its target from the row's
+        // CURRENT committed end date.
+        expect(first.status).toBe("fulfilled");
+        expect(second.status).toBe("fulfilled");
 
-        // The window shifted by exactly ONE extension — never two.
+        // The window shifted by BOTH extensions — the second from the
+        // first's committed end date, never from a stale snapshot.
         const reread = await db
           .select()
           .from(subscriptions)
           .where(eq(subscriptions.id, fixture.subscriptionId))
           .limit(1);
-        expect(reread[0]?.endDate).toEqual(new Date(fixture.previousEndDate.getTime() + 10 * MS_PER_DAY));
+        expect(reread[0]?.endDate).toEqual(new Date(fixture.previousEndDate.getTime() + 20 * MS_PER_DAY));
         expect(reread[0]?.status).toBe(SubscriptionStatus.Active);
 
+        // Exactly one audit row per shift, and the pre-image chain is TRUE
+        // at every hop: the second audit's `previousEndDate` is the first
+        // write's committed result — the stale pre-image under concurrent
+        // extends is exactly what the locking read prevents.
         const audits = await db
           .select()
           .from(auditLogs)
           .where(
             and(eq(auditLogs.entityType, SUBSCRIPTION_ENTITY_TYPE), eq(auditLogs.entityId, fixture.subscriptionId))
           );
-        expect(audits).toHaveLength(1);
+        expect(audits).toHaveLength(2);
+        const firstEnd = new Date(fixture.previousEndDate.getTime() + 10 * MS_PER_DAY).toISOString();
+        const secondEnd = new Date(fixture.previousEndDate.getTime() + 20 * MS_PER_DAY).toISOString();
+        const detailsList = audits.map(audit => JSON.parse(audit.details ?? "{}"));
+        expect(detailsList).toContainEqual({
+          previousEndDate: fixture.previousEndDate.toISOString(),
+          newEndDate: firstEnd,
+          addedDays: 10,
+        });
+        expect(detailsList).toContainEqual({
+          previousEndDate: firstEnd,
+          newEndDate: secondEnd,
+          addedDays: 10,
+        });
       } finally {
         // FK-ordered teardown of the committed fixtures; the committed
         // audit row (append-only table) is removed first under suspended

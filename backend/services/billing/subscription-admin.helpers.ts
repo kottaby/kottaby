@@ -420,9 +420,7 @@ function isPgErrorWithCode(error: unknown, code: string): boolean {
  * `balance_* >= 0` CHECK constraints trip only if a prepared value were
  * negative, which the flows' arithmetic never produces.
  */
-function isPgCheckViolation(error: unknown): boolean {
-  return isPgErrorWithCode(error, "23514");
-}
+const isPgCheckViolation = (error: unknown): boolean => isPgErrorWithCode(error, "23514");
 
 /**
  * The integer-out-of-range (22003) leg — the lane-balance column's int4
@@ -430,21 +428,35 @@ function isPgCheckViolation(error: unknown): boolean {
  * backstop, translated beside the other violation legs so a raw driver
  * error never surfaces as a 500.
  */
-function isPgIntegerOutOfRange(error: unknown): boolean {
-  return isPgErrorWithCode(error, "22003");
-}
+const isPgIntegerOutOfRange = (error: unknown): boolean => isPgErrorWithCode(error, "22003");
+
+/**
+ * The deadlock-detected (40P01) leg — two writers taking the same row
+ * locks in opposite orders (a concurrent sweep × admin flow) abort one
+ * side when PostgreSQL's deadlock detector fires. The aborted transaction
+ * rolled back clean, so the caller resurfaces the localized conflict (a
+ * retriable conflict, never a raw 40P01 surfacing as a 500).
+ */
+const isPgDeadlockDetected = (error: unknown): boolean => isPgErrorWithCode(error, "40P01");
 
 /**
  * Maps PostgreSQL violations from subscription-admin writes onto their
  * canonical domain errors: uniqueness conflicts (the shared, cycle-safe
  * `23505` walker), balance CHECK violations (the cycle-safe `23514`
- * walker), and integer-out-of-range writes (the cycle-safe `22003` walker
- * — the lane column's int4 ceiling) become the localized `ConflictError`.
- * Any other failure is returned untouched so the caller rethrows it
- * verbatim.
+ * walker), integer-out-of-range writes (the cycle-safe `22003` walker
+ * — the lane column's int4 ceiling), and deadlock-detected aborts (the
+ * cycle-safe `40P01` walker — two writers taking the same row locks in
+ * opposite orders; the aborted side may retry) become the localized
+ * `ConflictError`. Any other failure is returned untouched so the caller
+ * rethrows it verbatim.
  */
 export function toSubscriptionAdminDomainError(error: unknown, tErrors: ErrorsLabels): unknown {
-  if (isPgUniqueViolation(error) || isPgCheckViolation(error) || isPgIntegerOutOfRange(error)) {
+  if (
+    isPgUniqueViolation(error) ||
+    isPgCheckViolation(error) ||
+    isPgIntegerOutOfRange(error) ||
+    isPgDeadlockDetected(error)
+  ) {
     return new ConflictError(tErrors.conflict, { cause: error });
   }
   return error;

@@ -99,6 +99,24 @@ export namespace SubscriptionRepository {
   }
 
   /**
+   * Finds a subscription by ID under a `FOR UPDATE` row lock — the extend
+   * flow's opening read (mirroring the student repository's locking read;
+   * the service layer never issues `SELECT … FOR UPDATE` directly). The
+   * lock is held to the transaction's end, so the row read and the
+   * guarded `extendActiveOnce` write serialize against concurrent
+   * extends: the audit's `previousEndDate` pre-image is the row's TRUE
+   * committed state immediately before the winning write, never a stale
+   * READ COMMITTED snapshot. `tx` is required — a locking read without a
+   * transaction would release its lock as soon as the statement finished.
+   *
+   * @returns The locked subscription row, or null if not found.
+   */
+  export async function findByIdForUpdate(id: number, tx: DBTransaction): Promise<SubscriptionSelectType | null> {
+    const rows = await tx.select().from(subscriptions).where(eq(subscriptions.id, id)).for("update");
+    return rows[0] ?? null;
+  }
+
+  /**
    * Finds a subscription by its gateway-issued payment reference — the
    * webhook delivery's lookup key. The partial unique index makes the
    * reference globally unambiguous among referenced rows.
@@ -163,8 +181,10 @@ export namespace SubscriptionRepository {
    *
    * A single guarded `UPDATE … WHERE id = ? AND status = 'active' AND
    * end_date < ? … RETURNING` stamps the new window end plus an explicit
-   * `updated_at`. The `end_date < newEndDate` predicate is the
-   * concurrency lock: an identical double-submit (the window already sits
+   * `updated_at`. The `end_date < newEndDate` predicate is the replay
+   * backstop (the extend flow's opening read takes the row's
+   * `FOR UPDATE` lock, so concurrent extends serialize read→write there):
+   * an identical double-submit (the window already sits
    * AT `newEndDate` after the first write) or any concurrent writer that
    * moved the window to or beyond it (the expiry sweep, a cancellation,
    * a further extension) matches zero rows and returns `null`, so a

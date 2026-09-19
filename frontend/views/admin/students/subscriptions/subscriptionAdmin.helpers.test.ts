@@ -9,10 +9,12 @@
  *      matrix row (the exhaustive `Record` lookup degrades to `undefined`
  *      for a missing member, which would silently kill a row's actions).
  *   2. The extend-days GATE — only a strictly positive, whole, safe
- *      integer parses (`parseExtendDays`); zero, negatives, decimals,
- *      non-numeric garbage, and integer-overflow strings all resolve to
- *      `null` so the dialog never submits a client-garbage day count
- *      (the server keeps the window-ceiling authority).
+ *      integer at or below the protocol's int4 wire limit parses
+ *      (`parseExtendDays`); zero, negatives, decimals, non-numeric
+ *      garbage, integer-overflow strings, and anything past the int4
+ *      transport bound (2147483647) all resolve to `null` so the dialog
+ *      never submits a client-garbage or unwireable day count (the
+ *      server keeps the window-ceiling authority).
  *   3. The cancel-reason SEAM — blank/whitespace-only reasons collapse to
  *      `null` (nothing is minted into the audit trail) and a longer submit
  *      is clamped to the backend's 200-character boundary.
@@ -138,6 +140,19 @@ describe("parseExtendDays — whole days > 0, client-side gate", () => {
   test("integer-overflow strings fail the safe-integer bound", () => {
     expect(parseExtendDays("99999999999999999999")).toBeNull();
     expect(parseExtendDays("10000000000000000000")).toBeNull();
+  });
+
+  test("values past the protocol's int4 wire limit fail the transport gate", () => {
+    // A count above the wire limit can never reach the server — the
+    // request would die with a protocol-layer English error surfaced
+    // inside the dialog. Transport constraint, not business authority.
+    expect(parseExtendDays("2147483648")).toBeNull();
+    expect(parseExtendDays("2147483649")).toBeNull();
+    expect(parseExtendDays("9999999999")).toBeNull();
+  });
+
+  test("the int4 wire limit itself passes the transport gate (the server owns the business ceiling)", () => {
+    expect(parseExtendDays("2147483647")).toBe(2_147_483_647);
   });
 });
 

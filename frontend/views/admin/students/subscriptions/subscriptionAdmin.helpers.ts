@@ -10,9 +10,10 @@
  * never runtime string literals, never switch statements on enum values.
  *
  * The server stays the authority: client validation only gates the
- * "days > 0" rule and the 200-character cancel-reason seam cap
- * (both mirrored from the backend contract); everything else degrades to
- * the server's localized denial surfaced inside the dialog.
+ * "days > 0" rule, the protocol's int4 wire limit (a transport
+ * constraint, not business authority), and the 200-character
+ * cancel-reason seam cap; everything else degrades to the server's
+ * localized denial surfaced inside the dialog.
  */
 import {
   type AdminPlansQuery,
@@ -113,10 +114,21 @@ export function actionsForStatus(status: SubscriptionStatus): SubscriptionRowAct
 // Extend dialog — days validation (whole days > 0, client-side)
 
 /**
+ * The protocol's integer wire limit (the int4 bound the transport layer
+ * enforces). A day count above it can never reach the server — the
+ * request would die with a protocol-layer English error surfaced inside
+ * the dialog instead of the server's localized denial. This is the
+ * TRANSPORT bound only: the server's window-ceiling authority is
+ * untouched.
+ */
+export const MAX_WIRE_INT32 = 2_147_483_647;
+
+/**
  * Parses the extend-days input into a positive whole day count, or `null`
  * when the input is not a strictly positive integer (0, negatives,
- * decimals, and non-numeric garbage all fail; the server keeps the
- * window-ceiling authority).
+ * decimals, and non-numeric garbage all fail), or when it exceeds the
+ * protocol's int4 wire limit (the value could not travel the transport;
+ * the server keeps the window-ceiling authority).
  */
 export function parseExtendDays(raw: string): number | null {
   const trimmed = raw.trim();
@@ -124,7 +136,7 @@ export function parseExtendDays(raw: string): number | null {
     return null;
   }
   const days = Number.parseInt(trimmed, 10);
-  if (!Number.isSafeInteger(days) || days <= 0) {
+  if (!Number.isSafeInteger(days) || days <= 0 || days > MAX_WIRE_INT32) {
     return null;
   }
   return days;
