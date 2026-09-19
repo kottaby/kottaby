@@ -16,7 +16,10 @@
  *
  * Panels stay MOUNTED while hidden (the `hidden` attribute — the MUI
  * TabPanel recipe) so switching tabs preserves each tab's filter/page
- * state; all three tab queries run from mount.
+ * state; all three tab queries run from mount. The withdrawals tab label
+ * carries a LIVE pending-count badge (the same queue document at the
+ * narrowest window; the settlement mutations refetch it by name, so it
+ * self-updates on every approve/reject).
  *
  * The settlement/adjustment mutations live in the panels' dialogs; every
  * outcome surfaces a container-level snackbar through
@@ -30,9 +33,11 @@
  * property access for every label (no literal copy anywhere).
  */
 
-import { Box, Card, Stack, Tab, Tabs } from "@mui/material";
+import { Badge, Box, Card, Stack, Tab, Tabs } from "@mui/material";
+import { useQuery } from "@apollo/client/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
+import { adminPendingWithdrawalsQueryDocument } from "@/frontend/graphql/sharedDocuments/admin";
 import { DirectoryPageHeader } from "@/frontend/views/admin/directory-shared/DirectoryPageHeader";
 import {
   type FinancesTab,
@@ -52,8 +57,27 @@ const TAB_IDS: Readonly<Record<FinancesTab, { tab: string; panel: string }>> = {
   wallet: { tab: "finances-tab-wallet", panel: "finances-panel-wallet" },
 };
 
-/** The tab order of the strip, as a typed guard (no unsafe key cast). */
+/**
+ * The tab order of the strip, as a typed guard (no unsafe key cast).
+ */
 const TAB_ORDER: readonly FinancesTab[] = ["payments", "withdrawals", "wallet"];
+
+/**
+ * usePendingWithdrawalCount — the tab-badge read: the SAME
+ * `AdminPendingWithdrawals` document at the narrowest window (pageSize 1)
+ * so only `totalCount` is the payload that matters. The settlement
+ * mutations refetch this document BY NAME, so the badge self-updates the
+ * moment a request is settled; the light poll keeps it honest when another
+ * admin (or a new teacher request) changes the queue behind this tab.
+ */
+function usePendingWithdrawalCount(): number {
+  const { data } = useQuery(adminPendingWithdrawalsQueryDocument, {
+    variables: { page: 1, pageSize: 1 },
+    fetchPolicy: "cache-and-network",
+    pollInterval: 30_000,
+  });
+  return data?.adminPendingWithdrawals.totalCount ?? 0;
+}
 
 /**
  * The finances console view: always-on chrome (title + tab strip) over the
@@ -61,6 +85,8 @@ const TAB_ORDER: readonly FinancesTab[] = ["payments", "withdrawals", "wallet"];
  */
 export function AdminFinancesContainer(): ReactNode {
   const t = useAppTranslation(AdminFinance);
+  // The withdrawals-tab badge (feature C): live pending-queue depth.
+  const pendingCount = usePendingWithdrawalCount();
 
   // ── Shareable-URL wiring ────────────────────────────────────────────
   const searchParams = useSearchParams();
@@ -136,7 +162,29 @@ export function AdminFinancesContainer(): ReactNode {
             <Tab
               key={tab}
               value={tab}
-              label={tabLabels[tab]}
+              label={
+                tab === "withdrawals" ? (
+                  <Badge
+                    badgeContent={pendingCount}
+                    color="warning"
+                    invisible={pendingCount === 0}
+                    title={t.pendingWithdrawalsCount(pendingCount)}
+                    sx={{
+                      "& .MuiBadge-badge": {
+                        fontWeight: 700,
+                        fontSize: 11,
+                        minWidth: 18,
+                        height: 18,
+                        paddingInline: 4,
+                      },
+                    }}
+                  >
+                    {tabLabels[tab]}
+                  </Badge>
+                ) : (
+                  tabLabels[tab]
+                )
+              }
               id={TAB_IDS[tab].tab}
               aria-controls={TAB_IDS[tab].panel}
               sx={{ minHeight: 48, textTransform: "none", fontWeight: 600, fontSize: 15 }}

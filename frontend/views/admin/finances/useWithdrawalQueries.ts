@@ -94,7 +94,16 @@ export function useAdminPendingWithdrawals() {
  */
 export function useApproveWithdrawal(callbacks: MutationOutcomeCallbacks) {
   const [approveWithdrawal, { loading }] = useMutation(approveWithdrawalMutationDocument, {
-    refetchQueries: ["AdminPendingWithdrawals", "AdminTeacherWallet", "AdminStudentPayments"],
+    refetchQueries: [
+      "AdminPendingWithdrawals",
+      // The tab badge runs the SAME document at its own window ({page:1,
+      // pageSize:1}) — the by-NAME entry above does not guarantee that
+      // instance refetches, so the badge descriptor is listed explicitly
+      // (the badge must clear the instant the queue drains).
+      { query: adminPendingWithdrawalsQueryDocument, variables: { page: 1, pageSize: 1 } },
+      "AdminTeacherWallet",
+      "AdminStudentPayments",
+    ],
     awaitRefetchQueries: false,
     onCompleted: () => {
       callbacks.onSettled();
@@ -116,7 +125,13 @@ export function useApproveWithdrawal(callbacks: MutationOutcomeCallbacks) {
  */
 export function useRejectWithdrawal(callbacks: MutationOutcomeCallbacks) {
   const [rejectWithdrawal, { loading }] = useMutation(rejectWithdrawalMutationDocument, {
-    refetchQueries: ["AdminPendingWithdrawals", "AdminTeacherWallet", "AdminStudentPayments"],
+    refetchQueries: [
+      "AdminPendingWithdrawals",
+      // Same badge-instance refetch as the approve arm (see the comment there).
+      { query: adminPendingWithdrawalsQueryDocument, variables: { page: 1, pageSize: 1 } },
+      "AdminTeacherWallet",
+      "AdminStudentPayments",
+    ],
     awaitRefetchQueries: false,
     onCompleted: () => {
       callbacks.onSettled();
