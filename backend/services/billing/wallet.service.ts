@@ -217,6 +217,10 @@ export namespace WalletService {
     outerTx?: DBTransaction
   ): Promise<WalletViewType> {
     const t = getServerTranslations(locale).errorsTranslations;
+    // The ledger description is user-visible data: composed per the
+    // requester's locale (the wallet labels bundle — one string, both
+    // locales, compile-typed parity).
+    const walletLabels = getServerTranslations(locale).walletTranslations;
 
     // Pre-DB validation FIRST — a malformed amount never reaches SQL.
     const amount = assertValidWithdrawalAmount(rawAmount, t);
@@ -235,7 +239,7 @@ export namespace WalletService {
         {
           walletId: wallet.id,
           amount,
-          description: "Withdrawal request (pending payout)",
+          description: walletLabels.withdrawalLedgerDescription,
         },
         tx
       );

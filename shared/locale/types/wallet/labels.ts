@@ -67,6 +67,11 @@ export interface WalletLabels {
   readonly ledgerColumnAmount: string;
   /** Ledger card footer — every fetched row is on screen (count of visible, total fetched). */
   readonly ledgerShownAll: (visibleCount: number, fetchedCount: number) => string;
+  /**
+   * Ledger description written on the pending-withdrawal debit row (the
+   * server composes it per the requester's locale — `wallet.service`).
+   */
+  readonly withdrawalLedgerDescription: string;
   /** Withdraw dialog — accessible name of the quick-amount chip group. */
   readonly quickAmountsAria: string;
   /** Ledger header — accessible label of the CSV export button. */
