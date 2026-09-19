@@ -37,7 +37,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
+import { SessionStatus, SessionType } from "@/frontend/graphql/generated/gql/graphql";
 import {
   addUtcDays,
   clockStamp,
@@ -67,7 +67,7 @@ function makeSession(overrides: {
     id: overrides.id ?? "s1",
     status: overrides.status,
     intent: null,
-    sessionType: "Hifz",
+    sessionType: SessionType.StudentSession,
     fee: "25.00",
     feeHeld: false,
     studentId: "4",
@@ -85,7 +85,7 @@ function makeSession(overrides: {
     resolutionNote: null,
     resolutionOutcome: null,
     resolvedAt: null,
-  } as unknown as ScheduleSession;
+  };
 }
 
 /** Wed 2026-09-16 23:30 UTC — the DST-edgeproof probe instant. */

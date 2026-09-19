@@ -99,8 +99,8 @@ describe("upNext namespace — ar/en parity belt", () => {
 
   test("function-valued keys agree on argument arity across locales", () => {
     for (const [key, arity] of Object.entries(UPNEXT_FUNCTION_KEYS)) {
-      expect(upNextEn[key as keyof typeof UPNEXT_FUNCTION_KEYS]).toHaveLength(arity);
-      expect(upNextAr[key as keyof typeof UPNEXT_FUNCTION_KEYS]).toHaveLength(arity);
+      expect((upNextEn as unknown as Record<string, unknown>)[key]).toHaveLength(arity);
+      expect((upNextAr as unknown as Record<string, unknown>)[key]).toHaveLength(arity);
     }
   });
 

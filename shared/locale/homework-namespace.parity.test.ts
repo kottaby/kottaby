@@ -111,8 +111,8 @@ describe("homework namespace — ar/en parity belt", () => {
 
   test("function-valued keys agree on argument arity across locales", () => {
     for (const [key, arity] of Object.entries(HOMEWORK_FUNCTION_KEYS)) {
-      expect(homeworkEn[key as keyof typeof HOMEWORK_FUNCTION_KEYS]).toHaveLength(arity);
-      expect(homeworkAr[key as keyof typeof HOMEWORK_FUNCTION_KEYS]).toHaveLength(arity);
+      expect((homeworkEn as unknown as Record<string, unknown>)[key]).toHaveLength(arity);
+      expect((homeworkAr as unknown as Record<string, unknown>)[key]).toHaveLength(arity);
     }
   });
 

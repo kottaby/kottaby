@@ -137,10 +137,13 @@ describe("status filter — one partition, two views", () => {
   });
 });
 
+// Module-scope matchers — the shared predicate signature is
+// (row, query) => boolean; these two ignore their arguments on purpose.
+const anyDate = () => true;
+const noDate = () => false;
+
 describe("filterHomeworkByQuery — shared search vocabulary", () => {
   const rows = [row(1, 92, 88), row(2, null, null), row(3, null, 81)];
-  const anyDate = () => true;
-  const noDate = () => false;
 
   test("a blank query returns the SAME array reference (no copy, no reorder)", () => {
     expect(filterHomeworkByQuery(rows, "", anyDate)).toBe(rows);

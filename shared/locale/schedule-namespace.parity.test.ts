@@ -103,8 +103,8 @@ describe("schedule namespace — ar/en parity belt", () => {
 
   test("function-valued keys agree on argument arity across locales", () => {
     for (const [key, arity] of Object.entries(SCHEDULE_FUNCTION_KEYS)) {
-      expect(scheduleEn[key as keyof typeof SCHEDULE_FUNCTION_KEYS]).toHaveLength(arity);
-      expect(scheduleAr[key as keyof typeof SCHEDULE_FUNCTION_KEYS]).toHaveLength(arity);
+      expect((scheduleEn as unknown as Record<string, unknown>)[key]).toHaveLength(arity);
+      expect((scheduleAr as unknown as Record<string, unknown>)[key]).toHaveLength(arity);
     }
   });
 

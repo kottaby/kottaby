@@ -118,7 +118,7 @@ export function groupSessionsByWeekDay(sessions: readonly ScheduleSession[], wee
   }
   return dayStarts.map((startsAt, index) => ({
     startsAt,
-    sessions: [...buckets[index]].sort(
+    sessions: buckets[index].toSorted(
       (a, b) => new Date(sessionAnchorIso(a)).getTime() - new Date(sessionAnchorIso(b)).getTime()
     ),
   }));

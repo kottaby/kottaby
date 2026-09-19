@@ -61,48 +61,45 @@ export function useParentChildAggregates(childIds: readonly number[] | undefined
     let cancelled = false;
     const ids = childKey.split(",").map(Number);
 
+    // One concurrent envelope pair per child (the reads are independent —
+    // network-only, pageSize 1), settled once for the whole family: any
+    // transport/GraphQL failure (errorPolicy "none" throws) degrades the
+    // aggregate instead of summing a partial family.
     void (async () => {
-      const reports: number[] = [];
-      const sessions: number[] = [];
-      for (const studentId of ids) {
-        if (cancelled) return;
-        try {
-          const [reportsPage, sessionsPage] = await Promise.all([
-            client.query<ParentChildReportsQuery, ParentChildReportsQueryVariables>({
-              query: parentChildReportsQueryDocument,
-              variables: { studentId, page: 1, pageSize: COUNT_PAGE_SIZE },
-              fetchPolicy: "network-only",
-            }),
-            client.query<ParentChildSessionsQuery, ParentChildSessionsQueryVariables>({
-              query: parentChildSessionsQueryDocument,
-              variables: { studentId, page: 1, pageSize: COUNT_PAGE_SIZE },
-              fetchPolicy: "network-only",
-            }),
-          ]);
-          const reportsCount = reportsPage.data?.parentChildReports?.totalCount;
-          const sessionsCount = sessionsPage.data?.parentChildSessions?.totalCount;
-          if (reportsCount === undefined || sessionsCount === undefined) {
-            // errorPolicy "none" turns transport/GraphQL failures into
-            // throws, so an empty payload here is protocol-anomalous —
-            // degrade the aggregate instead of summing a partial family.
-            if (!cancelled) setSettled({ key: childKey, value: PARENT_AGGREGATE_FAILED });
-            return;
-          }
-          reports.push(reportsCount);
-          sessions.push(sessionsCount);
-        } catch {
-          if (!cancelled) setSettled({ key: childKey, value: PARENT_AGGREGATE_FAILED });
-          return;
-        }
-      }
-      if (!cancelled) {
-        setSettled({
-          key: childKey,
-          value: {
-            reportsTotal: reports.reduce((sum, count) => sum + count, 0),
-            sessionsTotal: sessions.reduce((sum, count) => sum + count, 0),
-          },
-        });
+      try {
+        const perChild = await Promise.all(
+          ids.map(async studentId => {
+            const [reportsPage, sessionsPage] = await Promise.all([
+              client.query<ParentChildReportsQuery, ParentChildReportsQueryVariables>({
+                query: parentChildReportsQueryDocument,
+                variables: { studentId, page: 1, pageSize: COUNT_PAGE_SIZE },
+                fetchPolicy: "network-only",
+              }),
+              client.query<ParentChildSessionsQuery, ParentChildSessionsQueryVariables>({
+                query: parentChildSessionsQueryDocument,
+                variables: { studentId, page: 1, pageSize: COUNT_PAGE_SIZE },
+                fetchPolicy: "network-only",
+              }),
+            ]);
+            return {
+              reportsCount: reportsPage.data?.parentChildReports?.totalCount,
+              sessionsCount: sessionsPage.data?.parentChildSessions?.totalCount,
+            };
+          })
+        );
+        const complete = perChild.every(
+          (row): row is { reportsCount: number; sessionsCount: number } =>
+            row.reportsCount !== undefined && row.sessionsCount !== undefined
+        );
+        const value: ParentAggregateState = complete
+          ? {
+              reportsTotal: perChild.reduce((sum, row) => sum + row.reportsCount, 0),
+              sessionsTotal: perChild.reduce((sum, row) => sum + row.sessionsCount, 0),
+            }
+          : PARENT_AGGREGATE_FAILED;
+        if (!cancelled) setSettled({ key: childKey, value });
+      } catch {
+        if (!cancelled) setSettled({ key: childKey, value: PARENT_AGGREGATE_FAILED });
       }
     })();
 

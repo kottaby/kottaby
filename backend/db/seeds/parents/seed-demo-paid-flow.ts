@@ -70,8 +70,8 @@ const DEMO_PROVIDER_TRANSACTION_ID = "demo-paid-flow-settlement";
 const COMPLETED_STATUS: string = SessionStatus.Completed;
 
 /** The subscription statuses widened the same way for the owned-subscription scan. */
-const ACTIVE_SUBSCRIPTION_STATUS: string = SubscriptionStatus.Active;
-const PENDING_SUBSCRIPTION_STATUS: string = SubscriptionStatus.Pending;
+const ACTIVE_SUBSCRIPTION_STATUS = SubscriptionStatus.Active;
+const PENDING_SUBSCRIPTION_STATUS = SubscriptionStatus.Pending;
 
 /**
  * Sequential walker — the sanctioned no-await-in-loop escape. Demo
@@ -126,7 +126,7 @@ async function pickDemoHifzPlan(): Promise<{ id: number; price: string; currency
   const catalog = await PlanCatalogService.listActiveCatalog();
   const laneBacked = catalog
     .filter(plan => plan.balanceLane === SubscriptionCreditLane.Hifz)
-    .sort((a, b) => Number(a.price) - Number(b.price) || a.id - b.id);
+    .toSorted((a, b) => Number(a.price) - Number(b.price) || a.id - b.id);
   const picked = laneBacked.at(0);
   if (picked === undefined) {
     return null;
