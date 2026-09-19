@@ -105,14 +105,14 @@
 
 ## Phase 4 — GraphQL integration tests
 
-- [ ] **7. GraphQL integration tests (testClient)**
+- [x] **7. GraphQL integration tests (testClient)**
   - NEW `frontend/graphql/test/subscription-admin/subscription-admin.test.ts` — uses `setupTestServerLifecycle` + `testClient` per `frontend/graphql/test/AGENTS.md`; verifies: each mutation succeeds for admin (provisioned admin login via existing auth test helpers — read an existing admin integration test first), UNAUTHORIZED unauthenticated, FORBIDDEN for student/teacher/parent, replay-replay for renew/change-plan.
   - [ ] 7.QL / 7.TE / 7.SEC (all three denial paths asserted on `extensions.code`) / 7.SR / 7.IV.
   - _Requirements: REQ-6, REQ-7_
 
 ## Phase 5 — Journey test (cross-actor, TEST-FIRST as required by the skill)
 
-- [ ] **8. Journey `admin-subscription-lifecycle` — written TEST-FIRST, then service verified against it**
+- [x] **8. Journey `admin-subscription-lifecycle` — written TEST-FIRST, then service verified against it**
   - NEW `test/workflows/billing/subscription-admin-lifecycle.journey.test.ts` implementing plan.md §7 EXACTLY (steps 1-11, cast: admin + student actor + unrelated student; prefix `jrn_billing_<8hex>`; `TrackedFixtures`, spied notifications boundary — NOTE: this feature deliberately emits NO notifications (document that in the journey header; the spy asserts ZERO dispatches), denial step via `catchJourneyError`, audit rows asserted via a light audit query helper or existing audit-trail query).
   - Run iteratively `bun run test/scripts/run-test.ts test/workflows/billing/subscription-admin-lifecycle.journey.test.ts` until green; then run the full layer: `bun run test/scripts/run-test.ts test/workflows` (NEVER raw `bun test` on workflows).
   - [ ] 8.QL / 8.TE (journeys ARE the test) / 8.SEC (denial probe) / 8.SR / 8.IV (`test/workflows/AGENTS.md` + `tests.instructions.md`).
@@ -143,14 +143,14 @@
 
 ## Phase 8 — Final gates
 
-- [ ] **11. Final quality gate + deferred-items enforcement**
+- [x] **11. Final quality gate + deferred-items enforcement**
   - `grep -c "❌\|⚠️" deferred-items.md` MUST equal 0 (expected ledger entries D1-D3 are resolved-by-design rows with status ✅ at planning time; see deferred-items.md).
   - Re-run baselines: `bun tsgo`, `bun biome:check`, lint — compare vs `/tmp/baseline-*`; document deltas in `outcome/11-final-gate-outcome.md`.
   - Full test sweep: `bun run test/scripts/run-test.ts` for every new/modified test file; GraphQL suite; journey layer.
   - `bun quality-gate` clean.
   - _Requirements: REQ-0, all REQ-N gates_
 
-- [ ] **12. Knowledge propagation**
+- [x] **12. Knowledge propagation**
   - NEW `docs/billing/admin-subscription-management.md` (transition table, audit verbs, proration formula, idempotency keys, interplay with expiry sweep).
   - Update `docs/specs/state-machine-invariants.md` §4: add the `active → cancelled` producer row (admin mutation), and note the cancel-vs-expiry zeroing asymmetry.
   - Update `docs/billing/paymob-gateway.md` "Related documents" only if it references lifecycle docs; otherwise skip.
