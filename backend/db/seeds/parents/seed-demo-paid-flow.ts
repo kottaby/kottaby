@@ -350,7 +350,8 @@ export async function seedOrGet(locale = "en"): Promise<DemoPaidFlowState> {
   const bookedLabel = paidSessionId === null ? "none" : String(paidSessionId);
   const laneLabel = paidSessionLane ?? "-";
   const balanceLabel = teacherWalletBalance ?? "-";
-  const skipLabel = subscription.skipped === null ? "" : ` skipped=${subscription.skipped}`;
+  const skippedReason = subscription.skipped;
+  const skipLabel = skippedReason === null ? "" : ` skipped=${skippedReason}`;
   logger.info(
     `Demo paid flow: confirmations=${confirmationsSettled} subscription=${subscription.state} paidBooked=${bookedLabel}` +
       ` lane=${laneLabel} reportedTotal=${reportedTotal} teacherBalance=${balanceLabel}${skipLabel}`
@@ -362,6 +363,6 @@ export async function seedOrGet(locale = "en"): Promise<DemoPaidFlowState> {
     paidSessionLane,
     reportedTotal,
     teacherWalletBalance,
-    skippedReason: skipLabel,
+    skippedReason,
   };
 }
