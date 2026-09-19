@@ -31,37 +31,37 @@
 
 ## Phase 0 — Baseline & Gate
 
-### - [ ] 0.1 Baseline & Ledger Verification — `outcome/phase0-baseline-outcome.md`, `deferred-items.md`
+### - [x] 0.1 Baseline & Ledger Verification — `outcome/phase0-baseline-outcome.md`, `deferred-items.md`
 - Re-run and record: `bun tsgo 2>&1 | grep -c "error TS"`, `bun run biome:check`, `bun run scripts/lint-service.ts --json --id baseline-dev2-017` — compare against the planning-time baseline (tsgo 0 errors · biome clean/2037 files · lint `success: true` exit 0 @ 2026-09-17); record delta, if any.
 - Confirm `deferred-items.md` entries D1–D4 are present and still accurate.
 - _Requirements: REQ-001_
-- [ ] 0.1.QL **Quality Loop**: not a code task — no sub-loop run; record commands' raw output in the outcome.
-- [ ] 0.1.TE **Test Engineering**: n/a.
-- [ ] 0.1.SEC **Security & Tenancy Audit**: n/a.
-- [ ] 0.1.SR **Semantic Review**: baseline numbers quoted from real command output, never from memory.
-- [ ] 0.1.IV **Instruction Verification**: root `AGENTS.md` quality-workflow section re-read.
+- [x] 0.1.QL **Quality Loop**: not a code task — no sub-loop run; record commands' raw output in the outcome.
+- [x] 0.1.TE **Test Engineering**: n/a.
+- [x] 0.1.SEC **Security & Tenancy Audit**: n/a.
+- [x] 0.1.SR **Semantic Review**: baseline numbers quoted from real command output, never from memory.
+- [x] 0.1.IV **Instruction Verification**: root `AGENTS.md` quality-workflow section re-read.
 
-### - [ ] 0.2 Plan-Review Gate — `outcome/plan-review-R1.md`
+### - [x] 0.2 Plan-Review Gate — `outcome/plan-review-R1.md`
 - Confirm the generation-time Phase 1.5 review verdict (already recorded in `outcome/plan-review-R1.md` by the planning session) is present and clean; if implementation reveals drift, re-run the review and record R2 before continuing.
 - _Requirements: REQ-001_
-- [ ] 0.2.QL/.TE/.SEC: n/a (verification task).
-- [ ] 0.2.SR **Semantic Review**: any spec↔code drift discovered during implementation is written back into specs/plan/tasks in the same commit.
-- [ ] 0.2.IV **Instruction Verification**: `.agents/spec-process-guide/` templates re-read.
+- [x] 0.2.QL/.TE/.SEC: n/a (verification task).
+- [x] 0.2.SR **Semantic Review**: any spec↔code drift discovered during implementation is written back into specs/plan/tasks in the same commit.
+- [x] 0.2.IV **Instruction Verification**: `.agents/spec-process-guide/` templates re-read.
 
 ---
 
 ## Phase 1 — Data Substrate (types only — zero schema change)
 
-### - [ ] 1.1 Canonical Aggregate Type — `backend/types/teachers/evaluation.types.ts` (EXTEND)
+### - [x] 1.1 Canonical Aggregate Type — `backend/types/teachers/evaluation.types.ts` (EXTEND)
 - Add `EvaluationRatingAggregateType` exactly per `plan.md` §2.3 (`{ readonly averageScore: number | null; readonly ratingCount: number }` with the doc-comment). All four existing exports stay byte-identical.
 - `teacher.types.ts` is NOT touched (the UPDATE returns the existing `TeacherSelectType` — `plan.md` §2.3).
 - Verify the barrel picks it up (`backend/types/teachers/index.ts` uses `export *` — no edit; prove with a type-level consumer import in the outcome).
 - _Requirements: REQ-004_
-- [ ] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/teachers/evaluation.types.ts --lifecycle duplicates` (exit 0).
-- [ ] 1.1.TE **Test Engineering**: type-level correctness is tsgo-enforced (Tier 1); no runtime tests for a type alias.
-- [ ] 1.1.SEC **Security & Tenancy Audit**: n/a (pure type).
-- [ ] 1.1.SR **Semantic Review**: no duplicate aggregate types anywhere; no new type in a service file.
-- [ ] 1.1.IV **Instruction Verification**: read `backend/types/AGENTS.md`, `backend/AGENTS.md` + printed instructions.
+- [x] 1.1.QL **Quality Loop**: `bun run scripts/health/sub-loop.ts backend/types/teachers/evaluation.types.ts --lifecycle duplicates` (exit 0).
+- [x] 1.1.TE **Test Engineering**: type-level correctness is tsgo-enforced (Tier 1); no runtime tests for a type alias.
+- [x] 1.1.SEC **Security & Tenancy Audit**: n/a (pure type).
+- [x] 1.1.SR **Semantic Review**: no duplicate aggregate types anywhere; no new type in a service file.
+- [x] 1.1.IV **Instruction Verification**: read `backend/types/AGENTS.md`, `backend/AGENTS.md` + printed instructions.
 
 ---
 
