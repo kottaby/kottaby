@@ -106,22 +106,29 @@ export function WithdrawalQueueStatusBody({
           onApprove={onApprove}
           onReject={onReject}
         />
-        <Stack
-          direction="row"
-          sx={theme => ({
-            justifyContent: "flex-end",
-            mt: 2,
-            pt: 2,
-            borderTop: `1px solid ${theme.palette.border.light}`,
-          })}
-        >
-          <AdminFinancePaginationBar
-            page={queue.page}
-            pageSize={queue.pageSize}
-            totalCount={queue.totalCount}
-            onPageChange={handlePageChange}
-          />
-        </Stack>
+        {/*
+          The pagination stack mounts only with rows — an empty queue would
+          otherwise draw the hairline + a dead bar under the empty state (the
+          bar itself renders null at totalCount 0; this drops the chrome too).
+        */}
+        {queue.totalCount > 0 ? (
+          <Stack
+            direction="row"
+            sx={theme => ({
+              justifyContent: "flex-end",
+              mt: 2,
+              pt: 2,
+              borderTop: `1px solid ${theme.palette.border.light}`,
+            })}
+          >
+            <AdminFinancePaginationBar
+              page={queue.page}
+              pageSize={queue.pageSize}
+              totalCount={queue.totalCount}
+              onPageChange={handlePageChange}
+            />
+          </Stack>
+        ) : null}
       </Box>
     </>
   );
