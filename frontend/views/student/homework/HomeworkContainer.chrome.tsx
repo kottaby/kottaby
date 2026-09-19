@@ -1,7 +1,7 @@
 "use client";
 
 import { AssignmentOutlined, HourglassEmptyOutlined, PrintOutlined, TaskAltOutlined } from "@mui/icons-material";
-import { Box, ButtonBase, IconButton, Skeleton, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, ButtonBase, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { IconCircleEmptyState } from "@/frontend/components/ui/IconCircleEmptyState";
 import type { MyHomeworkQuery_myHomework_items } from "@/frontend/graphql/generated/gql/graphql";
@@ -75,33 +75,6 @@ export function SummaryStrip({
         );
       })}
     </Box>
-  );
-}
-
-/** Linear skeleton (summary strip + three list rows) — `aria-busy` + label. */
-export function HomeworkSkeleton({ loadingLabel }: Readonly<{ loadingLabel: string }>): ReactNode {
-  const SKELETON_ROW_KEYS = ["homework-row-skeleton-1", "homework-row-skeleton-2", "homework-row-skeleton-3"] as const;
-  return (
-    <Stack
-      spacing={2}
-      aria-busy="true"
-      aria-label={loadingLabel}
-      data-testid="student-homework-loading"
-      sx={{ minWidth: 0 }}
-    >
-      <Stack direction="row" spacing={1.5}>
-        {[1, 2, 3].map(n => (
-          <Skeleton key={n} variant="rounded" sx={{ height: 56, borderRadius: 2, flex: 1 }} />
-        ))}
-      </Stack>
-      {SKELETON_ROW_KEYS.map(key => (
-        <Stack key={key} spacing={1}>
-          <Skeleton variant="text" sx={{ fontSize: "0.9rem", maxWidth: 220 }} />
-          <Skeleton variant="rounded" sx={{ height: 44, borderRadius: 1.5 }} />
-          <Skeleton variant="rounded" sx={{ height: 44, borderRadius: 1.5 }} />
-        </Stack>
-      ))}
-    </Stack>
   );
 }
 
