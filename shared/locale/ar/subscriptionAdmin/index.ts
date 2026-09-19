@@ -50,29 +50,6 @@ export const subscriptionAdminAr: SubscriptionAdminLabels = {
       "يُلغى الاشتراك الحالي وتفتح فترة جديدة على الخطة المحددة. لا تصلح إلا الخطط النشطة التي تُقيَّد على مسار الرصيد نفسه.",
     planLabel: "الخطة الجديدة",
     noPlans: "لا توجد خطة نشطة أخرى تُقيَّد على مسار الرصيد نفسه.",
-    carried: carry => {
-      if (carry === 0) return PLAN_CHANGE_PLAIN;
-      if (carry === 1) return "تم تغيير الخطة — تم ترحيل جلسة واحدة إلى الخطة الجديدة.";
-      if (carry === 2) return "تم تغيير الخطة — تم ترحيل جلستين إلى الخطة الجديدة.";
-      // CLDR Arabic classes: one/two apply to n = 1/2 EXACTLY; few = 3–10
-      // (counted plural جلسات); many = 11–99 (tamyiz singular جلسة);
-      // everything else — including 100/101/102 and their ×100 re-entries
-      // — is `other` (same tamyiz form). Mirrors the adminBroadcasts
-      // counted-copy mechanism.
-      const cycle = carry % 100;
-      if (cycle >= 3 && cycle <= 10) return `تم تغيير الخطة — تم ترحيل ${carry} جلسات إلى الخطة الجديدة.`;
-      return `تم تغيير الخطة — تم ترحيل ${carry} جلسة إلى الخطة الجديدة.`;
-    },
-    forfeited: forfeit => {
-      if (forfeit === 0) return PLAN_CHANGE_PLAIN;
-      if (forfeit === 1) return "تم تغيير الخطة — تمت مصادرة جلسة واحدة متبقية من الخطة السابقة.";
-      if (forfeit === 2) return "تم تغيير الخطة — تمت مصادرة جلستين متبقيتين من الخطة السابقة.";
-      // Same CLDR class branches as `carried` (few = counted plural, other
-      // = tamyiz singular).
-      const cycle = forfeit % 100;
-      if (cycle >= 3 && cycle <= 10) return `تم تغيير الخطة — تمت مصادرة ${forfeit} جلسات متبقية من الخطة السابقة.`;
-      return `تم تغيير الخطة — تمت مصادرة ${forfeit} جلسة متبقية من الخطة السابقة.`;
-    },
   },
   success: {
     extend: days => {
@@ -93,7 +70,7 @@ export const subscriptionAdminAr: SubscriptionAdminLabels = {
       if (carry === 0) return PLAN_CHANGE_PLAIN;
       if (carry === 1) return "تم تغيير الخطة — تم ترحيل جلسة واحدة.";
       if (carry === 2) return "تم تغيير الخطة — تم ترحيل جلستين.";
-      // Same CLDR class branches as `changePlan.carried`.
+      // Same CLDR class branches as `success.extend`.
       const cycle = carry % 100;
       if (cycle >= 3 && cycle <= 10) return `تم تغيير الخطة — تم ترحيل ${carry} جلسات.`;
       return `تم تغيير الخطة — تم ترحيل ${carry} جلسة.`;
@@ -102,7 +79,7 @@ export const subscriptionAdminAr: SubscriptionAdminLabels = {
       if (forfeit === 0) return PLAN_CHANGE_PLAIN;
       if (forfeit === 1) return "تم تغيير الخطة — تمت مصادرة جلسة واحدة متبقية.";
       if (forfeit === 2) return "تم تغيير الخطة — تمت مصادرة جلستين متبقيتين.";
-      // Same CLDR class branches as `changePlan.carried`.
+      // Same CLDR class branches as `planChangeCarried`.
       const cycle = forfeit % 100;
       if (cycle >= 3 && cycle <= 10) return `تم تغيير الخطة — تمت مصادرة ${forfeit} جلسات متبقية.`;
       return `تم تغيير الخطة — تمت مصادرة ${forfeit} جلسة متبقية.`;

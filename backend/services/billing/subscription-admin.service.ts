@@ -1,7 +1,7 @@
 /**
  * SubscriptionAdminService — admin-gated lifecycle operations on the
- * `subscriptions` root (the extend surface lives here; the sibling
- * admin flows join the same namespace as they ship).
+ * `subscriptions` root (the four admin lifecycle flows — extend, renew,
+ * cancel, change plan — plus the admin read share this namespace).
  *
  * Every mutation mirrors the shipped billing admin surface: the acting
  * admin's id is a required parameter that is re-asserted against the

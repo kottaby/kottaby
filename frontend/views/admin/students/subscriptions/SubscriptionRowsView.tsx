@@ -66,6 +66,11 @@ export function SubscriptionRowsView({
   let body: ReactNode;
   if (loading && rows.length === 0) {
     body = <SubscriptionSectionSkeleton />;
+  } else if (hasQueryError && rows.length === 0) {
+    // Settled first-load failure — the error alert above speaks for the
+    // body (the disputes body's gating discipline): the empty state is
+    // reserved for a clean settled list, never layered under the alert.
+    body = null;
   } else if (rows.length === 0) {
     body = (
       <IconCircleEmptyState

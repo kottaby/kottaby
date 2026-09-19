@@ -51,18 +51,6 @@ export const subscriptionAdminEn: SubscriptionAdminLabels = {
       "The current subscription is cancelled and a fresh period opens on the selected plan. Only active plans crediting the same balance lane are eligible.",
     planLabel: "New plan",
     noPlans: "No other active plan credits the same balance lane.",
-    carried: carry => {
-      if (carry === 0) return PLAN_CHANGE_PLAIN;
-      return carry === 1
-        ? "Plan changed — 1 session carried over onto the new plan."
-        : `Plan changed — ${carry} sessions carried over onto the new plan.`;
-    },
-    forfeited: forfeit => {
-      if (forfeit === 0) return PLAN_CHANGE_PLAIN;
-      return forfeit === 1
-        ? "Plan changed — 1 remaining session on the old plan was forfeited."
-        : `Plan changed — ${forfeit} remaining sessions on the old plan were forfeited.`;
-    },
   },
   success: {
     extend: days => (days === 1 ? "Subscription extended by 1 day." : `Subscription extended by ${days} days.`),

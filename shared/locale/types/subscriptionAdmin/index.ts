@@ -124,10 +124,6 @@ export interface SubscriptionAdminLabels {
     readonly planLabel: string;
     /** Empty-options copy — no other active plan credits the same lane. */
     readonly noPlans: string;
-    /** Proration result copy — sessions carried onto the new plan (upgrades). */
-    readonly carried: (count: number) => string;
-    /** Proration result copy — remaining sessions forfeited (downgrades). */
-    readonly forfeited: (count: number) => string;
   };
 
   /** Success toasts handed to the section's feedback snackbar. */

@@ -60,8 +60,6 @@ const ACTIONS_LEAF_PATHS = ["cancel", "changePlan", "extend", "renew"] as const;
 /** The EXACT function-leaf inventory (dotted paths — count-bearing copy). */
 const FUNCTION_LEAF_PATHS = [
   "cancel.reasonCounter",
-  "changePlan.carried",
-  "changePlan.forfeited",
   "success.extend",
   "success.planChangeCarried",
   "success.planChangeForfeited",
@@ -252,13 +250,8 @@ describe("function-leaf inventory — exactly the six count-bearing slots", () =
 
 // ===========================================================================
 describe("counted-copy plural-branch pin — the CLDR boundary probes on BOTH maps", () => {
-  /** The four session-copy counted leaves (one shared branch-word table). */
-  const SESSION_COUNT_LEAF_PATHS = [
-    "changePlan.carried",
-    "changePlan.forfeited",
-    "success.planChangeCarried",
-    "success.planChangeForfeited",
-  ] as const;
+  /** The two session-copy counted leaves (one shared branch-word table). */
+  const SESSION_COUNT_LEAF_PATHS = ["success.planChangeCarried", "success.planChangeForfeited"] as const;
 
   /** Arabic branch word per boundary count: [count, session word, day word]. */
   const CLDR_BRANCH_PROBES: readonly (readonly [number, string, string])[] = [
@@ -312,8 +305,6 @@ describe("zero-count pin — 0 renders the suppressed plain form (no counted cla
    * a 0 can never fall through to a broken "0 sessions / تم ترحيل 0 جلسة" form).
    */
   const ZERO_PLAIN_FORMS: ReadonlyArray<readonly [path: string, en: string, ar: string]> = [
-    ["changePlan.carried", "Plan changed.", "تم تغيير الخطة."],
-    ["changePlan.forfeited", "Plan changed.", "تم تغيير الخطة."],
     ["success.planChangeCarried", "Plan changed.", "تم تغيير الخطة."],
     ["success.planChangeForfeited", "Plan changed.", "تم تغيير الخطة."],
   ];
