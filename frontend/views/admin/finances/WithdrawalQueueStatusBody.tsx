@@ -57,15 +57,12 @@ export function WithdrawalQueueStatusBody({
     errorCode !== null &&
     mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
 
-  // Single-page EGP total of the pending payout amounts. Rendered ONLY when
-  // the whole queue fits on the current page (totalCount <= pageSize): a
-  // multi-page queue would make the sum a partial figure masquerading as
-  // the queue total — the financial-copy honesty rule hides it instead.
-  const queueFitsOnOnePage = queue.totalCount <= queue.pageSize;
-  const pendingTotal =
-    queueFitsOnOnePage && queue.items.length > 0
-      ? formatMoneyAmount(queue.items.reduce((sum, item) => sum + Number(item.transaction.amount), 0).toFixed(2))
-      : null;
+  // The queue's pending payout total — aggregated SERVER-SIDE over the same
+  // predicate as the rows (page-size independent since the round-4 feature:
+  // the client previously summed only the current page, which the
+  // financial-copy honesty rule then had to hide for multi-page queues).
+  // Rendered while the queue holds at least one pending payout.
+  const pendingTotal = queue.totalCount > 0 ? formatMoneyAmount(queue.totalAmount) : null;
 
   if (denied) {
     return <WithdrawalDeniedAlert title={t.forbiddenTitle} body={t.forbiddenBody} />;

@@ -51,12 +51,19 @@ export function SessionRowResolutionNote({
   const t = useAppTranslation(Sessions);
 
   return (
-    <Tooltip title={note} placement="top">
+    <Tooltip title={note === null ? null : <span dir="auto">{note}</span>} placement="top">
       <Stack
         data-testid={`session-resolution-note-${sessionId}`}
         sx={{
           gap: 0.5,
           flexDirection: "row",
+          // Mobile (xs): the row WRAPS into stacked evidence lines — the
+          // single-line anatomy's unshrinkable min-contents (label + outcome
+          // + note + stamp) exceed the 390px card, and flex would collapse
+          // the outcome box to ~0 with its wrapped text overflowing over the
+          // stamp (the round-4 mobile QA finding). From sm up the
+          // single-line run returns.
+          flexWrap: { xs: "wrap", sm: "nowrap" },
           alignItems: "baseline",
           minWidth: 0,
           maxWidth: "100%",
@@ -80,11 +87,11 @@ export function SessionRowResolutionNote({
           sx={theme => ({
             color: theme.palette.text.secondary,
             fontWeight: 700,
-            // Mobile (xs): the emphasized outcome may wrap — a nowrap run
-            // here starves the row's stamp of width and clips it (the
-            // 390px QA finding); from sm up the single-line run returns.
+            // Mobile (xs): the emphasized outcome takes its OWN full-width
+            // wrap-friendly line (the row wraps; see the stack above) —
+            // from sm up the single-line inline run returns.
             whiteSpace: { xs: "normal", sm: "nowrap" },
-            flexShrink: { xs: 1, sm: 0 },
+            flex: { xs: "1 1 100%", sm: "0 0 auto" },
             minWidth: 0,
           })}
         >
@@ -94,7 +101,20 @@ export function SessionRowResolutionNote({
           <Typography
             variant="body2"
             noWrap
-            sx={theme => ({ color: theme.palette.text.secondary, minWidth: 0, flex: "1 1 0", opacity: 0.85 })}
+            dir="auto"
+            sx={theme => ({
+              color: theme.palette.text.secondary,
+              minWidth: 0,
+              // Mobile (xs): the note takes its OWN full-width line below
+              // the outcome (the wrap anatomy); from sm up it shares the
+              // single line with a living flex ratio.
+              flex: { xs: "1 1 100%", sm: "1 1 0" },
+              opacity: 0.85,
+              // Free-text note inside an RTL row — the unisolated Latin note
+              // scrambled its punctuation against the base direction (the
+              // round-4 QA finding; same treatment as the dispute reason).
+              unicodeBidi: "isolate",
+            })}
           >
             {`— ${note}`}
           </Typography>
@@ -108,6 +128,13 @@ export function SessionRowResolutionNote({
             color: theme.palette.text.secondary,
             flexShrink: 0,
             opacity: 0.75,
+            // Mobile (xs): the stamp jumps BESIDE the label (line 1's
+            // inline end) via the order + auto inline-margin pair — the
+            // wrap anatomy's full-width outcome/note lines would otherwise
+            // strand it below them (DOM order). From sm up the DOM order
+            // (stamp at the row's trailing edge) returns.
+            order: { xs: 2, sm: 0 },
+            marginInlineStart: { xs: "auto", sm: 0 },
             // ASCII stamp in an isolated LTR box — the ICU `ar` stamp's RLM
             // controls scramble the visible punctuation against the row's
             // RTL base direction (round-1 wallet QA finding, same class).

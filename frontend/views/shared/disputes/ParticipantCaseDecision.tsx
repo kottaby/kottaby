@@ -67,7 +67,7 @@ export function ParticipantCaseDecisionSections({
               value={resolutionOutcomeLabel(session.resolutionOutcome, t)}
             />
             {session.resolutionNote !== null ? (
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, unicodeBidi: "isolate" }} dir="auto">
                 {session.resolutionNote}
               </Typography>
             ) : null}

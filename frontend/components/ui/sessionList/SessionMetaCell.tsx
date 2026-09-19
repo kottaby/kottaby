@@ -16,8 +16,12 @@ import type { ReactNode } from "react";
  * glyphs reflow against the row's base direction (the round-1 wallet/finances
  * QA finding) — the ASCII stamp is byte-stable in both document directions,
  * and the `dir="ltr"` + `unicode-bidi: isolate` box detaches it from the row
- * entirely. Callers that don't pass `stampTitle` render their value verbatim
- * (fee amounts and other plain values are unaffected).
+ * entirely. Callers that don't pass `stampTitle` render their value
+ * verbatim in an AUTO-DIR isolate box: free-text values (cancel reasons,
+ * dispute reasons, arbitration notes — the round-4 bidi sweep) pick their
+ * own first-strong-character direction and stay detached from the row's
+ * base direction, while plain values (fee amounts, enum strings) are
+ * visually unchanged.
  */
 
 interface SessionMetaCellProps {
@@ -37,6 +41,16 @@ const STAMP_VALUE_SX = {
   fontVariantNumeric: "tabular-nums",
 } as const;
 
+/**
+ * Value styles for plain values — the auto-dir isolate. The HTML `dir`
+ * attribute (NOT a CSS `direction`, which the Arabic cache's cssjanus flip
+ * would invert) + `unicode-bidi: isolate` detach the run from the row's
+ * base direction without forcing an absolute direction on it.
+ */
+const PLAIN_VALUE_SX = {
+  unicodeBidi: "isolate",
+} as const;
+
 /** One label/value meta pair (overline label + body value), wrap-friendly. */
 export function SessionMetaCell({ label, value, stampTitle }: Readonly<SessionMetaCellProps>): ReactNode {
   const isStamp = stampTitle !== undefined;
@@ -47,9 +61,9 @@ export function SessionMetaCell({ label, value, stampTitle }: Readonly<SessionMe
       </Typography>
       <Typography
         variant="body2"
-        dir={isStamp ? "ltr" : undefined}
+        dir={isStamp ? "ltr" : "auto"}
         title={stampTitle}
-        sx={{ fontWeight: 600, ...(isStamp ? STAMP_VALUE_SX : {}) }}
+        sx={{ fontWeight: 600, ...(isStamp ? STAMP_VALUE_SX : PLAIN_VALUE_SX) }}
       >
         {value}
       </Typography>

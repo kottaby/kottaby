@@ -280,16 +280,17 @@ export async function listPendingWithdrawalsForAdmin(
       await assertActorAdminActive(actorUserId, locale, tx);
       const { resolvedPage, resolvedPageSize, offset } = resolvePageBounds(page ?? 1, pageSize ?? undefined, locale);
 
-      const [pageRows, totalCount] = await readInSnapshot(
+      const [pageRows, totalCount, totalAmount] = await readInSnapshot(
         tx,
-        async (snapshotTx): Promise<[AdminWithdrawalQueueRow[], number]> => {
+        async (snapshotTx): Promise<[AdminWithdrawalQueueRow[], number, string]> => {
           const count = await WalletRepository.countPendingWithdrawals(snapshotTx);
           const rows = await WalletRepository.listPendingWithdrawals(resolvedPageSize, offset, snapshotTx);
-          return [rows, count];
+          const sum = await WalletRepository.sumPendingWithdrawals(snapshotTx);
+          return [rows, count, sum];
         }
       );
 
-      return { items: pageRows, totalCount, page: resolvedPage, pageSize: resolvedPageSize };
+      return { items: pageRows, totalCount, totalAmount, page: resolvedPage, pageSize: resolvedPageSize };
     },
     { isolationLevel: "repeatable read" }
   );

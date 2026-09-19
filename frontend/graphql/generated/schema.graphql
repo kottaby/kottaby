@@ -403,6 +403,7 @@ type AdminWithdrawalQueuePage {
   items: [AdminWithdrawalQueueRow!]!
   page: Int!
   pageSize: Int!
+  totalAmount: String!
   totalCount: Int!
 }
 

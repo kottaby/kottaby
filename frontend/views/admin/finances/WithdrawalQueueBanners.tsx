@@ -35,10 +35,11 @@ export function WithdrawalDeniedAlert({ title, body }: Readonly<{ title: string;
 }
 
 /**
- * The single-page EGP total of the pending payout amounts. Rendered ONLY
- * when the whole queue fits on the current page (totalCount <= pageSize):
- * a multi-page queue would make the sum a partial figure masquerading as
- * the queue total — the financial-copy honesty rule hides it instead.
+ * The pending payout EGP total strip. The value is the WHOLE queue's sum,
+ * aggregated SERVER-SIDE over the same predicate as the rows (the round-4
+ * `totalAmount` read-model field) — page-size independent, so the strip
+ * renders for multi-page queues too (the client-page-sum masquerade the
+ * honesty rule guarded against is gone entirely).
  */
 export function WithdrawalPendingTotalStrip({ total }: Readonly<{ total: string }>): ReactNode {
   const t = useAppTranslation(AdminFinance);

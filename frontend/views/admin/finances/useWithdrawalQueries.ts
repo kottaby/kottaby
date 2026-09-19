@@ -65,6 +65,10 @@ export function useAdminPendingWithdrawals() {
       : undefined);
   const items = pageData?.adminPendingWithdrawals.items ?? [];
   const totalCount = pageData?.adminPendingWithdrawals.totalCount ?? 0;
+  // The WHOLE queue's pending payout sum — aggregated server-side over the
+  // same predicate as `items` (page-size independent), so the queue header
+  // renders an honest total for multi-page queues too.
+  const totalAmount = pageData?.adminPendingWithdrawals.totalAmount ?? "0";
   const hasError = Boolean(error);
 
   const setPageSize = (nextPageSize: number): void => {
@@ -75,6 +79,7 @@ export function useAdminPendingWithdrawals() {
   return {
     items,
     totalCount,
+    totalAmount,
     page,
     pageSize,
     setPage,

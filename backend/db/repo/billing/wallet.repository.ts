@@ -382,6 +382,18 @@ export namespace WalletRepository {
   }
 
   /**
+   * Sum of the pending-withdrawal settlement queue amounts — the exact same
+   * predicate as `listPendingWithdrawals` / `countPendingWithdrawals`
+   * (analytics-counter parity), aggregated server-side as a decimal TEXT
+   * string (money discipline: never a JS number).
+   *
+   * @returns The queue's total pending amount as a decimal string.
+   */
+  export async function sumPendingWithdrawals(tx?: DBTransaction): Promise<string> {
+    return walletRepositoryAdminImpl.sumPendingWithdrawals(tx);
+  }
+
+  /**
    * Narrow settlement probe for one ledger row — identity, wallet link,
    * amount, and the type/status pair the settlement guard inspects. A
    * human-readable disambiguation read for tests and trigger verification;

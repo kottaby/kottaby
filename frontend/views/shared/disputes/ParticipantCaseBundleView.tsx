@@ -91,7 +91,7 @@ export function ParticipantCaseSessionFacts({
           <Typography variant="overline" sx={theme => ({ color: theme.palette.text.secondary })}>
             {t.disputeReasonMeta}
           </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, unicodeBidi: "isolate" }} dir="auto">
             {session.disputeReason}
           </Typography>
         </Stack>
