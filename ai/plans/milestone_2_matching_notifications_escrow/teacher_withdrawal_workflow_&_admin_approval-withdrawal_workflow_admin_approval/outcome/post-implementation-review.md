@@ -79,3 +79,13 @@
 **Cumulative round ledger:** R1 — 2 LOW; R2 — 3 (1 LOW + 2 INFO); R3 — 0; R4 — 2 (1 LOW + 1 INFO); R5 — 6 (5 LOW + 1 INFO); R6 — 0; R7 — 1 LOW; R8 — 1 LOW; R9 — 0; R10 — 4 LOW + 1 INFO → all fixed (the R10 sweep additionally corrected 1 same-class cell: REQ-601's silent pair).
 
 **Next:** round 11 (independent) follows.
+
+## Rounds 11-12 (zero-drift confirmation)
+
+**Wave:** R11 (independent combined 5-hat wave at tip `641de8a`): NEW FINDINGS: **0** — all R1-R10 fixes held under re-verification; gates re-run green (sub-loop exit 0; journey 8/0; row-gate 0; mermaid 19 files/39 diagrams).
+**Wave:** R12 (independent combined 5-hat wave at tip `641de8a`): NEW FINDINGS: **1 INFO** — this ledger's missing R11 entry (closed by this section); zero code/test/docs-behavior findings; R1-R10 corrections spot-re-verified.
+**Stop-condition status:** R12's INFO was ledger-housekeeping only; rounds R13+ continue for the formal 2-consecutive-zero confirmation.
+
+**Cumulative round ledger:** R1 — 2 LOW; R2 — 3 (1 LOW + 2 INFO); R3 — 0; R4 — 2 (1 LOW + 1 INFO); R5 — 6 (5 LOW + 1 INFO); R6 — 0; R7 — 1 LOW; R8 — 1 LOW; R9 — 0; R10 — 4 LOW + 1 INFO; R11 — 0; R12 — 1 INFO (ledger-housekeeping only) → zero code/test/docs-behavior findings in R11-R12.
+
+**Next:** round 13 (independent) follows.
