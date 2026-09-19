@@ -487,6 +487,8 @@ const STUDENT_EVALUATION_MUTATION_FIELDS = ["submitTeacherEvaluation"] as const;
 const STUDENT_EVALUATION_QUERY_FIELDS = ["myTeacherEvaluations"] as const;
 /** record object + its closed one-member input (whole-star rating). */
 const STUDENT_EVALUATION_TYPE_NAMES = ["Evaluation", "SubmitTeacherEvaluationInput"] as const;
+/** Student homework history — the caller-scoped paged read (post-plan round 6). */
+const STUDENT_HOMEWORK_QUERY_FIELDS = ["myHomework"] as const;
 
 /**
  * Admin financial-auditing surface — the sanctioned addition. Three
@@ -747,7 +749,9 @@ describe("Query._health — retyped probe surface", () => {
     // surface), and the admin financial-auditing read trio
     // (payments audit listing, wallet inspector, pending-withdrawal queue).
     // surface) + the student-evaluation caller-scoped read
-    // (`myTeacherEvaluations`).
+    // (`myTeacherEvaluations`) + the student homework history read
+    // (`myHomework` — the student nav's homework entry, reusing the
+    // parent portal's canonical homework page projection).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
       [
@@ -773,6 +777,7 @@ describe("Query._health — retyped probe surface", () => {
         ...ADMIN_FINANCE_QUERY_FIELDS,
         ...STUDENT_EVALUATION_QUERY_FIELDS,
         ...PARENT_MONITORING_QUERY_FIELDS,
+        ...STUDENT_HOMEWORK_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });

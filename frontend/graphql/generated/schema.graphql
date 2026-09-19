@@ -1124,6 +1124,11 @@ type Query {
   myHandshakeCode: String!
 
   """
+  The caller's own homework rows (each carrying the two parallel Jadid/Madi track blocks), newest-session-first, paged. Track block composition preserves per-field nullability — a null grade stays null, a fully-null track block collapses to null, never fabricated zeros.
+  """
+  myHomework(page: Int = 1, pageSize: Int = 25): ParentHomeworkPage!
+
+  """
   Lists the link requests addressed to the caller (newest first, capped). Rows keep their post-resolution status; expired rows are rendered without any write.
   """
   myIncomingParentLinkRequests: [IncomingParentLinkRequest!]!
