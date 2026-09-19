@@ -12,6 +12,7 @@ import {
   isCurrentMonth,
   shiftMonth,
 } from "@/frontend/views/parent/monitoring/AttendanceCalendar.logic";
+import { Common, useAppTranslation } from "@/shared/locale";
 
 const WEEKDAY_LABELS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const WEEKDAY_LABELS_AR = ["أحد", "إثن", "ثلا", "أرب", "خمي", "جمع", "سبت"];
@@ -24,6 +25,7 @@ export function AttendanceCalendar({
   sessions,
   locale,
 }: Readonly<{ sessions: readonly ParentChildSessionsQuery_parentChildSessions_items[]; locale: string }>): ReactNode {
+  const commonT = useAppTranslation(Common);
   const weekdays = locale === "ar" ? WEEKDAY_LABELS_AR : WEEKDAY_LABELS_EN;
   const [viewMonth, setViewMonth] = useState<CalendarMonth>(currentMonth);
   const days = buildCalendarGrid(sessions, viewMonth);
@@ -44,7 +46,7 @@ export function AttendanceCalendar({
       >
         <IconButton
           size="small"
-          aria-label="previous month"
+          aria-label={commonT.previousPage}
           onClick={() => {
             setViewMonth(prev => shiftMonth(prev, -1));
           }}
@@ -57,7 +59,7 @@ export function AttendanceCalendar({
         </Typography>
         <IconButton
           size="small"
-          aria-label="next month"
+          aria-label={commonT.nextPage}
           onClick={() => {
             if (canGoForward) {
               setViewMonth(prev => shiftMonth(prev, 1));
