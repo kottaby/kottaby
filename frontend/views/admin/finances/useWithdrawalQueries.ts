@@ -146,3 +146,23 @@ export function useRejectWithdrawal(callbacks: MutationOutcomeCallbacks) {
 
   return { reject, loading };
 }
+
+/**
+ * usePendingWithdrawalCount — the withdrawals TAB BADGE read: the same
+ * `AdminPendingWithdrawals` document at the narrowest window
+ * (`pageSize: 1`) so `totalCount` is the only payload that matters. Lives
+ * beside the settlement mutations it depends on: those list this query
+ * instance as an EXPLICIT refetch descriptor ({query, variables}) — the
+ * by-NAME refetch does not reliably hit this instance — so the badge
+ * clears the instant the queue drains; the light poll keeps it honest
+ * when another admin (or a new teacher request) changes the queue behind
+ * this tab.
+ */
+export function usePendingWithdrawalCount(): number {
+  const { data } = useQuery(adminPendingWithdrawalsQueryDocument, {
+    variables: { page: 1, pageSize: 1 },
+    fetchPolicy: "cache-and-network",
+    pollInterval: 30_000,
+  });
+  return data?.adminPendingWithdrawals.totalCount ?? 0;
+}

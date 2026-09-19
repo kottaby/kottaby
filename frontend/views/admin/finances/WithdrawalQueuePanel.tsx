@@ -28,9 +28,9 @@ import { Stack } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import { NoticeSnackbar } from "@/frontend/components/ui/NoticeSnackbar";
 import type { AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items } from "@/frontend/graphql/generated/gql/graphql";
+import { formatMoneyAmount } from "@/frontend/views/admin/analytics/platform-analytics-display";
 import { ApproveWithdrawalDialog } from "@/frontend/views/admin/finances/ApproveWithdrawalDialog";
 import { RejectWithdrawalDialog } from "@/frontend/views/admin/finances/RejectWithdrawalDialog";
-import { formatMoneyAmount } from "@/frontend/views/admin/analytics/platform-analytics-display";
 import {
   ADMIN_FINANCE_NOTICE_AUTOHIDE_MS,
   useAdminFinanceNotice,

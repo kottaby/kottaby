@@ -21,8 +21,9 @@
  * targets, keyboard-focusable dialog (`aria-labelledby`).
  */
 
-import { Stack, TextField, Typography } from "@mui/material";
+import { Stack, TextField } from "@mui/material";
 import { type ReactNode, useEffect, useState } from "react";
+import { SettlementAmountRow } from "@/frontend/views/admin/finances/SettlementAmountRow";
 import {
   GovernanceDialogActions,
   GovernanceFormDialog,
@@ -122,26 +123,8 @@ export function RejectWithdrawalDialog({
     >
       {/* The denial context — the amount the teacher will get back. Reuse of
           the approve dialog's labeled value row (one recipe, both dialogs). */}
-      <Stack
-        direction="row"
-        spacing={1}
-        sx={theme => ({
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          gap: 2,
-          mb: 2,
-          py: 1,
-          px: 1.5,
-          borderRadius: 1.5,
-          bgcolor: theme.palette.surfaceContainerHigh,
-        })}
-      >
-        <Typography variant="caption" component="span" sx={theme => ({ color: theme.palette.text.secondary })}>
-          {t.amountHeader}
-        </Typography>
-        <Typography variant="subtitle1" component="span" sx={{ fontWeight: 700 }} data-testid="reject-withdrawal-amount">
-          {amount}
-        </Typography>
+      <Stack sx={{ mb: 2 }}>
+        <SettlementAmountRow amount={amount} testId="reject-withdrawal-amount" />
       </Stack>
       <TextField
         label={t.rejectReasonLabel}

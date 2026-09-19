@@ -22,6 +22,7 @@
 
 import { Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { SettlementAmountRow } from "@/frontend/views/admin/finances/SettlementAmountRow";
 import {
   GovernanceDialogActions,
   GovernanceFormDialog,
@@ -88,26 +89,7 @@ export function ApproveWithdrawalDialog({
         <Typography variant="body2" component="p" sx={theme => ({ color: theme.palette.text.secondary })}>
           {teacherName}
         </Typography>
-        <Stack
-          direction="row"
-          spacing={1}
-          sx={theme => ({
-            alignItems: "baseline",
-            justifyContent: "space-between",
-            gap: 2,
-            py: 1,
-            px: 1.5,
-            borderRadius: 1.5,
-            bgcolor: theme.palette.surfaceContainerHigh,
-          })}
-        >
-          <Typography variant="caption" component="span" sx={theme => ({ color: theme.palette.text.secondary })}>
-            {t.amountHeader}
-          </Typography>
-          <Typography variant="subtitle1" component="span" sx={{ fontWeight: 700 }} data-testid="approve-withdrawal-amount">
-            {amount}
-          </Typography>
-        </Stack>
+        <SettlementAmountRow amount={amount} testId="approve-withdrawal-amount" />
       </Stack>
     </GovernanceFormDialog>
   );
