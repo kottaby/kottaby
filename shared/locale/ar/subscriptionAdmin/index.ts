@@ -1,5 +1,8 @@
 import type { SubscriptionAdminLabels } from "@/shared/locale/types/subscriptionAdmin";
 
+/** The plain plan-change success line — the suppressed zero-count form. */
+const PLAN_CHANGE_PLAIN = "تم تغيير الخطة.";
+
 export const subscriptionAdminAr: SubscriptionAdminLabels = {
   title: "الاشتراكات",
   emptyState: {
@@ -48,6 +51,7 @@ export const subscriptionAdminAr: SubscriptionAdminLabels = {
     planLabel: "الخطة الجديدة",
     noPlans: "لا توجد خطة نشطة أخرى تُقيَّد على مسار الرصيد نفسه.",
     carried: carry => {
+      if (carry === 0) return PLAN_CHANGE_PLAIN;
       if (carry === 1) return "تم تغيير الخطة — تم ترحيل جلسة واحدة إلى الخطة الجديدة.";
       if (carry === 2) return "تم تغيير الخطة — تم ترحيل جلستين إلى الخطة الجديدة.";
       // CLDR Arabic classes: one/two apply to n = 1/2 EXACTLY; few = 3–10
@@ -60,6 +64,7 @@ export const subscriptionAdminAr: SubscriptionAdminLabels = {
       return `تم تغيير الخطة — تم ترحيل ${carry} جلسة إلى الخطة الجديدة.`;
     },
     forfeited: forfeit => {
+      if (forfeit === 0) return PLAN_CHANGE_PLAIN;
       if (forfeit === 1) return "تم تغيير الخطة — تمت مصادرة جلسة واحدة متبقية من الخطة السابقة.";
       if (forfeit === 2) return "تم تغيير الخطة — تمت مصادرة جلستين متبقيتين من الخطة السابقة.";
       // Same CLDR class branches as `carried` (few = counted plural, other
@@ -83,7 +88,9 @@ export const subscriptionAdminAr: SubscriptionAdminLabels = {
     },
     renew: "تم تجديد الاشتراك — فترة جديدة نشطة الآن.",
     cancel: "تم إلغاء الاشتراك. أُبقيت أرصدة الجلسات كما هي.",
+    planChange: PLAN_CHANGE_PLAIN,
     planChangeCarried: carry => {
+      if (carry === 0) return PLAN_CHANGE_PLAIN;
       if (carry === 1) return "تم تغيير الخطة — تم ترحيل جلسة واحدة.";
       if (carry === 2) return "تم تغيير الخطة — تم ترحيل جلستين.";
       // Same CLDR class branches as `changePlan.carried`.
@@ -92,6 +99,7 @@ export const subscriptionAdminAr: SubscriptionAdminLabels = {
       return `تم تغيير الخطة — تم ترحيل ${carry} جلسة.`;
     },
     planChangeForfeited: forfeit => {
+      if (forfeit === 0) return PLAN_CHANGE_PLAIN;
       if (forfeit === 1) return "تم تغيير الخطة — تمت مصادرة جلسة واحدة متبقية.";
       if (forfeit === 2) return "تم تغيير الخطة — تمت مصادرة جلستين متبقيتين.";
       // Same CLDR class branches as `changePlan.carried`.

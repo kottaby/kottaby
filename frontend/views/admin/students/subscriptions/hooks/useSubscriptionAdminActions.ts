@@ -13,7 +13,10 @@
  * Success copy for the plan-change mutation is derived from the wire
  * payload's proration summary (direction + carried/forfeited session
  * counts) through the pure `prorationCopyKind` helper — never invented
- * client-side. Server denials arrive already localized by the backend;
+ * client-side. A zero count on the chosen arm (the idempotent replay
+ * moved nothing) suppresses the counted clause entirely — the plain
+ * `success.planChange` line renders instead of a "0 sessions" form.
+ * Server denials arrive already localized by the backend;
  * `extractErrorMessage` surfaces them verbatim and only a message-less
  * failure degrades to the namespace's generic fallback.
  */
@@ -84,10 +87,20 @@ async function runLifecycleMutation(
   }
 }
 
-/** Resolves the plan-change success toast from the payload's proration summary. */
+/**
+ * Resolves the plan-change success toast from the payload's proration
+ * summary. A zero count on the chosen arm suppresses the carried/
+ * forfeited clause — the plain success line renders instead of a
+ * "0 sessions" counted form.
+ */
 function planChangeToast(payload: AdminChangeSubscriptionPlanPayload, labels: SubscriptionAdminLabels): string {
-  return prorationCopyKind(payload.direction) === "carried"
-    ? labels.success.planChangeCarried(payload.carrySessions)
+  if (prorationCopyKind(payload.direction) === "carried") {
+    return payload.carrySessions === 0
+      ? labels.success.planChange
+      : labels.success.planChangeCarried(payload.carrySessions);
+  }
+  return payload.forfeitedSessions === 0
+    ? labels.success.planChange
     : labels.success.planChangeForfeited(payload.forfeitedSessions);
 }
 

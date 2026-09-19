@@ -138,6 +138,12 @@ export interface SubscriptionAdminLabels {
     readonly renew: string;
     /** Cancel landed. */
     readonly cancel: string;
+    /**
+     * Plan change landed with nothing to report — the zero arm (a chosen
+     * arm whose count is 0, e.g. the idempotent replay that moved nothing)
+     * suppresses the counted clause and renders this plain line.
+     */
+    readonly planChange: string;
     /** Plan change landed on the upgrade arm (carried sessions from the payload). */
     readonly planChangeCarried: (carry: number) => string;
     /** Plan change landed on the downgrade arm (forfeited sessions from the payload). */

@@ -303,6 +303,39 @@ describe("counted-copy plural-branch pin — the CLDR boundary probes on BOTH ma
 });
 
 // ===========================================================================
+describe("zero-count pin — 0 renders the suppressed plain form (no counted clause)", () => {
+  /**
+   * Probe 0 rides THIS block, not `PROBE_COUNTS`: the generic probe loop
+   * pins the count digit in the output, while the zero arm SUPPRESSES the
+   * counted clause entirely (the plain success line — exactly what the
+   * hook's `planChangeToast` renders when the chosen arm's count is 0, so
+   * a 0 can never fall through to a broken "0 sessions / تم ترحيل 0 جلسة" form).
+   */
+  const ZERO_PLAIN_FORMS: ReadonlyArray<readonly [path: string, en: string, ar: string]> = [
+    ["changePlan.carried", "Plan changed.", "تم تغيير الخطة."],
+    ["changePlan.forfeited", "Plan changed.", "تم تغيير الخطة."],
+    ["success.planChangeCarried", "Plan changed.", "تم تغيير الخطة."],
+    ["success.planChangeForfeited", "Plan changed.", "تم تغيير الخطة."],
+  ];
+
+  test.each(ZERO_PLAIN_FORMS)("%s renders the plain suppressed form at count 0 on BOTH maps", (path, en, ar) => {
+    const arLeaf = leafValueOf(subscriptionAdminAr, path, "ar");
+    const enLeaf = leafValueOf(subscriptionAdminEn, path, "en");
+    if (!isCountLeaf(arLeaf) || !isCountLeaf(enLeaf)) {
+      throw new Error(`subscriptionAdmin.${path} must be a count-bearing function on BOTH maps`);
+    }
+    expect(arLeaf(0, PROBE_MAX)).toBe(ar);
+    expect(enLeaf(0, PROBE_MAX)).toBe(en);
+    expect(ARABIC_SCRIPT.test(ar)).toBe(true);
+  });
+
+  test("the plain success line label itself carries the suppressed form on BOTH maps", () => {
+    expect(subscriptionAdminEn.success.planChange).toBe("Plan changed.");
+    expect(subscriptionAdminAr.success.planChange).toBe("تم تغيير الخطة.");
+  });
+});
+
+// ===========================================================================
 describe("no English fallthrough — ar map carries Arabic copy for every slot", () => {
   test("every ar STRING leaf contains Arabic script", () => {
     const fallthroughs = sortedLeafPathsOf(subscriptionAdminAr).filter(path => {
