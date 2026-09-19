@@ -6,7 +6,8 @@ import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
 import type { MyHomeworkQuery_myHomework_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { type PrintableRow, PrintExportDialog } from "@/frontend/views/shared/print-export/PrintExportDialog";
-import { HomeworkListSection, SummaryStrip } from "@/frontend/views/student/homework/HomeworkContainer.chrome";
+import { HomeworkListSection } from "@/frontend/views/student/homework/HomeworkContainer.chrome";
+import { SummaryStrip } from "@/frontend/views/student/homework/HomeworkContainer.summary";
 import {
   computeHomeworkSummary,
   filterHomeworkByQuery,
