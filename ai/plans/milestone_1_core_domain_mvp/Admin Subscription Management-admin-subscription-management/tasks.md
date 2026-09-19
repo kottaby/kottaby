@@ -74,12 +74,12 @@
   - [x] 4.QL / 4.TE (cancel active path; idempotent double-cancel → second call fails conflict localized; lane balances byte-identical before/after — assert via repo read; audit row presence) / 4.SEC / 4.SR / 4.IV.
   - _Requirements: REQ-3, REQ-6, REQ-7_
 
-- [ ] **5. Plan change (upgrade/downgrade) with proration**
+- [x] **5. Plan change (upgrade/downgrade) with proration**
   - Helpers: `computeProration` per plan.md §3.3/D4 (BigInt minor units; price strings parsed exactly — reject non-canonical decimals with validation error).
   - Repo: `setLaneBalanceValue` on `student.repository.ts` per §3.2; `findActiveWithPlan` on `subscription.repository.ts` per §3.1.
   - Service `changeSubscriptionPlan`: assert admin; load sub+plan; guards (target plan active, same lane, different plan id, target `balanceLane` non-null); direction & carry computation; lane reset on old lane + credit on new lane; old row guarded-flip to `cancelled`; insert new active row + junction; claim `planChange:<sourceId>:<newPlanId>`; audit `Override` row with the REQ-4.5 details.
   - GraphQL: `adminChangeSubscriptionPlan` returning `ChangeSubscriptionPlanPayload` (incl. enum registration of `ProrationDirection` in `shared/enum.pothos.ts`).
-  - [ ] 5.QL / 5.TE (upgrade proration math incl. table of price-ratio cases; downgrade forfeiture; zero-price plan guard; MAX bounds; claim replay; cross-lane rejection; inactive-plan rejection) / 5.SEC (lane arithmetic cannot go negative — CHECK constraint catch mapped to domain conflict) / 5.SR / 5.IV.
+  - [x] 5.QL / 5.TE (upgrade proration math incl. table of price-ratio cases; downgrade forfeiture; zero-price plan guard; MAX bounds; claim replay; cross-lane rejection; inactive-plan rejection) / 5.SEC (lane arithmetic cannot go negative — CHECK constraint catch mapped to domain conflict) / 5.SR / 5.IV.
   - _Requirements: REQ-4, REQ-6, REQ-7_
 
 ---

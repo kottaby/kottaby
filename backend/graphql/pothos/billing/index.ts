@@ -1,7 +1,8 @@
 /**
  * Billing-domain Pothos barrel — re-exports the subscription purchase
- * object types plus the admin subscription-management inputs, which land
- * ahead of their resolver modules.
+ * object types plus the admin subscription-management inputs and the
+ * `ChangeSubscriptionPlanPayload` object, which land ahead of their
+ * resolver modules.
  *
  * The top-level `backend/graphql/pothos/index.ts` re-exports this module,
  * and `gqlSchema.ts` side-effect-imports that top-level barrel so these

@@ -2,36 +2,57 @@
  * SubscriptionRepository tests — 4-Tier verification suite.
  *
  * Tier 1: Happy-path data access (insert, findById, findByPaymentReference,
- *         listByUserId ordering, extendActiveOnce window shift).
- * Tier 2: Boundary conditions (unknown ids, unknown references, empty list).
+ *         listByUserId ordering, extendActiveOnce window shift,
+ *         findActiveWithPlan pair read, setLaneBalanceValue exact
+ *         settlement).
+ * Tier 2: Boundary conditions (unknown ids, unknown references, empty list,
+ *         unknown students, non-active plan-change source rows).
  * Tier 3: Chaos & concurrency (guarded activation: zero-row replay on an
  *         already-activated subscription; guarded extension: zero-row
  *         replay once the window moved, wrong-status denial; guarded
  *         cancellation: zero-row replay on an already-cancelled
- *         subscription, wrong-status denial).
+ *         subscription, wrong-status denial; the plan-change bare-read arm
+ *         against committed fixtures).
  * Tier 4: Security & constraints (the partial unique index on
  *         `payment_reference` rejects a colliding insert with the raw
- *         PostgreSQL unique violation — 23505 — untranslated).
+ *         PostgreSQL unique violation — 23505 — untranslated; the lanes'
+ *         `balance_* >= 0` CHECK constraints reject a negative exact-value
+ *         settlement with the raw check violation — 23514 — untranslated).
  *
  * Per `backend/db/test/AGENTS.md`: every case runs inside `runInRollback`
  * with `tx` passed to EVERY repository call and direct Drizzle query; error
  * probes use the `expectRepoError` try/catch helper inside an explicit
- * SAVEPOINT bracket (never `expect(...).rejects`).
+ * SAVEPOINT bracket (never `expect(...).rejects`). The bare-read arm of
+ * `findActiveWithPlan` runs on its own pool connection, so its committed-
+ * fixture case follows the service suites' committed-fixture convention
+ * (real PostgreSQL only, FK-ordered teardown).
  */
 
 import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
+import { db } from "@/backend/db";
 import { SubscriptionRepository } from "@/backend/db/repo/billing/subscription.repository";
+import { StudentRepository } from "@/backend/db/repo/students/student.repository";
+import { plans } from "@/backend/db/schema/billing/plans";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
-import { createTestPlan, createTestUser } from "@/backend/db/test/entity-setup";
+import { createTestPlan, createTestStudent, createTestUser } from "@/backend/db/test/entity-setup";
 import { hasPostgresErrorCode } from "@/backend/db/test/pg-error";
 import { expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
+import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import type { DBTransaction, SubscriptionSelectType } from "@/backend/types";
+import { deleteUsersByIds } from "@/test/helpers/db-cleanup";
+import { isPgliteProvider } from "@/test/helpers/skip-when-pglite";
+
+/** Committed-fixture cases run ONLY on a real multi-connection PostgreSQL. */
+const testOnRealPostgres = isPgliteProvider() ? test.skip : test;
 
 /** PostgreSQL error code for `unique_violation`. */
 const PG_UNIQUE_VIOLATION = "23505";
+
+/** PostgreSQL error code for `check_violation` (the lanes' `>= 0` guards). */
+const PG_CHECK_VIOLATION = "23514";
 
 /** Physical name of the partial unique index guarding payment references. */
 const PAYMENT_REFERENCE_UNIQUE = "subscriptions_payment_reference_unique";
@@ -409,6 +430,182 @@ describe("SubscriptionRepository", () => {
       await expectCancelDeniedForStatus(tx, SubscriptionStatus.Expired);
       await expectCancelDeniedForStatus(tx, SubscriptionStatus.Cancelled);
       await expectCancelDeniedForStatus(tx, SubscriptionStatus.Suspended);
+    });
+  });
+
+  // ─── Tier 1 + 2: The plan-change pair read (findActiveWithPlan) ────────
+
+  test("findActiveWithPlan returns the active row with its plan in one round-trip", async () => {
+    await runInRollback(async tx => {
+      const active = await createSubscriptionInStatus(tx, SubscriptionStatus.Active);
+
+      const found = await SubscriptionRepository.findActiveWithPlan(active.id, tx);
+
+      expect(found).not.toBeNull();
+      if (found) {
+        expect(found.subscription.id).toBe(active.id);
+        expect(found.subscription.userId).toBe(active.userId);
+        expect(found.subscription.planId).toBe(active.planId);
+        expect(found.subscription.status).toBe(SubscriptionStatus.Active);
+        expect(found.subscription.startDate).toEqual(active.startDate);
+        expect(found.subscription.endDate).toEqual(active.endDate);
+        expect(found.plan.id).toBe(active.planId);
+        // The canonical decimal-string price — the contract the plan-change
+        // proration arithmetic parses.
+        expect(found.plan.price).toBe("200.00");
+        expect(found.plan.sessionCount).toBe(8);
+        expect(found.plan.createdAt).toBeInstanceOf(Date);
+      }
+    });
+  });
+
+  test("findActiveWithPlan returns null for every non-active lifecycle state and unknown ids", async () => {
+    await runInRollback(async tx => {
+      // The `active` predicate folds into the JOIN's WHERE, so each
+      // non-active state collapses into the same null miss signal.
+      const pending = await createSubscriptionInStatus(tx, SubscriptionStatus.Pending);
+      expect(await SubscriptionRepository.findActiveWithPlan(pending.id, tx)).toBeNull();
+      const expired = await createSubscriptionInStatus(tx, SubscriptionStatus.Expired);
+      expect(await SubscriptionRepository.findActiveWithPlan(expired.id, tx)).toBeNull();
+      const cancelled = await createSubscriptionInStatus(tx, SubscriptionStatus.Cancelled);
+      expect(await SubscriptionRepository.findActiveWithPlan(cancelled.id, tx)).toBeNull();
+      const suspended = await createSubscriptionInStatus(tx, SubscriptionStatus.Suspended);
+      expect(await SubscriptionRepository.findActiveWithPlan(suspended.id, tx)).toBeNull();
+
+      expect(await SubscriptionRepository.findActiveWithPlan(99999999, tx)).toBeNull();
+    });
+  });
+
+  testOnRealPostgres(
+    "findActiveWithPlan bare-read arm returns the identical { subscription, plan } shape",
+    async () => {
+      // Committed fixture — the bare read runs on its own pool connection
+      // and cannot see rows created inside another (uncommitted) transaction.
+      const fixture = await db.transaction(async fixtureTx => {
+        const user = await createTestUser(fixtureTx, { role: "student" });
+        const plan = await createTestPlan(fixtureTx, { balanceLane: SubscriptionCreditLane.Hifz });
+        const startDate = new Date("2026-02-01T00:00:00Z");
+        const endDate = new Date("2026-03-01T00:00:00Z");
+        const inserted = await SubscriptionRepository.insertSubscription(
+          { userId: user.id, planId: plan.id, startDate, endDate },
+          fixtureTx
+        );
+        const activated = await SubscriptionRepository.activatePendingOnce(
+          inserted.id,
+          { startDate, endDate, paymentVerifiedAt: new Date("2026-01-31T12:00:00Z") },
+          fixtureTx
+        );
+        if (!activated) {
+          throw new Error("fixture failure: activation matched zero rows");
+        }
+        return {
+          ownerId: user.id,
+          planId: plan.id,
+          subscriptionId: activated.id,
+          price: plan.price,
+          sessionCount: plan.sessionCount,
+        };
+      });
+
+      try {
+        const found = await SubscriptionRepository.findActiveWithPlan(fixture.subscriptionId);
+        expect(found).not.toBeNull();
+        if (found) {
+          expect(found.subscription.id).toBe(fixture.subscriptionId);
+          expect(found.subscription.userId).toBe(fixture.ownerId);
+          expect(found.subscription.planId).toBe(fixture.planId);
+          expect(found.subscription.status).toBe(SubscriptionStatus.Active);
+          expect(found.subscription.createdAt).toBeInstanceOf(Date);
+          expect(found.plan.id).toBe(fixture.planId);
+          expect(found.plan.sessionCount).toBe(fixture.sessionCount);
+          // The decimal-string contract survives the raw JSON arm: the
+          // canonical "200.00" form the proration arithmetic parses (a
+          // jsonb number would have destroyed the two-decimal scale).
+          expect(found.plan.price).toBe(fixture.price);
+          expect(typeof found.plan.price).toBe("string");
+          expect(found.plan.balanceLane).toBe(SubscriptionCreditLane.Hifz);
+          expect(found.plan.createdAt).toBeInstanceOf(Date);
+          expect(found.plan.updatedAt).toBeInstanceOf(Date);
+          expect(found.plan.deactivatedAt).toBeNull();
+        }
+
+        // An unknown id is the same null miss through the bare arm.
+        expect(await SubscriptionRepository.findActiveWithPlan(99999999)).toBeNull();
+      } finally {
+        // FK-ordered teardown of the committed fixtures.
+        await deleteUsersByIds([fixture.ownerId]);
+        await db.delete(plans).where(eq(plans.id, fixture.planId));
+      }
+    }
+  );
+
+  // ─── Tier 1 + 2 + 4: The exact lane-value settlement write ─────────────
+
+  test("setLaneBalanceValue sets ONE lane to the exact value and leaves the other lanes untouched", async () => {
+    await runInRollback(async tx => {
+      const owner = await createTestUser(tx, { role: "student" });
+      const student = await createTestStudent(tx, owner.id, { balanceHifz: 4, balanceTajweed: 2, balanceReviews: 1 });
+
+      const settled = await StudentRepository.setLaneBalanceValue(owner.id, SubscriptionCreditLane.Hifz, 12, tx);
+
+      expect(settled).not.toBeNull();
+      if (settled) {
+        expect(settled.id).toBe(owner.id);
+        expect(settled.balanceHifz).toBe(12);
+        // The write is an explicit one-lane patch: every other column rides
+        // through untouched.
+        expect(settled.balanceTajweed).toBe(2);
+        expect(settled.balanceReviews).toBe(1);
+        expect(settled.updatedAt.getTime()).toBeGreaterThanOrEqual(student.updatedAt.getTime());
+      }
+      const reread = await StudentRepository.findById(owner.id, tx);
+      expect(reread?.balanceHifz).toBe(12);
+      expect(reread?.balanceTajweed).toBe(2);
+      expect(reread?.balanceReviews).toBe(1);
+    });
+  });
+
+  test("setLaneBalanceValue targets each subscription credit lane through the enum-keyed setter map", async () => {
+    await runInRollback(async tx => {
+      const owner = await createTestUser(tx, { role: "student" });
+      await createTestStudent(tx, owner.id);
+
+      const hifz = await StudentRepository.setLaneBalanceValue(owner.id, SubscriptionCreditLane.Hifz, 5, tx);
+      const tajweed = await StudentRepository.setLaneBalanceValue(owner.id, SubscriptionCreditLane.Tajweed, 7, tx);
+      const reviews = await StudentRepository.setLaneBalanceValue(owner.id, SubscriptionCreditLane.Reviews, 9, tx);
+
+      expect(hifz?.balanceHifz).toBe(5);
+      expect(tajweed?.balanceTajweed).toBe(7);
+      expect(reviews?.balanceReviews).toBe(9);
+      const reread = await StudentRepository.findById(owner.id, tx);
+      expect(reread?.balanceHifz).toBe(5);
+      expect(reread?.balanceTajweed).toBe(7);
+      expect(reread?.balanceReviews).toBe(9);
+    });
+  });
+
+  test("setLaneBalanceValue returns null for an unknown student", async () => {
+    await runInRollback(async tx => {
+      expect(await StudentRepository.setLaneBalanceValue(99999999, SubscriptionCreditLane.Hifz, 5, tx)).toBeNull();
+    });
+  });
+
+  test("a negative lane value raises the raw balance CHECK violation (23514), untranslated", async () => {
+    await runInRollback(async tx => {
+      const owner = await createTestUser(tx, { role: "student" });
+      await createTestStudent(tx, owner.id, { balanceHifz: 3 });
+
+      await tx.execute(sql`savepoint lane_value_check_probe`);
+      const error = await expectRepoError(() =>
+        StudentRepository.setLaneBalanceValue(owner.id, SubscriptionCreditLane.Hifz, -1, tx)
+      );
+      await tx.execute(sql`rollback to savepoint lane_value_check_probe`);
+
+      expect(hasPostgresErrorCode(error, PG_CHECK_VIOLATION)).toBe(true);
+      // Post-rollback the lane still holds its pre-probe value — the
+      // settlement is all-or-nothing.
+      const reread = await StudentRepository.findById(owner.id, tx);
+      expect(reread?.balanceHifz).toBe(3);
     });
   });
 

@@ -1,6 +1,7 @@
 /**
  * Admin subscription-management mutations — `adminExtendSubscription` +
- * `adminRenewSubscription` + `adminCancelSubscription`.
+ * `adminRenewSubscription` + `adminCancelSubscription` +
+ * `adminChangeSubscriptionPlan`.
  *
  * Contract:
  *  - `adminExtendSubscription(input: ExtendSubscriptionInput!):
@@ -25,6 +26,16 @@
  *    the selector and an optional free-text reason that the service trims
  *    and bounds before the audit trail). An already-applied cancel
  *    surfaces the localized idempotent conflict instead of a second write.
+ * *  - `adminChangeSubscriptionPlan(input: ChangeSubscriptionPlanInput!):
+ *    ChangeSubscriptionPlanPayload!` — admin-only; moves an `active` row
+ *    onto a different ACTIVE plan crediting the SAME balance lane with
+ *    prorated settlement: the direction is derived server-side from the
+ *    two plans' unit values (a unit-value tie breaks on session count),
+ *    the `planChange:<sourceId>:<targetPlanId>` claim makes a duplicate
+ *    REPLAY the first result, and the payload reports the NEW row plus the
+ *    applied carry/forfeit (zeros on a replay — the replayed call moved
+ *    nothing). Cross-lane targets, inactive targets, same-plan targets,
+ *    and non-active sources all surface localized conflicts.
  *  - The subscription id arrives as a wire `ID` and is coerced to the
  *    numeric row key through the strict numeric parse
  *    (`coerceSubscriptionId`) before it reaches the service — a
@@ -55,11 +66,14 @@
 import { SubscriptionPothosObject } from "@/backend/graphql/pothos/billing/subscription.pothos";
 import {
   CancelSubscriptionInput,
+  ChangeSubscriptionPlanInput,
+  ChangeSubscriptionPlanPayload,
   ExtendSubscriptionInput,
   RenewSubscriptionInput,
 } from "@/backend/graphql/pothos/billing/subscription-admin.pothos";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { adminOnlyAuthScopes, requireAdminUser } from "@/backend/graphql/shared";
+import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.service";
 import { coerceSubscriptionId } from "@/backend/services/billing/subscription-admin.helpers";
 import { SubscriptionAdminService } from "@/backend/services/billing/subscription-admin.service";
 
@@ -139,6 +153,35 @@ gqlSchemaBuilder.mutationField("adminCancelSubscription", t =>
         {
           subscriptionId: coerceSubscriptionId(args.input.subscriptionId, tErrors),
           reason: args.input.reason ?? undefined,
+        },
+        user.id,
+        ctx.locale
+      );
+    },
+  })
+);
+
+// Side-effect: register the `adminChangeSubscriptionPlan` mutation field.
+gqlSchemaBuilder.mutationField("adminChangeSubscriptionPlan", t =>
+  t.field({
+    type: ChangeSubscriptionPlanPayload,
+    description:
+      "Changes an active subscription onto a different active plan in the same balance lane with prorated settlement: the old row is cancelled, the owner's lane is settled to the prepared exact total (target plan's session count plus the computed carry on upgrades; the remainder forfeited on downgrades), and a fresh period opens on the target plan. Admin-only; a duplicate change replays the first result.",
+    authScopes: adminOnlyAuthScopes,
+    args: {
+      input: t.arg({
+        type: ChangeSubscriptionPlanInput,
+        required: true,
+        description: "The active subscription selector and the target plan id.",
+      }),
+    },
+    resolve: async (_root, args, ctx) => {
+      const user = await requireAdminUser(ctx);
+      const tErrors = await ctx.t("errorsTranslations");
+      return SubscriptionAdminService.changeSubscriptionPlan(
+        {
+          subscriptionId: coerceSubscriptionId(args.input.subscriptionId, tErrors),
+          newPlanId: PlanCatalogService.coercePlanId(args.input.newPlanId, ctx.locale),
         },
         user.id,
         ctx.locale

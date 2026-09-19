@@ -26,6 +26,7 @@ import type {
   DBQueryExecutor,
   DBTransaction,
   ExpiredDueSubscriptionRow,
+  PlanSelectType,
   SubscriptionInsertType,
   SubscriptionSelectType,
 } from "@/backend/types";
@@ -227,6 +228,91 @@ export namespace SubscriptionRepository {
       .where(and(eq(subscriptions.id, id), eq(subscriptions.status, SubscriptionStatus.Active)))
       .returning();
     return row ?? null;
+  }
+
+  /**
+   * Reads one subscription row TOGETHER with its catalog plan in a single
+   * round-trip — the plan-change flow's opening read (the direction
+   * arithmetic and the same-lane guard both key on the pair, and the
+   * `active` predicate folds into the JOIN's WHERE so a missing row and a
+   * moved-on row collapse into the same `null` miss signal the service
+   * tier disambiguates).
+   *
+   * Two executor arms per the repository's bare-read convention: on a
+   * supplied transaction the read runs as a Drizzle join select on that
+   * executor; standalone it runs as ONE raw parameterized SQL statement
+   * through `queryDb` (the Neon-HTTP-eligible pattern) with the plan
+   * columns composed into a JSON object, so both arms return the identical
+   * `{ subscription, plan }` shape. The status rides a bound parameter —
+   * the enum member, never an interpolated literal.
+   *
+   * @returns The active subscription row and its plan, or `null` when the
+   *          row is unknown or not `active`.
+   */
+  export async function findActiveWithPlan(
+    id: number,
+    tx?: DBQueryExecutor
+  ): Promise<{ subscription: SubscriptionSelectType; plan: PlanSelectType } | null> {
+    if (tx && isDBTransaction(tx)) {
+      // Transactional read — Drizzle join select on the supplied executor.
+      const rows = await tx
+        .select({ subscription: subscriptions, plan: plans })
+        .from(subscriptions)
+        .innerJoin(plans, eq(plans.id, subscriptions.planId))
+        .where(and(eq(subscriptions.id, id), eq(subscriptions.status, SubscriptionStatus.Active)))
+        .limit(1);
+      const row = rows[0];
+      return row ? { subscription: row.subscription, plan: row.plan } : null;
+    }
+    // Non-transactional read — raw SQL via queryDb (Neon HTTP fast path);
+    // the plan columns travel as one JSON object so the two tables' shared
+    // column names never collide in the flat result row. `price` is cast
+    // to text FIRST (jsonb would render the numeric as a JSON number and
+    // the decimal-string contract — the canonical `"200.00"` form the
+    // proration arithmetic parses — would be lost to JSON.parse); the
+    // JSON-borne timestamps are re-typed to `Date`s below for the same
+    // reason (the Drizzle arm returns real `Date`s, and the two arms'
+    // shapes must not diverge).
+    const result = await queryDb<
+      SubscriptionSelectType & {
+        plan: Omit<PlanSelectType, "createdAt" | "updatedAt" | "deactivatedAt"> & {
+          createdAt: string;
+          updatedAt: string;
+          deactivatedAt: string | null;
+        };
+      }
+    >(
+      `SELECT s.id AS "id", s.user_id AS "userId", s.plan_id AS "planId", s.status AS "status",
+              s.start_date AS "startDate", s.end_date AS "endDate",
+              s.payment_method AS "paymentMethod", s.payment_reference AS "paymentReference",
+              s.payment_verified_at AS "paymentVerifiedAt",
+              s.created_at AS "createdAt", s.updated_at AS "updatedAt",
+              jsonb_build_object(
+                'id', p.id, 'title', p.title, 'sessionCount', p.session_count,
+                'price', p.price::text, 'currency', p.currency, 'intervalDays', p.interval_days,
+                'balanceLane', p.balance_lane, 'isActive', p.is_active,
+                'deactivatedAt', p.deactivated_at, 'createdAt', p.created_at, 'updatedAt', p.updated_at
+              ) AS "plan"
+       FROM subscriptions s
+       INNER JOIN plans p ON p.id = s.plan_id
+       WHERE s.id = $1 AND s.status = $2
+       LIMIT 1`,
+      [id, SubscriptionStatus.Active]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+    const { plan, ...subscription } = row;
+    return {
+      subscription,
+      plan: {
+        ...plan,
+        createdAt: new Date(plan.createdAt),
+        updatedAt: new Date(plan.updatedAt),
+        deactivatedAt: plan.deactivatedAt === null ? null : new Date(plan.deactivatedAt),
+      },
+    };
   }
 
   /**

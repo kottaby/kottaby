@@ -1,3 +1,19 @@
+import type { ProrationDirection } from "@/backend/enum/billing/proration-direction.enum";
+import type { SubscriptionReturnType } from "@/backend/types/billing/subscription.types";
+
+/**
+ * Result of one admin plan change: the NEW active subscription row plus
+ * the proration settlement the change applied. The proration fields feed
+ * the response payload's "carried X sessions, forfeited Y" copy without a
+ * refetch; `direction` carries the canonical `ProrationDirection` member.
+ */
+export interface ChangeSubscriptionPlanResult {
+  readonly subscription: SubscriptionReturnType;
+  readonly direction: ProrationDirection;
+  readonly carrySessions: number;
+  readonly forfeitedSessions: number;
+}
+
 /**
  * Admin extend input: lengthens an active subscription's validity window
  * by a whole number of days. The client supplies only the subscription id

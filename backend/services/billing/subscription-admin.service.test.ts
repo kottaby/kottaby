@@ -64,10 +64,29 @@
  *    non-active status denies with zero writes and zero audit rows while
  *    an already-cancelled row replays as the idempotent conflict and a
  *    vanished row as the canonical not-found denial.
+ *  - Plan change: the active row moves onto a different ACTIVE plan in the
+ *    SAME lane with prorated settlement — the hand-computed carry table
+ *    pins the exact BigInt minor-unit arithmetic (upgrades carry
+ *    `floor(remaining × priceOld × scNew / (scOld × priceNew))` on top of
+ *    the target plan's full session count; a unit-value tie breaks on
+ *    session count; downgrades forfeit), the carry clamps at the catalog
+ *    session ceiling, a past-ceiling interval and a zero-price plan reject
+ *    pre-write, the old row guards-flips to `cancelled` beside the fresh
+ *    period + junction + backfilled claim, the lane lands on the prepared
+ *    EXACT total, and exactly ONE `Override` audit row carries the
+ *    `{ direction, fromSubscriptionId, fromPlanId, toPlanId, carrySessions,
+ *    forfeitedExcess }` details; cross-lane / inactive / same-plan targets
+ *    and a lane-less source plan deny with zero writes, the non-active
+ *    source ladder (pending/expired/suspended → notActive, cancelled →
+ *    idempotent replay, vanished row → not-found) denies zero-write, a
+ *    committed claim replays the FIRST result (no double settlement), two
+ *    concurrent changes partition across the claim's unique index, a
+ *    balance CHECK violation maps to the localized conflict, and the
+ *    non-admin/anonymous gates deny before any write.
  */
 
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/backend/db";
 import {
   StudentRepository,
@@ -88,6 +107,7 @@ import {
 } from "@/backend/db/test/entity-setup";
 import { runInRollback } from "@/backend/db/test/test-utils";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
+import { ProrationDirection } from "@/backend/enum/billing/proration-direction.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import {
@@ -99,9 +119,11 @@ import {
   ValidationError,
 } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
+import { MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
 import { SubscriptionAdminService } from "@/backend/services/billing/subscription-admin.service";
 import type {
   CancelSubscriptionSubmitInput,
+  ChangeSubscriptionPlanSubmitInput,
   DBTransaction,
   ExtendSubscriptionSubmitInput,
   PlanSelectType,
@@ -1413,4 +1435,873 @@ describe("SubscriptionAdminService.cancelSubscription — boundaries + replay (T
       expect(JSON.parse(audit.details).reason).toBe("y".repeat(200));
     });
   });
+});
+
+// ─── Plan change: fixtures & probes ────────────────────────────────────────
+
+/** One active source row + its Hifz-lane source plan + a Hifz-lane target plan. */
+interface PlanChangeFixture {
+  readonly owner: UserSelectType;
+  readonly sourcePlan: PlanSelectType;
+  readonly targetPlan: PlanSelectType;
+  readonly source: SubscriptionSelectType;
+}
+
+/**
+ * Creates the plan-change surface's fixture: the owner's `students` row
+ * must exist (the lane settlement and the junction insert both key on it),
+ * both plans credit the SAME Hifz lane, and the source row is `active`.
+ * The proration's remaining-sessions input is credited separately — the
+ * caller controls it per case.
+ */
+async function createPlanChangeFixture(
+  tx: DBTransaction,
+  overrides: {
+    sourcePlanOverrides?: Partial<PlanSelectType>;
+    targetPlanOverrides?: Partial<PlanSelectType>;
+    subscriptionOverrides?: Partial<SubscriptionSelectType>;
+  } = {}
+): Promise<PlanChangeFixture> {
+  const owner = await createTestUser(tx, { role: "student" });
+  await createTestStudent(tx, owner.id);
+  const sourcePlan = await createTestPlan(tx, {
+    balanceLane: SubscriptionCreditLane.Hifz,
+    ...overrides.sourcePlanOverrides,
+  });
+  const targetPlan = await createTestPlan(tx, {
+    balanceLane: SubscriptionCreditLane.Hifz,
+    ...overrides.targetPlanOverrides,
+  });
+  const now = new Date();
+  const source = await createTestSubscription(tx, owner.id, sourcePlan.id, {
+    status: SubscriptionStatus.Active,
+    startDate: now,
+    endDate: new Date(now.getTime() + 30 * MS_PER_DAY),
+    ...overrides.subscriptionOverrides,
+  });
+  return { owner, sourcePlan, targetPlan, source };
+}
+
+/** The plan-change payload for one (source row, target plan) pair. */
+function planChangeInput(subscriptionId: number, newPlanId: number): ChangeSubscriptionPlanSubmitInput {
+  return { subscriptionId, newPlanId };
+}
+
+/** The idempotency claim key the plan-change flow constructs for one pair. */
+function planChangeClaimKey(subscriptionId: number, newPlanId: number): string {
+  return `planChange:${subscriptionId}:${newPlanId}`;
+}
+
+/**
+ * Zero-write denial probe for ONE fixture: the expected localized denial,
+ * the source row byte-identical (incl. `updatedAt`), the owner still
+ * holding exactly ONE subscription row, no claim for the probed pair, the
+ * lane untouched, and zero audit rows about the source.
+ */
+async function expectPlanChangeDenied(
+  tx: DBTransaction,
+  actorId: number,
+  fixture: PlanChangeFixture,
+  expectedCode: string,
+  expectedMessage: string,
+  newPlanIdOverride?: number
+): Promise<void> {
+  const newPlanId = newPlanIdOverride ?? fixture.targetPlan.id;
+  const lanesBefore = await readLaneBalances(tx, fixture.owner.id);
+
+  const error = await expectServiceError(() =>
+    SubscriptionAdminService.changeSubscriptionPlan(planChangeInput(fixture.source.id, newPlanId), actorId, "en", tx)
+  );
+
+  expectDomainDenial(error, expectedCode, expectedMessage);
+
+  const reread = await readSubscription(tx, fixture.source.id);
+  expect(reread.status).toBe(fixture.source.status);
+  expect(reread.updatedAt).toEqual(fixture.source.updatedAt);
+  expect(await countSubscriptionsForOwner(tx, fixture.owner.id)).toBe(1);
+  expect(await readClaim(tx, planChangeClaimKey(fixture.source.id, newPlanId))).toBeNull();
+  expect(await readLaneBalances(tx, fixture.owner.id)).toEqual(lanesBefore);
+  expect(await readAuditsForSubscription(tx, fixture.source.id)).toHaveLength(0);
+}
+
+// ─── Plan change: upgrade carry table + happy path (Tier 1) ───────────────
+
+describe("SubscriptionAdminService.changeSubscriptionPlan — upgrade carry table (Tier 1)", () => {
+  /**
+   * One hand-computed carry case: the fixture plans carry the case's
+   * session counts and prices, the lane is pre-credited with the case's
+   * remaining sessions, and the settlement is pinned to the exact prepared
+   * total (the target plan's full session count + the computed carry).
+   */
+  async function expectUpgradeCarry(
+    tx: DBTransaction,
+    adminId: number,
+    planCase: {
+      sourceSessionCount: number;
+      sourcePrice: string;
+      targetSessionCount: number;
+      targetPrice: string;
+      remainingSessions: number;
+      expectedCarry: number;
+    }
+  ): Promise<void> {
+    const { owner, targetPlan, source } = await createPlanChangeFixture(tx, {
+      sourcePlanOverrides: { sessionCount: planCase.sourceSessionCount, price: planCase.sourcePrice },
+      targetPlanOverrides: { sessionCount: planCase.targetSessionCount, price: planCase.targetPrice },
+    });
+    await StudentRepository.creditLaneBalance(owner.id, SubscriptionCreditLane.Hifz, planCase.remainingSessions, tx);
+
+    const result = await SubscriptionAdminService.changeSubscriptionPlan(
+      planChangeInput(source.id, targetPlan.id),
+      adminId,
+      "en",
+      tx
+    );
+
+    expect(result.direction).toBe(ProrationDirection.Upgrade);
+    expect(result.carrySessions).toBe(planCase.expectedCarry);
+    expect(result.forfeitedSessions).toBe(0);
+    // Final lane value EXACTLY the target plan's full session count plus
+    // the computed carry — never a relative increment, never the sum of
+    // the old and new entitlements.
+    expect(await readHifzBalance(tx, owner.id)).toBe(planCase.targetSessionCount + planCase.expectedCarry);
+  }
+
+  test("carry case: remaining 2 of 10 @ 100.00 → 20 @ 400.00 carries 1 (final 21)", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      await expectUpgradeCarry(tx, adminId, {
+        sourceSessionCount: 10,
+        sourcePrice: "100.00",
+        targetSessionCount: 20,
+        targetPrice: "400.00",
+        remainingSessions: 2,
+        expectedCarry: 1,
+      });
+    });
+  });
+
+  test("carry case: remaining 3 of 10 @ 100.00 → 20 @ 300.00 carries 2 (final 22)", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      await expectUpgradeCarry(tx, adminId, {
+        sourceSessionCount: 10,
+        sourcePrice: "100.00",
+        targetSessionCount: 20,
+        targetPrice: "300.00",
+        remainingSessions: 3,
+        expectedCarry: 2,
+      });
+    });
+  });
+
+  test("carry case: unit-value tie breaks on session count — equal unit prices, more target sessions reproduce the remainder exactly", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      // unitOld = unitNew = 10.00 → the cross-multiplied comparison ties →
+      // the session-count tie-break (scNew 20 ≥ scOld 10) reads the
+      // upgrade leg, and the value-neutral carry formula reproduces the
+      // whole remainder exactly (7 × 10.00 = 7 × 10.00).
+      await expectUpgradeCarry(tx, adminId, {
+        sourceSessionCount: 10,
+        sourcePrice: "100.00",
+        targetSessionCount: 20,
+        targetPrice: "200.00",
+        remainingSessions: 7,
+        expectedCarry: 7,
+      });
+    });
+  });
+
+  test("carry case: the exact-BigInt ratio floors — remaining 1 of 3 @ 100.00 → 2 @ 100.00 carries 0 (final 2)", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      // unitOld = 33.33… < unitNew = 50.00 → upgrade; the exact minor-unit
+      // ratio is 20000/30000 → floor 0 (the remainder is kept as new-plan
+      // sessions at the higher unit value, not rounded up).
+      await expectUpgradeCarry(tx, adminId, {
+        sourceSessionCount: 3,
+        sourcePrice: "100.00",
+        targetSessionCount: 2,
+        targetPrice: "100.00",
+        remainingSessions: 1,
+        expectedCarry: 0,
+      });
+    });
+  });
+
+  test("carry clamps at the catalog session ceiling (MAX_SESSION_COUNT)", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, targetPlan, source } = await createPlanChangeFixture(tx, {
+        sourcePlanOverrides: { sessionCount: 1, price: "0.01" },
+        targetPlanOverrides: { sessionCount: 1, price: "0.01" },
+      });
+      // Equal unit values (0.01) tie → the session-count tie-break reads
+      // the upgrade leg; the raw carry (ceiling + 1) clamps to the ceiling.
+      await StudentRepository.creditLaneBalance(owner.id, SubscriptionCreditLane.Hifz, MAX_SESSION_COUNT + 1, tx);
+
+      const result = await SubscriptionAdminService.changeSubscriptionPlan(
+        planChangeInput(source.id, targetPlan.id),
+        adminId,
+        "en",
+        tx
+      );
+
+      expect(result.direction).toBe(ProrationDirection.Upgrade);
+      expect(result.carrySessions).toBe(MAX_SESSION_COUNT);
+      expect(await readHifzBalance(tx, owner.id)).toBe(1 + MAX_SESSION_COUNT);
+    });
+  });
+});
+
+describe("SubscriptionAdminService.changeSubscriptionPlan — committed change (Tier 1)", () => {
+  test("upgrades an active subscription: old row cancelled + fresh period + junction + claim + one Override audit row with the exact details", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, sourcePlan, targetPlan, source } = await createPlanChangeFixture(tx, {
+        sourcePlanOverrides: { sessionCount: 10, price: "100.00" },
+        targetPlanOverrides: { sessionCount: 20, price: "400.00", intervalDays: 45 },
+      });
+      await StudentRepository.creditLaneBalance(owner.id, SubscriptionCreditLane.Hifz, 2, tx);
+      const callStart = new Date();
+
+      const result = await SubscriptionAdminService.changeSubscriptionPlan(
+        planChangeInput(source.id, targetPlan.id),
+        adminId,
+        "en",
+        tx
+      );
+      const callEnd = new Date();
+
+      // The returned row IS the fresh period: target plan, active, one
+      // captured instant governing a window of EXACTLY the target plan's
+      // interval length, no gateway payload.
+      const created = result.subscription;
+      expect(created.id).not.toBe(source.id);
+      expect(created.userId).toBe(owner.id);
+      expect(created.planId).toBe(targetPlan.id);
+      expect(created.status).toBe(SubscriptionStatus.Active);
+      if (created.startDate === null || created.endDate === null) {
+        throw new Error("plan change returned a windowless row");
+      }
+      expect(created.startDate.getTime()).toBeGreaterThanOrEqual(callStart.getTime());
+      expect(created.startDate.getTime()).toBeLessThanOrEqual(callEnd.getTime());
+      expect(created.endDate.getTime() - created.startDate.getTime()).toBe(targetPlan.intervalDays * MS_PER_DAY);
+      expect(created.paymentMethod).toBeNull();
+      expect(created.paymentReference).toBeNull();
+      expect(created.paymentVerifiedAt).toBeNull();
+
+      // The result payload reports the applied settlement.
+      expect(result.direction).toBe(ProrationDirection.Upgrade);
+      expect(result.carrySessions).toBe(1);
+      expect(result.forfeitedSessions).toBe(0);
+
+      // The OLD row is cancelled through the guarded flip — its identity
+      // columns ride through untouched.
+      const sourceReread = await readSubscription(tx, source.id);
+      expect(sourceReread.status).toBe(SubscriptionStatus.Cancelled);
+      expect(sourceReread.planId).toBe(sourcePlan.id);
+      expect(sourceReread.endDate).toEqual(source.endDate);
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(2);
+
+      // The lane landed on the prepared EXACT total: the target plan's
+      // full session count + the carry (2 remaining × 10.00 = 20.00 → one
+      // 20.00 unit) — the old contribution was superseded, not added to.
+      expect(await readHifzBalance(tx, owner.id)).toBe(20 + 1);
+
+      // The junction row ties the fresh period to the student.
+      expect(await countJunctionRows(tx, created.id)).toBe(1);
+
+      // The claim was created and backfilled to the fresh row.
+      const claim = await readClaim(tx, planChangeClaimKey(source.id, targetPlan.id));
+      expect(claim?.userId).toBe(owner.id);
+      expect(claim?.subscriptionId).toBe(created.id);
+
+      // Exactly ONE audit row about the FRESH row — Override with the
+      // ids/ints/direction details parsed back verbatim; the source row
+      // minted nothing.
+      const audits = await readAuditsForSubscription(tx, created.id);
+      expect(audits).toHaveLength(1);
+      const audit = audits[0];
+      if (!audit) {
+        throw new Error("audit row vanished");
+      }
+      expect(audit.actorId).toBe(adminId);
+      expect(audit.actionType).toBe(AuditActionType.Override);
+      expect(audit.entityType).toBe(SUBSCRIPTION_ENTITY_TYPE);
+      expect(audit.entityId).toBe(created.id);
+      if (audit.details === null) {
+        throw new Error("audit details vanished");
+      }
+      expect(JSON.parse(audit.details)).toEqual({
+        direction: ProrationDirection.Upgrade,
+        fromSubscriptionId: source.id,
+        fromPlanId: sourcePlan.id,
+        toPlanId: targetPlan.id,
+        carrySessions: 1,
+        forfeitedExcess: 0,
+      });
+      expect(await readAuditsForSubscription(tx, source.id)).toHaveLength(0);
+    });
+  });
+
+  test("downgrades forfeit: the credit is the target plan's session count only and the excess is reported, never credited", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, sourcePlan, targetPlan, source } = await createPlanChangeFixture(tx, {
+        sourcePlanOverrides: { sessionCount: 4, price: "200.00" },
+        targetPlanOverrides: { sessionCount: 10, price: "100.00" },
+      });
+      await StudentRepository.creditLaneBalance(owner.id, SubscriptionCreditLane.Hifz, 2, tx);
+
+      const result = await SubscriptionAdminService.changeSubscriptionPlan(
+        planChangeInput(source.id, targetPlan.id),
+        adminId,
+        "en",
+        tx
+      );
+
+      // unitOld = 50.00 > unitNew = 10.00 → the downgrade leg: the whole
+      // remaining contribution is forfeited (downgrade forfeits), the
+      // credit is the target plan's full session count ONLY.
+      expect(result.direction).toBe(ProrationDirection.Downgrade);
+      expect(result.carrySessions).toBe(0);
+      expect(result.forfeitedSessions).toBe(2);
+      expect((await readSubscription(tx, result.subscription.id)).planId).toBe(targetPlan.id);
+      expect(await readHifzBalance(tx, owner.id)).toBe(10);
+
+      // The trail records the forfeited excess under the pinned key.
+      const audit = (await readAuditsForSubscription(tx, result.subscription.id))[0];
+      if (!audit?.details) {
+        throw new Error("audit row/details vanished");
+      }
+      expect(audit.actionType).toBe(AuditActionType.Override);
+      expect(JSON.parse(audit.details)).toEqual({
+        direction: ProrationDirection.Downgrade,
+        fromSubscriptionId: source.id,
+        fromPlanId: sourcePlan.id,
+        toPlanId: targetPlan.id,
+        carrySessions: 0,
+        forfeitedExcess: 2,
+      });
+    });
+  });
+
+  test("a unit-value tie with FEWER target sessions reads the downgrade leg and forfeits", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, targetPlan, source } = await createPlanChangeFixture(tx, {
+        sourcePlanOverrides: { sessionCount: 20, price: "200.00" },
+        targetPlanOverrides: { sessionCount: 10, price: "100.00" },
+      });
+      await StudentRepository.creditLaneBalance(owner.id, SubscriptionCreditLane.Hifz, 5, tx);
+
+      const result = await SubscriptionAdminService.changeSubscriptionPlan(
+        planChangeInput(source.id, targetPlan.id),
+        adminId,
+        "en",
+        tx
+      );
+
+      // unitOld = unitNew = 10.00 → tie → scNew (10) < scOld (20) → the
+      // session-count tie-break reads the downgrade leg.
+      expect(result.direction).toBe(ProrationDirection.Downgrade);
+      expect(result.carrySessions).toBe(0);
+      expect(result.forfeitedSessions).toBe(5);
+      expect(await readHifzBalance(tx, owner.id)).toBe(10);
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(2);
+    });
+  });
+});
+
+// ─── Plan change: target/source guards + validation (Tier 1/2) ────────────
+
+describe("SubscriptionAdminService.changeSubscriptionPlan — target & source guards (Tier 1/2)", () => {
+  test("denies a cross-lane target with the localized incompatible-lane conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const crossLane = await createPlanChangeFixture(tx, {
+        targetPlanOverrides: { balanceLane: SubscriptionCreditLane.Tajweed },
+      });
+      await expectPlanChangeDenied(tx, adminId, crossLane, "CONFLICT", t().subscriptionAdmin.incompatibleLane);
+
+      // A lane-less target is the same incompatible-lane deny (the flow
+      // cannot anchor a settlement to an unconfigured lane).
+      const laneLess = await createPlanChangeFixture(tx, {
+        targetPlanOverrides: { balanceLane: null },
+      });
+      await expectPlanChangeDenied(tx, adminId, laneLess, "CONFLICT", t().subscriptionAdmin.incompatibleLane);
+    });
+  });
+
+  test("denies an inactive target plan with the localized inactive-plan conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const inactive = await createPlanChangeFixture(tx, {
+        targetPlanOverrides: { isActive: false, deactivatedAt: new Date() },
+      });
+      await expectPlanChangeDenied(tx, adminId, inactive, "CONFLICT", t().subscriptionAdmin.inactivePlan);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies the source plan itself with the localized same-plan conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const fixture = await createPlanChangeFixture(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.changeSubscriptionPlan(
+          planChangeInput(fixture.source.id, fixture.sourcePlan.id),
+          adminId,
+          "en",
+          tx
+        )
+      );
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().subscriptionAdmin.samePlan);
+      expect((await readSubscription(tx, fixture.source.id)).status).toBe(SubscriptionStatus.Active);
+      expect(await countSubscriptionsForOwner(tx, fixture.owner.id)).toBe(1);
+      expect(await readClaim(tx, planChangeClaimKey(fixture.source.id, fixture.sourcePlan.id))).toBeNull();
+      expect(await readAuditsForSubscription(tx, fixture.source.id)).toHaveLength(0);
+    });
+  });
+
+  test("denies an unknown target plan with the canonical plan not-found denial and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const fixture = await createPlanChangeFixture(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.changeSubscriptionPlan(planChangeInput(fixture.source.id, 99999999), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(NotFoundError);
+      expectDomainDenial(error, "PLAN_NOT_FOUND", t().planCatalog.planNotFound);
+      expect((await readSubscription(tx, fixture.source.id)).status).toBe(SubscriptionStatus.Active);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies a zero-price target plan with the pre-DB validation reject and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const zeroPrice = await createPlanChangeFixture(tx, {
+        targetPlanOverrides: { price: "0.00" },
+      });
+      await expectPlanChangeDenied(tx, adminId, zeroPrice, "VALIDATION", t().badRequest);
+
+      // A zero-price SOURCE plan is the same degenerate-unit reject.
+      const zeroPriceSource = await createPlanChangeFixture(tx, {
+        sourcePlanOverrides: { price: "0.00" },
+      });
+      await expectPlanChangeDenied(tx, adminId, zeroPriceSource, "VALIDATION", t().badRequest);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies a target interval past the ceiling with the localized prorationOverflow reject and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const pastCeiling = await createPlanChangeFixture(tx, {
+        targetPlanOverrides: { intervalDays: 3651 },
+      });
+      await expectPlanChangeDenied(tx, adminId, pastCeiling, "VALIDATION", t().subscriptionAdmin.prorationOverflow);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies a lane-less SOURCE plan fail-closed with zero claim residue", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const laneLessSource = await createPlanChangeFixture(tx, {
+        sourcePlanOverrides: { balanceLane: null },
+      });
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.changeSubscriptionPlan(
+          planChangeInput(laneLessSource.source.id, laneLessSource.targetPlan.id),
+          adminId,
+          "en",
+          tx
+        )
+      );
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().conflict);
+      // Zero writes — and no idempotency residue: the claim that WOULD have
+      // been inserted after the lane certification never was.
+      expect((await readSubscription(tx, laneLessSource.source.id)).status).toBe(SubscriptionStatus.Active);
+      expect(
+        await readClaim(tx, planChangeClaimKey(laneLessSource.source.id, laneLessSource.targetPlan.id))
+      ).toBeNull();
+      expect(await readAuditsForSubscription(tx, laneLessSource.source.id)).toHaveLength(0);
+    });
+  });
+});
+
+// ─── Plan change: non-active source ladder + gates (Tier 1) ───────────────
+
+describe("SubscriptionAdminService.changeSubscriptionPlan — non-active source ladder + gates (Tier 1)", () => {
+  test("denies a pending source with the active-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const pending = await createPlanChangeFixture(tx, {
+        subscriptionOverrides: { status: SubscriptionStatus.Pending, endDate: null },
+      });
+      await expectPlanChangeDenied(tx, adminId, pending, "CONFLICT", t().subscriptionAdmin.notActive);
+    });
+  });
+
+  test("denies an expired source with the active-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const now = new Date();
+      const expired = await createPlanChangeFixture(tx, {
+        subscriptionOverrides: {
+          status: SubscriptionStatus.Expired,
+          endDate: new Date(now.getTime() - 5 * MS_PER_DAY),
+        },
+      });
+      await expectPlanChangeDenied(tx, adminId, expired, "CONFLICT", t().subscriptionAdmin.notActive);
+    });
+  });
+
+  test("denies a suspended source with the active-only conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const suspended = await createPlanChangeFixture(tx, {
+        subscriptionOverrides: { status: SubscriptionStatus.Suspended },
+      });
+      await expectPlanChangeDenied(tx, adminId, suspended, "CONFLICT", t().subscriptionAdmin.notActive);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies an already-changed source (cancelled) with the idempotent replay conflict and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const cancelled = await createPlanChangeFixture(tx, {
+        subscriptionOverrides: { status: SubscriptionStatus.Cancelled },
+      });
+      // A cancelled source IS the replay signature: the first change's
+      // guarded flip made the row ineligible, so the denied call writes
+      // nothing and surfaces the DEFAULT-code idempotent conflict (never a
+      // custom machine key).
+      await expectPlanChangeDenied(tx, adminId, cancelled, "CONFLICT", t().conflict);
+    });
+  });
+
+  test("denies an unknown source id with the canonical not-found denial and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.changeSubscriptionPlan(planChangeInput(99999999, 99999998), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(NotFoundError);
+      expectDomainDenial(error, "SUBSCRIPTION_NOT_FOUND", t().notFound);
+      expect(await countAuditsForActor(tx, adminId)).toBe(0);
+    });
+  });
+
+  test("denies a non-admin actor before any write: row byte-identical, lane untouched, zero claims, zero audit rows", async () => {
+    await runInRollback(async tx => {
+      const student = await createTestUser(tx, { role: "student" });
+      const fixture = await createPlanChangeFixture(tx);
+      await StudentRepository.creditLaneBalance(fixture.owner.id, SubscriptionCreditLane.Hifz, 4, tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.changeSubscriptionPlan(
+          planChangeInput(fixture.source.id, fixture.targetPlan.id),
+          student.id,
+          "en",
+          tx
+        )
+      );
+
+      expect(error).toBeInstanceOf(ForbiddenError);
+      expectDomainDenial(error, "FORBIDDEN", t().forbidden);
+      const reread = await readSubscription(tx, fixture.source.id);
+      expect(reread.status).toBe(fixture.source.status);
+      expect(reread.updatedAt).toEqual(fixture.source.updatedAt);
+      expect(await countSubscriptionsForOwner(tx, fixture.owner.id)).toBe(1);
+      expect(await readClaim(tx, planChangeClaimKey(fixture.source.id, fixture.targetPlan.id))).toBeNull();
+      expect(await countAuditsForActor(tx, student.id)).toBe(0);
+      expect(await readAuditsForSubscription(tx, fixture.source.id)).toHaveLength(0);
+    });
+  });
+
+  test("denies an anonymous actor with UNAUTHORIZED and zero audit rows", async () => {
+    await runInRollback(async tx => {
+      const fixture = await createPlanChangeFixture(tx);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.changeSubscriptionPlan(
+          planChangeInput(fixture.source.id, fixture.targetPlan.id),
+          ANONYMOUS_ACTOR_ID,
+          "en",
+          tx
+        )
+      );
+
+      expect(error).toBeInstanceOf(UnauthorizedError);
+      expectDomainDenial(error, "UNAUTHORIZED", t().unauthorized);
+      expect(await readAuditsForSubscription(tx, fixture.source.id)).toHaveLength(0);
+    });
+  });
+});
+
+// ─── Plan change: replay + chaos (Tier 2/3) ───────────────────────────────
+
+describe("SubscriptionAdminService.changeSubscriptionPlan — replay + chaos (Tier 2/3)", () => {
+  test("a committed claim replays the FIRST result: no second change, no lane re-settlement, no audit", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, targetPlan, source } = await createPlanChangeFixture(tx, {
+        sourcePlanOverrides: { sessionCount: 10, price: "100.00" },
+        targetPlanOverrides: { sessionCount: 20, price: "400.00" },
+      });
+      await StudentRepository.creditLaneBalance(owner.id, SubscriptionCreditLane.Hifz, 2, tx);
+      // The first change already committed: its result row (active on the
+      // target plan) plus its claim, backfilled and pointing at that row.
+      const priorResult = await createTestSubscription(tx, owner.id, targetPlan.id, {
+        status: SubscriptionStatus.Active,
+        startDate: new Date(Date.now() - MS_PER_DAY),
+        endDate: new Date(Date.now() + 29 * MS_PER_DAY),
+      });
+      const claim = await SubscriptionPurchaseIdempotencyRepository.insertClaim(
+        { idempotencyKey: planChangeClaimKey(source.id, targetPlan.id), userId: owner.id },
+        tx
+      );
+      await SubscriptionPurchaseIdempotencyRepository.updateClaimSubscriptionId(claim.id, priorResult.id, tx);
+
+      const result = await SubscriptionAdminService.changeSubscriptionPlan(
+        planChangeInput(source.id, targetPlan.id),
+        adminId,
+        "en",
+        tx
+      );
+
+      // The FIRST result is returned — THIS call moved nothing, so the
+      // carry/forfeit integers report zero while the plan-pair direction
+      // is re-derived.
+      expect(result.subscription.id).toBe(priorResult.id);
+      expect(result.direction).toBe(ProrationDirection.Upgrade);
+      expect(result.carrySessions).toBe(0);
+      expect(result.forfeitedSessions).toBe(0);
+
+      // No second change: the owner still holds exactly 2 rows (the active
+      // source + the first result), the lane was NOT re-settled (a double
+      // settlement would have overwritten it with the prepared total), no
+      // audit row about the first result, and the claim pointer is
+      // untouched.
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(2);
+      expect(await readHifzBalance(tx, owner.id)).toBe(2);
+      expect(await readAuditsForSubscription(tx, priorResult.id)).toHaveLength(0);
+      expect((await readClaim(tx, planChangeClaimKey(source.id, targetPlan.id)))?.subscriptionId).toBe(priorResult.id);
+    });
+  });
+
+  test("a committed claim without a resolvable result conflicts with the localized already-plan-changed copy", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, targetPlan, source } = await createPlanChangeFixture(tx);
+      await StudentRepository.creditLaneBalance(owner.id, SubscriptionCreditLane.Hifz, 2, tx);
+      // The claim row committed but its subscription pointer is null — the
+      // set-null FK after the result row's deletion: the replay cannot
+      // resolve to any row.
+      await SubscriptionPurchaseIdempotencyRepository.insertClaim(
+        { idempotencyKey: planChangeClaimKey(source.id, targetPlan.id), userId: owner.id },
+        tx
+      );
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.changeSubscriptionPlan(planChangeInput(source.id, targetPlan.id), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().subscriptionAdmin.alreadyPlanChanged);
+      // Zero writes: the source is still active, the lane untouched, no
+      // audit row about the source.
+      expect((await readSubscription(tx, source.id)).status).toBe(SubscriptionStatus.Active);
+      expect(await readHifzBalance(tx, owner.id)).toBe(2);
+      expect(await readAuditsForSubscription(tx, source.id)).toHaveLength(0);
+    });
+  });
+
+  test("a balance CHECK violation (23514) surfaces as the localized conflict — no partial commit", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, targetPlan, source } = await createPlanChangeFixture(tx);
+      await StudentRepository.creditLaneBalance(owner.id, SubscriptionCreditLane.Hifz, 4, tx);
+      const lanesBefore = await readLaneBalances(tx, owner.id);
+
+      // The lanes' CHECK constraints are unreachable through the flow's
+      // own arithmetic (the prepared total is always >= 1), so the probe
+      // stubs the settlement seam to raise the raw violation — pinning the
+      // translation contract (raw 23514 → localized default-code conflict)
+      // and the all-or-nothing rollback.
+      const checkViolation = Object.assign(new Error("balance_hifz_check"), { code: "23514" });
+      const settleStub = trackSpy(spyOn(StudentRepository, "setLaneBalanceValue"));
+      settleStub.mockImplementation(async () => {
+        throw checkViolation;
+      });
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.changeSubscriptionPlan(planChangeInput(source.id, targetPlan.id), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expectDomainDenial(error, "CONFLICT", t().conflict);
+
+      // The whole change rolled back with the savepoint: source still
+      // active, no claim residue, the lane byte-identical, no audits.
+      expect((await readSubscription(tx, source.id)).status).toBe(SubscriptionStatus.Active);
+      expect(await readClaim(tx, planChangeClaimKey(source.id, targetPlan.id))).toBeNull();
+      expect(await readLaneBalances(tx, owner.id)).toEqual(lanesBefore);
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(1);
+      expect(await readAuditsForSubscription(tx, source.id)).toHaveLength(0);
+    });
+  });
+
+  testOnRealPostgres(
+    "concurrent identical plan changes: both fulfill with the FIRST result — one change, one settlement, one audit",
+    async () => {
+      // Committed fixtures — the production path opens its OWN transaction
+      // per call, so the race needs real committed entities.
+      const fixture = await db.transaction(async fixtureTx => {
+        const admin = await createTestUser(fixtureTx, { role: "admin" });
+        const owner = await createTestUser(fixtureTx, { role: "student" });
+        await createTestStudent(fixtureTx, owner.id);
+        const sourcePlan = await createTestPlan(fixtureTx, {
+          balanceLane: SubscriptionCreditLane.Hifz,
+          sessionCount: 10,
+          price: "100.00",
+        });
+        const targetPlan = await createTestPlan(fixtureTx, {
+          balanceLane: SubscriptionCreditLane.Hifz,
+          sessionCount: 20,
+          price: "400.00",
+        });
+        const now = new Date();
+        const source = await createTestSubscription(fixtureTx, owner.id, sourcePlan.id, {
+          status: SubscriptionStatus.Active,
+          startDate: now,
+          endDate: new Date(now.getTime() + 30 * MS_PER_DAY),
+        });
+        return {
+          adminId: admin.id,
+          ownerId: owner.id,
+          sourcePlanId: sourcePlan.id,
+          targetPlanId: targetPlan.id,
+          sourceId: source.id,
+        };
+      });
+      // The proration's remaining sessions, committed on their own
+      // transaction.
+      await db.transaction(async creditTx => {
+        await StudentRepository.creditLaneBalance(fixture.ownerId, SubscriptionCreditLane.Hifz, 2, creditTx);
+      });
+
+      // Deterministic lost-race interleaving: hold BOTH calls right after
+      // their opening pair read (each inside its own top-level transaction)
+      // and release them together, so both proceed on the same active
+      // source and contend on the claim's unique index. The real read, the
+      // real claim serialization, and every write stay fully exercised.
+      const realFindActiveWithPlan = SubscriptionRepository.findActiveWithPlan;
+      let readersArrived = 0;
+      let releaseReaders!: () => void;
+      const readersBarrier = new Promise<void>(resolve => {
+        releaseReaders = resolve;
+      });
+      const readStub = trackSpy(spyOn(SubscriptionRepository, "findActiveWithPlan"));
+      readStub.mockImplementation(async (id, executor) => {
+        const row = await realFindActiveWithPlan(id, executor);
+        readersArrived += 1;
+        if (readersArrived === 2) {
+          releaseReaders();
+        }
+        await readersBarrier;
+        return row;
+      });
+
+      try {
+        const [first, second] = await Promise.allSettled([
+          SubscriptionAdminService.changeSubscriptionPlan(
+            planChangeInput(fixture.sourceId, fixture.targetPlanId),
+            fixture.adminId,
+            "en"
+          ),
+          SubscriptionAdminService.changeSubscriptionPlan(
+            planChangeInput(fixture.sourceId, fixture.targetPlanId),
+            fixture.adminId,
+            "en"
+          ),
+        ]);
+        if (first.status === "rejected" || second.status === "rejected") {
+          throw new Error(
+            `both plan changes must fulfill: ${JSON.stringify([
+              first.status === "rejected" ? String(first.reason) : "",
+              second.status === "rejected" ? String(second.reason) : "",
+            ])}`
+          );
+        }
+
+        // Both calls return the SAME first result; the winner reports the
+        // computed carry, the replayed loser reports zero movement.
+        expect(first.value.subscription.id).toBe(second.value.subscription.id);
+        expect(first.value.direction).toBe(ProrationDirection.Upgrade);
+        expect(second.value.direction).toBe(ProrationDirection.Upgrade);
+        expect(Math.max(first.value.carrySessions, second.value.carrySessions)).toBe(1);
+        expect(Math.min(first.value.carrySessions, second.value.carrySessions)).toBe(0);
+
+        // Exactly one change: the source cancelled, the fresh period active
+        // on the target plan beside it — never two.
+        const rows = await db.select().from(subscriptions).where(eq(subscriptions.userId, fixture.ownerId));
+        expect(rows).toHaveLength(2);
+        const rereadSource = rows.find(row => row.id === fixture.sourceId);
+        expect(rereadSource?.status).toBe(SubscriptionStatus.Cancelled);
+        const fresh = rows.find(row => row.id === first.value.subscription.id);
+        expect(fresh?.status).toBe(SubscriptionStatus.Active);
+        expect(fresh?.planId).toBe(fixture.targetPlanId);
+
+        // One exact settlement — 2 remaining × 10.00 = one 20.00 unit on
+        // top of the target plan's 20 sessions — never two.
+        const [studentRow] = await db.select().from(students).where(eq(students.id, fixture.ownerId)).limit(1);
+        expect(studentRow?.balanceHifz).toBe(20 + 1);
+
+        // One backfilled claim, and exactly one Override audit row about
+        // the fresh result.
+        const [claimRow] = await db
+          .select()
+          .from(subscriptionPurchaseIdempotency)
+          .where(
+            eq(
+              subscriptionPurchaseIdempotency.idempotencyKey,
+              planChangeClaimKey(fixture.sourceId, fixture.targetPlanId)
+            )
+          )
+          .limit(1);
+        expect(claimRow?.subscriptionId).toBe(first.value.subscription.id);
+        const audits = await db
+          .select()
+          .from(auditLogs)
+          .where(
+            and(eq(auditLogs.entityType, SUBSCRIPTION_ENTITY_TYPE), eq(auditLogs.entityId, first.value.subscription.id))
+          );
+        expect(audits).toHaveLength(1);
+        expect(audits[0]?.actionType).toBe(AuditActionType.Override);
+      } finally {
+        // FK-ordered teardown of the committed fixtures; the committed
+        // audit row (append-only table) is removed first under suspended
+        // delete triggers, keyed by the acting admin.
+        await deleteUsersByIds([fixture.adminId, fixture.ownerId]);
+        await db.delete(plans).where(inArray(plans.id, [fixture.sourcePlanId, fixture.targetPlanId]));
+      }
+    }
+  );
 });
