@@ -21,7 +21,7 @@ export interface ParentAggregateState {
 }
 
 export const PARENT_AGGREGATE_FAILED: ParentAggregateState = { reportsTotal: null, sessionsTotal: null };
-export const PARENT_AGGREGATE_RUNNING: ParentAggregateState = { reportsTotal: undefined, sessionsTotal: undefined };
+const PARENT_AGGREGATE_RUNNING: ParentAggregateState = { reportsTotal: undefined, sessionsTotal: undefined };
 
 /**
  * Per-key aggregate resolution: an EMPTY family has honest zeros (no

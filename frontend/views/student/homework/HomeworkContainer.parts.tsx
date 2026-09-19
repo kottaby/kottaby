@@ -15,7 +15,7 @@ import type { HomeworkLabels } from "@/shared/locale/types/homework";
  * shared presentation the parent portal renders, primary-accented for
  * Jadid and secondary-accented for Madi.
  */
-export function HomeworkRow({
+function HomeworkRow({
   row,
   labels: t,
   locale,

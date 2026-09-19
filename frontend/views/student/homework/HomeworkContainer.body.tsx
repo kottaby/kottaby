@@ -16,7 +16,7 @@ import { HomeworkListSection, SummaryStrip } from "@/frontend/views/student/home
 import type { HomeworkLabels } from "@/shared/locale/types/homework";
 
 /** Linear skeleton (summary strip + three list rows) — `aria-busy` + label. */
-export function HomeworkSkeleton({ loadingLabel }: Readonly<{ loadingLabel: string }>): ReactNode {
+function HomeworkSkeleton({ loadingLabel }: Readonly<{ loadingLabel: string }>): ReactNode {
   const SKELETON_ROW_KEYS = ["homework-row-skeleton-1", "homework-row-skeleton-2", "homework-row-skeleton-3"] as const;
   return (
     <Stack
