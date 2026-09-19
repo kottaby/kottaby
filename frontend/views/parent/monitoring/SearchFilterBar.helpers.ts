@@ -27,9 +27,11 @@ export function filterReportRows<T extends FilterableReportRow>(
       continue;
     }
     if (q !== "") {
-      const notesMatch = row.teacherNotes?.toLowerCase().includes(q);
-      const dateMatch = dateMatcher(row, q);
-      if (!notesMatch && !dateMatch) {
+      const notesMatch = row.teacherNotes?.toLowerCase().includes(q) ?? false;
+      // Performance optimization: Short-circuit dateMatcher when notes already match
+      // to avoid calling expensive Intl date formatting per row.
+      const dateMatch = notesMatch ? true : dateMatcher(row, q);
+      if (!dateMatch) {
         continue;
       }
     }
@@ -65,8 +67,11 @@ export function filterHomeworkRows<T extends FilterableHomeworkRow>(
     if (q !== "") {
       const jadiz = row.jadid?.surahJuz?.toLowerCase() ?? "";
       const madiz = row.madi?.surahJuz?.toLowerCase() ?? "";
-      const dateMatch = dateMatcher(row, q);
-      if (!jadiz.includes(q) && !madiz.includes(q) && !dateMatch) {
+      const textMatch = jadiz.includes(q) || madiz.includes(q);
+      // Performance optimization: Short-circuit dateMatcher when surah text already matches
+      // to avoid calling expensive Intl date formatting per row.
+      const dateMatch = textMatch ? true : dateMatcher(row, q);
+      if (!dateMatch) {
         continue;
       }
     }
@@ -84,6 +89,9 @@ function sortRows<
     readonly madi?: { readonly grade: number | null } | null;
   },
 >(rows: readonly T[], mode: SortMode): readonly T[] {
+  if (rows.length <= 1) {
+    return rows;
+  }
   const sorted = [...rows];
   if (mode === "dateDesc") {
     sorted.sort((a, b) => compareDates(b, a));
@@ -117,16 +125,9 @@ function ratingValue(row: {
   readonly jadid?: { readonly grade: number | null } | null;
   readonly madi?: { readonly grade: number | null } | null;
 }): number {
-  if (row.studentRatingByTeacher !== null && row.studentRatingByTeacher !== undefined) {
-    return row.studentRatingByTeacher;
+  const rating = row.studentRatingByTeacher;
+  if (rating !== null && rating !== undefined) {
+    return rating;
   }
-  const jadidGrade = row.jadid?.grade;
-  const madiGrade = row.madi?.grade;
-  if (jadidGrade !== null && jadidGrade !== undefined) {
-    return jadidGrade;
-  }
-  if (madiGrade !== null && madiGrade !== undefined) {
-    return madiGrade;
-  }
-  return 0;
+  return row.jadid?.grade ?? row.madi?.grade ?? 0;
 }
