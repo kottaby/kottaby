@@ -20,5 +20,6 @@ export * from "./parentMonitoring";
 export * from "./plans";
 export * from "./recitation";
 export * from "./registry";
+export * from "./schedule";
 export * from "./sessions";
 export * from "./wallet";

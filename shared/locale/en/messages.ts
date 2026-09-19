@@ -18,6 +18,7 @@ import { parentLinkEn } from "@/shared/locale/en/parentLink";
 import { parentMonitoringEn } from "@/shared/locale/en/parentMonitoring";
 import { plansEn } from "@/shared/locale/en/plans";
 import { recitationEn } from "@/shared/locale/en/recitation";
+import { scheduleEn } from "@/shared/locale/en/schedule";
 import { sessionsEn } from "@/shared/locale/en/sessions";
 import { walletEn } from "@/shared/locale/en/wallet";
 import type { Translations } from "@/shared/locale/types/message";
@@ -32,6 +33,7 @@ export const enMessages: Translations = {
   plansTranslations: plansEn,
   applicantTranslations: applicantEn,
   sessionsTranslations: sessionsEn,
+  scheduleTranslations: scheduleEn,
   walletTranslations: walletEn,
   checkoutTranslations: checkoutEn,
   adminUsersTranslations: adminUsersEn,

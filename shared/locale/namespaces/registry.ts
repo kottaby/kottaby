@@ -24,6 +24,7 @@ import { ParentLink } from "@/shared/locale/namespaces/parentLink";
 import { ParentMonitoring } from "@/shared/locale/namespaces/parentMonitoring";
 import { Plans } from "@/shared/locale/namespaces/plans";
 import { Recitation } from "@/shared/locale/namespaces/recitation";
+import { Schedule } from "@/shared/locale/namespaces/schedule";
 import { Sessions } from "@/shared/locale/namespaces/sessions";
 import { Wallet } from "@/shared/locale/namespaces/wallet";
 
@@ -49,5 +50,6 @@ export const namespaces = {
   Plans,
   Recitation,
   Sessions,
+  Schedule,
   Wallet,
 } as const;

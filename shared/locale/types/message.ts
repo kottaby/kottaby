@@ -18,6 +18,7 @@ import type { ParentLinkLabels } from "@/shared/locale/types/parentLink";
 import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 import type { PlansLabels } from "@/shared/locale/types/plans";
 import type { RecitationLabels } from "@/shared/locale/types/recitation";
+import type { ScheduleLabels } from "@/shared/locale/types/schedule";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
 import type { WalletLabels } from "@/shared/locale/types/wallet";
 
@@ -31,6 +32,7 @@ export interface Translations {
   plansTranslations: PlansLabels;
   applicantTranslations: ApplicantLabels;
   sessionsTranslations: SessionsLabels;
+  scheduleTranslations: ScheduleLabels;
   walletTranslations: WalletLabels;
   checkoutTranslations: CheckoutLabels;
   adminUsersTranslations: AdminUsersLabels;
