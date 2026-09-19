@@ -76,7 +76,7 @@ export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
         }))
       : [];
   return (
-    <Stack spacing={2} sx={{ width: "100%" }}>
+    <Stack spacing={2.5} sx={{ width: "100%" }}>
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
         <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
           {rows === undefined ? t.homeworkSectionTitle : t.homeworkCount(rows.length)}

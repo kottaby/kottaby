@@ -30,8 +30,8 @@ export function DeepLinkTargetChip({ labels }: Readonly<{ labels: ParentMonitori
         fontSize: 11,
         fontWeight: 700,
         color: theme.palette.primary.main,
-        borderColor: alpha(theme.palette.primary.main, 0.4),
-        bgcolor: "transparent",
+        borderColor: alpha(theme.palette.primary.main, 0.6),
+        bgcolor: alpha(theme.palette.primary.main, 0.1),
         "& .MuiChip-icon": {
           fontSize: 14,
           color: theme.palette.primary.main,

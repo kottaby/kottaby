@@ -1,4 +1,4 @@
-import type { Theme } from "@mui/material/styles";
+import { alpha, type Theme } from "@mui/material/styles";
 import { type RefObject, useEffect, useRef } from "react";
 
 const TAB_KEYS = ["attendance", "reports", "homework", "evaluations", "progress"] as const;
@@ -71,6 +71,8 @@ export function deepLinkRowSx(isDeepLinkTarget: boolean) {
     borderInlineStart: 4,
     borderInlineStartColor: isDeepLinkTarget ? theme.palette.primary.main : theme.palette.divider,
     backgroundColor: isDeepLinkTarget ? theme.palette.action.selected : "transparent",
+    // Soft glow ring keeps the 2px selection border legible on dark card backgrounds.
+    boxShadow: isDeepLinkTarget ? `0 0 0 1px ${alpha(theme.palette.primary.main, 0.35)}` : undefined,
     transition: theme.transitions.create(["box-shadow", "border-color", "background-color"], {
       duration: theme.transitions.duration.shorter,
     }),

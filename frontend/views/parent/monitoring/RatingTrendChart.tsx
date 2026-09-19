@@ -114,8 +114,8 @@ export function RatingTrendChart({
       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
         {labels.ratingTrendHeading}
       </Typography>
-      {/* role="img" + aria-label gives the SVG chart an accessible name for screen readers. */}
-      <Box role="img" aria-label={labels.ratingTrendHeading} sx={{ width: "100%", height: 200 }}>
+      {/* Semantic <figure> + aria-label gives the SVG chart an accessible name for screen readers (oxlint prefer-tag-over-role rejects role="img" shims). */}
+      <Box component="figure" aria-label={labels.ratingTrendHeading} sx={{ width: "100%", height: 200 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={[...data]} margin={chartMargin}>
             <defs>
@@ -125,12 +125,17 @@ export function RatingTrendChart({
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-            <XAxis dataKey="session" tick={{ fontSize: 12 }} interval="preserveStartEnd" />
+            <XAxis
+              dataKey="session"
+              tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
+              interval="preserveStartEnd"
+              minTickGap={24}
+            />
             <YAxis
               orientation={isRtl ? "right" : "left"}
               domain={[0, 5]}
               ticks={[0, 1, 2, 3, 4, 5]}
-              tick={{ fontSize: 12, verticalAnchor: "middle" }}
+              tick={{ fontSize: 12, verticalAnchor: "middle", fill: theme.palette.text.secondary }}
             />
             <Tooltip
               contentStyle={{

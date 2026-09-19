@@ -73,7 +73,7 @@ export function EvaluationsTab(props: Readonly<EvaluationsTabProps>): ReactNode 
     refetch
   );
   return (
-    <Stack spacing={2} sx={{ width: "100%" }}>
+    <Stack spacing={2.5} sx={{ width: "100%" }}>
       <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
         {rows === undefined ? t.evaluationsSectionTitle : t.evaluationsCount(rows.length)}
       </Typography>
