@@ -3,7 +3,7 @@
 import { GavelOutlined as DisputeIcon } from "@mui/icons-material";
 import { Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
-import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { formatApplicantDate, formatLedgerStamp } from "@/frontend/lib/i18n/format-date";
 import { Sessions, useAppTranslation } from "@/shared/locale";
 import type { AppLocale } from "@/shared/locale/AppLocale";
 
@@ -74,9 +74,20 @@ export function SessionRowDisputeReason({
         <Typography
           variant="body2"
           noWrap
-          sx={theme => ({ color: theme.palette.text.secondary, flexShrink: 0, opacity: 0.75 })}
+          dir="ltr"
+          title={formatApplicantDate(disputedAt, locale)}
+          sx={theme => ({
+            color: theme.palette.text.secondary,
+            flexShrink: 0,
+            opacity: 0.75,
+            // ASCII stamp in an isolated LTR box — the ICU `ar` stamp's RLM
+            // controls scramble the visible punctuation against the row's
+            // RTL base direction (round-1 wallet QA finding, same class).
+            unicodeBidi: "isolate",
+            fontVariantNumeric: "tabular-nums",
+          })}
         >
-          {formatApplicantDate(disputedAt, locale)}
+          {formatLedgerStamp(disputedAt)}
         </Typography>
       </Stack>
     </Tooltip>

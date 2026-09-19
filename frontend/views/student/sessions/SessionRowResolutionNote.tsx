@@ -4,7 +4,7 @@ import { CheckCircleOutlined as ResolvedIcon } from "@mui/icons-material";
 import { Stack, Tooltip, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { DisputeResolution as WireDisputeResolution } from "@/frontend/graphql/generated/gql/graphql";
-import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { formatApplicantDate, formatLedgerStamp } from "@/frontend/lib/i18n/format-date";
 import { resolutionOutcomeLabel } from "@/frontend/views/shared/disputes/resolution-outcome-label";
 import { Sessions, useAppTranslation } from "@/shared/locale";
 import type { AppLocale } from "@/shared/locale/AppLocale";
@@ -77,8 +77,16 @@ export function SessionRowResolutionNote({
         <Typography
           data-testid={`session-resolution-outcome-${sessionId}`}
           variant="body2"
-          noWrap
-          sx={theme => ({ color: theme.palette.text.secondary, fontWeight: 700, flexShrink: 0 })}
+          sx={theme => ({
+            color: theme.palette.text.secondary,
+            fontWeight: 700,
+            // Mobile (xs): the emphasized outcome may wrap — a nowrap run
+            // here starves the row's stamp of width and clips it (the
+            // 390px QA finding); from sm up the single-line run returns.
+            whiteSpace: { xs: "normal", sm: "nowrap" },
+            flexShrink: { xs: 1, sm: 0 },
+            minWidth: 0,
+          })}
         >
           {resolutionOutcomeLabel(outcome, t)}
         </Typography>
@@ -94,9 +102,20 @@ export function SessionRowResolutionNote({
         <Typography
           variant="body2"
           noWrap
-          sx={theme => ({ color: theme.palette.text.secondary, flexShrink: 0, opacity: 0.75 })}
+          dir="ltr"
+          title={formatApplicantDate(resolvedAt, locale)}
+          sx={theme => ({
+            color: theme.palette.text.secondary,
+            flexShrink: 0,
+            opacity: 0.75,
+            // ASCII stamp in an isolated LTR box — the ICU `ar` stamp's RLM
+            // controls scramble the visible punctuation against the row's
+            // RTL base direction (round-1 wallet QA finding, same class).
+            unicodeBidi: "isolate",
+            fontVariantNumeric: "tabular-nums",
+          })}
         >
-          {formatApplicantDate(resolvedAt, locale)}
+          {formatLedgerStamp(resolvedAt)}
         </Typography>
       </Stack>
     </Tooltip>

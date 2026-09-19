@@ -3,7 +3,7 @@
 import { Alert, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { SessionMetaCell } from "@/frontend/components/ui/sessionList";
-import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { formatApplicantDate, formatLedgerStamp } from "@/frontend/lib/i18n/format-date";
 import {
   CaseSection,
   DisputeCaseHomeworkBlock,
@@ -73,9 +73,8 @@ export function ParticipantCaseDecisionSections({
             ) : null}
             <SessionMetaCell
               label={t.teacherCaseResolvedAtLabel}
-              value={
-                session.resolvedAt === null ? NO_VALUE_PLACEHOLDER : formatApplicantDate(session.resolvedAt, locale)
-              }
+              value={session.resolvedAt === null ? NO_VALUE_PLACEHOLDER : formatLedgerStamp(session.resolvedAt)}
+              stampTitle={session.resolvedAt === null ? undefined : formatApplicantDate(session.resolvedAt, locale)}
             />
           </Stack>
         ) : (
