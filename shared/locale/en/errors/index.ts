@@ -46,7 +46,7 @@ export const errorsEn: ErrorsLabels = {
     incompatibleLane: "Changing to a plan that credits a different balance lane is not supported.",
     inactivePlan: "The selected plan is not active.",
     samePlan: "The selected plan is already the subscription's current plan.",
-    prorationOverflow: "The resulting subscription window would exceed the maximum allowed interval.",
+    prorationOverflow: "The resulting subscription window or session count would exceed the maximum allowed.",
     alreadyRenewed: "This subscription has already been renewed.",
     alreadyPlanChanged: "This subscription's plan has already been changed.",
   },

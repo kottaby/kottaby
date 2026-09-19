@@ -62,7 +62,7 @@ interface SubscriptionAdminErrorsLabels {
   readonly inactivePlan: string;
   /** Plan-change reject: the target plan is the subscription's current plan. */
   readonly samePlan: string;
-  /** Validation reject: the requested extension or the resulting validity window exceeds the maximum allowed interval. */
+  /** Validation reject: the requested extension or the resulting validity window exceeds the maximum allowed interval, or the resulting/target plan's session count exceeds the maximum session ceiling — the window/interval bound and the session-count ceiling (renew + plan-change) share this key. */
   readonly prorationOverflow: string;
   /** Replay conflict: this subscription was already renewed — the original result is replayed. */
   readonly alreadyRenewed: string;

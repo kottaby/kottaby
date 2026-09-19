@@ -33,6 +33,14 @@ interface SubscriptionActionDialogsProps {
   readonly plans: readonly AdminPlanItem[];
   /** True while the section's plan catalog read is still loading. */
   readonly plansLoading: boolean;
+  /** True when the plan-catalog read settled with a failure — the
+   *  change-plan dialog renders the directory error alert (retry) instead
+   *  of the "no eligible plan" empty copy. */
+  readonly plansError: boolean;
+  /** The plan-catalog failure's canonical code suffix (`null` unknown). */
+  readonly plansErrorCode: string | null;
+  /** Re-fetches the section's plan catalog. */
+  readonly onRetryPlans: () => void;
 }
 
 export function SubscriptionActionDialogs({
@@ -40,6 +48,9 @@ export function SubscriptionActionDialogs({
   actions,
   plans,
   plansLoading,
+  plansError,
+  plansErrorCode,
+  onRetryPlans,
 }: SubscriptionActionDialogsProps): ReactNode {
   const { openDialog, actionError, closeDialog, runAction } = controller;
   if (openDialog === null) {
@@ -99,6 +110,9 @@ export function SubscriptionActionDialogs({
       subscription={row}
       plans={eligibleChangePlanTargets(plans, row.planId, row.plan.balanceLane)}
       plansLoading={plansLoading}
+      plansError={plansError}
+      plansErrorCode={plansErrorCode}
+      onRetryPlans={onRetryPlans}
       loading={actions.loading.changePlan}
       error={actionError}
       onClose={closeDialog}

@@ -20,8 +20,10 @@
  * the pure helper — cross-lane migration is out of scope server-side).
  *
  * Errors: the read surfaces through the directory error-alert recipe
- * (title/message/retry + the canonical code suffix); mutation denials
- * arrive server-localized and render inside their dialog until dismissed.
+ * (title/message/retry + the canonical code suffix) — the change-plan
+ * dialog mirrors the same recipe when the plan-catalog read fails;
+ * mutation denials arrive server-localized and render inside their dialog
+ * until dismissed.
  * Successes report through the shared snackbar with the namespace's copy —
  * the plan-change toast carries the payload's proration numbers.
  *
@@ -70,8 +72,15 @@ export function SubscriptionAdminSection({ userId }: SubscriptionAdminSectionPro
   // only — the eligibility helper re-filters per source row anyway). The
   // loading flag rides along so the change-plan dialog renders a disabled
   // select while the catalog streams in instead of falsely claiming that
-  // no eligible plan exists.
-  const { data: plansData, loading: plansLoading } = useQuery(adminPlansQueryDocument, {
+  // no eligible plan exists; a settled failure rides along too so the
+  // dialog offers the directory error-alert recipe with a retry instead
+  // of the "no eligible plan" copy.
+  const {
+    data: plansData,
+    loading: plansLoading,
+    error: plansError,
+    refetch: refetchPlans,
+  } = useQuery(adminPlansQueryDocument, {
     variables: { includeInactive: false },
     fetchPolicy: "cache-and-network",
   });
@@ -98,6 +107,10 @@ export function SubscriptionAdminSection({ userId }: SubscriptionAdminSectionPro
     void refetch();
   };
 
+  const retryPlansQuery = (): void => {
+    void refetchPlans();
+  };
+
   return (
     <DirectoryDrawerSection label={labels.title}>
       <SubscriptionRowsView
@@ -115,6 +128,9 @@ export function SubscriptionAdminSection({ userId }: SubscriptionAdminSectionPro
         actions={actions}
         plans={plansData?.adminPlans ?? []}
         plansLoading={plansLoading}
+        plansError={Boolean(plansError)}
+        plansErrorCode={plansError ? extractErrorCode(plansError) : null}
+        onRetryPlans={retryPlansQuery}
       />
       <DirectoryFeedbackSnackbar snackbar={snackbar} onClose={() => setSnackbar(null)} />
     </DirectoryDrawerSection>
