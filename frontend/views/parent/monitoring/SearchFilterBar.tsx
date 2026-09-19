@@ -14,6 +14,7 @@ import {
 } from "@mui/material";
 import type { ReactNode } from "react";
 import { DEFAULT_SORT, type SearchFilterState } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
+import { RatingFilterSelect } from "@/frontend/views/parent/monitoring/SearchFilterBar.parts";
 
 /**
  * The NARROW label contract the bar actually renders. The three search
@@ -93,27 +94,7 @@ export function SearchFilterBar({
             },
           }}
         />
-        {showRatingFilter && labels.filterByRatingLabel !== undefined && labels.filterAllRatings !== undefined ? (
-          <FormControl size="small" sx={{ minWidth: 140 }}>
-            <InputLabel id="rating-filter-label">{labels.filterByRatingLabel}</InputLabel>
-            <Select
-              labelId="rating-filter-label"
-              label={labels.filterByRatingLabel}
-              value={state.ratingFilter === null ? "all" : String(state.ratingFilter)}
-              onChange={e => {
-                const v = e.target.value;
-                onChange({ ...state, ratingFilter: v === "all" ? null : Number(v) });
-              }}
-            >
-              <MenuItem value="all">{labels.filterAllRatings}</MenuItem>
-              <MenuItem value="5">5 / 5</MenuItem>
-              <MenuItem value="4">4 / 5</MenuItem>
-              <MenuItem value="3">3 / 5</MenuItem>
-              <MenuItem value="2">2 / 5</MenuItem>
-              <MenuItem value="1">1 / 5</MenuItem>
-            </Select>
-          </FormControl>
-        ) : null}
+        {showRatingFilter ? <RatingFilterSelect state={state} labels={labels} onChange={onChange} /> : null}
         {showSortFilter && labels.sortByLabel !== undefined ? (
           <FormControl size="small" sx={{ minWidth: 160 }}>
             <InputLabel id="sort-label">{labels.sortByLabel}</InputLabel>
