@@ -21,6 +21,7 @@ import { plansAr } from "@/shared/locale/ar/plans";
 import { recitationAr } from "@/shared/locale/ar/recitation";
 import { scheduleAr } from "@/shared/locale/ar/schedule";
 import { sessionsAr } from "@/shared/locale/ar/sessions";
+import { upNextAr } from "@/shared/locale/ar/upNext";
 import { walletAr } from "@/shared/locale/ar/wallet";
 import type { Translations } from "@/shared/locale/types/message";
 
@@ -36,6 +37,7 @@ export const arMessages: Translations = {
   sessionsTranslations: sessionsAr,
   scheduleTranslations: scheduleAr,
   walletTranslations: walletAr,
+  upNextTranslations: upNextAr,
   checkoutTranslations: checkoutAr,
   adminUsersTranslations: adminUsersAr,
   adminTeachersTranslations: adminTeachersAr,

@@ -3,7 +3,11 @@ import type { Metadata } from "next";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { withPageAuth } from "@/frontend/lib/auth/withPageAuth";
 import { DashboardView } from "@/frontend/views/dashboard";
-import { HandshakeCodeCard, PendingParentLinkRequestsCard } from "@/frontend/views/students/dashboard";
+import {
+  HandshakeCodeCard,
+  PendingParentLinkRequestsCard,
+  StudentUpNextCard,
+} from "@/frontend/views/students/dashboard";
 import { ApplicantStatusCard } from "@/frontend/views/teachers/dashboard";
 import { getTranslations } from "@/shared/locale/server";
 import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
@@ -25,15 +29,18 @@ import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
  *       entirely from the query payload. No new routes, no
  *       extra guard logic.
  *     - Student → `<HandshakeCodeCard />` + `<PendingParentLinkRequestsCard />`
+ *       + `<StudentUpNextCard />`
  *       composed as siblings inside a Stack. Same additive
- *       pattern: both cards are zero-prop client components whose zero-argument
- *       queries (`myHandshakeCode`, `myIncomingParentLinkRequests`) answer
- *       identity server-side (no student-id props), and they mount inside the
+ *       pattern: all three cards are zero-prop client components whose
+ *       identity-scoped queries (`myHandshakeCode`,
+ *       `myIncomingParentLinkRequests`, `myStudentSessions`, `myHomework`)
+ *       answer identity server-side, and they mount inside the
  *       EXISTING student dashboard surface (no new student route, no
  *       `DashboardView` contract change). The pending-requests card renders
- *       `null` when the actionable queue is empty, so the slot degrades to the
- *       handshake card alone. The hook lives INSIDE each card component —
- *       composition here is plain JSX, so no conditional-hook surface exists.
+ *       `null` when the actionable queue is empty, and the up-next card
+ *       degrades per-block on its own query failures. The hooks live
+ *       INSIDE each card component — composition here is plain JSX, so no
+ *       conditional-hook surface exists.
  *     - Other roles → nothing (slot empty; their dashboards unchanged).
  *
  * Extracted to eliminate jscpd duplicates across the 4 role dashboard pages
@@ -58,6 +65,7 @@ function resolveStatusSlot(role: UserRole): React.ReactNode {
         <Stack sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <HandshakeCodeCard />
           <PendingParentLinkRequestsCard />
+          <StudentUpNextCard />
         </Stack>
       );
     default:

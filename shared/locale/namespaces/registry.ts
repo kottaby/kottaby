@@ -27,6 +27,7 @@ import { Plans } from "@/shared/locale/namespaces/plans";
 import { Recitation } from "@/shared/locale/namespaces/recitation";
 import { Schedule } from "@/shared/locale/namespaces/schedule";
 import { Sessions } from "@/shared/locale/namespaces/sessions";
+import { UpNext } from "@/shared/locale/namespaces/upNext";
 import { Wallet } from "@/shared/locale/namespaces/wallet";
 
 export const namespaces = {
@@ -53,5 +54,6 @@ export const namespaces = {
   Recitation,
   Sessions,
   Schedule,
+  UpNext,
   Wallet,
 } as const;

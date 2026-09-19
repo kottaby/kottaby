@@ -21,6 +21,7 @@ import type { PlansLabels } from "@/shared/locale/types/plans";
 import type { RecitationLabels } from "@/shared/locale/types/recitation";
 import type { ScheduleLabels } from "@/shared/locale/types/schedule";
 import type { SessionsLabels } from "@/shared/locale/types/sessions";
+import type { UpNextLabels } from "@/shared/locale/types/upNext";
 import type { WalletLabels } from "@/shared/locale/types/wallet";
 
 export interface Translations {
@@ -35,6 +36,7 @@ export interface Translations {
   sessionsTranslations: SessionsLabels;
   scheduleTranslations: ScheduleLabels;
   walletTranslations: WalletLabels;
+  upNextTranslations: UpNextLabels;
   checkoutTranslations: CheckoutLabels;
   adminUsersTranslations: AdminUsersLabels;
   adminTeachersTranslations: AdminTeachersLabels;

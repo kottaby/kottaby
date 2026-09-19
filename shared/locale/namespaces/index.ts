@@ -23,4 +23,5 @@ export * from "./recitation";
 export * from "./registry";
 export * from "./schedule";
 export * from "./sessions";
+export * from "./upNext";
 export * from "./wallet";

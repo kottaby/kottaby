@@ -21,6 +21,7 @@ import { plansEn } from "@/shared/locale/en/plans";
 import { recitationEn } from "@/shared/locale/en/recitation";
 import { scheduleEn } from "@/shared/locale/en/schedule";
 import { sessionsEn } from "@/shared/locale/en/sessions";
+import { upNextEn } from "@/shared/locale/en/upNext";
 import { walletEn } from "@/shared/locale/en/wallet";
 import type { Translations } from "@/shared/locale/types/message";
 
@@ -36,6 +37,7 @@ export const enMessages: Translations = {
   sessionsTranslations: sessionsEn,
   scheduleTranslations: scheduleEn,
   walletTranslations: walletEn,
+  upNextTranslations: upNextEn,
   checkoutTranslations: checkoutEn,
   adminUsersTranslations: adminUsersEn,
   adminTeachersTranslations: adminTeachersEn,
