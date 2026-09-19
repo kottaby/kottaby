@@ -67,15 +67,11 @@
  *    the target plan's full 5, forfeiting nothing.
  *
  * Per `frontend/graphql/test/AGENTS.md`:
- *  - Wire vocabularies imported from `@/frontend/graphql/generated/gql/graphql`
- *    — `RegisterPublicRole` plus the generated `SubscriptionStatus` and
- *    `ProrationDirection` enums (member values ARE the wire forms), so the
- *    assertions reference the generated members directly; the canonical
- *    column enums stay fixture-side only (direct-DB provisioning).
- *  - Wire documents imported from the SHARED
- *    `@/frontend/graphql/sharedDocuments/admin` documents — the exact
- *    production documents the student drawer consumes (the admin-finance
- *    suite precedent), typed by the co-generated codegen types.
+ *  - Generated enums imported from `@/frontend/graphql/generated/gql/graphql`
+ *    where the generated surface carries them (`RegisterPublicRole`); the
+ *    status/direction wire vocabularies are DERIVED from their canonical
+ *    enums via the member-name derivation the scheduling suite pins (the
+ *    generated gql module does not yet export `ProrationDirection`).
  *  - Mutations pass ALL input arguments (required + optional) — optional
  *    fields appear as `null` even when not exercised in a given case.
  *  - Every behavioral assertion runs through `testClient`; direct-DB use
@@ -84,26 +80,18 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
+import type { TypedDocumentNode } from "@apollo/client";
 import { eq, inArray } from "drizzle-orm";
+import { parse } from "graphql";
 
 import { db } from "@/backend/db";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { students } from "@/backend/db/schema/students/students";
+import { ProrationDirection } from "@/backend/enum/billing/proration-direction.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus as SubscriptionStatusColumn } from "@/backend/enum/billing/subscription-status.enum";
-import {
-  ProrationDirection,
-  RegisterPublicRole,
-  SubscriptionStatus as SubscriptionStatusWire,
-} from "@/frontend/graphql/generated/gql/graphql";
-import {
-  adminStudentSubscriptionsQueryDocument,
-  adminSubscriptionCancelMutationDocument,
-  adminSubscriptionExtendMutationDocument,
-  adminSubscriptionPlanChangeMutationDocument,
-  adminSubscriptionRenewMutationDocument,
-} from "@/frontend/graphql/sharedDocuments/admin";
+import { RegisterPublicRole } from "@/frontend/graphql/generated/gql/graphql";
 import {
   loginMutationDocument,
   registerUserMutationDocument,
@@ -146,19 +134,137 @@ function bearer(token: string): { headers: { Authorization: string } } {
   return { headers: { Authorization: `Bearer ${token}` } };
 }
 
-/** Wire members straight off the generated enums (member value = wire form). */
-const ACTIVE_WIRE = SubscriptionStatusWire.Active;
-const CANCELLED_WIRE = SubscriptionStatusWire.Cancelled;
-const EXPIRED_WIRE = SubscriptionStatusWire.Expired;
-const UPGRADE_WIRE = ProrationDirection.Upgrade;
+/**
+ * Resolves the SDL member name of a canonical string-enum member — the wire
+ * vocabulary is always DERIVED from the canonical enum (never a hardcoded
+ * string equivalent; same derivation the session-lifecycle suite pins).
+ */
+function enumWireName(enumObject: Record<string, string>, member: string): string {
+  const name = Object.entries(enumObject).find(([, value]) => value === member)?.[0];
+  if (name === undefined) {
+    throw new Error("enumWireName: member vanished from its canonical enum");
+  }
+  return name;
+}
 
-// ─── Wire documents (shared admin documents — the production surface) ────
+/** Wire member names derived from the canonical enums (never literals). */
+const ACTIVE_WIRE = enumWireName(SubscriptionStatusColumn, SubscriptionStatusColumn.Active);
+const CANCELLED_WIRE = enumWireName(SubscriptionStatusColumn, SubscriptionStatusColumn.Cancelled);
+const EXPIRED_WIRE = enumWireName(SubscriptionStatusColumn, SubscriptionStatusColumn.Expired);
+const UPGRADE_WIRE = enumWireName(ProrationDirection, ProrationDirection.Upgrade);
+
+// ─── Wire documents (local parse — mirrors the scheduling-suite pattern) ──
 //
-// The five operations ride the SHARED `TypedDocumentNode` documents from
-// `frontend/graphql/sharedDocuments/admin/admin-subscriptions.documents.ts`
-// (the exact documents the student drawer consumes — the admin-finance
-// suite precedent), typed by the co-generated codegen types; no local
-// parse and no duplicate wire interfaces.
+// The shared admin-subscription documents do not exist yet in
+// `frontend/graphql/sharedDocuments/`, so the wire shapes are declared HERE
+// as local result interfaces and bound to the parsed documents via
+// `TypedDocumentNode` annotations (structurally satisfied by a plain
+// `DocumentNode` — no casts). `graphql-tag` is avoided deliberately: the
+// `@/backend/db` fixture chain flips bun's module conditions and crashes its
+// UMD build; `parse` yields the same DocumentNode.
+
+/** The asserted subset of the `StudentSubscription` wire object. */
+interface SubscriptionWire {
+  readonly id: string;
+  readonly planId: number;
+  readonly status: string;
+  readonly startDate: string | null;
+  readonly endDate: string | null;
+}
+
+/** The `ChangeSubscriptionPlanPayload` wire shape (the asserted subset). */
+interface ChangePlanPayloadWire {
+  readonly adminChangeSubscriptionPlan: {
+    readonly direction: string;
+    readonly carrySessions: number;
+    readonly forfeitedSessions: number;
+    readonly subscription: SubscriptionWire;
+  } | null;
+}
+
+/** The `adminStudentSubscriptions` list wire shape. */
+interface SubscriptionsListWire {
+  readonly adminStudentSubscriptions: readonly SubscriptionWire[] | null;
+}
+
+type RenewVariables = { readonly input: { readonly subscriptionId: string } };
+type ExtendVariables = { readonly input: { readonly subscriptionId: string; readonly days: number } };
+type CancelVariables = { readonly input: { readonly subscriptionId: string; readonly reason: string | null } };
+type ChangePlanVariables = { readonly input: { readonly subscriptionId: string; readonly newPlanId: string } };
+
+const adminStudentSubscriptionsQuery: TypedDocumentNode<SubscriptionsListWire, { userId: string }> = parse(`
+  query AdminStudentSubscriptions($userId: ID!) {
+    adminStudentSubscriptions(userId: $userId) {
+      id
+      planId
+      status
+      startDate
+      endDate
+    }
+  }
+`);
+
+const adminExtendSubscriptionMutation: TypedDocumentNode<
+  { adminExtendSubscription: SubscriptionWire | null },
+  ExtendVariables
+> = parse(`
+  mutation AdminExtendSubscription($input: ExtendSubscriptionInput!) {
+    adminExtendSubscription(input: $input) {
+      id
+      planId
+      status
+      startDate
+      endDate
+    }
+  }
+`);
+
+const adminRenewSubscriptionMutation: TypedDocumentNode<
+  { adminRenewSubscription: SubscriptionWire | null },
+  RenewVariables
+> = parse(`
+  mutation AdminRenewSubscription($input: RenewSubscriptionInput!) {
+    adminRenewSubscription(input: $input) {
+      id
+      planId
+      status
+      startDate
+      endDate
+    }
+  }
+`);
+
+const adminCancelSubscriptionMutation: TypedDocumentNode<
+  { adminCancelSubscription: SubscriptionWire | null },
+  CancelVariables
+> = parse(`
+  mutation AdminCancelSubscription($input: CancelSubscriptionInput!) {
+    adminCancelSubscription(input: $input) {
+      id
+      planId
+      status
+      startDate
+      endDate
+    }
+  }
+`);
+
+const adminChangeSubscriptionPlanMutation: TypedDocumentNode<ChangePlanPayloadWire, ChangePlanVariables> = parse(`
+  mutation AdminChangeSubscriptionPlan($input: ChangeSubscriptionPlanInput!) {
+    adminChangeSubscriptionPlan(input: $input) {
+      direction
+      carrySessions
+      forfeitedSessions
+      subscription {
+        id
+        planId
+        status
+        startDate
+        endDate
+      }
+    }
+  }
+`);
 
 // ─── Fixture provisioning (direct-DB — the sanctioned fixture shape) ──────
 
@@ -428,7 +534,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
   describe("Tier 1 — anonymous caller denied across every operation", () => {
     test("adminStudentSubscriptions → UNAUTHORIZED", async () => {
       const result = await testClient.query({
-        query: adminStudentSubscriptionsQueryDocument,
+        query: adminStudentSubscriptionsQuery,
         variables: { userId: "1" },
       });
       expectMutationError(result.error, "UNAUTHORIZED");
@@ -436,7 +542,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
 
     test("adminExtendSubscription → UNAUTHORIZED", async () => {
       const result = await testClient.mutate({
-        mutation: adminSubscriptionExtendMutationDocument,
+        mutation: adminExtendSubscriptionMutation,
         variables: { input: { subscriptionId: "1", days: 5 } },
       });
       expectMutationError(result.error, "UNAUTHORIZED");
@@ -444,7 +550,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
 
     test("adminRenewSubscription → UNAUTHORIZED", async () => {
       const result = await testClient.mutate({
-        mutation: adminSubscriptionRenewMutationDocument,
+        mutation: adminRenewSubscriptionMutation,
         variables: { input: { subscriptionId: "1" } },
       });
       expectMutationError(result.error, "UNAUTHORIZED");
@@ -452,7 +558,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
 
     test("adminCancelSubscription → UNAUTHORIZED", async () => {
       const result = await testClient.mutate({
-        mutation: adminSubscriptionCancelMutationDocument,
+        mutation: adminCancelSubscriptionMutation,
         variables: { input: { subscriptionId: "1", reason: null } },
       });
       expectMutationError(result.error, "UNAUTHORIZED");
@@ -460,7 +566,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
 
     test("adminChangeSubscriptionPlan → UNAUTHORIZED", async () => {
       const result = await testClient.mutate({
-        mutation: adminSubscriptionPlanChangeMutationDocument,
+        mutation: adminChangeSubscriptionPlanMutation,
         variables: { input: { subscriptionId: "1", newPlanId: "1" } },
       });
       expectMutationError(result.error, "UNAUTHORIZED");
@@ -475,7 +581,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
       test(`${role} actor → adminStudentSubscriptions → FORBIDDEN`, async () => {
         const { accessToken } = await registerAndLogin(role);
         const result = await testClient.query({
-          query: adminStudentSubscriptionsQueryDocument,
+          query: adminStudentSubscriptionsQuery,
           variables: { userId: "1" },
           context: bearer(accessToken),
         });
@@ -485,7 +591,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
       test(`${role} actor → adminExtendSubscription → FORBIDDEN`, async () => {
         const { accessToken } = await registerAndLogin(role);
         const result = await testClient.mutate({
-          mutation: adminSubscriptionExtendMutationDocument,
+          mutation: adminExtendSubscriptionMutation,
           variables: { input: { subscriptionId: "1", days: 5 } },
           context: bearer(accessToken),
         });
@@ -495,7 +601,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
       test(`${role} actor → adminRenewSubscription → FORBIDDEN`, async () => {
         const { accessToken } = await registerAndLogin(role);
         const result = await testClient.mutate({
-          mutation: adminSubscriptionRenewMutationDocument,
+          mutation: adminRenewSubscriptionMutation,
           variables: { input: { subscriptionId: "1" } },
           context: bearer(accessToken),
         });
@@ -505,7 +611,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
       test(`${role} actor → adminCancelSubscription → FORBIDDEN`, async () => {
         const { accessToken } = await registerAndLogin(role);
         const result = await testClient.mutate({
-          mutation: adminSubscriptionCancelMutationDocument,
+          mutation: adminCancelSubscriptionMutation,
           variables: { input: { subscriptionId: "1", reason: null } },
           context: bearer(accessToken),
         });
@@ -515,7 +621,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
       test(`${role} actor → adminChangeSubscriptionPlan → FORBIDDEN`, async () => {
         const { accessToken } = await registerAndLogin(role);
         const result = await testClient.mutate({
-          mutation: adminSubscriptionPlanChangeMutationDocument,
+          mutation: adminChangeSubscriptionPlanMutation,
           variables: { input: { subscriptionId: "1", newPlanId: "1" } },
           context: bearer(accessToken),
         });
@@ -531,7 +637,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
         throw new Error("extend fixtures missing");
       }
       const result = await testClient.mutate({
-        mutation: adminSubscriptionExtendMutationDocument,
+        mutation: adminExtendSubscriptionMutation,
         variables: { input: { subscriptionId: String(subExtendId), days: 5 } },
         context: bearer(admin.accessToken),
       });
@@ -549,7 +655,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
         throw new Error("renew fixtures missing");
       }
       const result = await testClient.mutate({
-        mutation: adminSubscriptionRenewMutationDocument,
+        mutation: adminRenewSubscriptionMutation,
         variables: { input: { subscriptionId: String(subRenewSourceId) } },
         context: bearer(admin.accessToken),
       });
@@ -573,7 +679,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
         throw new Error("cancel fixtures missing");
       }
       const result = await testClient.mutate({
-        mutation: adminSubscriptionCancelMutationDocument,
+        mutation: adminCancelSubscriptionMutation,
         variables: {
           input: { subscriptionId: String(subCancelReasonId), reason: "integration cancel probe" },
         },
@@ -591,7 +697,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
         throw new Error("cancel fixtures missing");
       }
       const result = await testClient.mutate({
-        mutation: adminSubscriptionCancelMutationDocument,
+        mutation: adminCancelSubscriptionMutation,
         variables: { input: { subscriptionId: String(subCancelNullId), reason: null } },
         context: bearer(admin.accessToken),
       });
@@ -607,7 +713,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
         throw new Error("plan-change fixtures missing");
       }
       const result = await testClient.mutate({
-        mutation: adminSubscriptionPlanChangeMutationDocument,
+        mutation: adminChangeSubscriptionPlanMutation,
         variables: { input: { subscriptionId: String(subPlanChangeId), newPlanId: String(planFiveId) } },
         context: bearer(admin.accessToken),
       });
@@ -633,7 +739,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
         throw new Error("renew replay fixtures missing");
       }
       const result = await testClient.mutate({
-        mutation: adminSubscriptionRenewMutationDocument,
+        mutation: adminRenewSubscriptionMutation,
         variables: { input: { subscriptionId: String(subRenewSourceId) } },
         context: bearer(admin.accessToken),
       });
@@ -654,7 +760,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
         throw new Error("plan-change replay fixtures missing");
       }
       const result = await testClient.mutate({
-        mutation: adminSubscriptionPlanChangeMutationDocument,
+        mutation: adminChangeSubscriptionPlanMutation,
         variables: { input: { subscriptionId: String(subPlanChangeId), newPlanId: String(planFiveId) } },
         context: bearer(admin.accessToken),
       });
@@ -681,7 +787,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
         throw new Error("list fixtures missing");
       }
       const result = await testClient.query({
-        query: adminStudentSubscriptionsQueryDocument,
+        query: adminStudentSubscriptionsQuery,
         variables: { userId: String(listOwner.userId) },
         context: bearer(admin.accessToken),
       });
@@ -707,7 +813,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
         throw new Error("plan-change list fixtures missing");
       }
       const result = await testClient.query({
-        query: adminStudentSubscriptionsQueryDocument,
+        query: adminStudentSubscriptionsQuery,
         variables: { userId: String(changeOwner.userId) },
         context: bearer(admin.accessToken),
       });
@@ -725,7 +831,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
     test("malformed owner id → VALIDATION on extensions.code", async () => {
       if (admin === undefined) throw new Error("admin fixture missing");
       const result = await testClient.query({
-        query: adminStudentSubscriptionsQueryDocument,
+        query: adminStudentSubscriptionsQuery,
         variables: { userId: "not-a-number" },
         context: bearer(admin.accessToken),
       });
@@ -735,7 +841,7 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
     test("unknown well-formed owner id → the honest empty list", async () => {
       if (admin === undefined) throw new Error("admin fixture missing");
       const result = await testClient.query({
-        query: adminStudentSubscriptionsQueryDocument,
+        query: adminStudentSubscriptionsQuery,
         variables: { userId: "999999999" },
         context: bearer(admin.accessToken),
       });
