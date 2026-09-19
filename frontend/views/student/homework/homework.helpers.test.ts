@@ -9,9 +9,16 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { MyHomeworkQuery_myHomework_items } from "@/frontend/graphql/generated/gql/graphql";
-import { SurahJuzRef } from "@/frontend/graphql/generated/gql/graphql";
-import { computeHomeworkSummary } from "@/frontend/views/student/homework/homework.helpers";
+import {
+  type MyHomeworkQuery_myHomework_items,
+  SurahJuzRef,
+} from "@/frontend/graphql/generated/gql/graphql";
+import {
+  computeHomeworkSummary,
+  filterHomeworkByStatus,
+  toggleHomeworkFilter,
+  toPrintableRows,
+} from "@/frontend/views/student/homework/homework.helpers";
 
 /** Row factory — `null` tracks collapse to "none assigned" on the wire. */
 function row(id: number, jadidGrade: number | null, madiGrade: number | null): MyHomeworkQuery_myHomework_items {
@@ -60,5 +67,74 @@ describe("computeHomeworkSummary — honest partition", () => {
     const rows = [row(1, 92, 88), row(2, null, null), row(3, 65, 70), row(4, null, 81)];
     const summary = computeHomeworkSummary(rows);
     expect(summary).toEqual({ total: 4, graded: 3, pending: 1 });
+  });
+});
+
+describe("toPrintableRows — shared print/export projection", () => {
+  test("passages render human-readable (camelCase wire codes get spaces)", () => {
+    const [only] = toPrintableRows([row(1, 92, 88)], () => "SEP");
+    expect(only.col2).toBe("Juz 30");
+    expect(only.col3).toBe("Surah Al Maidah");
+  });
+
+  test("grades join slash-ordered jadid/madi, only recorded ones", () => {
+    const [both, jadidOnly, none] = toPrintableRows([row(1, 92, 88), row(2, 70, null), row(3, null, null)], () => "D");
+    expect(both.col4).toBe("92/88");
+    expect(jadidOnly.col4).toBe("70");
+    expect(none.col4).toBe("");
+  });
+
+  test("absent track collapses to an empty cell (never the string null)", () => {
+    const [only] = toPrintableRows([row(1, null, 75)], () => "D");
+    expect(only.col2).toBe("");
+    expect(only.col3).toBe("Surah Al Maidah");
+  });
+
+  test("date column flows through the injected formatter", () => {
+    const rows = [row(1, 92, 88), row(2, null, null)];
+    const calls: string[] = [];
+    toPrintableRows(rows, iso => {
+      calls.push(iso);
+      return `F(${iso})`;
+    });
+    expect(calls).toHaveLength(2);
+    expect(toPrintableRows(rows, iso => `F(${iso})`)[0].date).toBe("F(2026-09-19T00:56:00Z)");
+  });
+
+  test("empty history → empty export table", () => {
+    expect(toPrintableRows([], () => "D")).toEqual([]);
+  });
+});
+
+describe("status filter — one partition, two views", () => {
+  const rows = [row(1, 92, 88), row(2, null, null), row(3, null, 81)];
+
+  test("the graded arm matches the summary's graded bucket exactly", () => {
+    const summary = computeHomeworkSummary(rows);
+    expect(filterHomeworkByStatus(rows, "graded")).toHaveLength(summary.graded);
+  });
+
+  test("the pending arm matches the summary's pending bucket exactly", () => {
+    const summary = computeHomeworkSummary(rows);
+    expect(filterHomeworkByStatus(rows, "pending")).toHaveLength(summary.pending);
+  });
+
+  test("buckets are disjoint and exhaustive across all + graded + pending", () => {
+    const graded = filterHomeworkByStatus(rows, "graded");
+    const pending = filterHomeworkByStatus(rows, "pending");
+    expect(graded.length + pending.length).toBe(rows.length);
+    expect(filterHomeworkByStatus(rows, "all")).toBe(rows);
+  });
+
+  test("toggle: clicking the active bucket returns to all; clicking another selects it", () => {
+    expect(toggleHomeworkFilter("graded", "graded")).toBe("all");
+    expect(toggleHomeworkFilter("graded", "pending")).toBe("pending");
+    expect(toggleHomeworkFilter("all", "graded")).toBe("graded");
+    expect(toggleHomeworkFilter("pending", "pending")).toBe("all");
+  });
+
+  test("toggle: the all card always resets to the unfiltered view", () => {
+    expect(toggleHomeworkFilter("all", "all")).toBe("all");
+    expect(toggleHomeworkFilter("graded", "all")).toBe("all");
   });
 });

@@ -8,13 +8,13 @@ import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { mapGraphQLErrorByCode } from "@/frontend/providers/apollo/error-link.map";
 import { renderHomeworkBody } from "@/frontend/views/parent/monitoring/HomeworkTab.body";
-import { PrintExportDialog } from "@/frontend/views/parent/monitoring/PrintExportDialog";
 import {
   DEFAULT_SORT,
   filterHomeworkRows,
   type SearchFilterState,
 } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
 import { useAllHomeworkPages } from "@/frontend/views/parent/monitoring/useAllPortalPages";
+import { PrintExportDialog } from "@/frontend/views/shared/print-export/PrintExportDialog";
 import { Common, Errors, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
@@ -103,11 +103,12 @@ export function HomeworkTab(props: Readonly<HomeworkTabProps>): ReactNode {
             setPrintOpen(false);
           }}
           rows={printableRows}
-          childName={String(props.studentId)}
+          metaSubject={String(props.studentId)}
           title={t.homeworkPrintDialogTitle}
           colHeaders={[t.attendanceColumnDate, t.csvJadidColumn, t.csvMadiColumn, t.csvGradeColumn]}
           countLabel={t.homeworkCount}
           filePrefix="parent-portal-homework"
+          labels={{ printOption: t.printOption, exportCsvOption: t.exportCsvOption }}
         />
       ) : null}
     </Stack>

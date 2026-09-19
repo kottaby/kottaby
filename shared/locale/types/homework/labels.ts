@@ -56,4 +56,34 @@ export interface HomeworkLabels {
   readonly errorBody: string;
   /** Loading region aria-label (skeleton state). */
   readonly loadingLabel: string;
+  /** Print/export trigger icon button aria-label. */
+  readonly printLabel: string;
+  /** Print/export dialog title. */
+  readonly printDialogTitle: string;
+  /** Print option inside the shared export dialog. */
+  readonly printOption: string;
+  /** CSV-export option inside the shared export dialog. */
+  readonly exportCsvOption: string;
+  /** Export table — date column header. */
+  readonly csvColumnDate: string;
+  /** Export table — Jadid passage column header. */
+  readonly csvColumnJadid: string;
+  /** Export table — Madi passage column header. */
+  readonly csvColumnMadi: string;
+  /** Export table — grades column header. */
+  readonly csvColumnGrade: string;
+  /** Status filter — the unfiltered "all" stat card's aria-label. */
+  readonly filterAllLabel: string;
+  /** Status filter — graded card's aria-label (toggle description). */
+  readonly filterGradedLabel: string;
+  /** Status filter — pending card's aria-label (toggle description). */
+  readonly filterPendingLabel: string;
+  /** Per-card status chip — the row has at least one recorded grade. */
+  readonly statusGradedChip: string;
+  /** Per-card status chip — nothing graded yet on either track. */
+  readonly statusPendingChip: string;
+  /** Filtered-empty heading — the active bucket has no rows. */
+  readonly filterEmptyTitle: string;
+  /** Filtered-empty body — how to get the whole history back. */
+  readonly filterEmptyBody: string;
 }

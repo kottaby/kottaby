@@ -30,6 +30,12 @@ export interface DashboardStat {
 
 interface DashboardStatCardProps {
   readonly stat: DashboardStat;
+  /**
+   * Selection ring (the student homework strip's filter toggle): a
+   * primary border + container tint marking the ACTIVE bucket. Purely
+   * visual — the wrapping button owns the `aria-pressed` semantics.
+   */
+  readonly selected?: boolean;
 }
 
 /**
@@ -49,7 +55,7 @@ interface DashboardStatCardProps {
  * interactive feedback (pure `sx` transition — no motion library). The
  * icon chip tints to the primary surface on hover to echo the lift.
  */
-export function DashboardStatCard({ stat }: Readonly<DashboardStatCardProps>): ReactNode {
+export function DashboardStatCard({ stat, selected = false }: Readonly<DashboardStatCardProps>): ReactNode {
   const { label, value, Icon, loading = false, loadingLabel, unavailable = false } = stat;
   const ariaLabel = loading ? `${label}: ${loadingLabel ?? "…"}` : `${label}: ${value}`;
 
@@ -60,16 +66,16 @@ export function DashboardStatCard({ stat }: Readonly<DashboardStatCardProps>): R
       sx={theme => ({
         borderRadius: 3,
         border: "1px solid",
-        borderColor: theme.palette.outlineVariant,
-        bgcolor: theme.palette.surfaceContainerLow,
-        transition: theme.transitions.create(["box-shadow", "transform", "border-color"], {
+        borderColor: selected ? theme.palette.primary.main : theme.palette.outlineVariant,
+        bgcolor: selected ? theme.palette.primaryContainer : theme.palette.surfaceContainerLow,
+        transition: theme.transitions.create(["box-shadow", "transform", "border-color", "background-color"], {
           duration: theme.transitions.duration.short,
           easing: theme.transitions.easing.easeOut,
         }),
         "&:hover": {
           boxShadow: theme.shadows[4],
           transform: "translateY(-2px)",
-          borderColor: theme.palette.outline,
+          borderColor: selected ? theme.palette.primary.main : theme.palette.outline,
         },
       })}
     >
@@ -111,8 +117,8 @@ export function DashboardStatCard({ stat }: Readonly<DashboardStatCardProps>): R
               alignItems: "center",
               justifyContent: "center",
               flexShrink: 0,
-              bgcolor: theme.palette.primaryContainer,
-              color: theme.palette.onPrimaryContainer,
+              bgcolor: selected ? theme.palette.primary.main : theme.palette.primaryContainer,
+              color: selected ? theme.palette.primary.contrastText : theme.palette.onPrimaryContainer,
               transition: theme.transitions.create(["background-color", "color"], {
                 duration: theme.transitions.duration.short,
                 easing: theme.transitions.easing.easeOut,

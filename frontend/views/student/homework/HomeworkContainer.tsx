@@ -4,11 +4,12 @@ import {
   AssignmentOutlined,
   AutoStoriesOutlined,
   HourglassEmptyOutlined,
+  PrintOutlined,
   ReplayOutlined,
   TaskAltOutlined,
 } from "@mui/icons-material";
-import { Box, Card, Skeleton, Stack, Typography } from "@mui/material";
-import type { ReactNode } from "react";
+import { Box, ButtonBase, Card, Chip, IconButton, Skeleton, Stack, Tooltip, Typography } from "@mui/material";
+import { type ReactNode, useMemo, useState } from "react";
 import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
 import { IconCircleEmptyState } from "@/frontend/components/ui/IconCircleEmptyState";
 import type { MyHomeworkQuery_myHomework_items } from "@/frontend/graphql/generated/gql/graphql";
@@ -16,7 +17,15 @@ import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { DashboardStatCard } from "@/frontend/views/dashboard/home/DashboardStatCard";
 import { HomeworkTrackBlock } from "@/frontend/views/parent/monitoring/HomeworkTab.parts.helpers";
-import { computeHomeworkSummary, type HomeworkSummary } from "@/frontend/views/student/homework/homework.helpers";
+import { type PrintableRow, PrintExportDialog } from "@/frontend/views/shared/print-export/PrintExportDialog";
+import {
+  computeHomeworkSummary,
+  filterHomeworkByStatus,
+  type HomeworkStatusFilter,
+  type HomeworkSummary,
+  toggleHomeworkFilter,
+  toPrintableRows,
+} from "@/frontend/views/student/homework/homework.helpers";
 import { useAllMyHomeworkPages } from "@/frontend/views/student/homework/useAllMyHomeworkPages";
 import { Common, Errors, Homework, useAppLocale, useAppTranslation } from "@/shared/locale";
 import type { HomeworkLabels } from "@/shared/locale/types/homework";
@@ -58,10 +67,16 @@ export function HomeworkContainer(): ReactNode {
 
   const { data, loading, error, refetch } = useAllMyHomeworkPages();
   const rows = data?.myHomework?.items;
+  const [printOpen, setPrintOpen] = useState(false);
+  const printableRows = useMemo(
+    () => (rows !== undefined ? toPrintableRows(rows, iso => formatApplicantDate(iso, locale)) : []),
+    [rows, locale]
+  );
   // The student read is zero-identity, so a 403 can only mean a stale
   // role claim — the generic retryable alert covers it (no foreign-id
   // permission-fallback surface exists to disambiguate).
   const isError = error !== undefined && extractErrorCode(error) !== null;
+  const [statusFilter, setStatusFilter] = useState<HomeworkStatusFilter>("all");
 
   return (
     <Stack data-testid="student-homework-view" sx={{ gap: 3 }}>
@@ -81,6 +96,11 @@ export function HomeworkContainer(): ReactNode {
         rows={rows}
         labels={t}
         locale={locale}
+        printOpen={printOpen}
+        onPrintOpenChange={setPrintOpen}
+        printableRows={printableRows}
+        statusFilter={statusFilter}
+        onStatusFilter={setStatusFilter}
       />
     </Stack>
   );
@@ -101,6 +121,11 @@ function HomeworkBody(
     rows: readonly MyHomeworkQuery_myHomework_items[] | undefined;
     labels: HomeworkLabels;
     locale: string;
+    printOpen: boolean;
+    onPrintOpenChange: (open: boolean) => void;
+    printableRows: readonly PrintableRow[];
+    statusFilter: HomeworkStatusFilter;
+    onStatusFilter: (filter: HomeworkStatusFilter) => void;
   }>
 ): ReactNode {
   const { rows, labels: t, locale } = props;
@@ -122,15 +147,40 @@ function HomeworkBody(
     return <HomeworkSkeleton loadingLabel={props.loadingLabel} />;
   }
   const summary = computeHomeworkSummary(rows);
+  const visibleRows = filterHomeworkByStatus(rows, props.statusFilter);
   return (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
-      <SummaryStrip summary={summary} labels={t} />
+      <SummaryStrip summary={summary} labels={t} active={props.statusFilter} onToggle={props.onStatusFilter} />
       <Stack spacing={2} sx={{ minWidth: 0 }}>
-        <Typography variant="h6" component="h2" sx={theme => ({ fontWeight: 700, color: theme.palette.text.primary })}>
-          {t.listHeading}
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
+          <Typography
+            variant="h6"
+            component="h2"
+            sx={theme => ({ fontWeight: 700, color: theme.palette.text.primary })}
+          >
+            {t.listHeading}
+          </Typography>
+          <Tooltip title={t.printLabel} arrow>
+            <IconButton
+              aria-label={t.printLabel}
+              onClick={() => {
+                props.onPrintOpenChange(true);
+              }}
+              size="small"
+              sx={theme => ({
+                color: theme.palette.primary.main,
+                border: "1px solid",
+                borderColor: theme.palette.outlineVariant,
+                borderRadius: 1.5,
+                "&:hover": { bgcolor: theme.palette.action.hover },
+              })}
+            >
+              <PrintOutlined fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
         <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })} aria-live="polite">
-          {t.countLine(rows.length)}
+          {t.countLine(visibleRows.length)}
         </Typography>
         {rows.length === 0 ? (
           <IconCircleEmptyState
@@ -140,22 +190,101 @@ function HomeworkBody(
             body={props.emptyBody}
           />
         ) : (
-          rows.map(row => <HomeworkRow key={row.id} row={row} labels={t} locale={locale} />)
+          <HomeworkListBody visibleRows={visibleRows} labels={t} locale={locale} />
         )}
       </Stack>
+      {props.printOpen ? (
+        <PrintExportDialog
+          open={props.printOpen}
+          onClose={() => {
+            props.onPrintOpenChange(false);
+          }}
+          rows={props.printableRows}
+          metaSubject={t.pageTitle}
+          title={t.printDialogTitle}
+          colHeaders={[t.csvColumnDate, t.csvColumnJadid, t.csvColumnMadi, t.csvColumnGrade]}
+          countLabel={t.countLine}
+          filePrefix="student-homework"
+          labels={{ printOption: t.printOption, exportCsvOption: t.exportCsvOption }}
+        />
+      ) : null}
     </Stack>
   );
 }
 
-/** The three-card honest partition strip (total / graded / pending). */
+/**
+ * The list body under the "all" history: a filtered-bucket empty state
+ * when the active summary card has no rows, otherwise the assignment
+ * cards (each annotated with its own status chip).
+ */
+function HomeworkListBody({
+  visibleRows,
+  labels: t,
+  locale,
+}: Readonly<{
+  visibleRows: readonly MyHomeworkQuery_myHomework_items[];
+  labels: HomeworkLabels;
+  locale: string;
+}>): ReactNode {
+  if (visibleRows.length === 0) {
+    return (
+      <IconCircleEmptyState
+        testId="student-homework-filtered-empty"
+        icon={<TaskAltOutlined sx={{ fontSize: 36 }} />}
+        title={t.filterEmptyTitle}
+        body={t.filterEmptyBody}
+      />
+    );
+  }
+  return (
+    <>
+      {visibleRows.map(row => (
+        <HomeworkRow
+          key={row.id}
+          row={row}
+          labels={t}
+          locale={locale}
+          graded={(row.jadid?.grade ?? null) !== null || (row.madi?.grade ?? null) !== null}
+        />
+      ))}
+    </>
+  );
+}
+
+/**
+ * The three-card honest partition strip (total / graded / pending) — and
+ * the status filter: each card is a toggle button over the SAME partition
+ * the list filters by, so the cards and the list can never disagree. The
+ * active bucket gets a primary ring + tint; clicking it again returns to
+ * the unfiltered view (aria-pressed communicates the toggle state).
+ */
 function SummaryStrip({
   summary,
   labels: t,
-}: Readonly<{ summary: HomeworkSummary; labels: HomeworkLabels }>): ReactNode {
+  active,
+  onToggle,
+}: Readonly<{
+  summary: HomeworkSummary;
+  labels: HomeworkLabels;
+  active: HomeworkStatusFilter;
+  onToggle: (filter: HomeworkStatusFilter) => void;
+}>): ReactNode {
   const cards = [
-    { label: t.summaryTotalLabel, value: summary.total, Icon: AssignmentOutlined },
-    { label: t.summaryGradedLabel, value: summary.graded, Icon: TaskAltOutlined },
-    { label: t.summaryPendingLabel, value: summary.pending, Icon: HourglassEmptyOutlined },
+    { key: "all", label: t.summaryTotalLabel, value: summary.total, Icon: AssignmentOutlined, aria: t.filterAllLabel },
+    {
+      key: "graded",
+      label: t.summaryGradedLabel,
+      value: summary.graded,
+      Icon: TaskAltOutlined,
+      aria: t.filterGradedLabel,
+    },
+    {
+      key: "pending",
+      label: t.summaryPendingLabel,
+      value: summary.pending,
+      Icon: HourglassEmptyOutlined,
+      aria: t.filterPendingLabel,
+    },
   ] as const;
   return (
     <Box
@@ -166,24 +295,57 @@ function SummaryStrip({
         gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
       }}
     >
-      {cards.map(card => (
-        <DashboardStatCard key={card.label} stat={{ label: card.label, value: String(card.value), Icon: card.Icon }} />
-      ))}
+      {cards.map(card => {
+        const selected = active === card.key;
+        return (
+          <ButtonBase
+            key={card.key}
+            component="button"
+            type="button"
+            aria-pressed={selected}
+            aria-label={card.aria}
+            onClick={() => {
+              onToggle(toggleHomeworkFilter(active, card.key));
+            }}
+            sx={theme => ({
+              display: "block",
+              width: "100%",
+              textAlign: "inherit",
+              borderRadius: 3,
+              transition: theme.transitions.create(["box-shadow", "border-color", "background-color"], {
+                duration: theme.transitions.duration.short,
+                easing: theme.transitions.easing.easeOut,
+              }),
+            })}
+          >
+            <DashboardStatCard
+              stat={{ label: card.label, value: String(card.value), Icon: card.Icon }}
+              selected={selected}
+            />
+          </ButtonBase>
+        );
+      })}
     </Box>
   );
 }
 
 /**
  * One assignment card: the honest meta line (assignment date + owning
- * session), then the two parallel track blocks — the SAME shared
- * presentation the parent portal renders, primary-accented for Jadid and
- * secondary-accented for Madi.
+ * session + status chip), then the two parallel track blocks — the SAME
+ * shared presentation the parent portal renders, primary-accented for
+ * Jadid and secondary-accented for Madi.
  */
 function HomeworkRow({
   row,
   labels: t,
   locale,
-}: Readonly<{ row: MyHomeworkQuery_myHomework_items; labels: HomeworkLabels; locale: string }>): ReactNode {
+  graded,
+}: Readonly<{
+  row: MyHomeworkQuery_myHomework_items;
+  labels: HomeworkLabels;
+  locale: string;
+  graded: boolean;
+}>): ReactNode {
   return (
     <Card
       variant="outlined"
@@ -224,6 +386,17 @@ function HomeworkRow({
         >
           {t.sessionLine(row.sessionId)}
         </Typography>
+        <Chip
+          size="small"
+          label={graded ? t.statusGradedChip : t.statusPendingChip}
+          sx={theme => ({
+            ml: "auto",
+            fontWeight: 700,
+            borderRadius: 999,
+            bgcolor: graded ? theme.palette.successContainer : theme.palette.action.hover,
+            color: graded ? theme.palette.onSuccessContainer : theme.palette.text.secondary,
+          })}
+        />
       </Stack>
       <HomeworkTrackBlock
         track={row.jadid}
