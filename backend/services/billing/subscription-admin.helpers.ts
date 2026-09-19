@@ -29,15 +29,13 @@
 import { PlanRepository } from "@/backend/db/repo/billing/plan.repository";
 import { SubscriptionRepository } from "@/backend/db/repo/billing/subscription.repository";
 import { SubscriptionPurchaseIdempotencyRepository } from "@/backend/db/repo/billing/subscription-purchase-idempotency.repository";
-import { StudentRepository } from "@/backend/db/repo/students/student.repository";
-import { studentSubscriptions } from "@/backend/db/schema/billing/student-subscriptions";
 import type { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { PaymentGateway } from "@/backend/enum/billing/payment-gateway.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { ConflictError, isPgUniqueViolation, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import { MAX_INTERVAL_DAYS } from "@/backend/services/billing/plan-catalog.helpers";
+import { MAX_INTERVAL_DAYS, MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
 import type {
   AuditLogWriteContract,
   DBTransaction,
@@ -80,6 +78,16 @@ export const SUBSCRIPTION_ADMIN_CLAIM_PREFIXES = {
   planChange: `${SUBSCRIPTION_ADMIN_CLAIM_KEY_PREFIX}:planChange`,
 } as const;
 
+/**
+ * The renew claim key for one source row — the single builder every claim
+ * insert, replay lookup, and probe composes (the renew twin of the
+ * plan-change flow's `planChangeClaimKey`), so the server-constructed
+ * identity can never drift between the write and the lookups.
+ */
+export function renewClaimKey(sourceSubscriptionId: number): string {
+  return `${SUBSCRIPTION_ADMIN_CLAIM_PREFIXES.renew}:${sourceSubscriptionId}`;
+}
+
 /** Milliseconds per day — the subscription window arithmetic unit shared by the extend, renew, and plan-change flows. */
 export const MS_PER_DAY = 86_400_000;
 
@@ -96,7 +104,7 @@ export async function resolveRenewalReplayRow(
   scopedTx: DBTransaction,
   tErrors: ErrorsLabels
 ): Promise<SubscriptionSelectType> {
-  const claimKey = `${SUBSCRIPTION_ADMIN_CLAIM_PREFIXES.renew}:${source.id}`;
+  const claimKey = renewClaimKey(source.id);
   const priorClaim = await SubscriptionPurchaseIdempotencyRepository.findByKey(claimKey, scopedTx);
   const replayedId = priorClaim?.subscriptionId ?? null;
   if (replayedId === null) {
@@ -158,9 +166,20 @@ export async function readRenewalPlan(
   }
   // The renewal opens a fresh one-interval window — a plan row past the
   // catalog's interval ceiling (purchasable copy until this read) can
-  // never anchor one, so it fails closed before any arithmetic.
+  // never anchor one, so it fails closed before any arithmetic. The
+  // session-count ceiling is re-asserted beside it: a legacy row above it
+  // must fail as the localized VALIDATION denial, never as a raw lane
+  // write overflow.
   if (plan.intervalDays > MAX_INTERVAL_DAYS) {
     logger.logDomainError("Subscription renew denied: plan interval days exceeds the catalog ceiling", {
+      code: "VALIDATION",
+      entity: "plans",
+      entityId: plan.id,
+    });
+    throw new ValidationError(tErrors.subscriptionAdmin.prorationOverflow);
+  }
+  if (plan.sessionCount > MAX_SESSION_COUNT) {
+    logger.logDomainError("Subscription renew denied: plan session count exceeds the catalog ceiling", {
       code: "VALIDATION",
       entity: "plans",
       entityId: plan.id,
@@ -179,69 +198,11 @@ export async function readRenewalPlan(
 }
 
 /**
- * Inserts the renewal's fresh subscription row: one captured instant
- * governs the window (start = the renewal moment, end = start + the
- * plan's interval), the lifecycle state opens `active`, and the admin
- * renewal carries no gateway payload — the payment columns stay
- * explicitly null.
- */
-export async function insertRenewedSubscription(
-  source: SubscriptionSelectType,
-  plan: PlanSelectType,
-  scopedTx: DBTransaction
-): Promise<SubscriptionSelectType> {
-  const renewalInstant = new Date();
-  return SubscriptionRepository.insertSubscription(
-    {
-      userId: source.userId,
-      planId: source.planId,
-      status: SubscriptionStatus.Active,
-      startDate: renewalInstant,
-      endDate: new Date(renewalInstant.getTime() + plan.intervalDays * MS_PER_DAY),
-      paymentMethod: null,
-      paymentReference: null,
-      paymentVerifiedAt: null,
-    },
-    scopedTx
-  );
-}
-
-/**
- * Settles the renewal's balance side effects in order: the owner's lane
- * is credited the plan's full session count (the lane arrives
- * pre-resolved through the helpers' fail-closed member lookup — zero
- * rows means the owner's student row vanished, unreachable through the
- * FK restrict, and fails closed rather than committing a period without
- * its credit), the student↔subscription junction row is inserted, and
- * the claim's subscription pointer is backfilled — the claim and the
- * renewal commit atomically.
- */
-export async function settleRenewalSideEffects(
-  source: SubscriptionSelectType,
-  lane: SubscriptionCreditLane,
-  creditedSessions: number,
-  created: SubscriptionSelectType,
-  claimId: number,
-  tErrors: ErrorsLabels,
-  scopedTx: DBTransaction
-): Promise<void> {
-  const credited = await StudentRepository.creditLaneBalance(source.userId, lane, creditedSessions, scopedTx);
-  if (credited === null) {
-    logger.logDomainError("Subscription renew denied: owner student row vanished before the lane credit", {
-      code: "CONFLICT",
-      entity: "subscriptions",
-      entityId: source.id,
-    });
-    throw new ConflictError(tErrors.conflict);
-  }
-  await scopedTx.insert(studentSubscriptions).values({
-    studentId: source.userId,
-    subscriptionId: created.id,
-  });
-  await SubscriptionPurchaseIdempotencyRepository.updateClaimSubscriptionId(claimId, created.id, scopedTx);
-}
-
-/**
+ * The renewal's fresh-period insert and settlement live in the sibling
+ * `subscription-admin-settle.helpers.ts` module (the shared builders both
+ * admin flows delegate to, so the payment-column/junction semantics can
+ * never drift); the service imports the flow-shaped delegates from there.
+ *
  * The cancelled-status member, widened to a plain string: the same
  * read-row guard idiom as the service's active/expired twins — the
  * already-cancelled state is the guarded cancel's replay signature.
@@ -289,15 +250,18 @@ export function normalizeCancelReason(
  * the three zero-row meanings: a vanished row is the canonical not-found
  * denial, an already-cancelled row is the idempotent replay conflict (the
  * denied call wrote nothing — the first cancel did), and any other status
- * is the localized active-only deny. One bounded log each, ids only.
+ * is the localized active-only deny. One bounded log each, ids only —
+ * `flow` names the calling flow ("cancel", "plan change") so the
+ * diagnostics name the actual flow and can never mislead an operator.
  */
 export function resolveCancelDenial(
   subscriptionId: number,
   current: SubscriptionSelectType | null,
-  tErrors: ErrorsLabels
+  tErrors: ErrorsLabels,
+  flow: string
 ): never {
   if (current === null) {
-    logger.logDomainError("Subscription cancel denied: row does not exist", {
+    logger.logDomainError(`Subscription ${flow} denied: row does not exist`, {
       code: "NOT_FOUND",
       entity: "subscriptions",
       entityId: subscriptionId,
@@ -305,14 +269,14 @@ export function resolveCancelDenial(
     throw new NotFoundError("SUBSCRIPTION", tErrors.notFound);
   }
   if (current.status === STATUS_CANCELLED) {
-    logger.logDomainError("Subscription cancel denied: already cancelled (replay)", {
+    logger.logDomainError(`Subscription ${flow} denied: already cancelled (replay)`, {
       code: "CONFLICT",
       entity: "subscriptions",
       entityId: subscriptionId,
     });
     throw new ConflictError(tErrors.conflict);
   }
-  logger.logDomainError("Subscription cancel denied: row is not active", {
+  logger.logDomainError(`Subscription ${flow} denied: row is not active`, {
     code: "CONFLICT",
     entity: "subscriptions",
     entityId: subscriptionId,
@@ -342,15 +306,18 @@ export function buildSubscriptionAuditContract(
 }
 
 /**
- * Coerces a wire `ID` into a subscription id using STRICT numeric
- * parsing (mirrors the plan-catalog id coercion). Unlike
- * `Number.parseInt`, `Number()` rejects trailing garbage (`"12abc"` →
- * NaN) so a malformed id can never silently address an unrelated row;
- * any non-integer / non-positive result maps onto the canonical
+ * Coerces a wire `ID` into a subscription id using STRICT numeric parsing
+ * (mirrors the plan-catalog id coercion). GraphQL preserves `ID` as a
+ * string, and `Number()` lazily coerces non-decimal syntax ("1e0", "0x1",
+ * " 1") into a valid integer — silently addressing a DIFFERENT row than
+ * the one named on the wire — so a STRING is accepted only in canonical
+ * decimal form (the `/^[1-9]\d*$/` gate the user-id twin applies), while
+ * numeric input (direct service callers) keeps the strict `Number()`
+ * parse. Any non-integer / non-positive result maps onto the canonical
  * `SUBSCRIPTION_NOT_FOUND` domain error.
  */
 export function coerceSubscriptionId(rawId: string | number, tErrors: ErrorsLabels): number {
-  const id = Number(rawId);
+  const id = typeof rawId === "number" ? rawId : /^[1-9]\d*$/.test(rawId) ? Number(rawId) : Number.NaN;
   if (!Number.isInteger(id) || id < 1) {
     logger.logDomainError("Subscription id failed strict numeric coercion", {
       code: "SUBSCRIPTION_NOT_FOUND",

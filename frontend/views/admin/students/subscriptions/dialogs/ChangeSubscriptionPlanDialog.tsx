@@ -18,10 +18,13 @@ import { Common, SubscriptionAdmin, useAppTranslation } from "@/shared/locale";
  *
  * The candidate list arrives PRE-FILTERED from the section (the pure
  * `eligibleChangePlanTargets` helper: active + same lane + not the source
- * plan) — the dialog renders an honest empty-options message when no
- * other plan qualifies, and the submit stays disabled without a
- * selection. The body states the cancel-and-reopen semantics up front;
- * the server's localized denials surface in the inline error alert.
+ * plan). While the section's plan-catalog read is still loading the
+ * selector renders DISABLED — an empty candidate list is only honest once
+ * the catalog has actually landed, so the "no eligible plan" message is
+ * reserved for the truly loaded-and-empty state, and the submit stays
+ * disabled without a selection. The body states the cancel-and-reopen
+ * semantics up front; the server's localized denials surface in the
+ * inline error alert.
  *
  * Presentational: the mutation lives in `useSubscriptionAdminActions`
  * (wired by the section); the dialog forwards only the target plan id.
@@ -37,6 +40,9 @@ interface ChangeSubscriptionPlanDialogProps {
   readonly subscription: SubscriptionRow;
   /** The eligible target plans (already lane/active/identity filtered). */
   readonly plans: readonly AdminPlanItem[];
+  /** True while the section's plan-catalog read is still loading — the
+   *  empty-options state is withheld until the catalog has landed. */
+  readonly plansLoading: boolean;
   readonly open: boolean;
   /** Dismiss intent — ignored while the mutation is in flight. */
   readonly onClose: () => void;
@@ -51,6 +57,7 @@ interface ChangeSubscriptionPlanDialogProps {
 export function ChangeSubscriptionPlanDialog({
   subscription,
   plans,
+  plansLoading,
   open,
   onClose,
   loading,
@@ -97,7 +104,7 @@ export function ChangeSubscriptionPlanDialog({
       <DialogContentText sx={theme => ({ color: theme.palette.text.secondary })}>
         {t.changePlan.message}
       </DialogContentText>
-      {plans.length === 0 ? (
+      {!plansLoading && plans.length === 0 ? (
         <Alert severity="info" sx={{ width: "100%" }}>
           {t.changePlan.noPlans}
         </Alert>
@@ -111,7 +118,7 @@ export function ChangeSubscriptionPlanDialog({
           }}
           fullWidth
           required
-          disabled={loading}
+          disabled={loading || plansLoading}
           data-testid={`change-subscription-plan-select-${subscription.id}`}
         >
           {plans.map(plan => (

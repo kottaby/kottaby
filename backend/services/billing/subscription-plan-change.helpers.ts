@@ -46,30 +46,30 @@
  * `backend/types/` and is imported through `@/backend/types`.
  */
 
-import { eq } from "drizzle-orm";
 import { PlanRepository } from "@/backend/db/repo/billing/plan.repository";
 import { SubscriptionRepository } from "@/backend/db/repo/billing/subscription.repository";
 import { SubscriptionPurchaseIdempotencyRepository } from "@/backend/db/repo/billing/subscription-purchase-idempotency.repository";
 import { StudentRepository } from "@/backend/db/repo/students/student.repository";
-import { studentSubscriptions } from "@/backend/db/schema/billing/student-subscriptions";
-import { students } from "@/backend/db/schema/students/students";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { ProrationDirection } from "@/backend/enum/billing/proration-direction.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
-import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { withTransaction } from "@/backend/lib/db/with-transaction";
-import { ConflictError, isPgUniqueViolation, NotFoundError } from "@/backend/lib/errors";
+import { ConflictError, isPgUniqueViolation, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { assertActorAdmin } from "@/backend/services/admin/admin-gate.helpers";
 import { AuditService } from "@/backend/services/admin/audit.service";
+import { MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
 import {
   buildSubscriptionAuditContract,
-  MS_PER_DAY,
   resolveCancelDenial,
   subscriptionCreditLaneMemberOf,
   toSubscriptionAdminDomainError,
   toSubscriptionAdminReturnType,
 } from "@/backend/services/billing/subscription-admin.helpers";
+import {
+  insertAdminPeriodSubscription,
+  settleAdminSideEffects,
+} from "@/backend/services/billing/subscription-admin-settle.helpers";
 import {
   planChangeClaimKey,
   replaySerializedPlanChange,
@@ -177,6 +177,18 @@ async function readPlanChangeTarget(
     });
     throw new ConflictError(tErrors.subscriptionAdmin.incompatibleLane);
   }
+  // The session-count ceiling re-asserted at the target read (beside the
+  // interval ceiling the proration re-checks): a legacy row above the
+  // catalog ceiling must fail as the localized VALIDATION denial before
+  // any claim or write, never as a raw lane-write overflow.
+  if (target.sessionCount > MAX_SESSION_COUNT) {
+    logger.logDomainError("Subscription plan change denied: target plan session count exceeds the catalog ceiling", {
+      code: "VALIDATION",
+      entity: "plans",
+      entityId: target.id,
+    });
+    throw new ValidationError(tErrors.subscriptionAdmin.prorationOverflow);
+  }
   return target;
 }
 
@@ -211,43 +223,31 @@ async function insertPlanChangeClaim(
 }
 
 /**
- * Inserts the plan change's fresh subscription row: one captured instant
- * governs the window (start = the change moment, end = start + the TARGET
- * plan's interval), the lifecycle state opens `active`, and the admin
- * change carries no gateway payload — the payment columns stay explicitly
- * null.
+ * Inserts the plan change's fresh subscription row via the shared
+ * settlement builder (the sibling `subscription-admin-settle.helpers.ts`
+ * module): one captured instant governs the window (start = the change
+ * moment, end = start + the TARGET plan's interval), the lifecycle state
+ * opens `active`, and the admin change carries no gateway payload — the
+ * payment columns stay explicitly null. The TARGET plan's snapshot is the
+ * window anchor (the plan-change variance the shared builder takes).
  */
 async function insertChangedSubscription(
   source: SubscriptionSelectType,
   plan: PlanSelectType,
   scopedTx: DBTransaction
 ): Promise<SubscriptionSelectType> {
-  const changeInstant = new Date();
-  return SubscriptionRepository.insertSubscription(
-    {
-      userId: source.userId,
-      planId: plan.id,
-      status: SubscriptionStatus.Active,
-      startDate: changeInstant,
-      endDate: new Date(changeInstant.getTime() + plan.intervalDays * MS_PER_DAY),
-      paymentMethod: null,
-      paymentReference: null,
-      paymentVerifiedAt: null,
-    },
-    scopedTx
-  );
+  return insertAdminPeriodSubscription(source.userId, plan, scopedTx);
 }
 
 /**
- * Settles the plan change's balance side effects in order: the owner's
- * lane is set to the prepared EXACT total (the owner row's `FOR UPDATE`
- * lock from the proration read holds to this transaction's end, so no
- * debit can interleave — zero rows means the owner's student row
- * vanished, unreachable through the FK restrict, and fails closed rather
- * than committing a period without its settlement), the
- * student↔subscription junction row is inserted, and the claim's
- * subscription pointer is backfilled — the claim and the change commit
- * atomically.
+ * Settles the plan change's balance side effects via the shared settlement
+ * builder (the sibling `subscription-admin-settle.helpers.ts` module), in
+ * order: the owner's lane is set to the prepared EXACT total (the owner
+ * row's `FOR UPDATE` lock from the proration read holds to this
+ * transaction's end, so no debit can interleave — the exact-value write is
+ * this flow's variance over the shared builder), the student↔subscription
+ * junction row is inserted, and the claim's subscription pointer is
+ * backfilled — the claim and the change commit atomically.
  */
 async function settlePlanChangeSideEffects(
   studentId: number,
@@ -258,20 +258,17 @@ async function settlePlanChangeSideEffects(
   tErrors: ErrorsLabels,
   scopedTx: DBTransaction
 ): Promise<void> {
-  const settled = await StudentRepository.setLaneBalanceValue(studentId, lane, creditedSessions, scopedTx);
-  if (settled === null) {
-    logger.logDomainError("Subscription plan change denied: owner student row vanished before the lane settlement", {
-      code: "CONFLICT",
-      entity: "subscriptions",
-      entityId: created.id,
-    });
-    throw new ConflictError(tErrors.conflict);
-  }
-  await scopedTx.insert(studentSubscriptions).values({
+  return settleAdminSideEffects({
+    flowLabel: "plan change",
+    zeroRowDetail: "settlement",
     studentId,
-    subscriptionId: created.id,
+    lane,
+    writeLane: tx => StudentRepository.setLaneBalanceValue(studentId, lane, creditedSessions, tx),
+    created,
+    claimId,
+    tErrors,
+    scopedTx,
   });
-  await SubscriptionPurchaseIdempotencyRepository.updateClaimSubscriptionId(claimId, created.id, scopedTx);
 }
 
 /**
@@ -294,11 +291,10 @@ async function readPlanChangeOwner(
   tErrors: ErrorsLabels,
   scopedTx: DBTransaction
 ): Promise<StudentSelectType> {
-  const [student] = await scopedTx
-    .select()
-    .from(students)
-    .where(eq(students.id, source.subscription.userId))
-    .for("update");
+  // The locking read lives in the repository layer (`findByIdForUpdate`,
+  // mirroring the teacher repository's certification-check read) — the
+  // service layer never issues `SELECT … FOR UPDATE` directly.
+  const student = await StudentRepository.findByIdForUpdate(source.subscription.userId, scopedTx);
   if (!student) {
     logger.logDomainError("Subscription plan change denied: owner student row missing", {
       code: "CONFLICT",
@@ -368,9 +364,9 @@ async function changeSubscriptionPlanTx(
   if (source === null) {
     // Missing, cancelled, or moved-on source: the fresh read
     // disambiguates — the not-found / replay-conflict / active-only deny
-    // ladder, all zero-write.
+    // ladder, all zero-write. The log label names THIS flow.
     const current = await SubscriptionRepository.findById(input.subscriptionId, scopedTx);
-    resolveCancelDenial(input.subscriptionId, current, tErrors);
+    resolveCancelDenial(input.subscriptionId, current, tErrors, "plan change");
   }
   const lane = certifySourceLane(source.plan, tErrors);
   const target = await readPlanChangeTarget(input.newPlanId, source.plan, scopedTx, tErrors);
@@ -390,7 +386,12 @@ async function changeSubscriptionPlanTx(
 
   // The credit: the target plan's full session count, plus the computed
   // carry on the upgrade leg — the downgrade forfeits the remainder
-  // (carrySessions arrives zero from the proration).
+  // (carrySessions arrives zero from the proration). The arithmetic cannot
+  // overflow the lane's integer column: the target read re-asserts the
+  // catalog's session ceiling (a legacy row above it fails as the
+  // localized VALIDATION denial before any write) and the proration clamps
+  // the carry at the same ceiling, so the settled total stays far inside
+  // int4 — never a raw 22003 surfacing as a 500.
   const direction = proration.direction;
   const creditedSessions =
     direction === ProrationDirection.Upgrade ? target.sessionCount + proration.carrySessions : target.sessionCount;

@@ -340,8 +340,10 @@ describe("SubscriptionRepository", () => {
       );
       expect(first).not.toBeNull();
 
-      // Identical replay: the end_date predicate no longer matches (the
-      // window already moved) — zero rows, null, nothing mutated.
+      // Identical replay: the window already sits AT the first write's
+      // target, so the `end_date < newEndDate` predicate no longer matches
+      // — zero rows, null, nothing mutated (even with the STALE
+      // previousEndDate replayed verbatim).
       const replayed = await SubscriptionRepository.extendActiveOnce(
         active.id,
         { previousEndDate, newEndDate: extendedEnd },
@@ -352,6 +354,14 @@ describe("SubscriptionRepository", () => {
       const reread = await SubscriptionRepository.findById(active.id, tx);
       expect(reread?.endDate).toEqual(extendedEnd);
 
+      // A genuinely fresh extension whose target sits strictly above the
+      // already-moved window still stacks legitimately — the strict
+      // inequality matches again (only an at-or-beyond target is a replay).
+      const beyondEnd = new Date(extendedEnd.getTime() + 24 * 60 * 60 * 1000);
+      expect(
+        await SubscriptionRepository.extendActiveOnce(active.id, { previousEndDate, newEndDate: beyondEnd }, tx)
+      ).not.toBeNull();
+
       // An unknown id matches zero rows through the same guarded predicate.
       expect(
         await SubscriptionRepository.extendActiveOnce(99999999, { previousEndDate, newEndDate: extendedEnd }, tx)
@@ -359,11 +369,43 @@ describe("SubscriptionRepository", () => {
     });
   });
 
+  test("extendActiveOnce extends a row whose stored end carries sub-millisecond precision (inequality, never equality)", async () => {
+    await runInRollback(async tx => {
+      const active = await createSubscriptionInStatus(tx, SubscriptionStatus.Active);
+      const previousEndDate = active.endDate;
+      if (!previousEndDate) {
+        throw new Error("fixture failure: active row has no window end");
+      }
+
+      // A writer outside the JS Date's millisecond grain (the DB's own
+      // now(), microsecond-precision timestamptz) moves the stored end by
+      // half a millisecond — the JS `Date` read-back can never equal it,
+      // so any EQUALITY guard would spuriously deny every future extend
+      // forever. The strict `end_date < newEndDate` predicate still
+      // matches: the freshly computed target sits strictly above it.
+      await tx.execute(
+        sql`UPDATE subscriptions SET end_date = end_date + interval '500 microseconds' WHERE id = ${active.id}`
+      );
+
+      const extended = await SubscriptionRepository.extendActiveOnce(
+        active.id,
+        { previousEndDate, newEndDate: new Date(previousEndDate.getTime() + 30 * 24 * 60 * 60 * 1000) },
+        tx
+      );
+      expect(extended).not.toBeNull();
+      if (extended) {
+        expect(extended.status).toBe(SubscriptionStatus.Active);
+        expect(extended.endDate).toEqual(new Date(previousEndDate.getTime() + 30 * 24 * 60 * 60 * 1000));
+      }
+    });
+  });
+
   test("extendActiveOnce denies every non-active lifecycle state", async () => {
     await runInRollback(async tx => {
-      // The guarded predicate folds `status = 'active'` into the WHERE, so
-      // each non-active state denies with zero rows and an untouched row —
-      // one probe per lifecycle state.
+      // The guarded predicate folds `status = 'active'` into the WHERE
+      // beside the `end_date < newEndDate` window predicate, so each
+      // non-active state denies with zero rows and an untouched row — one
+      // probe per lifecycle state.
       await expectExtendDeniedForStatus(tx, SubscriptionStatus.Pending);
       await expectExtendDeniedForStatus(tx, SubscriptionStatus.Expired);
       await expectExtendDeniedForStatus(tx, SubscriptionStatus.Cancelled);

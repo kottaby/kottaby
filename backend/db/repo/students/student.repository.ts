@@ -282,6 +282,26 @@ export namespace StudentRepository {
   }
 
   /**
+   * Reads a `students` row by primary key under a `FOR UPDATE` row lock —
+   * the subscription plan-change flow's owner-row certification read. The
+   * lock (held to the transaction's end) serializes the balance read with
+   * the caller's later exact-value lane settlement, so a concurrent booking
+   * debit can never commit in between.
+   *
+   * `tx` is REQUIRED (not optional): a locking read without a transaction
+   * releases its lock as soon as the statement finishes, which would make
+   * the read→settle serialization meaningless (mirrors the teacher
+   * repository's `lockForCertificationCheck` convention).
+   *
+   * @returns The locked student row, or `null` when no `students` row
+   *          exists for the id (the caller owns the not-found handling).
+   */
+  export async function findByIdForUpdate(studentId: number, tx: DBTransaction): Promise<StudentSelectType | null> {
+    const rows = await tx.select().from(students).where(eq(students.id, studentId)).for("update");
+    return rows[0] ?? null;
+  }
+
+  /**
    * Atomically grants free trial session credits to a student exactly once.
    *
    * Single conditional UPDATE guarded by the trial_granted_at marker — predicate

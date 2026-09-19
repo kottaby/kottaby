@@ -99,7 +99,7 @@ export function CancelSubscriptionDialog({
         onChange={event => {
           setReason(event.target.value);
         }}
-        helperText={`${reason.length}/${MAX_CANCEL_REASON_LENGTH} — ${t.cancel.reasonHelper}`}
+        helperText={t.cancel.reasonCounter(reason.length, MAX_CANCEL_REASON_LENGTH)}
         fullWidth
         multiline
         minRows={2}

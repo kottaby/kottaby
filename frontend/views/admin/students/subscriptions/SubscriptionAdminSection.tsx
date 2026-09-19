@@ -35,9 +35,11 @@ import { adminPlansQueryDocument } from "@/frontend/graphql/sharedDocuments/bill
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { DirectoryDrawerSection } from "@/frontend/views/admin/directory-shared/DirectoryDrawerPrimitives";
 import { DirectoryFeedbackSnackbar } from "@/frontend/views/admin/directory-shared/DirectoryFeedbackSnackbar";
-import { SubscriptionActionDialogs } from "@/frontend/views/admin/students/subscriptions/dialogs/SubscriptionActionDialogs";
-import { useSubscriptionAdminActions } from "@/frontend/views/admin/students/subscriptions/hooks/useSubscriptionAdminActions";
-import { useSubscriptionDialogController } from "@/frontend/views/admin/students/subscriptions/hooks/useSubscriptionDialogController";
+import { SubscriptionActionDialogs } from "@/frontend/views/admin/students/subscriptions/dialogs";
+import {
+  useSubscriptionAdminActions,
+  useSubscriptionDialogController,
+} from "@/frontend/views/admin/students/subscriptions/hooks";
 import { SubscriptionRowsView } from "@/frontend/views/admin/students/subscriptions/SubscriptionRowsView";
 import { sortNewestFirst } from "@/frontend/views/admin/students/subscriptions/subscriptionAdmin.helpers";
 import type { DirectorySnackbar } from "@/frontend/views/admin/users/directory";
@@ -65,8 +67,11 @@ export function SubscriptionAdminSection({ userId }: SubscriptionAdminSectionPro
   });
 
   // The admin plan catalog feeds the change-plan selector (active plans
-  // only — the eligibility helper re-filters per source row anyway).
-  const { data: plansData } = useQuery(adminPlansQueryDocument, {
+  // only — the eligibility helper re-filters per source row anyway). The
+  // loading flag rides along so the change-plan dialog renders a disabled
+  // select while the catalog streams in instead of falsely claiming that
+  // no eligible plan exists.
+  const { data: plansData, loading: plansLoading } = useQuery(adminPlansQueryDocument, {
     variables: { includeInactive: false },
     fetchPolicy: "cache-and-network",
   });
@@ -105,7 +110,12 @@ export function SubscriptionAdminSection({ userId }: SubscriptionAdminSectionPro
         onOpenDialog={dialogs.openDialogFor}
         onRetry={retryQuery}
       />
-      <SubscriptionActionDialogs controller={dialogs} actions={actions} plans={plansData?.adminPlans ?? []} />
+      <SubscriptionActionDialogs
+        controller={dialogs}
+        actions={actions}
+        plans={plansData?.adminPlans ?? []}
+        plansLoading={plansLoading}
+      />
       <DirectoryFeedbackSnackbar snackbar={snackbar} onClose={() => setSnackbar(null)} />
     </DirectoryDrawerSection>
   );

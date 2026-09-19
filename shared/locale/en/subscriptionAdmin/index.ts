@@ -40,7 +40,7 @@ export const subscriptionAdminEn: SubscriptionAdminLabels = {
     title: "Cancel subscription",
     message: "Cancelling ends this subscription while leaving the student's session balances untouched.",
     reasonLabel: "Reason (optional)",
-    reasonHelper: "Up to 200 characters, recorded in the audit trail.",
+    reasonCounter: (count, max) => `${count}/${max} — Up to ${max} characters, recorded in the audit trail.`,
   },
   changePlan: {
     title: "Change plan",
@@ -48,15 +48,25 @@ export const subscriptionAdminEn: SubscriptionAdminLabels = {
       "The current subscription is cancelled and a fresh period opens on the selected plan. Only active plans crediting the same balance lane are eligible.",
     planLabel: "New plan",
     noPlans: "No other active plan credits the same balance lane.",
-    carried: carry => `Plan changed — ${carry} session(s) carried over onto the new plan.`,
-    forfeited: forfeit => `Plan changed — ${forfeit} remaining session(s) on the old plan were forfeited.`,
+    carried: carry =>
+      carry === 1
+        ? "Plan changed — 1 session carried over onto the new plan."
+        : `Plan changed — ${carry} sessions carried over onto the new plan.`,
+    forfeited: forfeit =>
+      forfeit === 1
+        ? "Plan changed — 1 remaining session on the old plan was forfeited."
+        : `Plan changed — ${forfeit} remaining sessions on the old plan were forfeited.`,
   },
   success: {
-    extend: days => `Subscription extended by ${days} day(s).`,
+    extend: days => (days === 1 ? "Subscription extended by 1 day." : `Subscription extended by ${days} days.`),
     renew: "Subscription renewed — a fresh period is now active.",
     cancel: "Subscription cancelled. Session balances were left unchanged.",
-    planChangeCarried: carry => `Plan changed — ${carry} session(s) carried over.`,
-    planChangeForfeited: forfeit => `Plan changed — ${forfeit} remaining session(s) forfeited.`,
+    planChangeCarried: carry =>
+      carry === 1 ? "Plan changed — 1 session carried over." : `Plan changed — ${carry} sessions carried over.`,
+    planChangeForfeited: forfeit =>
+      forfeit === 1
+        ? "Plan changed — 1 remaining session forfeited."
+        : `Plan changed — ${forfeit} remaining sessions forfeited.`,
   },
   errorState: {
     title: "Could not load subscriptions",

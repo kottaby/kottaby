@@ -15,7 +15,7 @@
  *
  * Write methods take an optional `tx: DBTransaction` as their last parameter.
  */
-import { and, desc, eq, isNotNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, lt, lte, sql } from "drizzle-orm";
 import { db, queryDb } from "@/backend/db";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
@@ -162,19 +162,24 @@ export namespace SubscriptionRepository {
    * service-computed end date.
    *
    * A single guarded `UPDATE … WHERE id = ? AND status = 'active' AND
-   * end_date = ? … RETURNING` stamps the new window end plus an explicit
-   * `updated_at`. The `end_date` equality predicate is the concurrency
-   * lock: an identical double-submit (or any concurrent writer that moved
-   * the window — the expiry sweep, a cancellation) matches zero rows and
-   * returns `null`, so a replay can never shift the window a second time.
-   * Genuinely new extensions stack legitimately: the caller re-reads the
-   * row and supplies its CURRENT end date as `previousEndDate`, which the
-   * predicate then matches. `status` is deliberately never touched — an
-   * extension keeps the row `active`.
+   * end_date < ? … RETURNING` stamps the new window end plus an explicit
+   * `updated_at`. The `end_date < newEndDate` predicate is the
+   * concurrency lock: an identical double-submit (the window already sits
+   * AT `newEndDate` after the first write) or any concurrent writer that
+   * moved the window to or beyond it (the expiry sweep, a cancellation,
+   * a further extension) matches zero rows and returns `null`, so a
+   * replay can never shift the window a second time, while genuinely new
+   * extensions stack legitimately (each caller computes its target from
+   * the row's CURRENT end date, which is strictly below the new target).
+   * The strict inequality is also timestamp-precision-safe: it never
+   * compares a stored timestamptz against a JS `Date` for EQUALITY (a
+   * sub-microsecond stored end would make any equality guard spuriously
+   * fail forever). `status` is deliberately never touched — an extension
+   * keeps the row `active`.
    *
    * @returns The extended row, or null when the subscription does not
-   *          exist, is no longer active, or its end date is no longer
-   *          `previousEndDate` (replay / lost race).
+   *          exist, is no longer active, or its end date already sits at
+   *          or beyond `newEndDate` (replay / lost race).
    */
   export async function extendActiveOnce(
     id: number,
@@ -192,7 +197,7 @@ export namespace SubscriptionRepository {
         and(
           eq(subscriptions.id, id),
           eq(subscriptions.status, SubscriptionStatus.Active),
-          eq(subscriptions.endDate, patch.previousEndDate)
+          lt(subscriptions.endDate, patch.newEndDate)
         )
       )
       .returning();

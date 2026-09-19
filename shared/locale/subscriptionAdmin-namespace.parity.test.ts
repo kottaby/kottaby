@@ -17,9 +17,10 @@
  *      is pinned under BOTH locales — a key dropped from both maps
  *      simultaneously still fails this suite.
  *   3. FUNCTION-LEAF INVENTORY — the count-bearing proration/success
- *      leaves are exactly the five declared function slots (no silent
- *      minting, no downgrade into a plain string) and each renders
- *      non-empty output carrying its probe count in BOTH locales.
+ *      leaves plus the cancel reason counter are exactly the six declared
+ *      function slots (no silent minting, no downgrade into a plain
+ *      string) and each renders non-empty output carrying its probe count
+ *      in BOTH locales.
  *   4. NO ENGLISH FALLTHROUGH — every ar STRING leaf contains Arabic
  *      script, and every ar function leaf RETURNS Arabic-script output
  *      (an accidentally English value fails the sweep).
@@ -58,6 +59,7 @@ const ACTIONS_LEAF_PATHS = ["cancel", "changePlan", "extend", "renew"] as const;
 
 /** The EXACT function-leaf inventory (dotted paths — count-bearing copy). */
 const FUNCTION_LEAF_PATHS = [
+  "cancel.reasonCounter",
   "changePlan.carried",
   "changePlan.forfeited",
   "success.extend",
@@ -68,11 +70,14 @@ const FUNCTION_LEAF_PATHS = [
 /** Probe count for the function leaves (any non-negative integer behaves). */
 const PROBE_COUNT = 3;
 
+/** Probe seam cap for the counter leaf (rides the second argument). */
+const PROBE_MAX = 200;
+
 /** Arabic-script probe — at least one Arabic-block character in the value. */
 const ARABIC_SCRIPT = /[\u0600-\u06FF]/;
 
 /** Type guard: the leaf is one of the declared count-bearing label functions. */
-function isCountLeaf(value: unknown): value is (count: number) => string {
+function isCountLeaf(value: unknown): value is (...args: number[]) => string {
   return typeof value === "function";
 }
 
@@ -202,7 +207,7 @@ describe("actions block — pinned under BOTH locales (REQ-8 action inventory)",
 });
 
 // ===========================================================================
-describe("function-leaf inventory — exactly the five count-bearing slots", () => {
+describe("function-leaf inventory — exactly the six count-bearing slots", () => {
   test("the function slots are EXACTLY the declared inventory (no minting, no downgrade)", () => {
     const functionPaths = sortedLeafPathsOf(subscriptionAdminAr).filter(path => {
       return typeof leafValueOf(subscriptionAdminAr, path, "ar") === "function";
@@ -217,8 +222,10 @@ describe("function-leaf inventory — exactly the five count-bearing slots", () 
       if (!isCountLeaf(arLeaf) || !isCountLeaf(enLeaf)) {
         throw new Error(`subscriptionAdmin.${path} must be a count-bearing function on BOTH maps`);
       }
-      const arOutput = arLeaf(PROBE_COUNT);
-      const enOutput = enLeaf(PROBE_COUNT);
+      // The counter leaf carries the seam cap on its second argument; the
+      // other slots ignore it.
+      const arOutput = arLeaf(PROBE_COUNT, PROBE_MAX);
+      const enOutput = enLeaf(PROBE_COUNT, PROBE_MAX);
       expect(arOutput.length).toBeGreaterThan(0);
       expect(enOutput.length).toBeGreaterThan(0);
       expect(enOutput).toContain(String(PROBE_COUNT));

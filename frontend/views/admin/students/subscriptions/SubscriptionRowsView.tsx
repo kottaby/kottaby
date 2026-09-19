@@ -20,7 +20,7 @@ import type { ReactNode } from "react";
 import { IconCircleEmptyState } from "@/frontend/components/ui/IconCircleEmptyState";
 import { SubscriptionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { DirectoryErrorAlert } from "@/frontend/views/admin/directory-shared/DirectoryErrorAlert";
-import type { OpenSubscriptionDialogKind } from "@/frontend/views/admin/students/subscriptions/hooks/useSubscriptionDialogController";
+import type { OpenSubscriptionDialogKind } from "@/frontend/views/admin/students/subscriptions/hooks";
 import { SubscriptionRowCard } from "@/frontend/views/admin/students/subscriptions/SubscriptionRowCard";
 import {
   actionsForStatus,

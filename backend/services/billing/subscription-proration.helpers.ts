@@ -164,7 +164,6 @@ export function computeProration(
       direction,
       carrySessions: 0,
       forfeitedSessions: input.remainingSessions,
-      newSessionCount: input.newPlan.sessionCount,
     };
   }
 
@@ -177,6 +176,5 @@ export function computeProration(
     direction,
     carrySessions,
     forfeitedSessions: 0,
-    newSessionCount: input.newPlan.sessionCount,
   };
 }

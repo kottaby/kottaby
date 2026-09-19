@@ -1,0 +1,207 @@
+/**
+ * Paired suite — the pure view helpers of the admin student drawer's
+ * subscription-management section (`subscriptionAdmin.helpers.ts`).
+ *
+ * WHAT THIS LOCKS
+ *   1. The per-status ACTION MATRIX — active → extend/cancel/change plan;
+ *      expired → renew; pending/cancelled (and the governance-owned
+ *      `suspended`) → none. Every wire `SubscriptionStatus` member has a
+ *      matrix row (the exhaustive `Record` lookup degrades to `undefined`
+ *      for a missing member, which would silently kill a row's actions).
+ *   2. The extend-days GATE — only a strictly positive, whole, safe
+ *      integer parses (`parseExtendDays`); zero, negatives, decimals,
+ *      non-numeric garbage, and integer-overflow strings all resolve to
+ *      `null` so the dialog never submits a client-garbage day count
+ *      (the server keeps the window-ceiling authority).
+ *   3. The cancel-reason SEAM — blank/whitespace-only reasons collapse to
+ *      `null` (nothing is minted into the audit trail) and a longer submit
+ *      is clamped to the backend's 200-character boundary.
+ *   4. The change-plan ELIGIBILITY filter — only ACTIVE plans crediting
+ *      the SAME balance lane as the source row, excluding the source plan
+ *      itself (cross-lane migration is out of scope server-side; the
+ *      selector simply never offers an ineligible plan).
+ *   5. The newest-first ordering — the drawer's rows sort by the creation
+ *      stamp DESCENDING without mutating the input array (cache
+ *      generations merge out of order).
+ *
+ * FIXTURES: literal objects shaped exactly as the generated query types
+ * (`AdminStudentSubscriptionsQuery` / `AdminPlansQuery`) — technical test
+ * data, never rendered UI copy. Pure logic tier, mirroring the
+ * `rateTeacherMutationError.test.ts` precedent: no server boot, no DB, no
+ * React render.
+ *
+ * RUNS VIA (in-sandbox): bun run test/scripts/run-test.ts
+ * frontend/views/admin/students/subscriptions/subscriptionAdmin.helpers.test.ts
+ */
+
+import { describe, expect, test } from "bun:test";
+import {
+  ProrationDirection,
+  SubscriptionCreditLane,
+  SubscriptionStatus,
+} from "@/frontend/graphql/generated/gql/graphql";
+import {
+  type AdminPlanItem,
+  actionsForStatus,
+  eligibleChangePlanTargets,
+  MAX_CANCEL_REASON_LENGTH,
+  normalizeCancelReason,
+  parseExtendDays,
+  prorationCopyKind,
+  type SubscriptionRow,
+  sortNewestFirst,
+} from "@/frontend/views/admin/students/subscriptions/subscriptionAdmin.helpers";
+
+// ---------------------------------------------------------------------------
+// Fixtures — wire-shaped literals of the two query row types
+
+function planRow(overrides: Partial<AdminPlanItem> = {}): AdminPlanItem {
+  return {
+    id: "2",
+    title: "Plan B",
+    sessionCount: 20,
+    price: "200.00",
+    currency: "EGP",
+    intervalDays: 30,
+    isActive: true,
+    deactivatedAt: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    balanceLane: SubscriptionCreditLane.Hifz,
+    ...overrides,
+  };
+}
+
+function subscriptionRow(overrides: Partial<SubscriptionRow> = {}): SubscriptionRow {
+  return {
+    id: "501",
+    planId: 1,
+    status: SubscriptionStatus.Active,
+    startDate: "2026-01-01T00:00:00.000Z",
+    endDate: "2026-01-31T00:00:00.000Z",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    plan: {
+      id: "1",
+      title: "Plan A",
+      sessionCount: 10,
+      intervalDays: 30,
+      price: "100.00",
+      currency: "EGP",
+      balanceLane: SubscriptionCreditLane.Hifz,
+    },
+    ...overrides,
+  };
+}
+
+// ===========================================================================
+describe("actionsForStatus — the exhaustive per-status action matrix", () => {
+  test("active rows afford extend + cancel + change plan (never renew)", () => {
+    expect(actionsForStatus(SubscriptionStatus.Active)).toEqual({
+      extend: true,
+      renew: false,
+      cancel: true,
+      changePlan: true,
+    });
+  });
+
+  test("expired rows afford renew ONLY (the expiry sweep owns active → expired)", () => {
+    expect(actionsForStatus(SubscriptionStatus.Expired)).toEqual({
+      extend: false,
+      renew: true,
+      cancel: false,
+      changePlan: false,
+    });
+  });
+
+  test("pending, cancelled, and the governance-owned suspended afford NOTHING", () => {
+    for (const status of [SubscriptionStatus.Pending, SubscriptionStatus.Cancelled, SubscriptionStatus.Suspended]) {
+      expect(actionsForStatus(status)).toEqual({ extend: false, renew: false, cancel: false, changePlan: false });
+    }
+  });
+});
+
+// ===========================================================================
+describe("parseExtendDays — whole days > 0, client-side gate", () => {
+  test("canonical decimal digits parse (surrounding whitespace tolerated)", () => {
+    expect(parseExtendDays("7")).toBe(7);
+    expect(parseExtendDays(" 30 ")).toBe(30);
+    expect(parseExtendDays("000000000000005")).toBe(5);
+  });
+
+  test("zero, negatives, decimals, and non-numeric garbage all fail", () => {
+    for (const garbage of ["0", "-3", "1.5", "1,5", "abc", "", "   ", "7 days", "٧", "+7", "0x10", "1e2"]) {
+      expect(parseExtendDays(garbage)).toBeNull();
+    }
+  });
+
+  test("integer-overflow strings fail the safe-integer bound", () => {
+    expect(parseExtendDays("99999999999999999999")).toBeNull();
+    expect(parseExtendDays("10000000000000000000")).toBeNull();
+  });
+});
+
+// ===========================================================================
+describe("normalizeCancelReason — optional bounded audit reason", () => {
+  test("blank or whitespace-only resolves to null (nothing minted into the trail)", () => {
+    expect(normalizeCancelReason("")).toBeNull();
+    expect(normalizeCancelReason("   ")).toBeNull();
+  });
+
+  test("a real reason is trimmed verbatim", () => {
+    expect(normalizeCancelReason("  duplicate order  ")).toBe("duplicate order");
+  });
+
+  test("a longer submit is clamped to the 200-character backend boundary", () => {
+    expect(MAX_CANCEL_REASON_LENGTH).toBe(200);
+    const overlong = "ب".repeat(250);
+    const clamped = normalizeCancelReason(overlong);
+    expect(clamped).toHaveLength(200);
+    expect(clamped).toBe(overlong.slice(0, 200));
+    expect(normalizeCancelReason("ب".repeat(200))).toHaveLength(200);
+  });
+});
+
+// ===========================================================================
+describe("eligibleChangePlanTargets — same-lane active candidates", () => {
+  test("keeps only ACTIVE plans on the SOURCE lane, excluding the source plan itself", () => {
+    const plans = [
+      planRow({ id: "1", balanceLane: SubscriptionCreditLane.Hifz }), // the source plan itself
+      planRow({ id: "2", balanceLane: SubscriptionCreditLane.Hifz }), // eligible
+      planRow({ id: "3", balanceLane: SubscriptionCreditLane.Hifz, isActive: false }), // inactive
+      planRow({ id: "4", balanceLane: SubscriptionCreditLane.Tajweed }), // different lane
+      planRow({ id: "5", balanceLane: null }), // lane-less
+    ];
+    const targets = eligibleChangePlanTargets(plans, 1, SubscriptionCreditLane.Hifz);
+    expect(targets.map(plan => plan.id)).toEqual(["2"]);
+  });
+
+  test("the source-plan exclusion keys on the wire's string id (numeric sourcePlanId coerced)", () => {
+    const plans = [planRow({ id: "1", balanceLane: SubscriptionCreditLane.Tajweed })];
+    expect(eligibleChangePlanTargets(plans, 1, SubscriptionCreditLane.Tajweed)).toEqual([]);
+    expect(eligibleChangePlanTargets(plans, 999, SubscriptionCreditLane.Tajweed)).toHaveLength(1);
+  });
+});
+
+// ===========================================================================
+describe("sortNewestFirst — newest-first ordering without input mutation", () => {
+  test("rows sort by creation stamp descending; the input array is untouched", () => {
+    const oldest = subscriptionRow({ id: "1", createdAt: "2026-01-01T00:00:00.000Z" });
+    const newest = subscriptionRow({ id: "3", createdAt: "2026-03-01T00:00:00.000Z" });
+    const middle = subscriptionRow({ id: "2", createdAt: "2026-02-01T00:00:00.000Z" });
+    const rows = [newest, oldest, middle];
+
+    const sorted = sortNewestFirst(rows);
+
+    expect(sorted.map(row => row.id)).toEqual(["3", "2", "1"]);
+    expect(rows.map(row => row.id)).toEqual(["3", "1", "2"]);
+  });
+});
+
+// ===========================================================================
+describe("prorationCopyKind — direction → copy slot", () => {
+  test("upgrades read the carried slot; downgrades read the forfeited slot", () => {
+    expect(prorationCopyKind(ProrationDirection.Upgrade)).toBe("carried");
+    expect(prorationCopyKind(ProrationDirection.Downgrade)).toBe("forfeited");
+  });
+});

@@ -45,6 +45,7 @@
 import { SubscriptionPothosObject } from "@/backend/graphql/pothos/billing/subscription.pothos";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { ProrationDirectionPothosEnum } from "@/backend/graphql/pothos/shared/enum.pothos";
+import { CANCEL_REASON_MAX_LENGTH } from "@/backend/services/billing/subscription-admin.helpers";
 import type { ChangeSubscriptionPlanResult } from "@/backend/types";
 
 /**
@@ -80,7 +81,10 @@ export const RenewSubscriptionInput = gqlSchemaBuilder.inputType("RenewSubscript
 /**
  * Input for the `adminCancelSubscription` mutation. The reason is
  * optional free text — trimmed and length-bounded server-side before it
- * reaches the audit trail, so the wire value is advisory only.
+ * reaches the audit trail, so the wire value is advisory only. The
+ * documented bound is composed from the service's own
+ * `CANCEL_REASON_MAX_LENGTH` constant — the single source of truth the
+ * server-side bound enforces (the description can never drift from it).
  */
 export const CancelSubscriptionInput = gqlSchemaBuilder.inputType("CancelSubscriptionInput", {
   description: "Input for cancelling an active subscription while preserving its balance lanes.",
@@ -92,7 +96,8 @@ export const CancelSubscriptionInput = gqlSchemaBuilder.inputType("CancelSubscri
     reason: t.string({
       required: false,
       description:
-        "Optional free-text reason for the cancellation (trimmed and bounded to 200 characters server-side).",
+        "Optional free-text reason for the cancellation (trimmed and bounded to " +
+        `${CANCEL_REASON_MAX_LENGTH} characters server-side).`,
     }),
   }),
 });

@@ -71,5 +71,4 @@ export interface ProrationComputation {
   readonly direction: ProrationDirection;
   readonly carrySessions: number;
   readonly forfeitedSessions: number;
-  readonly newSessionCount: number;
 }

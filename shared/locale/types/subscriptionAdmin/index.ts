@@ -106,8 +106,13 @@ export interface SubscriptionAdminLabels {
     readonly message: string;
     /** Optional reason input label. */
     readonly reasonLabel: string;
-    /** Helper line under the reason input (bounded free text). */
-    readonly reasonHelper: string;
+    /**
+     * Helper line under the reason input — the live character counter plus
+     * the bounded-free-text note, composed HERE so the counter format never
+     * drifts between locales (`count` = current raw length, `max` = the
+     * UI-seam cap the dialog enforces).
+     */
+    readonly reasonCounter: (count: number, max: number) => string;
   };
 
   readonly changePlan: {

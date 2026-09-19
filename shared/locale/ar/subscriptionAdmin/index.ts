@@ -39,7 +39,7 @@ export const subscriptionAdminAr: SubscriptionAdminLabels = {
     title: "إلغاء الاشتراك",
     message: "يؤدي الإلغاء إلى إنهاء هذا الاشتراك مع إبقاء أرصدة جلسات الطالب كما هي دون أي تغيير.",
     reasonLabel: "السبب (اختياري)",
-    reasonHelper: "حتى 200 حرف، ويُسجَّل في سجل التدقيق.",
+    reasonCounter: (count, max) => `${count}/${max} — حتى ${max} حرفاً، ويُسجَّل في سجل التدقيق.`,
   },
   changePlan: {
     title: "تغيير الخطة",
@@ -47,15 +47,58 @@ export const subscriptionAdminAr: SubscriptionAdminLabels = {
       "يُلغى الاشتراك الحالي وتفتح فترة جديدة على الخطة المحددة. لا تصلح إلا الخطط النشطة التي تُقيَّد على مسار الرصيد نفسه.",
     planLabel: "الخطة الجديدة",
     noPlans: "لا توجد خطة نشطة أخرى تُقيَّد على مسار الرصيد نفسه.",
-    carried: carry => `تم تغيير الخطة — تم ترحيل ${carry} جلسة إلى الخطة الجديدة.`,
-    forfeited: forfeit => `تم تغيير الخطة — تمت مصادرة ${forfeit} جلسة متبقية من الخطة السابقة.`,
+    carried: carry => {
+      if (carry === 1) return "تم تغيير الخطة — تم ترحيل جلسة واحدة إلى الخطة الجديدة.";
+      if (carry === 2) return "تم تغيير الخطة — تم ترحيل جلستين إلى الخطة الجديدة.";
+      // CLDR Arabic classes: one/two apply to n = 1/2 EXACTLY; few = 3–10
+      // (counted plural جلسات); many = 11–99 (tamyiz singular جلسة);
+      // everything else — including 100/101/102 and their ×100 re-entries
+      // — is `other` (same tamyiz form). Mirrors the adminBroadcasts
+      // counted-copy mechanism.
+      const cycle = carry % 100;
+      if (cycle >= 3 && cycle <= 10) return `تم تغيير الخطة — تم ترحيل ${carry} جلسات إلى الخطة الجديدة.`;
+      return `تم تغيير الخطة — تم ترحيل ${carry} جلسة إلى الخطة الجديدة.`;
+    },
+    forfeited: forfeit => {
+      if (forfeit === 1) return "تم تغيير الخطة — تمت مصادرة جلسة واحدة متبقية من الخطة السابقة.";
+      if (forfeit === 2) return "تم تغيير الخطة — تمت مصادرة جلستين متبقيتين من الخطة السابقة.";
+      // Same CLDR class branches as `carried` (few = counted plural, other
+      // = tamyiz singular).
+      const cycle = forfeit % 100;
+      if (cycle >= 3 && cycle <= 10) return `تم تغيير الخطة — تمت مصادرة ${forfeit} جلسات متبقية من الخطة السابقة.`;
+      return `تم تغيير الخطة — تمت مصادرة ${forfeit} جلسة متبقية من الخطة السابقة.`;
+    },
   },
   success: {
-    extend: days => `تم تمديد الاشتراك ${days} يوم.`,
+    extend: days => {
+      if (days === 1) return "تم تمديد الاشتراك يوماً واحداً.";
+      if (days === 2) return "تم تمديد الاشتراك يومين.";
+      // CLDR Arabic classes: one/two apply to n = 1/2 EXACTLY; few = 3–10
+      // (counted plural أيام); many = 11–99 (tamyiz singular يوماً);
+      // everything else — including 100/101/102 and their ×100 re-entries
+      // — is `other` (same tamyiz form).
+      const cycle = days % 100;
+      if (cycle >= 3 && cycle <= 10) return `تم تمديد الاشتراك ${days} أيام.`;
+      return `تم تمديد الاشتراك ${days} يوماً.`;
+    },
     renew: "تم تجديد الاشتراك — فترة جديدة نشطة الآن.",
     cancel: "تم إلغاء الاشتراك. أُبقيت أرصدة الجلسات كما هي.",
-    planChangeCarried: carry => `تم تغيير الخطة — تم ترحيل ${carry} جلسة.`,
-    planChangeForfeited: forfeit => `تم تغيير الخطة — تمت مصادرة ${forfeit} جلسة متبقية.`,
+    planChangeCarried: carry => {
+      if (carry === 1) return "تم تغيير الخطة — تم ترحيل جلسة واحدة.";
+      if (carry === 2) return "تم تغيير الخطة — تم ترحيل جلستين.";
+      // Same CLDR class branches as `changePlan.carried`.
+      const cycle = carry % 100;
+      if (cycle >= 3 && cycle <= 10) return `تم تغيير الخطة — تم ترحيل ${carry} جلسات.`;
+      return `تم تغيير الخطة — تم ترحيل ${carry} جلسة.`;
+    },
+    planChangeForfeited: forfeit => {
+      if (forfeit === 1) return "تم تغيير الخطة — تمت مصادرة جلسة واحدة متبقية.";
+      if (forfeit === 2) return "تم تغيير الخطة — تمت مصادرة جلستين متبقيتين.";
+      // Same CLDR class branches as `changePlan.carried`.
+      const cycle = forfeit % 100;
+      if (cycle >= 3 && cycle <= 10) return `تم تغيير الخطة — تمت مصادرة ${forfeit} جلسات متبقية.`;
+      return `تم تغيير الخطة — تمت مصادرة ${forfeit} جلسة متبقية.`;
+    },
   },
   errorState: {
     title: "تعذر تحميل الاشتراكات",

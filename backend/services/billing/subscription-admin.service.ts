@@ -82,18 +82,20 @@ import { AuditService } from "@/backend/services/admin/audit.service";
 import { MAX_INTERVAL_DAYS } from "@/backend/services/billing/plan-catalog.helpers";
 import {
   buildSubscriptionAuditContract,
-  insertRenewedSubscription,
   MS_PER_DAY,
   normalizeCancelReason,
   readRenewalPlan,
+  renewClaimKey,
   resolveCancelDenial,
   resolveRenewalReplayRow,
-  SUBSCRIPTION_ADMIN_CLAIM_PREFIXES,
-  settleRenewalSideEffects,
   toSubscriptionAdminDomainError,
   toSubscriptionAdminReturnType,
 } from "@/backend/services/billing/subscription-admin.helpers";
 import { coerceUserId } from "@/backend/services/billing/subscription-admin-read.helpers";
+import {
+  insertRenewedSubscription,
+  settleRenewalSideEffects,
+} from "@/backend/services/billing/subscription-admin-settle.helpers";
 import { changeSubscriptionPlanFlow } from "@/backend/services/billing/subscription-plan-change.helpers";
 import type {
   CancelSubscriptionSubmitInput,
@@ -171,12 +173,14 @@ export namespace SubscriptionAdminService {
     }
 
     // Pre-arithmetic bounds — the window math multiplies this value into
-    // Date milliseconds, so a non-finite count or one already past the
-    // catalog's interval ceiling is rejected BEFORE the arithmetic (the
+    // Date milliseconds, so a count already past the catalog's interval
+    // ceiling is rejected BEFORE the arithmetic (the integer gate above
+    // already rejected every non-finite value — `Number.isInteger` is
+    // false for NaN/±Infinity — so only the ceiling remains here; the
     // resulting-window guard below re-asserts the ceiling against the
     // row's actual anchor).
-    if (!Number.isFinite(input.days) || input.days > MAX_INTERVAL_DAYS) {
-      logger.logDomainError("Subscription extend denied: day count is non-finite or exceeds the interval ceiling", {
+    if (input.days > MAX_INTERVAL_DAYS) {
+      logger.logDomainError("Subscription extend denied: day count exceeds the interval ceiling", {
         code: "VALIDATION",
         entity: "subscriptions",
         entityId: input.subscriptionId,
@@ -316,7 +320,7 @@ export namespace SubscriptionAdminService {
         // namespace from the source row's id — the caller never supplies
         // claim material on this surface, and the purchase boundary
         // rejects client keys under the same prefix (no squatting).
-        const claimKey = `${SUBSCRIPTION_ADMIN_CLAIM_PREFIXES.renew}:${source.id}`;
+        const claimKey = renewClaimKey(source.id);
         let claim: SubscriptionPurchaseIdempotencySelectType;
         try {
           claim = await scopedTx.transaction(claimTx =>
@@ -412,7 +416,7 @@ export namespace SubscriptionAdminService {
           // Zero rows = replay, wrong state, or a missing row — the fresh
           // read disambiguates and the chosen denial mints nothing.
           const current = await SubscriptionRepository.findById(input.subscriptionId, scopedTx);
-          resolveCancelDenial(input.subscriptionId, current, tErrors);
+          resolveCancelDenial(input.subscriptionId, current, tErrors, "cancel");
         }
 
         // Exactly ONE audit row shares the transaction's fate. The

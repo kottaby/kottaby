@@ -31,9 +31,16 @@ interface SubscriptionActionDialogsProps {
   readonly actions: UseSubscriptionAdminActionsResult;
   /** The admin plan catalog (the change-plan selector's raw candidates). */
   readonly plans: readonly AdminPlanItem[];
+  /** True while the section's plan catalog read is still loading. */
+  readonly plansLoading: boolean;
 }
 
-export function SubscriptionActionDialogs({ controller, actions, plans }: SubscriptionActionDialogsProps): ReactNode {
+export function SubscriptionActionDialogs({
+  controller,
+  actions,
+  plans,
+  plansLoading,
+}: SubscriptionActionDialogsProps): ReactNode {
   const { openDialog, actionError, closeDialog, runAction } = controller;
   if (openDialog === null) {
     return null;
@@ -91,6 +98,7 @@ export function SubscriptionActionDialogs({ controller, actions, plans }: Subscr
       open
       subscription={row}
       plans={eligibleChangePlanTargets(plans, row.planId, row.plan.balanceLane)}
+      plansLoading={plansLoading}
       loading={actions.loading.changePlan}
       error={actionError}
       onClose={closeDialog}
