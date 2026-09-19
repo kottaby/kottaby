@@ -1,0 +1,4 @@
+## 2026-09-19 - URL-encoded Open Redirect and CRLF Injection Prevention
+**Vulnerability:** Open redirect helpers checking `raw.startsWith("/")` or `URL(raw, base)` without decoding URI components can be bypassed using URL-encoded backslashes (`%5C`, `%5c`), double slashes (`%2f%2f`), or CRLF control characters (`%0d%0a`).
+**Learning:** Checking raw string prefixes (`raw.startsWith("/")`) is insufficient because browsers/frameworks decode URL components upon redirection or navigation, potentially transforming `%5C` into `\` (which WHATWG parses as `/` in authority contexts) or `%0d%0a` into HTTP response header delimiters.
+**Prevention:** Always validate both raw and URL-decoded (`decodeURIComponent(raw)`) representations when enforcing same-origin relative path redirects and validating control characters.
