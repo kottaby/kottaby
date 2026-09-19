@@ -1,10 +1,13 @@
 "use client";
 
 import { Card, Skeleton, Stack, Typography } from "@mui/material";
-import { type ReactNode, useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 import type { ParentChildReportsQuery_parentChildReports_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
-import { isDeepLinkTargetRow } from "@/frontend/views/parent/monitoring/ParentChildDetailContainer.helpers";
+import {
+  deepLinkRowSx,
+  useDeepLinkRowHighlight,
+} from "@/frontend/views/parent/monitoring/ParentChildDetailContainer.helpers";
 import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 
 /**
@@ -59,13 +62,7 @@ export function EvaluationRow({
   locale: string;
   deepLinkSessionId: number | null;
 }>): ReactNode {
-  const rowRef = useRef<HTMLDivElement | null>(null);
-  const isDeepLinkTarget = isDeepLinkTargetRow(deepLinkSessionId, row.sessionId);
-  useEffect(() => {
-    if (isDeepLinkTarget && rowRef.current !== null) {
-      rowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [isDeepLinkTarget]);
+  const { rowRef, isDeepLinkTarget } = useDeepLinkRowHighlight(deepLinkSessionId, row.sessionId);
   const dateIso = row.sessionStartedAt ?? row.createdAt;
   const score = row.studentRatingByTeacher;
   const scoreLabel = score === null ? labels.ratingNotRated : `${score}`;
@@ -77,17 +74,7 @@ export function EvaluationRow({
       variant="outlined"
       data-testid="parent-evaluations-row"
       aria-current={isDeepLinkTarget ? "true" : undefined}
-      sx={theme => ({
-        display: "flex",
-        flexDirection: "column",
-        gap: 1,
-        padding: { xs: 2, sm: 2.5 },
-        borderRadius: 2,
-        borderColor: isDeepLinkTarget ? theme.palette.primary.main : theme.palette.border.main,
-        borderWidth: isDeepLinkTarget ? 2 : 1,
-        borderInlineStart: 4,
-        borderInlineStartColor: isDeepLinkTarget ? theme.palette.primary.main : theme.palette.divider,
-      })}
+      sx={deepLinkRowSx(isDeepLinkTarget)}
     >
       <Typography variant="body2" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
         {formatApplicantDate(dateIso, locale)}

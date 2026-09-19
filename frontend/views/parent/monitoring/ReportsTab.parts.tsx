@@ -2,9 +2,13 @@
 
 import { CalendarMonthOutlined, DescriptionOutlined, StarOutlined } from "@mui/icons-material";
 import { Box, Card, Chip, Skeleton, Stack, Typography } from "@mui/material";
-import { type ReactNode, useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 import type { ParentChildReportsQuery_parentChildReports_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import {
+  deepLinkRowSx,
+  useDeepLinkRowHighlight,
+} from "@/frontend/views/parent/monitoring/ParentChildDetailContainer.helpers";
 import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
 
 const REPORTS_SKELETON_KEYS: readonly string[] = ["reports-skeleton-1", "reports-skeleton-2", "reports-skeleton-3"];
@@ -50,13 +54,7 @@ export function ReportRow({
   locale: string;
   deepLinkSessionId: number | null;
 }>): ReactNode {
-  const rowRef = useRef<HTMLDivElement | null>(null);
-  const isDeepLinkTarget = deepLinkSessionId !== null && deepLinkSessionId === row.sessionId;
-  useEffect(() => {
-    if (isDeepLinkTarget && rowRef.current !== null) {
-      rowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [isDeepLinkTarget]);
+  const { rowRef, isDeepLinkTarget } = useDeepLinkRowHighlight(deepLinkSessionId, row.sessionId);
   const dateIso = row.sessionStartedAt ?? row.createdAt;
   const rating = row.studentRatingByTeacher;
   const ratingLabel = rating === null ? labels.ratingNotRated : `${rating}`;
@@ -67,21 +65,7 @@ export function ReportRow({
       variant="outlined"
       data-testid="parent-reports-row"
       aria-current={isDeepLinkTarget ? "true" : undefined}
-      sx={theme => ({
-        display: "flex",
-        flexDirection: "column",
-        gap: 1.5,
-        padding: { xs: 2, sm: 2.5 },
-        borderRadius: 2,
-        borderColor: isDeepLinkTarget ? theme.palette.primary.main : theme.palette.border.main,
-        borderWidth: isDeepLinkTarget ? 2 : 1,
-        borderInlineStart: 4,
-        borderInlineStartColor: isDeepLinkTarget ? theme.palette.primary.main : theme.palette.divider,
-        transition: theme.transitions.create(["box-shadow", "border-color"], {
-          duration: theme.transitions.duration.shorter,
-        }),
-        "&:hover": { boxShadow: theme.shadows[3] },
-      })}
+      sx={deepLinkRowSx(isDeepLinkTarget)}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         <CalendarMonthOutlined sx={theme => ({ fontSize: 18, color: theme.palette.text.secondary })} />
