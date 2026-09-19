@@ -84,7 +84,7 @@ async function collectSessionPages(
 }
 
 /** Lists every session of the demo student (newest first) through the production participant read. */
-function listAllDemoSessions(studentUserId: number): Promise<readonly SessionReturnType[]> {
+export function listAllDemoSessions(studentUserId: number): Promise<readonly SessionReturnType[]> {
   return collectSessionPages(studentUserId, 1, []);
 }
 
@@ -97,9 +97,15 @@ async function drainScheduledSession(teacherUserId: number, sessionId: number, l
 /**
  * Advances every in-flight demo session to `completed`. Cancelled and
  * disputed rows are left untouched — those states are owned by their own
- * flows, not by demo reconciliation.
+ * flows, not by demo reconciliation. Exported for the sibling
+ * demo-paid-flow step, whose concurrent-replay arm reuses the exact
+ * production-path drain.
  */
-async function drainInFlightSessions(studentUserId: number, teacherUserId: number, locale: string): Promise<number> {
+export async function drainInFlightSessions(
+  studentUserId: number,
+  teacherUserId: number,
+  locale: string
+): Promise<number> {
   const sessions = await listAllDemoSessions(studentUserId);
   let drained = 0;
   await walkSequentially(
@@ -124,9 +130,12 @@ async function drainInFlightSessions(studentUserId: number, teacherUserId: numbe
  * adds the previous-grades block (it grades the student's newest ungraded
  * homework row through the production write-once path); a concurrent or
  * prior grader surfaces as a conflict, which the retry-without-grades arm
- * absorbs — the report itself must still land.
+ * absorbs — the report itself must still land. Exported for the sibling
+ * demo-paid-flow step, which reuses the exact production-path report
+ * submission (and its conflict-absorbing retry arm) for the
+ * subscription-funded session.
  */
-async function submitDemoReport(
+export async function submitDemoReport(
   teacherUserId: number,
   sessionId: number,
   locale: string,
@@ -163,9 +172,14 @@ async function submitDemoReport(
  * its homework assignment settle together, so each submission also attaches
  * the demo homework. The second and later submissions carry previous grades
  * so a freshly seeded sandbox shows both an ungraded and a graded homework
- * row in the parent portal.
+ * row in the parent portal. Exported for the sibling demo-paid-flow step,
+ * whose concurrent-replay arm reuses the exact production-path reporting.
  */
-async function reportCompletedSessions(studentUserId: number, teacherUserId: number, locale: string): Promise<number> {
+export async function reportCompletedSessions(
+  studentUserId: number,
+  teacherUserId: number,
+  locale: string
+): Promise<number> {
   const sessions = await listAllDemoSessions(studentUserId);
   const oldestFirst = sessions.filter(row => row.status === COMPLETED_STATUS).toReversed();
   let submitted = 0;
@@ -181,7 +195,7 @@ async function reportCompletedSessions(studentUserId: number, teacherUserId: num
 }
 
 /** Counts the demo student's completed sessions that already carry a report. */
-async function countReportedSessions(studentUserId: number, locale: string): Promise<number> {
+export async function countReportedSessions(studentUserId: number, locale: string): Promise<number> {
   const sessions = await listAllDemoSessions(studentUserId);
   const completed = sessions.filter(row => row.status === COMPLETED_STATUS);
   let reported = 0;

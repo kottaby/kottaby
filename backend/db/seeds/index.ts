@@ -6,7 +6,7 @@ import {
   type SeedConfig,
   type SeedStepResult,
 } from "@/backend/db/seeds/lib";
-import { seedOrGetDemoSessionFlow, seedOrGetParentLinkage } from "@/backend/db/seeds/parents";
+import { seedOrGetDemoPaidFlow, seedOrGetDemoSessionFlow, seedOrGetParentLinkage } from "@/backend/db/seeds/parents";
 import { seedOrGetStudents } from "@/backend/db/seeds/students";
 import { getDemoAdminActorId, seedOrGetUsers } from "@/backend/db/seeds/users";
 import { logger } from "@/backend/lib/logger";
@@ -54,6 +54,19 @@ export async function runAllSeeds(config?: SeedConfig): Promise<void> {
   // arm when the demo student's balance lanes are exhausted.
   const sessionFlowStep = await runSeedStep("demo-session-flow", () => seedOrGetDemoSessionFlow());
   stepResults.push(sessionFlowStep);
+
+  // Step 6: Demo paid flow (student confirmations → active subscription →
+  // subscription-funded paid session). Depends on Step 5: the confirm arm
+  // reconciles that step's completed trial session (its student stamp is
+  // what credits the teacher's wallet), and the booking path denies an
+  // uncertified demo teacher. Purchases through the production purchase
+  // flow and settles through the production activation entry — the built-in
+  // mock gateway settles in development runtimes only. Idempotent — each
+  // arm skips when its target state already holds; a stranded pending
+  // purchase from a partial earlier run is settled (recovered) instead of
+  // re-purchased.
+  const paidFlowStep = await runSeedStep("demo-paid-flow", () => seedOrGetDemoPaidFlow());
+  stepResults.push(paidFlowStep);
 
   logFailedSeedSteps(stepResults);
 
