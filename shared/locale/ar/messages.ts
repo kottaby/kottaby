@@ -12,6 +12,7 @@ import { commonAr } from "@/shared/locale/ar/common";
 import { dashboardAr } from "@/shared/locale/ar/dashboard";
 import { errorsAr } from "@/shared/locale/ar/errors";
 import { handshakeCodeAr } from "@/shared/locale/ar/handshakeCode";
+import { homeworkAr } from "@/shared/locale/ar/homework";
 import { landingAr } from "@/shared/locale/ar/landing";
 import { notificationsAr } from "@/shared/locale/ar/notifications";
 import { parentLinkAr } from "@/shared/locale/ar/parentLink";
@@ -44,6 +45,7 @@ export const arMessages: Translations = {
   adminSessionGovernanceTranslations: adminSessionGovernanceAr,
   notificationsTranslations: notificationsAr,
   handshakeCodeTranslations: handshakeCodeAr,
+  homeworkTranslations: homeworkAr,
   parentLinkTranslations: parentLinkAr,
   parentMonitoringTranslations: parentMonitoringAr,
   analyticsTranslations: analyticsAr,

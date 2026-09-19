@@ -13,6 +13,7 @@ export * from "./dashboard";
 export * from "./define-namespace";
 export * from "./errors";
 export * from "./handshakeCode";
+export * from "./homework";
 export * from "./landing";
 export * from "./notifications";
 export * from "./parentLink";

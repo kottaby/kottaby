@@ -12,6 +12,7 @@ import type { CommonLabels } from "@/shared/locale/types/common";
 import type { DashboardLabels } from "@/shared/locale/types/dashboard";
 import type { ErrorsLabels } from "@/shared/locale/types/errors";
 import type { HandshakeCodeLabels } from "@/shared/locale/types/handshakeCode";
+import type { HomeworkLabels } from "@/shared/locale/types/homework";
 import type { LandingLabels } from "@/shared/locale/types/landing";
 import type { NotificationsLabels } from "@/shared/locale/types/notifications";
 import type { ParentLinkLabels } from "@/shared/locale/types/parentLink";
@@ -43,6 +44,7 @@ export interface Translations {
   adminSessionGovernanceTranslations: AdminSessionGovernanceLabels;
   notificationsTranslations: NotificationsLabels;
   handshakeCodeTranslations: HandshakeCodeLabels;
+  homeworkTranslations: HomeworkLabels;
   parentLinkTranslations: ParentLinkLabels;
   parentMonitoringTranslations: ParentMonitoringLabels;
   analyticsTranslations: AnalyticsLabels;
