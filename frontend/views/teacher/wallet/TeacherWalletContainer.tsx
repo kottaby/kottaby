@@ -71,16 +71,20 @@ export function TeacherWalletContainer(): ReactNode {
 
   const { data, loading, error } = useQuery(myWalletQueryDocument);
 
-  const withdraw = useTeacherWalletWithdraw({ setNotice });
-
-  const walletRow = data?.myWallet;
-
   // The ledger "load more" machine — a failed older-window fetch surfaces
   // through the shared snackbar (the ledger itself stays as-is).
   const handleLedgerError = useCallback((): void => {
     setNotice({ severity: "error", message: t.genericError });
   }, [t]);
-  const paging = useWalletLedgerPaging(walletRow?.transactions, handleLedgerError);
+  const paging = useWalletLedgerPaging(handleLedgerError);
+  // A settlement reshuffles the ledger — re-base it on a fresh first page.
+  const handleWithdrawSettled = useCallback((): void => {
+    paging.reset();
+  }, [paging]);
+
+  const withdraw = useTeacherWalletWithdraw({ setNotice, onSettled: handleWithdrawSettled });
+
+  const walletRow = data?.myWallet;
 
   return (
     <Stack

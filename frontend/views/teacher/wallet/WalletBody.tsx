@@ -39,7 +39,7 @@ export function WalletBody({ loading, error, data, locale, t, paging }: Readonly
   // the GraphQL `WALLET_TEACHER_PROFILE_MISSING` transport message and the UI
   // empty-state body are the SAME string, so they can never drift.
   const te = useAppTranslation(Errors);
-  if (loading && data === undefined) {
+  if ((loading && data === undefined) || paging.loading) {
     return (
       <Stack spacing={1.5} data-testid="wallet-loading-skeleton">
         {[0, 1, 2].map(index => (
@@ -77,6 +77,16 @@ export function WalletBody({ loading, error, data, locale, t, paging }: Readonly
   }
   if (data === undefined) {
     return null;
+  }
+  // The ledger is its own paginated read — if its first page failed with
+  // nothing to show, render the honest error notice instead of fabricating
+  // an empty history.
+  if (paging.errored) {
+    return (
+      <Alert data-testid="wallet-error-notice" severity="error" variant="outlined" sx={{ borderRadius: 2 }}>
+        {t.genericError}
+      </Alert>
+    );
   }
   const transactions = paging.rows;
   if (transactions.length === 0) {
