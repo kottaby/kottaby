@@ -6,6 +6,7 @@ import {
   HourglassEmptyOutlined,
   PrintOutlined,
   ReplayOutlined,
+  SearchOffOutlined,
   TaskAltOutlined,
 } from "@mui/icons-material";
 import { Box, ButtonBase, Card, Chip, IconButton, Skeleton, Stack, Tooltip, Typography } from "@mui/material";
@@ -17,9 +18,12 @@ import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { DashboardStatCard } from "@/frontend/views/dashboard/home/DashboardStatCard";
 import { HomeworkTrackBlock } from "@/frontend/views/parent/monitoring/HomeworkTab.parts.helpers";
+import { SearchFilterBar } from "@/frontend/views/parent/monitoring/SearchFilterBar";
+import { DEFAULT_SORT, type SearchFilterState } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
 import { type PrintableRow, PrintExportDialog } from "@/frontend/views/shared/print-export/PrintExportDialog";
 import {
   computeHomeworkSummary,
+  filterHomeworkByQuery,
   filterHomeworkByStatus,
   type HomeworkStatusFilter,
   type HomeworkSummary,
@@ -40,6 +44,15 @@ import type { HomeworkLabels } from "@/shared/locale/types/homework";
  * summary strip partitions the WHOLE history honestly: graded = at least
  * one track grade recorded, pending = nothing graded yet; both buckets
  * render even at zero.
+ *
+ * Search + filter — TWO composable lenses over the same rows: the summary
+ * cards toggle the status bucket (the same predicate the strip computes)
+ * and the shared `SearchFilterBar` free-text lens matches passage refs /
+ * the locale-rendered date. The bar is the SHARED component the parent
+ * portal's homework tab renders (search-only here — the rating/sort
+ * selects stay parent-owned), fed namespace-local copy; the matching
+ * predicate is the same shared one, so the two homework surfaces can
+ * never disagree on what "matches".
  *
  * Track blocks — the SHARED `HomeworkTrackBlock` presentation (the same
  * component the parent portal's homework tab renders), fed namespace-local
@@ -77,6 +90,10 @@ export function HomeworkContainer(): ReactNode {
   // permission-fallback surface exists to disambiguate).
   const isError = error !== undefined && extractErrorCode(error) !== null;
   const [statusFilter, setStatusFilter] = useState<HomeworkStatusFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const onSearchChange = (next: SearchFilterState) => {
+    setSearchQuery(next.query);
+  };
 
   return (
     <Stack data-testid="student-homework-view" sx={{ gap: 3 }}>
@@ -101,6 +118,8 @@ export function HomeworkContainer(): ReactNode {
         printableRows={printableRows}
         statusFilter={statusFilter}
         onStatusFilter={setStatusFilter}
+        searchQuery={searchQuery}
+        onSearchChange={onSearchChange}
       />
     </Stack>
   );
@@ -126,9 +145,23 @@ function HomeworkBody(
     printableRows: readonly PrintableRow[];
     statusFilter: HomeworkStatusFilter;
     onStatusFilter: (filter: HomeworkStatusFilter) => void;
+    searchQuery: string;
+    onSearchChange: (next: SearchFilterState) => void;
   }>
 ): ReactNode {
-  const { rows, labels: t, locale } = props;
+  const { rows, labels: t, locale, searchQuery } = props;
+  // The composed view: status bucket FIRST (the summary strip's own
+  // predicate), then the free-text lens. Computed before the branch
+  // matrix — hooks may not sit behind conditional returns.
+  const visibleRows = useMemo(() => {
+    if (rows === undefined) {
+      return undefined;
+    }
+    const statusFiltered = filterHomeworkByStatus(rows, props.statusFilter);
+    return filterHomeworkByQuery(statusFiltered, searchQuery, (row, q) =>
+      formatApplicantDate(row.createdAt, locale).toLowerCase().includes(q)
+    );
+  }, [rows, props.statusFilter, searchQuery, locale]);
   if (rows === undefined) {
     if (props.isError) {
       return (
@@ -147,7 +180,7 @@ function HomeworkBody(
     return <HomeworkSkeleton loadingLabel={props.loadingLabel} />;
   }
   const summary = computeHomeworkSummary(rows);
-  const visibleRows = filterHomeworkByStatus(rows, props.statusFilter);
+  const settledVisibleRows = visibleRows ?? rows;
   return (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
       <SummaryStrip summary={summary} labels={t} active={props.statusFilter} onToggle={props.onStatusFilter} />
@@ -179,8 +212,19 @@ function HomeworkBody(
             </IconButton>
           </Tooltip>
         </Box>
+        {rows.length > 0 ? (
+          <SearchFilterBar
+            state={{ query: searchQuery, ratingFilter: null, sort: DEFAULT_SORT }}
+            labels={t}
+            onChange={props.onSearchChange}
+            resultCount={settledVisibleRows.length}
+            totalCount={rows.length}
+            showRatingFilter={false}
+            showSortFilter={false}
+          />
+        ) : null}
         <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })} aria-live="polite">
-          {t.countLine(visibleRows.length)}
+          {t.countLine(settledVisibleRows.length)}
         </Typography>
         {rows.length === 0 ? (
           <IconCircleEmptyState
@@ -190,7 +234,7 @@ function HomeworkBody(
             body={props.emptyBody}
           />
         ) : (
-          <HomeworkListBody visibleRows={visibleRows} labels={t} locale={locale} />
+          <HomeworkListBody visibleRows={settledVisibleRows} labels={t} locale={locale} searchQuery={searchQuery} />
         )}
       </Stack>
       {props.printOpen ? (
@@ -213,20 +257,34 @@ function HomeworkBody(
 }
 
 /**
- * The list body under the "all" history: a filtered-bucket empty state
- * when the active summary card has no rows, otherwise the assignment
- * cards (each annotated with its own status chip).
+ * The list body under the "all" history: three empty arms, honestly
+ * distinguished — a zero-match SEARCH keeps the state explicit (the bar
+ * stays mounted above it, so the query is always clearable), a zero-match
+ * STATUS bucket explains the toggle, and rows render with their per-card
+ * status chips otherwise.
  */
 function HomeworkListBody({
   visibleRows,
   labels: t,
   locale,
+  searchQuery,
 }: Readonly<{
   visibleRows: readonly MyHomeworkQuery_myHomework_items[];
   labels: HomeworkLabels;
   locale: string;
+  searchQuery: string;
 }>): ReactNode {
   if (visibleRows.length === 0) {
+    if (searchQuery.trim() !== "") {
+      return (
+        <IconCircleEmptyState
+          testId="student-homework-search-empty"
+          icon={<SearchOffOutlined sx={{ fontSize: 36 }} />}
+          title={t.searchNoResults}
+          body={t.searchEmptyBody}
+        />
+      );
+    }
     return (
       <IconCircleEmptyState
         testId="student-homework-filtered-empty"

@@ -9,12 +9,10 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import {
-  type MyHomeworkQuery_myHomework_items,
-  SurahJuzRef,
-} from "@/frontend/graphql/generated/gql/graphql";
+import { type MyHomeworkQuery_myHomework_items, SurahJuzRef } from "@/frontend/graphql/generated/gql/graphql";
 import {
   computeHomeworkSummary,
+  filterHomeworkByQuery,
   filterHomeworkByStatus,
   toggleHomeworkFilter,
   toPrintableRows,
@@ -136,5 +134,52 @@ describe("status filter — one partition, two views", () => {
   test("toggle: the all card always resets to the unfiltered view", () => {
     expect(toggleHomeworkFilter("all", "all")).toBe("all");
     expect(toggleHomeworkFilter("graded", "all")).toBe("all");
+  });
+});
+
+describe("filterHomeworkByQuery — shared search vocabulary", () => {
+  const rows = [row(1, 92, 88), row(2, null, null), row(3, null, 81)];
+  const anyDate = () => true;
+  const noDate = () => false;
+
+  test("a blank query returns the SAME array reference (no copy, no reorder)", () => {
+    expect(filterHomeworkByQuery(rows, "", anyDate)).toBe(rows);
+    expect(filterHomeworkByQuery(rows, "   ", anyDate)).toBe(rows);
+  });
+
+  test("matches the Jadid passage ref, case-insensitively", () => {
+    const hits = filterHomeworkByQuery(rows, "JUZ", noDate);
+    // Only row 1 carries a Jadid assignment (juz_30); rows 2/3 have none.
+    expect(hits.map(r => r.id)).toEqual(["1"]);
+  });
+
+  test("matches the Madi passage ref", () => {
+    const hits = filterHomeworkByQuery(rows, "maidah", noDate);
+    // row 1 madi = surah_al_maidah, row 3 madi = surah_al_maidah; row 2 has no tracks.
+    expect(hits.map(r => r.id)).toEqual(["1", "3"]);
+  });
+
+  test("matches through the injected date matcher (locale rendering)", () => {
+    const hits = filterHomeworkByQuery(rows, "SEP", noDate);
+    expect(hits).toHaveLength(0);
+    // The container injects the LOCALE-RENDERED date as the matcher's
+    // haystack — simulate it by matching the query against a fixed token.
+    const dateHits = filterHomeworkByQuery(rows, "sep", (_row, q) => q === "sep");
+    expect(dateHits).toHaveLength(3);
+  });
+
+  test("a whitespace-padded query is trimmed before matching", () => {
+    expect(filterHomeworkByQuery(rows, "  maidah  ", noDate).map(r => r.id)).toEqual(["1", "3"]);
+  });
+
+  test("no match → empty list (drives the search-empty state)", () => {
+    expect(filterHomeworkByQuery(rows, "zzz-no-hit", noDate)).toEqual([]);
+  });
+
+  test("composes with the status filter (status bucket first, then search)", () => {
+    const graded = filterHomeworkByStatus(rows, "graded");
+    const hits = filterHomeworkByQuery(graded, "maidah", noDate);
+    // rows 1 and 3 are the graded pair; row 2 (no tracks) stays pending.
+    expect(hits.map(r => r.id)).toEqual(["1", "3"]);
   });
 });

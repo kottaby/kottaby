@@ -34,4 +34,8 @@ export const homeworkEn: HomeworkLabels = {
   statusPendingChip: "Awaiting grade",
   filterEmptyTitle: "Nothing in this filter",
   filterEmptyBody: "No assignments match this status yet — select the card again (or All) to see your whole history.",
+  searchPlaceholder: "Search by passage or date...",
+  searchClearLabel: "Clear search",
+  searchNoResults: "No results match your search",
+  searchEmptyBody: "Try a different passage or date — or clear the search to see your whole history.",
 };

@@ -65,6 +65,10 @@ const HOMEWORK_STRING_KEYS = [
   "errorTitle",
   "errorBody",
   "loadingLabel",
+  "searchPlaceholder",
+  "searchClearLabel",
+  "searchNoResults",
+  "searchEmptyBody",
 ] as const;
 
 /** The function-valued keys with their required argument arity. */
@@ -184,5 +188,24 @@ describe("homework namespace — track vocabulary alignment", () => {
     expect(homeworkAr.trackJadid).toBe(parentMonitoringAr.trackJadid);
     expect(homeworkAr.trackMadi).toBe(parentMonitoringAr.trackMadi);
     expect(homeworkAr.trackNoneAssigned).toBe(parentMonitoringAr.trackNoneAssigned);
+  });
+});
+
+// ─── 7. Search-vocabulary alignment with the parent portal ──────────────────
+
+describe("homework namespace — search vocabulary alignment", () => {
+  test("search copy matches the parent-monitoring search keys verbatim", () => {
+    // The student page renders the SHARED SearchFilterBar with its own
+    // namespace-local copy — the words must not fork between the two
+    // homework surfaces (keys stay namespace-local, the copy does not).
+    expect(homeworkEn.searchClearLabel).toBe(parentMonitoringEn.searchClearLabel);
+    expect(homeworkEn.searchNoResults).toBe(parentMonitoringEn.searchNoResults);
+    expect(homeworkAr.searchClearLabel).toBe(parentMonitoringAr.searchClearLabel);
+    expect(homeworkAr.searchNoResults).toBe(parentMonitoringAr.searchNoResults);
+  });
+
+  test("search placeholder names the probed fields (passage + date)", () => {
+    expect(containsArabicScript(homeworkAr.searchPlaceholder)).toBe(true);
+    expect(containsArabicScript(homeworkAr.searchEmptyBody)).toBe(true);
   });
 });

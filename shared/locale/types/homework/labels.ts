@@ -86,4 +86,12 @@ export interface HomeworkLabels {
   readonly filterEmptyTitle: string;
   /** Filtered-empty body — how to get the whole history back. */
   readonly filterEmptyBody: string;
+  /** Search field placeholder (passage refs + date are probed). */
+  readonly searchPlaceholder: string;
+  /** Search field clear affordance aria-label. */
+  readonly searchClearLabel: string;
+  /** Search empty-state heading — nothing matches the query. */
+  readonly searchNoResults: string;
+  /** Search empty-state body — how to get the whole history back. */
+  readonly searchEmptyBody: string;
 }

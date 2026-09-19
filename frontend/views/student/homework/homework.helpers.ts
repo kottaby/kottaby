@@ -14,6 +14,7 @@
  */
 import type { MyHomeworkQuery_myHomework_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatSurahJuzRef } from "@/frontend/views/parent/monitoring/parentMonitoringDisplay";
+import { homeworkRowMatchesQuery } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
 import type { PrintableRow } from "@/frontend/views/shared/print-export/PrintExportDialog";
 
 /** The summary-strip partition over the student's whole homework history. */
@@ -98,4 +99,25 @@ export function toggleHomeworkFilter(
     return "all";
   }
   return current === clicked ? "all" : clicked;
+}
+
+/**
+ * The free-text search over the history: matches the Jadid/Madi passage
+ * refs and the locale-rendered assignment date, case-insensitively. A
+ * blank (or whitespace-only) query returns the input array UNCHANGED —
+ * same reference, no copy, no re-ordering — so the list keeps the API's
+ * order whenever no search is active. The matcher vocabulary is the
+ * shared `homeworkRowMatchesQuery` (the exact predicate the parent
+ * portal's homework tab runs), so the two homework surfaces can never
+ * drift apart on what "matches" means.
+ */
+export function filterHomeworkByQuery(
+  rows: readonly MyHomeworkQuery_myHomework_items[],
+  query: string,
+  dateMatcher: (row: MyHomeworkQuery_myHomework_items, query: string) => boolean
+): readonly MyHomeworkQuery_myHomework_items[] {
+  if (query.trim() === "") {
+    return rows;
+  }
+  return rows.filter(row => homeworkRowMatchesQuery(row, query, dateMatcher));
 }

@@ -39,4 +39,8 @@ export const homeworkAr: HomeworkLabels = {
   statusPendingChip: "بانتظار التقييم",
   filterEmptyTitle: "لا شيء في هذا التصنيف",
   filterEmptyBody: "لا واجبات تطابق هذا التصنيف بعد — اختر البطاقة مرة أخرى (أو الكل) لعرض كامل السجل.",
+  searchPlaceholder: "ابحث بالمقطع أو التاريخ...",
+  searchClearLabel: "مسح البحث",
+  searchNoResults: "لا توجد نتائج مطابقة لبحثك",
+  searchEmptyBody: "جرّب مقطعًا أو تاريخًا آخرًا — أو امسح البحث لعرض كامل السجل.",
 };
