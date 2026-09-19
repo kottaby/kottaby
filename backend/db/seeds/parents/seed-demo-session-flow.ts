@@ -42,6 +42,47 @@ const DEMO_TEACHER_NOTES =
   "Demo recitation session — confident memorization of the assigned passage; the revision span needs one more pass with attention to madd rules.";
 
 /**
+ * Report variants — submission-indexed so a fresh sandbox's demo reports
+ * carry distinct notes, ratings, and homework spans (identical copies
+ * read as synthetic data on the trend chart and the two homework
+ * surfaces). Variant 0 keeps the original copy; later submissions walk
+ * the array (clamped to the last variant).
+ */
+const DEMO_REPORT_VARIANTS: readonly {
+  readonly teacherNotes: string;
+  readonly rating: number;
+  readonly homework: {
+    readonly jadid: { readonly fromAyah: number; readonly toAyah: number; readonly surahJuz: SurahJuzRef };
+    readonly madi: { readonly fromAyah: number; readonly toAyah: number; readonly surahJuz: SurahJuzRef };
+  };
+}[] = [
+  {
+    teacherNotes: DEMO_TEACHER_NOTES,
+    rating: 5,
+    homework: DEMO_HOMEWORK,
+  },
+  {
+    teacherNotes:
+      "Demo recitation session — the new span settled well after repetition; revision was fluent today, keep the daily review rhythm going.",
+    rating: 4,
+    homework: {
+      jadid: { fromAyah: 11, toAyah: 20, surahJuz: SurahJuzRef.SurahAlMaidah },
+      madi: { fromAyah: 1, toAyah: 15, surahJuz: SurahJuzRef.Juz30 },
+    },
+  },
+];
+
+/** Picks the report copy for a submission slot (index-clamped to the last variant). */
+function reportVariant(submissionIndex: number): (typeof DEMO_REPORT_VARIANTS)[number] {
+  const index = Math.min(submissionIndex, DEMO_REPORT_VARIANTS.length - 1);
+  const variant = DEMO_REPORT_VARIANTS[index];
+  if (variant === undefined) {
+    throw new Error("demo report variants: empty vocabulary");
+  }
+  return variant;
+}
+
+/**
  * Session statuses as widened strings — the seeder compares the drizzle
  * row's status union against these, mirroring the services' guard-constant
  * doctrine (no raw enum-to-union comparison).
@@ -139,16 +180,18 @@ export async function submitDemoReport(
   teacherUserId: number,
   sessionId: number,
   locale: string,
-  withPreviousGrades: boolean
+  withPreviousGrades: boolean,
+  submissionIndex = 0
 ): Promise<void> {
+  const variant = reportVariant(submissionIndex);
   try {
     await SessionReportService.submitSessionReport(
       teacherUserId,
       sessionId,
       {
-        teacherNotes: DEMO_TEACHER_NOTES,
-        studentRatingByTeacher: 5,
-        homework: { ...DEMO_HOMEWORK },
+        teacherNotes: variant.teacherNotes,
+        studentRatingByTeacher: variant.rating,
+        homework: { ...variant.homework },
         previousGrades: withPreviousGrades ? { currentGrade: 92, revisionGrade: 88 } : undefined,
       },
       locale
@@ -161,7 +204,7 @@ export async function submitDemoReport(
     await SessionReportService.submitSessionReport(
       teacherUserId,
       sessionId,
-      { teacherNotes: DEMO_TEACHER_NOTES, studentRatingByTeacher: 5, homework: { ...DEMO_HOMEWORK } },
+      { teacherNotes: variant.teacherNotes, studentRatingByTeacher: variant.rating, homework: { ...variant.homework } },
       locale
     );
   }
@@ -188,7 +231,7 @@ export async function reportCompletedSessions(
     if (existing !== null) {
       return;
     }
-    await submitDemoReport(teacherUserId, target.id, locale, submitted > 0);
+    await submitDemoReport(teacherUserId, target.id, locale, submitted > 0, submitted);
     submitted += 1;
   });
   return submitted;
