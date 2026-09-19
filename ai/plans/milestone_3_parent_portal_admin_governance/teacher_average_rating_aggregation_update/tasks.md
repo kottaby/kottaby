@@ -117,17 +117,17 @@
 
 ## Phase 3 — Integrity Gates (zero-surface proof)
 
-### - [ ] 3.1 SDL + Schema Integrity Verification — no file edits (verification task)
+### - [x] 3.1 SDL + Schema Integrity Verification — no file edits (verification task)
 - Run `bun run generate:gqlSchema` and verify `git diff --stat frontend/graphql/generated/schema.graphql` is EMPTY (record raw output in the outcome). Do NOT run `bun codegen` (no SDL change).
 - Verify `git status backend/db/schema/ backend/drizzle/` shows zero modifications (zero-schema gate, `plan.md` §7).
 - Re-run the DEV2-016 GraphQL wire suite to prove the extension added no auth-bypass leg: `bun run test:graphql` (the existing `backend/graphql/test/student-evaluation.wire.test.ts` role/oracle matrix must stay green unmodified).
 - IF either gate shows a diff THEN STOP and record the drift in the outcome + re-open the review gate (0.2) — the plan's zero-surface claims are load-bearing.
 - _Requirements: REQ-008, REQ-003, REQ-002, REQ-009_
-- [ ] 3.1.QL **Quality Loop**: n/a (no edits; record the two diff-gates' raw output).
-- [ ] 3.1.TE **Test Engineering**: the wire-suite re-run IS the test leg (record suite counts).
-- [ ] 3.1.SEC **Security & Tenancy Audit**: the wire role matrix (student ✅ / teacher-parent-admin FORBIDDEN / anonymous UNAUTHORIZED) re-proven over the extended mutation.
-- [ ] 3.1.SR **Semantic Review**: confirm no stray edits escaped the planned file set (`git diff --name-only` vs the plan's artifact list).
-- [ ] 3.1.IV **Instruction Verification**: n/a (no code touched).
+- [x] 3.1.QL **Quality Loop**: n/a (no edits; record the two diff-gates' raw output).
+- [x] 3.1.TE **Test Engineering**: the wire-suite re-run IS the test leg (record suite counts).
+- [x] 3.1.SEC **Security & Tenancy Audit**: the wire role matrix (student ✅ / teacher-parent-admin FORBIDDEN / anonymous UNAUTHORIZED) re-proven over the extended mutation.
+- [x] 3.1.SR **Semantic Review**: confirm no stray edits escaped the planned file set (`git diff --name-only` vs the plan's artifact list).
+- [x] 3.1.IV **Instruction Verification**: n/a (no code touched).
 
 ---
 
