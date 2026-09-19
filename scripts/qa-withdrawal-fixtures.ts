@@ -44,7 +44,9 @@ async function main() {
     return;
   }
 
-  // Completed earnings spread across days (ledger variety)
+  // Completed earnings spread across days (ledger variety) — one bulk
+  // INSERT (pglite is single-connection; a per-row await loop is both
+  // slower and a lint violation).
   const earnings: Array<[string, string, number]> = [
     ["Quran circle — session payout", "150.00", 60 * 24 * 9],
     ["Quran circle — session payout", "180.00", 60 * 24 * 7],
@@ -52,16 +54,20 @@ async function main() {
     ["Hifz revision circle — session payout", "140.00", 60 * 24 * 3],
     ["Quran circle — session payout", "160.00", 60 * 24 * 1],
   ];
-  let earned = 0;
-  for (let i = 0; i < earnings.length; i++) {
-    const [desc, amount, minsAgo] = earnings[i];
-    await pg.query(
-      `INSERT INTO teacher_transaction (wallet_id, description, amount, type, status, created_at, updated_at)
-       VALUES ($1, $2, $3, 'earning', 'completed', $4, $4)`,
-      [walletId, desc, amount, iso(minsAgo)]
-    );
-    earned += Number(amount);
+  // Param layout: $1 = wallet id, then per earning a (desc, amount, ts)
+  // triple at $[2+3i], $[3+3i], $[4+3i] — the ts placeholder is reused for
+  // both created_at and updated_at.
+  const tuples = earnings.map((_, i) => `($1, $${2 + i * 3}, $${3 + i * 3}, 'earning', 'completed', $${4 + i * 3}, $${4 + i * 3})`);
+  const params: Array<string | number> = [walletId];
+  for (const [desc, amount, minsAgo] of earnings) {
+    params.push(desc, amount, iso(minsAgo));
   }
+  await pg.query(
+    `INSERT INTO teacher_transaction (wallet_id, description, amount, type, status, created_at, updated_at)
+     VALUES ${tuples.join(", ")}`,
+    params
+  );
+  const earned = earnings.reduce((sum, [, amount]) => sum + Number(amount), 0);
 
   // Completed withdrawal (settled 12h ago)
   await pg.query(
