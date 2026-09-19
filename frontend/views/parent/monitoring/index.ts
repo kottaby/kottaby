@@ -10,6 +10,9 @@
  * not part of the public surface.
  */
 
+// The print/export dialog moved to the domain-neutral shared home —
+// re-exported here so the portal's public surface is unchanged.
+export * from "@/frontend/views/shared/print-export/PrintExportDialog";
 export * from "./AttendanceCalendar";
 export * from "./AttendanceSummary";
 export * from "./AttendanceTab";
@@ -19,7 +22,6 @@ export * from "./HomeworkSummary";
 export * from "./HomeworkTab";
 export * from "./ParentChildDetailContainer";
 export * from "./ParentChildrenRootContainer";
-export * from "./PrintExportDialog";
 export * from "./ProgressSummary";
 export * from "./ProgressTab";
 export * from "./RatingTrendChart";

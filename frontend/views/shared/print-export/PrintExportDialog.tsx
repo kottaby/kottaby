@@ -4,13 +4,24 @@ import { CloseOutlined, DownloadOutlined, PrintOutlined } from "@mui/icons-mater
 import { Box, Button, Dialog, DialogContent, DialogTitle, IconButton, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
-import { ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
+import { useAppLocale } from "@/shared/locale";
 
 export interface PrintableRow {
   readonly date: string;
   readonly col2: string;
   readonly col3: string;
   readonly col4: string;
+}
+
+/**
+ * Caller-owned chrome copy — the dialog is domain-neutral, so every
+ * visible string arrives from the consuming surface's own namespace
+ * (the parent portal passes its monitoring labels, the student homework
+ * page passes the homework labels).
+ */
+export interface PrintExportLabels {
+  readonly printOption: string;
+  readonly exportCsvOption: string;
 }
 
 /**
@@ -29,26 +40,33 @@ function escapeCsv(value: string): string {
   return '"' + neutralizeCsvFormulas(value).replace(/"/g, '""').replace(/\r?\n/g, " ") + '"';
 }
 
+/**
+ * The shared print/CSV-export dialog. Domain-neutral: chrome copy arrives
+ * through `labels` (caller-owned namespace strings) and the CSV meta line
+ * names its subject through `metaSubject` (a child name on the parent
+ * portal, the surface title on the student page).
+ */
 export function PrintExportDialog({
   open,
   onClose,
   rows,
-  childName,
+  metaSubject,
   title,
   colHeaders,
   countLabel,
   filePrefix,
+  labels,
 }: Readonly<{
   open: boolean;
   onClose: () => void;
   rows: readonly PrintableRow[];
-  childName: string;
+  metaSubject: string;
   title: string;
   colHeaders: readonly [string, string, string, string];
   countLabel: (n: number) => string;
   filePrefix: string;
+  labels: PrintExportLabels;
 }>): ReactNode {
-  const t = useAppTranslation(ParentMonitoring);
   const locale = useAppLocale();
   const handlePrint = () => {
     onClose();
@@ -60,7 +78,7 @@ export function PrintExportDialog({
       [escapeCsv(row.date), escapeCsv(row.col2), escapeCsv(row.col3), escapeCsv(row.col4)].join(",")
     );
     const now = formatApplicantDate(new Date().toISOString(), locale);
-    const meta = escapeCsv(`# ${childName} — ${now}`);
+    const meta = escapeCsv(`# ${metaSubject} — ${now}`);
     const csv = [meta, header, ...lines].join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -90,7 +108,7 @@ export function PrintExportDialog({
             fullWidth
             sx={theme => ({ borderColor: theme.palette.primary.main, py: 1.5 })}
           >
-            {t.printOption}
+            {labels.printOption}
           </Button>
           <Button
             variant="contained"
@@ -99,7 +117,7 @@ export function PrintExportDialog({
             fullWidth
             sx={{ py: 1.5 }}
           >
-            {t.exportCsvOption}
+            {labels.exportCsvOption}
           </Button>
           <Box sx={theme => ({ mt: 1, p: 1.5, borderRadius: 1.5, bgcolor: theme.palette.action.hover })}>
             <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })}>

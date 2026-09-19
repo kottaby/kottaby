@@ -12,13 +12,16 @@ import { commonEn } from "@/shared/locale/en/common";
 import { dashboardEn } from "@/shared/locale/en/dashboard";
 import { errorsEn } from "@/shared/locale/en/errors";
 import { handshakeCodeEn } from "@/shared/locale/en/handshakeCode";
+import { homeworkEn } from "@/shared/locale/en/homework";
 import { landingEn } from "@/shared/locale/en/landing";
 import { notificationsEn } from "@/shared/locale/en/notifications";
 import { parentLinkEn } from "@/shared/locale/en/parentLink";
 import { parentMonitoringEn } from "@/shared/locale/en/parentMonitoring";
 import { plansEn } from "@/shared/locale/en/plans";
 import { recitationEn } from "@/shared/locale/en/recitation";
+import { scheduleEn } from "@/shared/locale/en/schedule";
 import { sessionsEn } from "@/shared/locale/en/sessions";
+import { upNextEn } from "@/shared/locale/en/upNext";
 import { walletEn } from "@/shared/locale/en/wallet";
 import type { Translations } from "@/shared/locale/types/message";
 
@@ -32,7 +35,9 @@ export const enMessages: Translations = {
   plansTranslations: plansEn,
   applicantTranslations: applicantEn,
   sessionsTranslations: sessionsEn,
+  scheduleTranslations: scheduleEn,
   walletTranslations: walletEn,
+  upNextTranslations: upNextEn,
   checkoutTranslations: checkoutEn,
   adminUsersTranslations: adminUsersEn,
   adminTeachersTranslations: adminTeachersEn,
@@ -42,6 +47,7 @@ export const enMessages: Translations = {
   adminSessionGovernanceTranslations: adminSessionGovernanceEn,
   notificationsTranslations: notificationsEn,
   handshakeCodeTranslations: handshakeCodeEn,
+  homeworkTranslations: homeworkEn,
   parentLinkTranslations: parentLinkEn,
   parentMonitoringTranslations: parentMonitoringEn,
   analyticsTranslations: analyticsEn,

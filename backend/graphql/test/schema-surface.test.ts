@@ -487,6 +487,8 @@ const STUDENT_EVALUATION_MUTATION_FIELDS = ["submitTeacherEvaluation"] as const;
 const STUDENT_EVALUATION_QUERY_FIELDS = ["myTeacherEvaluations"] as const;
 /** record object + its closed one-member input (whole-star rating). */
 const STUDENT_EVALUATION_TYPE_NAMES = ["Evaluation", "SubmitTeacherEvaluationInput"] as const;
+/** Student homework history — the caller-scoped paged read (post-plan round 6). */
+const STUDENT_HOMEWORK_QUERY_FIELDS = ["myHomework"] as const;
 
 /**
  * Admin financial-auditing surface — the sanctioned addition. Three
@@ -524,8 +526,12 @@ const ADMIN_FINANCE_TYPE_NAMES = [
  * surfaces) and their page/entry value objects shipped on the parent-portal
  * branch but were never enumerated in the Query-root additions pin or the
  * whole-schema named-type delta. Re-anchored to the live schema as a
- * documented one-time reconciliation. (The behavioral pins for this surface
- * live in `parent-monitoring.wire.test.ts`.)
+ * documented one-time reconciliation, joined by the sixth parent-only read:
+ * the completion-notification deep-link resolver that turns one session
+ * pointer into the closed (session, linked-child) id pair. (The behavioral
+ * pins for this surface live in `parent-monitoring.wire.test.ts`; the
+ * deep-link field's exact arg/return shape is pinned in the
+ * session-target describe below.)
  */
 const PARENT_MONITORING_QUERY_FIELDS = [
   "myLinkedChildren",
@@ -533,6 +539,7 @@ const PARENT_MONITORING_QUERY_FIELDS = [
   "parentChildProgress",
   "parentChildReports",
   "parentChildSessions",
+  "parentSessionTarget",
 ] as const;
 /** The portal's page/entry/track value objects — no closed inputs (argless + paged reads). */
 const PARENT_MONITORING_TYPE_NAMES = [
@@ -546,6 +553,7 @@ const PARENT_MONITORING_TYPE_NAMES = [
   "ParentLinkedChild",
   "ParentReportEntry",
   "ParentReportPage",
+  "ParentSessionTarget",
 ] as const;
 
 /**
@@ -599,6 +607,15 @@ const RECONCILED_ADMIN_BROADCAST_CERTIFY_MUTATION_FIELDS = [
   "adminBroadcastNotification",
   "adminCertifyTeacherColdStart",
 ] as const;
+/**
+ * Teacher verification-plan purchase mutation — RECONCILED baseline drift
+ * (the inputless applicant-purchase write shipped alongside the checkout
+ * surface but was never enumerated in the Mutation-root additions pin;
+ * first surfaced once the parent-monitoring deep-link read joined the
+ * pinned inventory). Re-anchored as a documented one-time reconciliation
+ * (NOT a silent baseline flip).
+ */
+const RECONCILED_VERIFICATION_PLAN_PURCHASE_MUTATION_FIELDS = ["purchaseVerificationPlan"] as const;
 /**
  * Reconciled enum drift: the parent-link lifecycle vocabulary
  * (`LinkStatus`) and the broadcast-audience vocabulary
@@ -732,7 +749,9 @@ describe("Query._health — retyped probe surface", () => {
     // surface), and the admin financial-auditing read trio
     // (payments audit listing, wallet inspector, pending-withdrawal queue).
     // surface) + the student-evaluation caller-scoped read
-    // (`myTeacherEvaluations`).
+    // (`myTeacherEvaluations`) + the student homework history read
+    // (`myHomework` — the student nav's homework entry, reusing the
+    // parent portal's canonical homework page projection).
     const additions = fieldNames.filter(name => !(PRE_3_1_QUERY_FIELDS as readonly string[]).includes(name));
     expect(additions.toSorted((a, b) => a.localeCompare(b))).toEqual(
       [
@@ -758,6 +777,7 @@ describe("Query._health — retyped probe surface", () => {
         ...ADMIN_FINANCE_QUERY_FIELDS,
         ...STUDENT_EVALUATION_QUERY_FIELDS,
         ...PARENT_MONITORING_QUERY_FIELDS,
+        ...STUDENT_HOMEWORK_QUERY_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
   });
@@ -819,7 +839,7 @@ describe("HealthCheck object shape — four scalar fields, no id", () => {
 });
 
 describe("Surface freeze — pinned additions vs the baseline inventory", () => {
-  test("mutation set grows ONLY by the sanctioned additions (quartet + dispute pair + confirm + payout + admin-user trio + admin-governance pair + session-governance quartet + session-report write + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair + the session-recitation write + the financial-auditing trio + the student-evaluation rating write)", () => {
+  test("mutation set grows ONLY by the sanctioned additions (quartet + dispute pair + confirm + payout + admin-user trio + admin-governance pair + session-governance quartet + session-report write + the subscription purchase write + the reconciled parent-link trio + broadcast/certify pair + the session-recitation write + the financial-auditing trio + the student-evaluation rating write + the reconciled verification-plan purchase write)", () => {
     const mutationFields = graphQLSchema.getMutationType()?.getFields() ?? {};
     const names = Object.keys(mutationFields).toSorted((a, b) => a.localeCompare(b));
 
@@ -863,6 +883,7 @@ describe("Surface freeze — pinned additions vs the baseline inventory", () => 
         ...RECITATION_RECORD_MUTATION_FIELDS,
         ...ADMIN_FINANCE_MUTATION_FIELDS,
         ...STUDENT_EVALUATION_MUTATION_FIELDS,
+        ...RECONCILED_VERIFICATION_PLAN_PURCHASE_MUTATION_FIELDS,
       ].toSorted((a, b) => a.localeCompare(b))
     );
     expect(names).not.toContain("_health");
@@ -2123,6 +2144,54 @@ describe("Admin financial row/page object shapes — exact field sets + per-fiel
   });
 });
 
+describe("Parent portal session-target read — exact deep-link shape + `$all` scope pins", () => {
+  const queryType = graphQLSchema.getQueryType();
+
+  if (!queryType) {
+    throw new Error("Schema must define a root Query type");
+  }
+
+  test("`parentSessionTarget` carries the exact deep-link shape (`sessionId: Int!): ParentSessionTarget!` with the parent `$all` scope", () => {
+    const field = queryType.getFields().parentSessionTarget;
+    if (!field) {
+      throw new Error("Query must register the `parentSessionTarget` root field");
+    }
+    expect(getNamedType(field.type).name).toBe("ParentSessionTarget");
+    expect(field.type.toString()).toBe("ParentSessionTarget!");
+    expect(field.args.map(arg => arg.name)).toEqual(["sessionId"]);
+    expect(argShapeOf(field, "sessionId")).toBe("Int!");
+    // The same load-bearing `$all` conjunction every portal field rides —
+    // the shared parent-only scope, never an inline ANY-semantics map.
+    expect(authScopesSnapshot(field)).toEqual({
+      $all: { authenticated: true, role: [UserRole.Parent] },
+    });
+  });
+
+  test("`ParentSessionTarget` discloses EXACTLY the closed two-field projection, each `Int!`", () => {
+    const targetType = graphQLSchema.getType("ParentSessionTarget");
+    if (!(targetType instanceof GraphQLObjectType)) {
+      throw new Error("ParentSessionTarget must be registered as a GraphQL object type");
+    }
+    const fields = targetType.getFields();
+    expect(Object.keys(fields).toSorted((a, b) => a.localeCompare(b))).toEqual(["sessionId", "studentId"]);
+    for (const field of Object.values(fields)) {
+      expect(field.type.toString()).toBe("Int!");
+    }
+  });
+
+  test("carries NO `id` field — embedded value object; selecting `id` FAILS validation", () => {
+    const targetType = graphQLSchema.getType("ParentSessionTarget");
+    if (!(targetType instanceof GraphQLObjectType)) {
+      throw new Error("ParentSessionTarget must be registered as a GraphQL object type");
+    }
+    expect(Object.hasOwn(targetType.getFields(), "id")).toBe(false);
+    const document = parse("{ parentSessionTarget(sessionId: 1) { id } }");
+    const errors = validate(graphQLSchema, document);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.message).toContain('Cannot query field "id" on type "ParentSessionTarget"');
+  });
+});
+
 describe("Public-operation allowlist agreement", () => {
   test("`_health` is a member of the closed allowlist 1:1 with its scopeless schema posture", () => {
     expect(PUBLIC_OPERATION_NAMES).toContain("_health");
@@ -2286,5 +2355,10 @@ describe("Codegen sync — committed SDL is byte-identical to the built schema",
     expect(committedSdl).toContain("input AdminStudentPaymentsFilterInput {");
     expect(committedSdl).toContain("input AdminWalletTransactionFilterInput {");
     expect(committedSdl).toContain("input AdjustTeacherWalletInput {");
+    // …and the parent session-target deep-link surface (the sixth
+    // portal read + its closed two-field value object) is really inside
+    // the committed artifact — at the exact arg shape the resolver binds.
+    expect(committedSdl).toContain("parentSessionTarget(sessionId: Int!): ParentSessionTarget!");
+    expect(committedSdl).toContain("type ParentSessionTarget {");
   });
 });
