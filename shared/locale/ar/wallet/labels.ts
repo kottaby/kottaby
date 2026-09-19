@@ -33,4 +33,6 @@ export const walletAr: WalletLabels = {
   ledgerEmptyBody: "ستظهر هنا أرباح جلساتك وطلبات السحب.",
   pendingTeacherTitle: "المحفظة بانتظار الاعتماد",
   ledgerShownAll: (count: number, total: number) => `عرض كل العمليات — ${count} من ${total}`,
+  quickAmountsAria: "مبالغ سريعة",
+  exportCsv: "تصدير سجل المعاملات بصيغة CSV",
 };

@@ -26,6 +26,7 @@ import {
 } from "@mui/material";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { isClientValidAmount } from "@/frontend/views/teacher/wallet/teacherWalletShared";
+import { WithdrawQuickAmounts } from "@/frontend/views/teacher/wallet/WithdrawQuickAmounts";
 import type { CommonLabels } from "@/shared/locale/types/common";
 import type { WalletLabels } from "@/shared/locale/types/wallet";
 
@@ -107,14 +108,8 @@ export function WithdrawDialog({
             }
           }}
         />
-        {inFlight ? (
-          <Stack direction="row" spacing={1} sx={{ mt: 2, alignItems: "center" }}>
-            <CircularProgress size={18} />
-            <Typography variant="caption" sx={theme => ({ color: theme.palette.onSurfaceVariant })}>
-              {t.withdrawSubmit}
-            </Typography>
-          </Stack>
-        ) : null}
+        <WithdrawQuickAmounts balance={balance} disabled={inFlight} label={t.quickAmountsAria} onPick={setAmount} />
+        {inFlight ? <WithdrawInFlight label={t.withdrawSubmit} /> : null}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5 }}>
         <Button
@@ -148,5 +143,17 @@ export function WithdrawDialog({
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+/** The in-flight row — a compact progress line under the form. */
+function WithdrawInFlight({ label }: Readonly<{ label: string }>): ReactNode {
+  return (
+    <Stack direction="row" spacing={1} sx={{ mt: 2, alignItems: "center" }}>
+      <CircularProgress size={18} />
+      <Typography variant="caption" sx={theme => ({ color: theme.palette.onSurfaceVariant })}>
+        {label}
+      </Typography>
+    </Stack>
   );
 }

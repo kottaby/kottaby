@@ -18,7 +18,8 @@
  * of fabricating rows.
  */
 
-import { Divider, Paper, Stack, Typography } from "@mui/material";
+import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
+import { Divider, IconButton, Paper, Stack, Tooltip, Typography } from "@mui/material";
 import { type ReactNode, useMemo, useState } from "react";
 import {
   type MyWalletQuery_myWallet_transactions,
@@ -27,7 +28,12 @@ import {
 import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
 import { WalletLedgerFilterBar } from "@/frontend/views/teacher/wallet/WalletLedger.parts";
 import { WalletLedgerRows } from "@/frontend/views/teacher/wallet/WalletLedgerRows";
-import { ledgerRowVisual, ledgerTypeLabel } from "@/frontend/views/teacher/wallet/walletLedgerVisuals";
+import { exportLedgerCsv } from "@/frontend/views/teacher/wallet/walletLedgerCsv";
+import {
+  ledgerRowVisual,
+  ledgerStatusLabel,
+  ledgerTypeLabel,
+} from "@/frontend/views/teacher/wallet/walletLedgerVisuals";
 import type { WalletLabels } from "@/shared/locale/types/wallet";
 
 export interface WalletLedgerProps {
@@ -93,6 +99,22 @@ export function WalletLedger({ transactions, locale, t }: Readonly<WalletLedgerP
         <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
           {t.ledgerTitle}
         </Typography>
+        <Tooltip title={t.exportCsv}>
+          <IconButton
+            data-testid="wallet-ledger-export-csv"
+            aria-label={t.exportCsv}
+            size="small"
+            onClick={() =>
+              exportLedgerCsv(transactions, {
+                type: type => ledgerTypeLabel(type, t),
+                status: status => ledgerStatusLabel(status, t),
+              })
+            }
+            sx={theme => ({ marginInlineStart: "auto", color: theme.palette.onSurfaceVariant })}
+          >
+            <DownloadOutlined fontSize="small" />
+          </IconButton>
+        </Tooltip>
       </Stack>
       <Divider />
       <WalletLedgerFilterBar

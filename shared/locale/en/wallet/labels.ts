@@ -34,4 +34,6 @@ export const walletEn: WalletLabels = {
   ledgerEmptyBody: "Your session earnings and payout requests will appear here.",
   pendingTeacherTitle: "Wallet pending approval",
   ledgerShownAll: (count: number, total: number) => `Showing all transactions — ${count} of ${total}`,
+  quickAmountsAria: "Quick amounts",
+  exportCsv: "Export the transaction ledger as CSV",
 };
