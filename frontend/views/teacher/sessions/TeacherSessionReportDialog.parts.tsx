@@ -9,7 +9,7 @@
  * because they share the form-state setters the dialog owns.
  */
 
-import { MenuItem, Rating, Select, Stack, TextField, Typography } from "@mui/material";
+import { FormControl, InputLabel, MenuItem, Rating, Select, Stack, TextField, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { SurahJuzRef } from "@/backend/enum/shared/surah-juz-ref.enum";
 import type { HomeWorkBlockInput } from "@/backend/types";
@@ -55,17 +55,23 @@ export function AssignmentBlock({
           onChange={event => handleAyahChange(event.target.value, "toAyah", block, onChange, defaultSurah)}
         />
       </Stack>
-      <Select
-        label={surahJuzPickerLabel}
-        value={block?.surahJuz ?? ""}
-        onChange={event => handleSurahChange(event.target.value, block, onChange)}
-      >
-        {SURAH_JUZ_OPTIONS.map(option => (
-          <MenuItem key={option} value={option}>
-            {t.surahJuzLabel(option)}
-          </MenuItem>
-        ))}
-      </Select>
+      {/* A bare `Select` ignores its `label` prop — the FormControl +
+          InputLabel pairing is what actually renders the floating label
+          (previously the pickers rendered as unlabeled empty boxes). */}
+      <FormControl fullWidth size="small">
+        <InputLabel>{surahJuzPickerLabel}</InputLabel>
+        <Select
+          label={surahJuzPickerLabel}
+          value={block?.surahJuz ?? ""}
+          onChange={event => handleSurahChange(event.target.value, block, onChange)}
+        >
+          {SURAH_JUZ_OPTIONS.map(option => (
+            <MenuItem key={option} value={option}>
+              {t.surahJuzLabel(option)}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
     </Stack>
   );
 }

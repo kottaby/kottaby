@@ -8,6 +8,6 @@
  *    time and has no named exports.
  *  - Wired via side-effect barrels: this barrel → `query/index.ts` →
  *    `gqlSchema.ts`.
- *  - `wallet.query.ts` registers `myWallet`.
+ *  - `wallet.query.ts` registers `myWallet` and `myWalletLedger`.
  */
 import "./wallet.query";

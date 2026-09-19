@@ -146,16 +146,18 @@ sequenceDiagram
 
     Teacher->>System: Request withdrawal from wallet
     System->>System: Create teacher_transaction (type = withdrawal, status = pending)
+    System->>System: Reserve: deduct wallet.balance (guarded balance >= amount)
     System->>Admin: Notify withdrawal request
     Admin->>System: Review withdrawal request
     alt Admin approves
         Admin->>System: Approve withdrawal
         System->>System: Set transaction status = completed
-        System->>System: Deduct from wallet.balance
+        System->>System: Settle the reservation: status pending → completed (balance already reserved at request)
         System-->>Teacher: Withdrawal processed
     else Admin rejects
         Admin->>System: Reject withdrawal
         System->>System: Set transaction status = failed
+        System->>System: Restore: wallet.balance += amount (compensation for the request-time reserve)
         System-->>Teacher: Withdrawal rejected notification
     end
     System->>System: Log admin action to audit trail

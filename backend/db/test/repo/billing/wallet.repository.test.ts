@@ -421,6 +421,7 @@ describe("WalletRepository — namespace closure", () => {
 
     expect(exposed).toEqual([
       "countPendingWithdrawals",
+      "countTransactions",
       "countTransactionsForAdmin",
       "creditBonusOnce",
       "creditEarningOnce",
@@ -436,6 +437,7 @@ describe("WalletRepository — namespace closure", () => {
       "listRecentTransactions",
       "listTransactionsByWalletId",
       "listTransactionsForAdmin",
+      "listTransactionsPage",
       "restoreWithdrawalDebitOnce",
       "settleWithdrawalOnce",
     ]);
