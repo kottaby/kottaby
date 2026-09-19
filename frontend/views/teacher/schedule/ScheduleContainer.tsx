@@ -71,6 +71,24 @@ const TEACHER_SESSIONS_ROUTE = "/teacher/sessions";
 
 const EMPTY_WEEK: readonly ScheduleSession[] = [];
 
+/**
+ * Screen-reader-only recipe for the week-navigation live region (the
+ * canonical `@mui/utils/visuallyHidden` values, as used by the
+ * notifications feed's hidden copy).
+ */
+const VISUALLY_HIDDEN_LIVE_REGION_SX = {
+  position: "absolute",
+  width: "1px",
+  height: "1px",
+  padding: 0,
+  margin: "-1px",
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
+  clipPath: "inset(50%)",
+  whiteSpace: "nowrap",
+  border: 0,
+} as const;
+
 export function ScheduleContainer(): ReactNode {
   const scheduleT = useAppTranslation(Schedule);
   const sessionsT = useAppTranslation(Sessions);
@@ -123,6 +141,15 @@ export function ScheduleContainer(): ReactNode {
           >
             {scheduleT.weekRangeLabel(rangeFrom, rangeTo)}
           </Typography>
+          {/**
+           * Week-change announcement: a mounted-always polite output region
+           * (implicit role="status") whose text swaps with the navigator —
+           * screen readers re-announce the visible week + its session count
+           * on every prev/next/this-week hop without stealing focus.
+           */}
+          <Box component="output" sx={VISUALLY_HIDDEN_LIVE_REGION_SX}>
+            {scheduleT.weekRangeLabel(rangeFrom, rangeTo)} · {scheduleT.dayCountLine(stats.total)}
+          </Box>
           <Stack direction="row" spacing={1} sx={{ alignItems: "center", ml: "auto" }}>
             <Button size="small" variant="text" onClick={goThisWeek} disabled={isCurrentWeek}>
               {scheduleT.thisWeekLabel}

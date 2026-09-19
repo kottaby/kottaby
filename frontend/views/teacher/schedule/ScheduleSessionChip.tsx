@@ -1,7 +1,7 @@
 "use client";
 
 import type { SvgIconComponent } from "@mui/icons-material";
-import { Box, ButtonBase, Stack, Typography } from "@mui/material";
+import { ButtonBase, Stack, Typography } from "@mui/material";
 import type { Palette } from "@mui/material/styles";
 import type { ReactNode } from "react";
 import { TONE_COLORS } from "@/frontend/views/student/sessions/sessionRowPresentation";
@@ -50,6 +50,9 @@ interface ScheduleSessionChipProps {
   readonly onOpen: () => void;
 }
 
+/** Compact column width — the chip must stay legible inside a 1/7 week grid. */
+const CHIP_FONT_SIZE = 11;
+
 export function ScheduleSessionChip({
   session,
   statusLabel,
@@ -77,7 +80,7 @@ export function ScheduleSessionChip({
         border: "1px solid",
         borderColor: theme.palette.outlineVariant,
         bgcolor: theme.palette.surfaceContainerLow,
-        px: 1.25,
+        px: 1,
         py: 1,
         transition: theme.transitions.create(["box-shadow", "transform", "border-color"], {
           duration: theme.transitions.duration.short,
@@ -94,36 +97,62 @@ export function ScheduleSessionChip({
         },
       })}
     >
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center", minWidth: 0 }}>
-        <StatusIcon fontSize="small" sx={theme => ({ color: iconColor(theme.palette), flexShrink: 0 })} />
-        <Box sx={{ minWidth: 0, flex: 1 }}>
+      {/*
+       * Column layout — a 1/7 week column leaves ~100px of chip width, so
+       * every line must fit on its own: the status word gets the FULL top
+       * line (the icon would cost it a third of the width and force an
+       * ellipsis), the tone-colored status icon anchors the clock line, and
+       * the fee (optional) closes on its own line. Nothing truncates.
+       */}
+      <Stack spacing={0.5} sx={{ minWidth: 0, width: "100%" }}>
+        <Typography
+          variant="caption"
+          noWrap
+          component="span"
+          title={statusLabel}
+          sx={theme => ({
+            display: "block",
+            fontWeight: 700,
+            color: theme.palette.text.primary,
+            lineHeight: 1.3,
+            fontSize: CHIP_FONT_SIZE,
+          })}
+        >
+          {statusLabel}
+        </Typography>
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", minWidth: 0 }}>
+          <StatusIcon sx={theme => ({ color: iconColor(theme.palette), flexShrink: 0, fontSize: 14 })} />
+          <Typography
+            variant="caption"
+            noWrap
+            component="span"
+            sx={theme => ({
+              color: theme.palette.text.secondary,
+              fontVariantNumeric: "tabular-nums",
+              lineHeight: 1.3,
+              fontSize: CHIP_FONT_SIZE,
+              minWidth: 0,
+            })}
+          >
+            {timeLabel}
+          </Typography>
+        </Stack>
+        {session.fee !== null ? (
           <Typography
             variant="caption"
             noWrap
             component="span"
             sx={theme => ({
               display: "block",
-              fontWeight: 700,
-              color: theme.palette.text.primary,
-              lineHeight: 1.3,
-            })}
-          >
-            {statusLabel}
-          </Typography>
-          <Typography
-            variant="caption"
-            component="span"
-            sx={theme => ({
-              display: "block",
               color: theme.palette.text.secondary,
               fontVariantNumeric: "tabular-nums",
               lineHeight: 1.3,
+              fontSize: CHIP_FONT_SIZE,
             })}
           >
-            {timeLabel}
-            {session.fee !== null ? ` · ${session.fee} ${SESSION_FEE_CURRENCY}` : ""}
+            {session.fee} {SESSION_FEE_CURRENCY}
           </Typography>
-        </Box>
+        ) : null}
       </Stack>
     </ButtonBase>
   );

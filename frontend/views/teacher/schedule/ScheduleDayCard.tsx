@@ -27,8 +27,12 @@ import type { SessionsLabels } from "@/shared/locale/types/sessions";
  *
  * WEEKEND wash — the LOCALE-OWNED weekend columns (Egyptian Fri+Sat under
  * `ar`, international Sat+Sun under `en` — `WEEKEND_DAYS` in the helpers)
- * carry a subtle `action.hover` wash (theme tokens only) distinguishing
- * rest days without a hard border.
+ * carry a subtle neutral tint (a ~4% `text.primary` wash — theme tokens
+ * only) distinguishing rest days without a hard border. NOTE: MUI's
+ * `alpha()` REPLACES an existing alpha channel rather than multiplying
+ * it, so translucent palette tokens (`action.hover` = rgba(0,0,0,0.04))
+ * must never be fed back into `alpha()` — the wash is derived from the
+ * OPAQUE `text.primary` token instead, which also adapts to dark mode.
  *
  * Session copy resolves through the SHARED session presentation tables
  * (`STATUS_LABEL_KEY` / `STATUS_TONE` / `STATUS_ICON`) — the grid's status
@@ -153,7 +157,7 @@ function FreeDaySlot({ weekend }: { readonly weekend: boolean }): ReactNode {
         px: 1,
         py: 1.5,
         textAlign: "center",
-        bgcolor: weekend ? alpha(theme.palette.action.hover, 0.5) : theme.palette.surfaceContainerLow,
+        bgcolor: weekend ? alpha(theme.palette.text.primary, 0.04) : theme.palette.surfaceContainerLow,
       })}
     >
       <Typography variant="caption" sx={theme => ({ color: theme.palette.text.disabled })}>
