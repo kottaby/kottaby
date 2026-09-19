@@ -47,6 +47,7 @@ import { NoticeSnackbar } from "@/frontend/components/ui/NoticeSnackbar";
 import { myWalletQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { type ContainerNotice, SNACKBAR_AUTOHIDE_MS } from "@/frontend/views/teacher/wallet/teacherWalletShared";
 import { useTeacherWalletWithdraw } from "@/frontend/views/teacher/wallet/useTeacherWalletWithdraw";
+import { useWalletLedgerPaging } from "@/frontend/views/teacher/wallet/useWalletLedgerPaging";
 import { WalletBalanceCard } from "@/frontend/views/teacher/wallet/WalletBalanceCard";
 import { WalletBody } from "@/frontend/views/teacher/wallet/WalletBody";
 import { WithdrawDialog } from "@/frontend/views/teacher/wallet/WithdrawDialog";
@@ -74,6 +75,13 @@ export function TeacherWalletContainer(): ReactNode {
 
   const walletRow = data?.myWallet;
 
+  // The ledger "load more" machine — a failed older-window fetch surfaces
+  // through the shared snackbar (the ledger itself stays as-is).
+  const handleLedgerError = useCallback((): void => {
+    setNotice({ severity: "error", message: t.genericError });
+  }, [t]);
+  const paging = useWalletLedgerPaging(walletRow?.transactions, handleLedgerError);
+
   return (
     <Stack
       data-testid="wallet-page"
@@ -97,6 +105,7 @@ export function TeacherWalletContainer(): ReactNode {
           value={walletRow?.balance}
           currency={walletRow?.currency}
           loading={loading && walletRow === undefined}
+          tone="primary"
           icon={<AccountBalanceWalletOutlinedIcon fontSize="small" />}
         />
         <WalletBalanceCard
@@ -124,7 +133,7 @@ export function TeacherWalletContainer(): ReactNode {
 
       {/* ── Swapping body ──────────────────────────────────────────────── */}
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        <WalletBody error={error} loading={loading} data={data} locale={locale} t={t} />
+        <WalletBody error={error} loading={loading} data={data} locale={locale} t={t} paging={paging} />
       </Box>
 
       {/* ── Withdrawal dialog (single slot) ────────────────────────────── */}

@@ -68,6 +68,18 @@ export interface WalletLabels {
   /** Ledger card footer — every fetched row is on screen (count of visible, total fetched). */
   readonly ledgerShownAll: (visibleCount: number, fetchedCount: number) => string;
   /**
+   * Ledger card footer — a page window with a KNOWN server total still
+   * partially unloaded (count of visible, total on the server).
+   */
+  readonly ledgerShownPage: (visibleCount: number, totalCount: number) => string;
+  /**
+   * Ledger card footer — a full first page whose server total is not yet
+   * known (the "load more" affordance may reveal older rows).
+   */
+  readonly ledgerShownLatest: (visibleCount: number) => string;
+  /** Ledger "load more" CTA — fetches the next page of older rows. */
+  readonly ledgerLoadMore: string;
+  /**
    * Ledger description written on the pending-withdrawal debit row (the
    * server composes it per the requester's locale — `wallet.service`).
    */

@@ -26,7 +26,10 @@ import {
   TransactionType as WireTransactionType,
 } from "@/frontend/graphql/generated/gql/graphql";
 import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
+import type { WalletLedgerPagingState } from "@/frontend/views/teacher/wallet/useWalletLedgerPaging";
 import { WalletLedgerFilterBar } from "@/frontend/views/teacher/wallet/WalletLedger.parts";
+import { WalletLedgerFooter } from "@/frontend/views/teacher/wallet/WalletLedgerFooter";
+import { WalletLedgerLoadMore } from "@/frontend/views/teacher/wallet/WalletLedgerLoadMore";
 import { WalletLedgerRows } from "@/frontend/views/teacher/wallet/WalletLedgerRows";
 import { exportLedgerCsv } from "@/frontend/views/teacher/wallet/walletLedgerCsv";
 import {
@@ -40,6 +43,8 @@ export interface WalletLedgerProps {
   readonly transactions: readonly MyWalletQuery_myWallet_transactions[];
   readonly locale: string;
   readonly t: WalletLabels;
+  /** The pagination state — merged rows + the "load more" controls. */
+  readonly paging: WalletLedgerPagingState;
 }
 
 /** Every ledger type chip in wire-enum order — `all` is prepended at render. */
@@ -50,8 +55,25 @@ const TYPE_FILTERS: readonly WireTransactionType[] = [
   WireTransactionType.ArbitrationReversal,
 ] as const;
 
+/**
+ * The pagination-aware footer line — a full read ("showing all"), a page
+ * window with a known server total, or a full first page whose total is
+ * not yet known (extracted as a statement — sonarjs/no-nested-conditional).
+ */
+function ledgerFooterText(
+  t: WalletLabels,
+  paging: WalletLedgerPagingState,
+  visibleCount: number,
+  fetchedCount: number
+): string {
+  if (!paging.hasMore) return t.ledgerShownAll(visibleCount, paging.totalCount ?? fetchedCount);
+  return paging.totalCount !== null
+    ? t.ledgerShownPage(visibleCount, paging.totalCount)
+    : t.ledgerShownLatest(visibleCount);
+}
+
 /** The ledger list with its type filter — see the module docblock. */
-export function WalletLedger({ transactions, locale, t }: Readonly<WalletLedgerProps>): ReactNode {
+export function WalletLedger({ transactions, locale, t, paging }: Readonly<WalletLedgerProps>): ReactNode {
   const [filter, setFilter] = useState<WireTransactionType | "all">("all");
 
   /** Per-type row counts over the fetched page — drives chip visibility. */
@@ -134,25 +156,15 @@ export function WalletLedger({ transactions, locale, t }: Readonly<WalletLedgerP
       ) : (
         <WalletLedgerRows rows={visible} locale={locale} t={t} />
       )}
+      {/* The "load more" arm (pagination): a full-width quiet text button
+          between the rows and the footer. */}
+      {paging.hasMore ? (
+        <WalletLedgerLoadMore loadingMore={paging.loadingMore} onLoadMore={paging.loadMore} label={t.ledgerLoadMore} />
+      ) : null}
       {/* The stretch footer: on tall viewports the card grows, and this line
-          (pinned to its end) absorbs the remainder deliberately instead of
-          leaving an unstructured void under the last row. */}
-      <Typography
-        variant="caption"
-        sx={theme => ({
-          mt: "auto",
-          px: 2.5,
-          py: 1.25,
-          borderTop: "1px solid",
-          borderColor: theme.palette.divider,
-          bgcolor: theme.palette.surfaceContainerLow,
-          color: theme.palette.onSurfaceVariant,
-          textAlign: "center",
-          fontVariantNumeric: "tabular-nums",
-        })}
-      >
-        {t.ledgerShownAll(visible.length, transactions.length)}
-      </Typography>
+          (pinned to its end) absorbs the remainder deliberately — its copy
+          distinguishes a full read from a page window. */}
+      <WalletLedgerFooter text={ledgerFooterText(t, paging, visible.length, transactions.length)} />
     </Paper>
   );
 }
