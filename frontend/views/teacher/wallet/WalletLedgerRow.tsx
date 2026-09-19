@@ -9,15 +9,19 @@
  * layout (`md+`: description | date | status | amount columns aligned under
  * the shared header row). The date-time stamp and the signed amount render
  * in bidi-isolated LTR boxes so the Unicode bidi algorithm can never detach
- * their fragments from the row's base direction; the free-form description
- * gets `dir="auto"` so mixed-script copy always picks its own base.
+ * their fragments from the row's base direction — the stamp itself is the
+ * pure-ASCII `formatLedgerStamp` (an ICU `ar` stamp embeds RLM controls that
+ * reorder the neutral punctuation INSIDE the LTR box: QA finding); the
+ * locale-aware full stamp rides the native `title` tooltip. The free-form
+ * description gets `dir="auto"` so mixed-script copy always picks its own
+ * base.
  */
 
 import ArrowOutwardOutlinedIcon from "@mui/icons-material/ArrowOutwardOutlined";
 import { Avatar, Box, Chip, ListItem, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { MyWalletQuery_myWallet_transactions } from "@/frontend/graphql/generated/gql/graphql";
-import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { formatApplicantDate, formatLedgerStamp } from "@/frontend/lib/i18n/format-date";
 import {
   avatarTone,
   ledgerRowVisual,
@@ -108,6 +112,7 @@ export function WalletLedgerRow({
       <Typography
         variant="caption"
         dir="ltr"
+        title={formatApplicantDate(row.createdAt, locale)}
         sx={theme => ({
           gridArea: "date",
           // Hug the column's start edge so the stamp lines up with the
@@ -118,9 +123,10 @@ export function WalletLedgerRow({
           whiteSpace: "nowrap",
           fontVariantNumeric: "tabular-nums",
           color: theme.palette.onSurfaceVariant,
+          cursor: "default",
         })}
       >
-        {formatApplicantDate(row.createdAt, locale)}
+        {formatLedgerStamp(row.createdAt)}
       </Typography>
       <Box sx={{ gridArea: "status", justifySelf: "end" }}>
         <Chip

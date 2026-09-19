@@ -11,6 +11,7 @@ export const walletEn: WalletLabels = {
   amountLabel: "Amount (EGP)",
   amountPlaceholder: "e.g. 250.00",
   availableBalanceHint: (balance: string) => `Available balance: ${balance} EGP`,
+  balanceAfterRequest: (remaining: string) => `Balance after this request: ${remaining} EGP`,
   withdrawSubmit: "Submit request",
   withdrawSuccessNotice: "Withdrawal request submitted. Your balance has been updated.",
   invalidAmount: "Enter a valid amount (a positive value with up to 2 decimal places).",

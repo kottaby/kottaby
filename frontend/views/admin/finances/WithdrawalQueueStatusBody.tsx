@@ -12,6 +12,7 @@
  */
 
 import { Alert, AlertTitle, Box, Stack, Typography } from "@mui/material";
+import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlined";
 import type { ReactNode } from "react";
 import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
 import type { AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items } from "@/frontend/graphql/generated/gql/graphql";
@@ -21,6 +22,7 @@ import { AdminFinancePaginationBar } from "@/frontend/views/admin/finances/Admin
 import type { useAdminPendingWithdrawals } from "@/frontend/views/admin/finances/useAdminFinanceQueries";
 import { WithdrawalMobileCards } from "@/frontend/views/admin/finances/WithdrawalQueueCards";
 import { WithdrawalTableCard } from "@/frontend/views/admin/finances/WithdrawalQueueTableCard";
+import { formatMoneyAmount } from "@/frontend/views/admin/analytics/platform-analytics-display";
 import { Common, useAppTranslation } from "@/shared/locale";
 import { AdminFinance } from "@/shared/locale/namespaces/adminFinance";
 
@@ -49,6 +51,16 @@ export function WithdrawalQueueStatusBody({
   const denied =
     errorCode !== null &&
     mapGraphQLErrorByCode(errorCode, { contextKind: "query", hasForm: false })?.kind === "permission-fallback";
+
+  // Single-page EGP total of the pending payout amounts. Rendered ONLY when
+  // the whole queue fits on the current page (totalCount <= pageSize): a
+  // multi-page queue would make the sum a partial figure masquerading as
+  // the queue total — the financial-copy honesty rule hides it instead.
+  const queueFitsOnOnePage = queue.totalCount <= queue.pageSize;
+  const pendingTotal =
+    queueFitsOnOnePage && queue.items.length > 0
+      ? formatMoneyAmount(queue.items.reduce((sum, item) => sum + Number(item.transaction.amount), 0).toFixed(2))
+      : null;
 
   if (denied) {
     return (
@@ -83,6 +95,33 @@ export function WithdrawalQueueStatusBody({
   }
   return (
     <>
+      {pendingTotal !== null ? (
+        <Stack
+          direction="row"
+          spacing={1}
+          data-testid="admin-finances-withdrawals-pending-total"
+          sx={theme => ({
+            alignItems: "center",
+            justifyContent: "flex-end",
+            px: 1.5,
+            py: 1,
+            borderRadius: 2,
+            bgcolor: theme.palette.surfaceContainerLow,
+          })}
+        >
+          <PendingActionsOutlinedIcon
+            fontSize="small"
+            sx={theme => ({ color: theme.palette.onSurfaceVariant })}
+            aria-hidden
+          />
+          <Typography
+            variant="caption"
+            sx={theme => ({ color: theme.palette.onSurfaceVariant, fontWeight: 600 })}
+          >
+            {t.withdrawalsPendingTotal(pendingTotal)}
+          </Typography>
+        </Stack>
+      ) : null}
       {/* Desktop (≥md): the hand-rolled queue table card. */}
       <Box sx={{ display: { xs: "none", md: "block" } }}>
         <WithdrawalTableCard

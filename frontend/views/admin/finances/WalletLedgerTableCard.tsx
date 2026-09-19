@@ -16,7 +16,7 @@
 import { Card, Skeleton, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { AdminTeacherWalletQuery_adminTeacherWallet_transactions } from "@/frontend/graphql/generated/gql/graphql";
-import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { formatApplicantDate, formatLedgerStamp } from "@/frontend/lib/i18n/format-date";
 import { formatMoneyAmount } from "@/frontend/views/admin/analytics/platform-analytics-display";
 import { DirectoryHeaderCell } from "@/frontend/views/admin/directory-shared/DirectoryHeaderCell";
 import { directoryTableCardSx } from "@/frontend/views/admin/directory-shared/directory-skins";
@@ -82,7 +82,23 @@ function LedgerRow({
         <Typography variant="body2">{tx.description}</Typography>
       </TableCell>
       <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}`, textAlign: "end" })}>
-        <Typography variant="body2">{formatApplicantDate(tx.createdAt, locale)}</Typography>
+        <Typography
+          variant="body2"
+          dir="ltr"
+          title={formatApplicantDate(tx.createdAt, locale)}
+          sx={{
+            // Isolated LTR box + pure-ASCII stamp: the ICU `ar` stamp embeds
+            // RLM controls that mash the visible order inside the RTL table
+            // cell (QA finding) — the numeric stamp pins the glyph order, and
+            // the locale-aware full stamp rides the native tooltip.
+            unicodeBidi: "isolate",
+            fontVariantNumeric: "tabular-nums",
+            whiteSpace: "nowrap",
+            cursor: "default",
+          }}
+        >
+          {formatLedgerStamp(tx.createdAt)}
+        </Typography>
       </TableCell>
     </TableRow>
   );

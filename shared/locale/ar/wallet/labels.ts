@@ -10,6 +10,7 @@ export const walletAr: WalletLabels = {
   amountLabel: "المبلغ (ج.م)",
   amountPlaceholder: "مثال: 250.00",
   availableBalanceHint: (balance: string) => `الرصيد المتاح: ${balance} ج.م`,
+  balanceAfterRequest: (remaining: string) => `الرصيد بعد هذا الطلب: ${remaining} ج.م`,
   withdrawSubmit: "إرسال الطلب",
   withdrawSuccessNotice: "تم إرسال طلب السحب. تم تحديث رصيدك.",
   invalidAmount: "أدخل مبلغاً صالحاً (قيمة موجبة بخانتين عشريتين كحد أقصى).",

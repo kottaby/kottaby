@@ -32,6 +32,12 @@ export interface WalletLabels {
   readonly amountPlaceholder: string;
   /** Live available-balance hint under the amount field (ICU {balance}). */
   readonly availableBalanceHint: (balance: string) => string;
+  /**
+   * Live preview under the quick-amount chips — the wallet balance that will
+   * remain once the typed request is accepted and its funds frozen
+   * (ICU {remaining}; renders only while the typed amount is client-valid).
+   */
+  readonly balanceAfterRequest: (remaining: string) => string;
   /** Withdrawal dialog submit CTA. */
   readonly withdrawSubmit: string;
   /** Success snackbar after an accepted withdrawal request. */

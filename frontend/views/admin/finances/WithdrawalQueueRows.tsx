@@ -20,7 +20,7 @@ import { Box, Stack, TableCell, TableRow, Typography } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material/styles";
 import type { ReactNode } from "react";
 import type { AdminPendingWithdrawalsQuery_adminPendingWithdrawals_items } from "@/frontend/graphql/generated/gql/graphql";
-import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { formatApplicantDate, formatLedgerStamp } from "@/frontend/lib/i18n/format-date";
 import { formatMoneyAmount } from "@/frontend/views/admin/analytics/platform-analytics-display";
 import { withdrawalStatusLabel, withdrawalStatusTone } from "@/frontend/views/admin/finances/withdrawalStatusDisplay";
 import { TonalChip } from "@/frontend/views/admin/users/ui";
@@ -157,7 +157,23 @@ export function WithdrawalRow({
         <Typography variant="body2">{formatMoneyAmount(item.walletBalance)}</Typography>
       </TableCell>
       <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
-        <Typography variant="body2">{formatApplicantDate(item.transaction.createdAt, locale)}</Typography>
+        <Typography
+          variant="body2"
+          dir="ltr"
+          title={formatApplicantDate(item.transaction.createdAt, locale)}
+          sx={{
+            // Isolated LTR box + pure-ASCII stamp: the ICU `ar` stamp embeds
+            // RLM controls that mash the visible order inside the RTL table
+            // cell (QA finding) — the numeric stamp pins the glyph order, and
+            // the locale-aware full stamp rides the native tooltip.
+            unicodeBidi: "isolate",
+            fontVariantNumeric: "tabular-nums",
+            whiteSpace: "nowrap",
+            cursor: "default",
+          }}
+        >
+          {formatLedgerStamp(item.transaction.createdAt)}
+        </Typography>
       </TableCell>
       <TableCell sx={theme => ({ borderBottom: `1px solid ${theme.palette.border.light}` })}>
         <TonalChip

@@ -56,6 +56,18 @@ export function WithdrawDialog({
   const clientValid = isClientValidAmount(trimmed);
   const submitDisabled = inFlight || !clientValid;
 
+  // Live "balance after this request" preview — the honest pre-commit view
+  // of the debit-on-request semantics (funds freeze the moment the request
+  // is accepted). Computed from the same 2-decimal wire strings the server
+  // validates, so the preview can never disagree with the settled state by
+  // a float rounding step. Hidden entirely while the typed amount is
+  // client-invalid (the field's own error hint owns that state).
+  const remainingAfterRequest = useMemo(() => {
+    if (!clientValid) return null;
+    const remaining = Number(balance) - Number(trimmed);
+    return remaining.toFixed(2);
+  }, [balance, clientValid, trimmed]);
+
   const handleSubmit = useCallback((): void => {
     if (!clientValid) return;
     onSubmit(trimmed);
@@ -109,6 +121,24 @@ export function WithdrawDialog({
           }}
         />
         <WithdrawQuickAmounts balance={balance} disabled={inFlight} label={t.quickAmountsAria} onPick={setAmount} />
+        {remainingAfterRequest !== null ? (
+          <Typography
+            data-testid="wallet-balance-after"
+            variant="caption"
+            sx={theme => ({
+              mt: 1.5,
+              display: "inline-block",
+              px: 1.25,
+              py: 0.5,
+              borderRadius: 1.5,
+              fontVariantNumeric: "tabular-nums",
+              bgcolor: theme.palette.surfaceContainerLow,
+              color: theme.palette.onSurfaceVariant,
+            })}
+          >
+            {t.balanceAfterRequest(remainingAfterRequest)}
+          </Typography>
+        ) : null}
         {inFlight ? <WithdrawInFlight label={t.withdrawSubmit} /> : null}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5 }}>
