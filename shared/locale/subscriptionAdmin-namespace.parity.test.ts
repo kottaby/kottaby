@@ -13,7 +13,7 @@
  *      someone loosens that typing later).
  *   2. STATUS + ACTIONS BLOCK PIN — every key of the `status` block (one
  *      slot per `SubscriptionStatus` wire member) and of the `actions`
- *      block (extend/renew/cancel/changePlan — the REQ-8 action inventory)
+ *      block (extend/renew/cancel/changePlan — the four-action lifecycle inventory)
  *      is pinned under BOTH locales — a key dropped from both maps
  *      simultaneously still fails this suite.
  *   3. FUNCTION-LEAF INVENTORY — the count-bearing proration/success
@@ -54,7 +54,7 @@ import { SubscriptionAdmin } from "@/shared/locale/namespaces/subscriptionAdmin"
 /** Every leaf key the `status` block must carry (5 slots — the wire enum). */
 const STATUS_LEAF_PATHS = ["active", "cancelled", "expired", "pending", "suspended"] as const;
 
-/** Every leaf key the `actions` block must carry (4 slots — REQ-8 inventory). */
+/** Every leaf key the `actions` block must carry (4-slot lifecycle inventory). */
 const ACTIONS_LEAF_PATHS = ["cancel", "changePlan", "extend", "renew"] as const;
 
 /** The EXACT function-leaf inventory (dotted paths — count-bearing copy). */
@@ -187,7 +187,7 @@ describe("status block — pinned under BOTH locales (wire enum members)", () =>
 });
 
 // ===========================================================================
-describe("actions block — pinned under BOTH locales (REQ-8 action inventory)", () => {
+describe("actions block — pinned under BOTH locales (four-action lifecycle inventory)", () => {
   test("exact leaf-path set on BOTH locale sources (no key added, none dropped)", () => {
     const pinned = [...ACTIONS_LEAF_PATHS].toSorted((a, b) => a.localeCompare(b));
 
