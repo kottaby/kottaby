@@ -1,38 +1,27 @@
 "use client";
 
-import {
-  AssignmentOutlined,
-  AutoStoriesOutlined,
-  HourglassEmptyOutlined,
-  PrintOutlined,
-  ReplayOutlined,
-  SearchOffOutlined,
-  TaskAltOutlined,
-} from "@mui/icons-material";
-import { Box, ButtonBase, Card, Chip, IconButton, Skeleton, Stack, Tooltip, Typography } from "@mui/material";
 import { type ReactNode, useMemo, useState } from "react";
+import { Stack, Typography } from "@mui/material";
 import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
-import { IconCircleEmptyState } from "@/frontend/components/ui/IconCircleEmptyState";
 import type { MyHomeworkQuery_myHomework_items } from "@/frontend/graphql/generated/gql/graphql";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
-import { DashboardStatCard } from "@/frontend/views/dashboard/home/DashboardStatCard";
-import { HomeworkTrackBlock } from "@/frontend/views/parent/monitoring/HomeworkTab.parts.helpers";
-import { SearchFilterBar } from "@/frontend/views/parent/monitoring/SearchFilterBar";
-import { DEFAULT_SORT, type SearchFilterState } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
 import { type PrintableRow, PrintExportDialog } from "@/frontend/views/shared/print-export/PrintExportDialog";
 import {
   computeHomeworkSummary,
   filterHomeworkByQuery,
   filterHomeworkByStatus,
   type HomeworkStatusFilter,
-  type HomeworkSummary,
-  toggleHomeworkFilter,
   toPrintableRows,
 } from "@/frontend/views/student/homework/homework.helpers";
+import {
+  HomeworkListSection,
+  HomeworkSkeleton,
+  SummaryStrip,
+} from "@/frontend/views/student/homework/HomeworkContainer.chrome";
 import { useAllMyHomeworkPages } from "@/frontend/views/student/homework/useAllMyHomeworkPages";
-import { Common, Errors, Homework, useAppLocale, useAppTranslation } from "@/shared/locale";
 import type { HomeworkLabels } from "@/shared/locale/types/homework";
+import { Common, Errors, Homework, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 /**
  * HomeworkContainer — the client orchestrator behind `/homework`, the
@@ -40,37 +29,20 @@ import type { HomeworkLabels } from "@/shared/locale/types/homework";
  * branch-matrix body (summary strip + assignment list).
  *
  * Data — the shared fetch-all-pages chain over `myHomework` (the student
- * id is server-derived; the read has zero caller-supplied identity). The
- * summary strip partitions the WHOLE history honestly: graded = at least
- * one track grade recorded, pending = nothing graded yet; both buckets
- * render even at zero.
+ * id is server-derived; zero caller-supplied identity). Search + filter —
+ * TWO composable lenses over the same rows: the summary cards toggle the
+ * status bucket (the same predicate the strip computes) and the SHARED
+ * `SearchFilterBar` free-text lens (search-only here — the rating/sort
+ * selects stay parent-owned) with the same matching predicate, so the two
+ * homework surfaces can never disagree on what "matches". The track
+ * blocks are the SHARED `HomeworkTrackBlock` presentation fed
+ * namespace-local copy — one Jadid/Madi vocabulary across both surfaces.
  *
- * Search + filter — TWO composable lenses over the same rows: the summary
- * cards toggle the status bucket (the same predicate the strip computes)
- * and the shared `SearchFilterBar` free-text lens matches passage refs /
- * the locale-rendered date. The bar is the SHARED component the parent
- * portal's homework tab renders (search-only here — the rating/sort
- * selects stay parent-owned), fed namespace-local copy; the matching
- * predicate is the same shared one, so the two homework surfaces can
- * never disagree on what "matches".
- *
- * Track blocks — the SHARED `HomeworkTrackBlock` presentation (the same
- * component the parent portal's homework tab renders), fed namespace-local
- * copy so the two homework surfaces speak one Jadid/Madi vocabulary
- * without forking the projection.
- *
- * Render branches (the chrome renders in EVERY branch; only the body
- * swaps — the teacher schedule container's branch matrix precedent):
- *
- * | # | Condition | Body |
- * |---|-----------|------|
- * | 1 | query in flight | skeleton (`aria-busy` + `loadingLabel`) |
- * | 2 | query error | retryable `ErrorRetryAlert` |
- * | 3 | zero rows | shared `IconCircleEmptyState` |
- * | 4 | rows present | summary strip + assignment cards |
- *
- * MUI v6 discipline: `sx`-only styling, theme-palette tokens only,
- * `*Outlined` icons only, RTL-safe logical composition.
+ * Render branches (chrome mounts in EVERY branch; only the body swaps):
+ * in flight → skeleton; error → retryable alert; zero rows → shared empty
+ * state; rows present → summary strip + assignment cards. Presentation
+ * lives in `HomeworkContainer.chrome` (strip + skeleton + list section)
+ * and `HomeworkContainer.parts` (rows + list body).
  */
 export function HomeworkContainer(): ReactNode {
   const t = useAppTranslation(Homework);
@@ -91,7 +63,7 @@ export function HomeworkContainer(): ReactNode {
   const isError = error !== undefined && extractErrorCode(error) !== null;
   const [statusFilter, setStatusFilter] = useState<HomeworkStatusFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const onSearchChange = (next: SearchFilterState) => {
+  const onSearchChange = (next: { query: string }) => {
     setSearchQuery(next.query);
   };
 
@@ -125,7 +97,11 @@ export function HomeworkContainer(): ReactNode {
   );
 }
 
-/** The branch-matrix body — the chrome stays mounted above it. */
+/**
+ * The branch-matrix body — the chrome stays mounted above it. Hooks may
+ * not sit behind conditional returns, so the two composable lenses are
+ * computed before the matrix and every branch renders exactly one arm.
+ */
 function HomeworkBody(
   props: Readonly<{
     loading: boolean;
@@ -146,7 +122,7 @@ function HomeworkBody(
     statusFilter: HomeworkStatusFilter;
     onStatusFilter: (filter: HomeworkStatusFilter) => void;
     searchQuery: string;
-    onSearchChange: (next: SearchFilterState) => void;
+    onSearchChange: (next: { query: string }) => void;
   }>
 ): ReactNode {
   const { rows, labels: t, locale, searchQuery } = props;
@@ -184,59 +160,17 @@ function HomeworkBody(
   return (
     <Stack spacing={3} sx={{ minWidth: 0 }}>
       <SummaryStrip summary={summary} labels={t} active={props.statusFilter} onToggle={props.onStatusFilter} />
-      <Stack spacing={2} sx={{ minWidth: 0 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
-          <Typography
-            variant="h6"
-            component="h2"
-            sx={theme => ({ fontWeight: 700, color: theme.palette.text.primary })}
-          >
-            {t.listHeading}
-          </Typography>
-          <Tooltip title={t.printLabel} arrow>
-            <IconButton
-              aria-label={t.printLabel}
-              onClick={() => {
-                props.onPrintOpenChange(true);
-              }}
-              size="small"
-              sx={theme => ({
-                color: theme.palette.primary.main,
-                border: "1px solid",
-                borderColor: theme.palette.outlineVariant,
-                borderRadius: 1.5,
-                "&:hover": { bgcolor: theme.palette.action.hover },
-              })}
-            >
-              <PrintOutlined fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
-        {rows.length > 0 ? (
-          <SearchFilterBar
-            state={{ query: searchQuery, ratingFilter: null, sort: DEFAULT_SORT }}
-            labels={t}
-            onChange={props.onSearchChange}
-            resultCount={settledVisibleRows.length}
-            totalCount={rows.length}
-            showRatingFilter={false}
-            showSortFilter={false}
-          />
-        ) : null}
-        <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary })} aria-live="polite">
-          {t.countLine(settledVisibleRows.length)}
-        </Typography>
-        {rows.length === 0 ? (
-          <IconCircleEmptyState
-            testId="student-homework-empty"
-            icon={<AssignmentOutlined sx={{ fontSize: 36 }} />}
-            title={props.emptyTitle}
-            body={props.emptyBody}
-          />
-        ) : (
-          <HomeworkListBody visibleRows={settledVisibleRows} labels={t} locale={locale} searchQuery={searchQuery} />
-        )}
-      </Stack>
+      <HomeworkListSection
+        labels={t}
+        locale={locale}
+        rows={rows}
+        settledVisibleRows={settledVisibleRows}
+        searchQuery={searchQuery}
+        onSearchChange={props.onSearchChange}
+        onPrintOpenChange={props.onPrintOpenChange}
+        emptyTitle={props.emptyTitle}
+        emptyBody={props.emptyBody}
+      />
       {props.printOpen ? (
         <PrintExportDialog
           open={props.printOpen}
@@ -252,253 +186,6 @@ function HomeworkBody(
           labels={{ printOption: t.printOption, exportCsvOption: t.exportCsvOption }}
         />
       ) : null}
-    </Stack>
-  );
-}
-
-/**
- * The list body under the "all" history: three empty arms, honestly
- * distinguished — a zero-match SEARCH keeps the state explicit (the bar
- * stays mounted above it, so the query is always clearable), a zero-match
- * STATUS bucket explains the toggle, and rows render with their per-card
- * status chips otherwise.
- */
-function HomeworkListBody({
-  visibleRows,
-  labels: t,
-  locale,
-  searchQuery,
-}: Readonly<{
-  visibleRows: readonly MyHomeworkQuery_myHomework_items[];
-  labels: HomeworkLabels;
-  locale: string;
-  searchQuery: string;
-}>): ReactNode {
-  if (visibleRows.length === 0) {
-    if (searchQuery.trim() !== "") {
-      return (
-        <IconCircleEmptyState
-          testId="student-homework-search-empty"
-          icon={<SearchOffOutlined sx={{ fontSize: 36 }} />}
-          title={t.searchNoResults}
-          body={t.searchEmptyBody}
-        />
-      );
-    }
-    return (
-      <IconCircleEmptyState
-        testId="student-homework-filtered-empty"
-        icon={<TaskAltOutlined sx={{ fontSize: 36 }} />}
-        title={t.filterEmptyTitle}
-        body={t.filterEmptyBody}
-      />
-    );
-  }
-  return (
-    <>
-      {visibleRows.map(row => (
-        <HomeworkRow
-          key={row.id}
-          row={row}
-          labels={t}
-          locale={locale}
-          graded={(row.jadid?.grade ?? null) !== null || (row.madi?.grade ?? null) !== null}
-        />
-      ))}
-    </>
-  );
-}
-
-/**
- * The three-card honest partition strip (total / graded / pending) — and
- * the status filter: each card is a toggle button over the SAME partition
- * the list filters by, so the cards and the list can never disagree. The
- * active bucket gets a primary ring + tint; clicking it again returns to
- * the unfiltered view (aria-pressed communicates the toggle state).
- */
-function SummaryStrip({
-  summary,
-  labels: t,
-  active,
-  onToggle,
-}: Readonly<{
-  summary: HomeworkSummary;
-  labels: HomeworkLabels;
-  active: HomeworkStatusFilter;
-  onToggle: (filter: HomeworkStatusFilter) => void;
-}>): ReactNode {
-  const cards = [
-    { key: "all", label: t.summaryTotalLabel, value: summary.total, Icon: AssignmentOutlined, aria: t.filterAllLabel },
-    {
-      key: "graded",
-      label: t.summaryGradedLabel,
-      value: summary.graded,
-      Icon: TaskAltOutlined,
-      aria: t.filterGradedLabel,
-    },
-    {
-      key: "pending",
-      label: t.summaryPendingLabel,
-      value: summary.pending,
-      Icon: HourglassEmptyOutlined,
-      aria: t.filterPendingLabel,
-    },
-  ] as const;
-  return (
-    <Box
-      data-testid="student-homework-summary"
-      sx={{
-        display: "grid",
-        gap: 1.5,
-        gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
-      }}
-    >
-      {cards.map(card => {
-        const selected = active === card.key;
-        return (
-          <ButtonBase
-            key={card.key}
-            component="button"
-            type="button"
-            aria-pressed={selected}
-            aria-label={card.aria}
-            onClick={() => {
-              onToggle(toggleHomeworkFilter(active, card.key));
-            }}
-            sx={theme => ({
-              display: "block",
-              width: "100%",
-              textAlign: "inherit",
-              borderRadius: 3,
-              transition: theme.transitions.create(["box-shadow", "border-color", "background-color"], {
-                duration: theme.transitions.duration.short,
-                easing: theme.transitions.easing.easeOut,
-              }),
-            })}
-          >
-            <DashboardStatCard
-              stat={{ label: card.label, value: String(card.value), Icon: card.Icon }}
-              selected={selected}
-            />
-          </ButtonBase>
-        );
-      })}
-    </Box>
-  );
-}
-
-/**
- * One assignment card: the honest meta line (assignment date + owning
- * session + status chip), then the two parallel track blocks — the SAME
- * shared presentation the parent portal renders, primary-accented for
- * Jadid and secondary-accented for Madi.
- */
-function HomeworkRow({
-  row,
-  labels: t,
-  locale,
-  graded,
-}: Readonly<{
-  row: MyHomeworkQuery_myHomework_items;
-  labels: HomeworkLabels;
-  locale: string;
-  graded: boolean;
-}>): ReactNode {
-  return (
-    <Card
-      variant="outlined"
-      data-testid="student-homework-row"
-      sx={theme => ({
-        display: "flex",
-        flexDirection: "column",
-        gap: 1.5,
-        padding: 2,
-        borderRadius: 2,
-        borderColor: theme.palette.border.main,
-        bgcolor: theme.palette.surfaceContainerLowest,
-        transition: theme.transitions.create(["box-shadow", "border-color"], {
-          duration: theme.transitions.duration.short,
-          easing: theme.transitions.easing.easeOut,
-        }),
-        "&:hover": {
-          boxShadow: theme.shadows[1],
-          borderColor: theme.palette.outline,
-        },
-      })}
-    >
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 0.5, minWidth: 0 }}>
-        <Typography variant="body2" sx={theme => ({ color: theme.palette.text.secondary, fontWeight: 600 })}>
-          {t.assignedPrefix} {formatApplicantDate(row.createdAt, locale)}
-        </Typography>
-        <Typography
-          variant="caption"
-          sx={theme => ({
-            color: theme.palette.text.secondary,
-            fontVariantNumeric: "tabular-nums",
-            border: "1px solid",
-            borderColor: theme.palette.outlineVariant,
-            borderRadius: 999,
-            px: 1,
-            py: 0.25,
-          })}
-        >
-          {t.sessionLine(row.sessionId)}
-        </Typography>
-        <Chip
-          size="small"
-          label={graded ? t.statusGradedChip : t.statusPendingChip}
-          sx={theme => ({
-            ml: "auto",
-            fontWeight: 700,
-            borderRadius: 999,
-            bgcolor: graded ? theme.palette.successContainer : theme.palette.action.hover,
-            color: graded ? theme.palette.onSuccessContainer : theme.palette.text.secondary,
-          })}
-        />
-      </Stack>
-      <HomeworkTrackBlock
-        track={row.jadid}
-        trackLabel={t.trackJadid}
-        noneLabel={t.trackNoneAssigned}
-        columnGradeLabel={t.gradeLabel}
-        icon={<AutoStoriesOutlined fontSize="small" />}
-        accentColor="primary.main"
-      />
-      <HomeworkTrackBlock
-        track={row.madi}
-        trackLabel={t.trackMadi}
-        noneLabel={t.trackNoneAssigned}
-        columnGradeLabel={t.gradeLabel}
-        icon={<ReplayOutlined fontSize="small" />}
-        accentColor="secondary.main"
-      />
-    </Card>
-  );
-}
-
-/** Linear skeleton (summary strip + three list rows) — `aria-busy` + label. */
-function HomeworkSkeleton({ loadingLabel }: Readonly<{ loadingLabel: string }>): ReactNode {
-  const SKELETON_ROW_KEYS = ["homework-row-skeleton-1", "homework-row-skeleton-2", "homework-row-skeleton-3"] as const;
-  return (
-    <Stack
-      spacing={2}
-      aria-busy="true"
-      aria-label={loadingLabel}
-      data-testid="student-homework-loading"
-      sx={{ minWidth: 0 }}
-    >
-      <Stack direction="row" spacing={1.5}>
-        {[1, 2, 3].map(n => (
-          <Skeleton key={n} variant="rounded" sx={{ height: 56, borderRadius: 2, flex: 1 }} />
-        ))}
-      </Stack>
-      {SKELETON_ROW_KEYS.map(key => (
-        <Stack key={key} spacing={1}>
-          <Skeleton variant="text" sx={{ fontSize: "0.9rem", maxWidth: 220 }} />
-          <Skeleton variant="rounded" sx={{ height: 44, borderRadius: 1.5 }} />
-          <Skeleton variant="rounded" sx={{ height: 44, borderRadius: 1.5 }} />
-        </Stack>
-      ))}
     </Stack>
   );
 }
