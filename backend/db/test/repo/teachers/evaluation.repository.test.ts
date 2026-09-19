@@ -89,7 +89,7 @@ import {
 } from "@/backend/db/test/entity-setup";
 import { constraintNameOf, expectRepoError, runInRollback } from "@/backend/db/test/test-utils";
 import { SessionStatus } from "@/backend/enum/scheduling/session-status.enum";
-import type { DBTransaction, EvaluationSelectType } from "@/backend/types";
+import type { DBTransaction, EvaluationRatingAggregateType, EvaluationSelectType } from "@/backend/types";
 import { isPgliteProvider } from "@/test/helpers/skip-when-pglite";
 
 /** PostgreSQL error code for `unique_violation`. */
@@ -668,7 +668,7 @@ describe("EvaluationRepository — concurrency tier (committed fixtures, indepen
         db.transaction(tx => EvaluationRepository.aggregateLiveRatings(cast.evaluatedId, tx)),
       ]);
 
-      const aggregates: { averageScore: number | null; ratingCount: number }[] = [];
+      const aggregates: EvaluationRatingAggregateType[] = [];
       for (const outcome of outcomes) {
         if (outcome.status !== "fulfilled") throw new Error("expected both concurrent reads to resolve");
         aggregates.push(outcome.value);

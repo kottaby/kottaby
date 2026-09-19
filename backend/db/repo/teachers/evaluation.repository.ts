@@ -21,20 +21,20 @@
  *    four meaningful columns; schema defaults fill the rest).
  *  - Reads run on the caller's transaction (Drizzle select) when one is
  *    supplied and fall back to raw parameterized SQL via `queryDb` (the
- *    Neon-HTTP-eligible pattern) otherwise. The read is caller-scoped:
- *    the evaluator id is the ONLY filter — no parameter exists through
- *    which a caller could widen the read toward other evaluators or a
- *    chosen rated subject.
- *  - `aggregateLiveRatings` is the one dual-branch exception: a single-row
- *    SQL-template aggregate over a rated subject's LIVE student-rating
- *    family (session-linked, scored, non-deleted rows), keyed by the
- *    evaluated subject id. It takes a REQUIRED `tx` because its result
- *    feeds the caller's same-transaction write of that result — a
- *    standalone branch could read a different snapshot than the write
- *    commits against. The mean is computed in SQL (never by materializing
- *    rows and reducing them client-side) and cast `::float8`, the count
- *    `::int`, so both arrive as JavaScript numbers — a bare `numeric`
- *    mean reaches the driver as a string.
+ *    Neon-HTTP-eligible pattern) otherwise. In `listByEvaluator`, the
+ *    read is caller-scoped: the evaluator id is the ONLY filter — no
+ *    parameter exists through which a caller could widen the read toward
+ *    other evaluators or a chosen rated subject.
+ *  - `aggregateLiveRatings` is the one exception to the dual-branch read
+ *    convention: a single-row SQL-template aggregate over a rated
+ *    subject's LIVE student-rating family (session-linked, scored,
+ *    non-deleted rows), keyed by the evaluated subject id. It takes a
+ *    REQUIRED `tx` because its result feeds the caller's same-transaction
+ *    write of that result — a standalone branch could read a different
+ *    snapshot than the write commits against. The mean is computed in
+ *    SQL (never by materializing rows and reducing them client-side) and
+ *    cast `::float8`, the count `::int`, so both arrive as JavaScript
+ *    numbers — a bare `numeric` mean reaches the driver as a string.
  *  - Soft-delete is exclusion-only: live rows are those whose
  *    `is_deleted` flag is false OR null (only an explicit deleted flag
  *    excludes — the same NULL-safe rule the platform analytics readers
