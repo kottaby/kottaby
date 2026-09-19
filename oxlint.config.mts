@@ -213,6 +213,10 @@ export default defineConfig({
     "scripts/vlm-round-1.sh",
     "scripts/vlm-verify-auth.sh",
     "scripts/ts6-eslint-patch.cjs",
+    // Cross-user verification script (sandbox-only; uses runtime type
+    // narrowing via fetch JSON, so the strict no-unsafe-type-assertion
+    // rule's exhaustive-switch adapter pattern would be overkill here).
+    "scripts/cross-user-verify.test.ts",
     // Transpiled locale artifacts (gitignored, generated at dev time).
     "shared/locale/**/*.js",
   ],

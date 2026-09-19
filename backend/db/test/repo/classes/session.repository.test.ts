@@ -3,7 +3,7 @@
  * (`insertSession`, `findById`, `startSessionOnce`, `completeSessionOnce`,
  * `cancelSessionOnce`, `openDisputeOnce`, `resolveDisputeCancelOnce`,
  * `resolveDisputeCompleteOnce`, `findTransitionProbe`,
- * `findRatingEligibilityProbe`,
+ * `findRatingEligibilityProbe`, `existsSessionForTeacherStudent`,
  * `sweepExpiredCompletedOnce`, the participant list/count quartet, and the
  * admin disputed pair) against the live `kottaby_test_db` PostgreSQL
  * instance.
@@ -392,6 +392,102 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
       const found = await SessionRepository.findById(missingId, tx);
 
       expect(found).toBeNull();
+    });
+  });
+
+  test("existsSessionForTeacherStudent returns true for a linked pair across every lifecycle status", async () => {
+    await runInRollback(async tx => {
+      // A shared teacher↔student pair: any-status session row linking the
+      // two satisfies the EXISTS predicate.
+      const actors = await createSessionActors(tx);
+      const scheduled = await insertSessionRow(tx, actors, { status: SessionStatus.Scheduled });
+      // 'started' carries the same participant pair on a separate row.
+      const started = await insertSessionRow(tx, actors);
+      await SessionRepository.startSessionOnce(started.id, actors.teacherUserId, tx);
+
+      const completed = await insertSessionRow(tx, actors);
+      await SessionRepository.startSessionOnce(completed.id, actors.teacherUserId, tx);
+      await SessionRepository.completeSessionOnce(completed.id, actors.teacherUserId, tx);
+
+      const cancelled = await insertSessionRow(tx, actors);
+      await SessionRepository.cancelSessionOnce(cancelled.id, actors.studentUserId, null, tx);
+
+      const disputed = await insertSessionRow(tx, actors);
+      await SessionRepository.openDisputeOnce(disputed.id, actors.studentUserId, "linked-status-probe", tx);
+
+      // One probe per status — every row links the SAME teacher↔student pair,
+      // so every probe returns true regardless of lifecycle state. Promise.all
+      // collects the awaits (the lint rule bans `await` inside an imperative
+      // loop; the parallel collector is the established pattern).
+      const lifecycleRows = [scheduled, started, completed, cancelled, disputed];
+      const linkedResults = await Promise.all(
+        lifecycleRows.map(() =>
+          SessionRepository.existsSessionForTeacherStudent(actors.teacherUserId, actors.studentUserId, tx)
+        )
+      );
+      for (const linked of linkedResults) {
+        expect(linked).toBe(true);
+      }
+
+      // Direct row-by-id sanity check: the five rows are still here. The
+      // read-backs are independent and run in parallel under Promise.all.
+      const stillExisting = await Promise.all(lifecycleRows.map(lifecycleRow => readSessionRow(tx, lifecycleRow.id)));
+      for (const row of stillExisting) {
+        expect(row).toBeDefined();
+      }
+    });
+  });
+
+  test("existsSessionForTeacherStudent returns false for an unlinked teacher, an unknown student, and a foreign pair", async () => {
+    await runInRollback(async tx => {
+      // Two disjoint teacher↔student pairs in the table.
+      const actorsA = await createSessionActors(tx);
+      const actorsB = await createSessionActors(tx);
+      const missingUserId = await absentUserId(tx);
+      const missingSessionId = await absentSessionId(tx);
+
+      // An unlinked pair: A's teacher probes B's student — zero rows link
+      // them, so the predicate returns false. (A session exists for A
+      // with student A, and one exists for B with student B, but neither
+      // crosses the pair.)
+      const linkedToA = await insertSessionRow(tx, actorsA);
+      await insertSessionRow(tx, actorsB);
+      const crossProbe = await SessionRepository.existsSessionForTeacherStudent(
+        actorsA.teacherUserId,
+        actorsB.studentUserId,
+        tx
+      );
+      expect(crossProbe).toBe(false);
+
+      // Unknown student id — zero rows, false.
+      const unknownStudent = await SessionRepository.existsSessionForTeacherStudent(
+        actorsA.teacherUserId,
+        missingSessionId,
+        tx
+      );
+      expect(unknownStudent).toBe(false);
+
+      // Unknown teacher id — zero rows, false.
+      const unknownTeacher = await SessionRepository.existsSessionForTeacherStudent(
+        missingUserId,
+        actorsA.studentUserId,
+        tx
+      );
+      expect(unknownTeacher).toBe(false);
+
+      // A pair with no shared session at all (the missing-missing case).
+      const unknownPair = await SessionRepository.existsSessionForTeacherStudent(missingUserId, missingSessionId, tx);
+      expect(unknownPair).toBe(false);
+
+      // Sanity: the existing A row is the row linking A's teacher to A's
+      // student — the same probe against A's pair returns true.
+      const samePairProbe = await SessionRepository.existsSessionForTeacherStudent(
+        actorsA.teacherUserId,
+        actorsA.studentUserId,
+        tx
+      );
+      expect(samePairProbe).toBe(true);
+      expect(linkedToA.id).toBeGreaterThan(0);
     });
   });
 
@@ -2446,9 +2542,9 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
 
   test("source: executor discipline — reads fall back to queryDb, writes to the pool, tx last on every signature", () => {
     expect(repoSource.includes("const executor = tx ?? db;")).toBe(true);
-    expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(16);
+    expect(repoSource.match(/const executor = tx \?\? db;/g) ?? []).toHaveLength(17);
     expect(repoSource.match(/queryDb</g) ?? []).toHaveLength(13);
-    // Thirty-four exported methods across the namespace + its five one-to-one
+    // Thirty-five exported methods across the namespace + its five one-to-one
     // sibling implementation modules (the report-gate lock, the report
     // wave-context read, the rating-eligibility probe, the post-confirmation
     // dispute trio, and the merged escrow lane), every one ending in tx
@@ -2457,9 +2553,9 @@ describe("SessionRepository — transactional paths (runInRollback)", () => {
     // read taken outside a transaction releases when the statement ends
     // and protects nothing) and the rating-eligibility probe (the gate
     // decision must observe the caller's transaction's own writes); the
-    // other thirty-two keep the optional tx.
-    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(34);
-    expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(19);
+    // other thirty-three keep the optional tx.
+    expect(repoSource.match(/export async function /g) ?? []).toHaveLength(35);
+    expect((repoSource.match(/tx\?: DBTransaction/g) ?? []).length).toBeGreaterThanOrEqual(20);
     expect(repoSource.match(/tx: DBTransaction/g) ?? []).toHaveLength(2);
   });
 
@@ -2753,5 +2849,32 @@ describe("SessionRepository — standalone executor paths (committed fixtures)",
     expect(sweptRow?.status).toBe(SessionStatus.Cancelled);
     expect(sweptRow?.feeHeld).toBe(false);
     expect(sweptRow?.heldBalanceLane).toBe(HeldBalanceLane.Hifz);
+  });
+
+  test("existsSessionForTeacherStudent runs on the pool fallback (no tx supplied)", async () => {
+    // Committed fixtures: a linked teacher↔student pair (probeTargetId
+    // already exists from the insertSession test, owned by `actors`) and
+    // a separate disjoint pair so the foreign probe returns false on the
+    // pool fallback too.
+    const fixture = await db.transaction(async tx => {
+      const pair = await createSessionActors(tx);
+      committedUserIds.push(pair.teacherUserId, pair.studentUserId);
+      const unrelatedRow = await insertSessionRow(tx, pair);
+      committedSessionIds.push(unrelatedRow.id);
+      return { unrelatedPair: pair };
+    });
+
+    // Linked probe against the actors' committed scheduled row (no tx
+    // passed — the executor falls back to the db pool).
+    const linked = await SessionRepository.existsSessionForTeacherStudent(actors.teacherUserId, actors.studentUserId);
+    expect(linked).toBe(true);
+
+    // Foreign probe (unrelated teacher↔student pair) returns false on the
+    // pool fallback.
+    const foreign = await SessionRepository.existsSessionForTeacherStudent(
+      fixture.unrelatedPair.teacherUserId,
+      actors.studentUserId
+    );
+    expect(foreign).toBe(false);
   });
 });

@@ -171,16 +171,56 @@ const MANDATED_SESSIONS_KEYS = [
   "adminDisputeAnalyticsOpen",
   "adminDisputeAnalyticsResolved",
   "adminDisputeAnalyticsOutcomes",
+  // ─── Session Report Submission (Jadid & Madi) — the new plan's vocabulary.
+  "sessionReportAction",
+  "viewHomeworkAction",
+  "reportDialogPrepareTitle",
+  "reportDialogSubmitTitle",
+  "reportDialogReviewTitle",
+  "reportNotesLabel",
+  "reportNotesPlaceholder",
+  "reportNotesRequiredMessage",
+  "reportNotesTooLongMessage",
+  "reportRatingLabel",
+  "reportRatingRequiredMessage",
+  "reportSubmitLabel",
+  "reportCancelLabel",
+  "reportSubmitSuccessNotice",
+  "reportAlreadySubmittedNotice",
+  "reportBlocksRequiredMessage",
+  "reportAyahRangeMessage",
+  "reportGradeRangeMessage",
+  "reportSurahJuzRequiredMessage",
+  "jadidSectionTitle",
+  "madiSectionTitle",
+  "fromAyahLabel",
+  "toAyahLabel",
+  "surahJuzPickerLabel",
+  "gradePreviousSectionTitle",
+  "reportFirstSessionHint",
+  "reportAlreadyGradedLabel",
+  "reportGradeJadidLabel",
+  "reportGradeMadiLabel",
+  "reportTrackEmptyLabel",
+  "reportHistorySectionTitle",
+  "reportHistoryEmptyMessage",
+  "reportSessionDateLabel",
+  "reportReviewedNotesLabel",
+  "reportReviewedRatingLabel",
 ] as const;
 
 /**
  * Keys whose values are TEMPLATE FUNCTIONS (the `DashboardLabels.welcome`
  * precedent) instead of plain strings — the arbitration count line
- * interpolates the honest total, and the per-star rating aria label
- * interpolates the star position. Resolved by INVOKING them with a sample
- * argument rather than the string path.
+ * interpolates the honest total, the per-star rating aria label
+ * interpolates the star position, and the Surah/Juz label resolves a
+ * `SurahJuzRef` enum member value to its localized display name.
  */
-const FUNCTION_LABEL_KEYS: ReadonlySet<string> = new Set(["adminDisputesCountLine", "ratingStarAriaLabel"]);
+const FUNCTION_LABEL_KEYS: ReadonlySet<string> = new Set([
+  "adminDisputesCountLine",
+  "ratingStarAriaLabel",
+  "surahJuzLabel",
+]);
 
 /** Keys resolved through `getTranslations(locale)` in the sync-resolution tier. */
 const SYNC_SAMPLE_ERROR_KEYS = ["sessionNotFound", "teacherNotFound", "insufficientBalance"] as const;
@@ -281,7 +321,14 @@ function resolvedLabelOf(localeMap: object, key: string, localeName: string): st
     // Reflect.apply (not a direct call): the value is only known as
     // `Function` here — invoking through the Reflect channel keeps the
     // unsafe-call lint table satisfied while the result is re-narrowed.
-    const value: unknown = Reflect.apply(fn, undefined, [2]);
+    // The Surah/Juz label takes a string ref argument; the numeric-key
+    // family takes a number. Pass a sample that satisfies BOTH signatures:
+    // `"juz_2"` is a valid ref for `surahJuzLabel` AND (cast at the call
+    // site of the numeric family) yields a valid sample result. The two
+    // families are exercised in detail by their dedicated test blocks; the
+    // generic loop only asserts the resolved value is a non-empty string.
+    const sampleArg: unknown = key === "surahJuzLabel" ? "juz_2" : 2;
+    const value: unknown = Reflect.apply(fn, undefined, [sampleArg]);
     if (typeof value !== "string" || value.length === 0) {
       throw new Error(`${localeName}.${key} must resolve to a non-empty localized string`);
     }
@@ -420,5 +467,68 @@ describe("sync resolution — getTranslations(locale) resolves the new keys", ()
   test("unknown locale falls back to the default bundle without throwing", () => {
     const translations = getTranslations("xx");
     expect(typeof translations.sessionsTranslations.studentPageTitle).toBe("string");
+  });
+});
+
+// ===========================================================================
+describe("surahJuzLabel — exhaustive 35-member vocabulary (Jadid & Madi)", () => {
+  /** The full `SurahJuzRef` enum vocabulary — 5 surahs + 30 juz. */
+  const SURAH_JUZ_REFS = [
+    "surah_al_fatihah",
+    "surah_al_baqarah",
+    "surah_aal_imran",
+    "surah_an_nisa",
+    "surah_al_maidah",
+    ...Array.from({ length: 30 }, (_, index) => `juz_${index + 1}`),
+  ] as const;
+
+  test("every ref in the 35-value vocabulary resolves to a non-empty string in BOTH locales", () => {
+    for (const ref of SURAH_JUZ_REFS) {
+      expect(typeof sessionsEn.surahJuzLabel(ref)).toBe("string");
+      expect(sessionsEn.surahJuzLabel(ref).length).toBeGreaterThan(0);
+      expect(typeof sessionsAr.surahJuzLabel(ref)).toBe("string");
+      expect(sessionsAr.surahJuzLabel(ref).length).toBeGreaterThan(0);
+    }
+  });
+
+  test("ar values carry Arabic script (guards an English-copy/paste drift into the ar leaf)", () => {
+    // Arabic-letters block range (U+0600..U+06FF) plus the Arabic-Indic digits
+    // (U+0660..U+0669) the ar leaf uses for juz numbering.
+    const arabicScript = /[\u0600-\u06FF]/;
+    for (const ref of SURAH_JUZ_REFS) {
+      const arValue = sessionsAr.surahJuzLabel(ref);
+      expect(arValue).toMatch(arabicScript);
+    }
+  });
+
+  test("en values carry Latin script (guards an Arabic-copy/paste drift into the en leaf)", () => {
+    const latinScript = /[A-Za-z]/;
+    for (const ref of SURAH_JUZ_REFS) {
+      const enValue = sessionsEn.surahJuzLabel(ref);
+      expect(enValue).toMatch(latinScript);
+    }
+  });
+
+  test("unknown ref rides the raw value verbatim (fail-closed — never throws, never empty)", () => {
+    expect(sessionsEn.surahJuzLabel("unknown_ref_xyz")).toBe("unknown_ref_xyz");
+    expect(sessionsAr.surahJuzLabel("unknown_ref_xyz")).toBe("unknown_ref_xyz");
+    // Empty string input rides as the raw empty string (the function never throws).
+    expect(sessionsEn.surahJuzLabel("")).toBe("");
+    expect(sessionsAr.surahJuzLabel("")).toBe("");
+  });
+
+  test("the surah names start with the localized 'Surah' / 'سورة' word and juz names start with 'Juz' / 'الجزء'", () => {
+    for (const ref of SURAH_JUZ_REFS.slice(0, 5)) {
+      expect(sessionsEn.surahJuzLabel(ref).startsWith("Surah ")).toBe(true);
+      expect(sessionsAr.surahJuzLabel(ref).startsWith("سورة ")).toBe(true);
+    }
+    for (const ref of SURAH_JUZ_REFS.slice(5)) {
+      expect(sessionsEn.surahJuzLabel(ref).startsWith("Juz ")).toBe(true);
+      expect(sessionsAr.surahJuzLabel(ref).startsWith("الجزء ")).toBe(true);
+    }
+  });
+
+  test("the function is registered in the function-keys set (parity belt invokes it correctly)", () => {
+    expect(FUNCTION_LABEL_KEYS.has("surahJuzLabel")).toBe(true);
   });
 });

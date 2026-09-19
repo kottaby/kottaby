@@ -42,13 +42,18 @@
  *    `query/classes/index.ts` → `query/index.ts` → `gqlSchema.ts`.
  */
 
+import { UserRole } from "@/backend/enum/users/user-role.enum";
 import type { Context } from "@/backend/graphql/gqlContextFactory";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import { SessionHomeWorkPothosObject } from "@/backend/graphql/pothos/classes/home-work.pothos";
+import {
+  SessionHomeWorkPothosObject,
+  StudentHomeworkPagePothosObject,
+} from "@/backend/graphql/pothos/classes/home-work.pothos";
 import { SessionReportPothosObject } from "@/backend/graphql/pothos/classes/report.pothos";
 import { requirePositiveIntId } from "@/backend/graphql/shared";
 import { UnauthorizedError } from "@/backend/lib/errors";
 import * as SessionReportService from "@/backend/services/classes/session-report.service";
+import * as StudentHomeworkService from "@/backend/services/classes/student-homework.service";
 
 /**
  * The shared participant-read delegation body behind `sessionReport` and
@@ -113,5 +118,56 @@ gqlSchemaBuilder.queryField("sessionHomework", t =>
       authenticated: true,
     },
     resolve: (_root, args, ctx) => resolveParticipantSessionRow(args, ctx, SessionReportService.getSessionHomework),
+  })
+);
+
+// Side-effect: register the `studentHomeworkHistory` query field — the
+// teacher-scoped cross-teacher homework history read. The role scope
+// (`Teacher` ONLY) fires BEFORE the resolver runs, so a student, parent,
+// or admin token is denied at the scope layer with `FORBIDDEN` regardless
+// of any caller-supplied identity surface. The resolver itself is THIN
+// DELEGATION: identity comes EXCLUSIVELY from `ctx.user.id`, the `studentId`
+// arg is parsed by the house `requirePositiveIntId` guard, and the service
+// runs the relationship gate + reads inside ONE REPEATABLE READ
+// transaction. No try/catch — denials are typed errors; the finalizer
+// preserves `extensions.code`.
+gqlSchemaBuilder.queryField("studentHomeworkHistory", t =>
+  t.field({
+    type: StudentHomeworkPagePothosObject,
+    args: {
+      // `ID!` shape on the wire; the resolver boundary-parses via the
+      // house guard before the service re-asserts the id shape pre-DB.
+      studentId: t.arg.id({ required: true }),
+      // NO GraphQL defaults — the service clamps both bounds; an
+      // omitted arg threads as `undefined` and the helper resolves the
+      // default, so the effective values echo back in the envelope.
+      page: t.arg.int(),
+      pageSize: t.arg.int(),
+    },
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Teacher],
+      },
+    },
+    resolve: (_root, args, ctx) => {
+      // The `$all { authenticated: true }` scope guarantees a verified
+      // user row at resolution time (anonymous callers never get past
+      // the scope step). This branch exists purely for TypeScript
+      // narrowing — the repo-wide no-non-null-assertion rule forbids
+      // dereferencing the nullable context directly; the thrown message
+      // mirrors builder.ts's own `authenticated` scope verbatim and is
+      // unreachable in practice.
+      if (!ctx.user) {
+        throw new UnauthorizedError("Authentication required.");
+      }
+      const studentId = requirePositiveIntId(Number(args.studentId), "studentId");
+      return StudentHomeworkService.listStudentHomeworkHistory(
+        ctx.user.id,
+        studentId,
+        { page: args.page ?? undefined, pageSize: args.pageSize ?? undefined },
+        ctx.locale
+      );
+    },
   })
 );

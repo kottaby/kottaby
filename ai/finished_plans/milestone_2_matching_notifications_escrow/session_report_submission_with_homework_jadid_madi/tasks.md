@@ -34,7 +34,7 @@ Ground truth: all M1 surfaces cited in `specs.md`/`plan.md` EXIST as verified; n
 
 ### Task 0: Pre-Implementation Baseline (MANDATORY)
 
-- [ ] 0. Baseline + ledger
+- [x] 0. Baseline + ledger
   - `bun tsgo 2>&1 | grep "error TS" | wc -l > /tmp/baseline-tsgo.txt`; `bun biome:check 2>&1 | grep -c warn > /tmp/baseline-biome.txt`; `bun run scripts/lint-service.ts --json --id baseline > /tmp/baseline-lint.json`
   - Copy ALL three counts verbatim into `outcome/0-baseline-outcome.md` — the outcome file is the durable baseline record Task 7's regression audit compares against (`/tmp` files are scratch and may be swept)
   - Verify `deferred-items.md` exists in the plan directory (created with this plan — if missing, create from template `.agents/spec-process-guide/templates/deferred-items-template.md`)
@@ -43,7 +43,7 @@ Ground truth: all M1 surfaces cited in `specs.md`/`plan.md` EXIST as verified; n
 
 ### Task 1: Cross-Teacher Read Surface — journey-first (types + repo + service until the journey is green)
 
-- [ ] 1. Author the RED journey, then implement the service surface beneath it
+- [x] 1. Author the RED journey, then implement the service surface beneath it
   - **1.1 Journey FIRST:** `test/workflows/classes/session-report-cross-teacher.journey.test.ts` — write the full REQ-8 workflow (ordered steps 1-7 of specs "Ordered Steps") BEFORE any implementation code in this task: one student S + two certified teachers T1/T2 + foreign teacher Ft via `createTestUser`/`createTestStudent`/`createTestTeacherRow` (`backend/db/test/entity-setup.ts:72,102,522`) in ONE committing `beforeAll` transaction; sessions provisioned through the REAL `SessionLifecycleService.createSession/startSession/completeSession` (outerTx seam — the M1 journey recipe, `session-report-homework.journey.test.ts:361-374,497-561`); `TrackedFixtures` tracking every created row incl. service-created reports/home_work/notifications; `SpiedFanoutTransport` + suite-local `createMemoryClaimCache` wired through `NotificationEngineCallOptions`; denials via try/catch + `getServerTranslations("en").errorsTranslations` substrings; NO `runInRollback`. The file imports `listStudentHomeworkHistory` from `@/backend/services/classes/student-homework.service` — RED until 1.4 lands.
   - **1.2 Types:** `backend/types/classes/home-work.types.ts` — add `StudentHomeworkPageInput` + `StudentHomeworkPageReturnType` exactly per plan §8.A
   - **1.3 Repo:** `backend/db/repo/classes/session.repository.ts` — add `existsSessionForTeacherStudent(teacherUserId, studentId, tx?): Promise<boolean>` per plan §8.B (query-builder EXISTS-select on `session_teacher_id_student_id_idx`; no raw-SQL comments)
@@ -61,7 +61,7 @@ Ground truth: all M1 surfaces cited in `specs.md`/`plan.md` EXIST as verified; n
 
 ### Task 2: GraphQL Surface + Documents + Wire Suite
 
-- [ ] 2. Expose `studentHomeworkHistory` end to end
+- [x] 2. Expose `studentHomeworkHistory` end to end
   - **2.1 Pothos:** `backend/graphql/pothos/classes/home-work.pothos.ts` — add `StudentHomeworkPagePothosObject` exactly per plan §8.D (items → `[SessionHomeWorkPothosObject]`, totalCount/page/pageSize exposed ints; the sanctioned list-wrapper over the CANONICAL object — no duplicate homework projection)
   - **2.2 Query registration:** `backend/graphql/query/classes/session-report.query.ts` — add the `studentHomeworkHistory` field exactly per plan §8.D: `studentId: t.arg.id({ required: true })` + `page`/`pageSize` `t.arg.int()` (NO GraphQL defaults — the service clamps); `authScopes: { $all: { authenticated: true, role: [UserRole.Teacher] } }` with `UserRole` as a VALUE import; thin resolver — `requirePositiveIntId(Number(args.studentId), "studentId")` then delegate; no try/catch; no repo calls
   - **2.3 Codegen:** `bun run generate:gqlSchema && bun codegen` — schema + generated types land before any frontend consumption
@@ -78,7 +78,7 @@ Ground truth: all M1 surfaces cited in `specs.md`/`plan.md` EXIST as verified; n
 
 ### Task 3: i18n — Sessions Copy + Localized SurahJuzRef Labels (en + ar)
 
-- [ ] 3. Extend the sessions namespace trio + parity registry
+- [x] 3. Extend the sessions namespace trio + parity registry
   - **3.1 Type:** `shared/locale/types/sessions/labels.ts` — add the new `readonly` keys per plan §5's inventory (dialog titles, section titles, field labels, validation messages, notices, CTA labels) + the function-valued `surahJuzLabel: (ref: string) => string`
   - **3.2 en leaf:** `shared/locale/en/sessions/labels.ts` — implement all additions; `surahJuzLabel` resolves the FULL 35-value vocabulary (`surah_al_fatihah`, `surah_al_baqarah`, `surah_aal_imran`, `surah_an_nisa`, `surah_al_maidah`, `juz_1`…`juz_30`) to display names ("Surah Al-Fātihah"…"Juz 30"), fail-closed to the raw ref on an unknown key
   - **3.3 ar leaf:** `shared/locale/ar/sessions/labels.ts` — Arabic twins for every key incl. the label map (سورة الفاتحة، سورة البقرة، سورة آل عمران، سورة النساء، سورة المائدة، الجزء 1…الجزء 30), same fail-closed fallback
@@ -94,7 +94,7 @@ Ground truth: all M1 surfaces cited in `specs.md`/`plan.md` EXIST as verified; n
 
 ### Task 4: Teacher Sessions CTA — Row Actions + Container Wiring
 
-- [ ] 4. Completed-row "Session report" + started-row "Homework" affordances
+- [x] 4. Completed-row "Session report" + started-row "Homework" affordances
   - **4.1 Action union:** `frontend/views/student/sessions/sessionRowAction.ts:15` — extend the id union with `"homework" | "report"`
   - **4.2 Arms:** `frontend/views/teacher/sessions/teacherSessionCacheArms.ts` — extend `TeacherActionsWiring` with `onHomework`/`onReport` (`(sessionId: string) => void`); add the two branches to `teacherActionsForSession`: Started → `{ id: "homework", label: t.viewHomeworkAction, onIntent: onHomework }`; Completed → `{ id: "report", label: t.sessionReportAction, onIntent: onReport }` (labels from Task 3 keys; terminal Cancelled/Disputed still fall through to `[]`)
   - **4.3 Container:** `frontend/views/teacher/sessions/TeacherSessionsContainer.tsx` — add the `reportDialogSessionId` state slot (the `caseDialogSessionId` pattern, `:140-148`); wire `onHomework`/`onReport` through the body → `actionsFor` path (the existing `onStart`/`onComplete` wiring); add the conditional dialog mount resolved from the cached `myTeacherSessions` data by id. Sequencing rule: land Task 4 and Task 5 in order — Task 4 ships the union, arms, state slot, and handlers; Task 5 ships `TeacherSessionReportDialog` and the single mount line that consumes the slot. Until Task 5 lands, nothing references the slot (an unused state field + handlers wired into `actionsFor` is dead-code-free: the handlers ARE consumed by the arms matrix, and the mount line belongs to Task 5 — do NOT ship commented-out stubs or placeholder components).
@@ -109,7 +109,7 @@ Ground truth: all M1 surfaces cited in `specs.md`/`plan.md` EXIST as verified; n
 
 ### Task 5: Session Report Submission Dialog — prepare / submit / review
 
-- [ ] 5. The dialog (largest task — full pipeline)
+- [x] 5. The dialog (largest task — full pipeline)
   - **5.1 Helpers first:** NEW `frontend/views/teacher/sessions/teacherSessionReportDialog.helpers.ts` — pure: `buildSubmitPayload(form)` → `SubmitSessionReportInput` (field-by-field BOPLA: notes, rating, jadid?/madi? blocks, previousGrades — never a spread); `validateReportForm(form, t)` mirroring the server vocabulary (`session-report.guards.ts:51-60,95-160`: trim/required/2000, 0-5, positive safe ayahs from≤to, ≥1 block, 0-100); `resolveNewestRow(page)`; `isNewestRowUngraded(row)` (both grade columns null — the same predicate `gradeHomeWorkOnce` guards, `home-work.repository.ts:185`)
   - **5.2 Hook:** NEW `frontend/views/teacher/sessions/useTeacherSessionReportSubmit.ts` — `useMutation(submitSessionReportMutationDocument)` from `@apollo/client/react`; `onCompleted` → success notice + refetch `myTeacherSessionsQueryDocument` + flip to review; `onError` → the code→behavior arm of plan §8.H (`SESSION_REPORT_ALREADY_EXISTS` → info + close + refetch; `SESSION_INVALID_TRANSITION` → inline; `FORBIDDEN` → `te.forbidden`; `VALIDATION` → `mutationFieldErrors` projection; default → generic)
   - **5.3 Parts:** NEW `TeacherSessionReportDialog.parts.tsx` — assignment block (Jadid/Madi sub-forms: from/to ayah number fields + SurahJuz `Select` over `Object.values(SurahJuzRef)` labeled via `t.surahJuzLabel(ref)`), grade-previous block (pre-filled from `history.items[0]`; per-track spans rendered from the row's actual tracks; grade inputs 0-100; read-only + `reportAlreadyGradedLabel` when graded), first-session hint, history list (compact read-only rows), review state (reuses the `caseReview*` vocabulary — `shared/locale/en/sessions/labels.ts:108-128`)
@@ -125,7 +125,7 @@ Ground truth: all M1 surfaces cited in `specs.md`/`plan.md` EXIST as verified; n
 
 ### Task 6: Canonical Doc Update + Browser Verification
 
-- [ ] 6. Docs + live-flow verification
+- [x] 6. Docs + live-flow verification
   - **6.1 Docs:** update `docs/sessions/session-report-homework.md` — §5 Consumer Guidance: Submit UX section flips from forward-note to shipped (cite `frontend/views/teacher/sessions/TeacherSessionReportDialog.tsx` + the CTA arms); document the teacher homework-history query (`studentHomeworkHistory`, gate, envelope) beside the existing participant reads; §6 Rollout gains the new files + the cross-teacher journey row. Verify the root `AGENTS.md` Important References line for this doc stays accurate (description check only — do NOT edit AGENTS.md)
   - **6.2 Browser verification (DOM & accessibility first):** with the dev server up, `bun run scripts/browser-login.ts --inject` for the teacher identity; verify `/teacher/sessions` via `agent-browser snapshot -i -c` (accessible DOM): completed rows expose the "Session report" action; open the dialog — assert form fields (notes, rating, Jadid/Madi blocks with the 35-option Surah/Juz picker showing localized labels), the grade-previous state on a student WITH prior homework, and the first-session hint on a fresh student; submit one real report; assert the review state + the success notice; `agent-browser console --level error` = zero errors. Screenshots to `scratch/screenshots/` — inspected by an ISOLATED visual subagent returning a text summary ONLY (never `ReadMediaFile` in the main loop)
   - **6.3 RTL spot-check:** switch locale to `ar` (the `NEXT_LOCALE` cookie via `app/api/set-locale/`), reopen the dialog, assert RTL mirroring + Arabic Surah labels via the accessible snapshot (no `ReadMediaFile` in main context)
@@ -139,7 +139,7 @@ Ground truth: all M1 surfaces cited in `specs.md`/`plan.md` EXIST as verified; n
 
 ### Task 7: Final Quality Gate + Knowledge Propagation
 
-- [ ] 7. Full verification + propagation
+- [x] 7. Full verification + propagation
   - `bun quality-gate` green end-to-end (tsgo → oxlint → biome → lint → duplicates); any pre-existing failures must match the Task-0 baseline (baseline-diff discipline — new failures are this plan's to fix)
   - Journey + wire + service + repo + parity + frontend unit suites re-run green via their run-test wrappers; M1 regression suites green (session-report service/guards/repo/wire/journey UNTOUCHED files — any red there = plan regression)
   - `deferred-items.md` audited: every row resolved or explicitly parked with an owning follow-up; zero ❌

@@ -39,6 +39,10 @@ export interface TeacherSessionsBodyProps {
   readonly inFlightSlots: InFlightSlots;
   readonly onStart: (sessionId: string) => void;
   readonly onComplete: (sessionId: string) => void;
+  /** Opens the homework viewer for a Started session (read-only). */
+  readonly onHomework: (sessionId: string) => void;
+  /** Opens the session report submission dialog for a Completed session. */
+  readonly onReport: (sessionId: string) => void;
   /**
    * The row-owner role token supplied by the teacher container (the
    * teacher surface constant) — scopes the rows' dispute affordance matrix
@@ -72,6 +76,8 @@ export function TeacherSessionsBody({
   inFlightSlots,
   onStart,
   onComplete,
+  onHomework,
+  onReport,
   role,
   onCaseIntent,
   t,
@@ -121,7 +127,9 @@ export function TeacherSessionsBody({
       onDisputeIntent={onDisputeIntent}
       disputeInFlightSlots={disputeInFlightSlots}
       role={role}
-      actionsFor={session => teacherActionsForSession(session, { t, inFlightSlots, onStart, onComplete })}
+      actionsFor={session =>
+        teacherActionsForSession(session, { t, inFlightSlots, onStart, onComplete, onHomework, onReport })
+      }
       onCaseIntent={onCaseIntent}
     />
   );

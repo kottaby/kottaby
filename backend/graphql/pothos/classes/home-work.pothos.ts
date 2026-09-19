@@ -30,7 +30,7 @@
 import { SurahJuzRef } from "@/backend/enum/shared/surah-juz-ref.enum";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import { SurahJuzRefPothosEnum } from "@/backend/graphql/pothos/shared/enum.pothos";
-import type { HomeWorkReturnType } from "@/backend/types";
+import type { HomeWorkReturnType, StudentHomeworkPageReturnType } from "@/backend/types";
 
 /**
  * Maps the `surah_juz_ref` pgEnum value carried by the canonical
@@ -173,3 +173,30 @@ export const SessionHomeWorkPothosObject = gqlSchemaBuilder.objectRef<HomeWorkRe
     updatedAt: t.expose("updatedAt", { type: "DateTime" }),
   }),
 });
+
+/**
+ * The sanctioned list-wrapper for the teacher-scoped student homework
+ * history read. The wrapper carries NO `id` (it is a pagination envelope,
+ * not an entity), so consumers MUST register `StudentHomeworkPage:
+ * { keyFields: false }` in the Apollo cache `typePolicies` to silence
+ * normalization warnings (the precedent is `ParentHomeworkPage`).
+ *
+ * The `items` field exposes the CANONICAL `SessionHomeWork` object — no
+ * duplicate homework projection. The page metadata trio (`totalCount`,
+ * `page`, `pageSize`) is exposed as `Int!` so an out-of-range page yields
+ * an empty `items` array next to the honest `totalCount` and the
+ * service-clamped effective values echo back to the caller.
+ */
+export const StudentHomeworkPagePothosObject = gqlSchemaBuilder
+  .objectRef<StudentHomeworkPageReturnType>("StudentHomeworkPage")
+  .implement({
+    fields: t => ({
+      items: t.field({
+        type: [SessionHomeWorkPothosObject],
+        resolve: page => page.items,
+      }),
+      totalCount: t.exposeInt("totalCount"),
+      page: t.exposeInt("page"),
+      pageSize: t.exposeInt("pageSize"),
+    }),
+  });

@@ -46,27 +46,33 @@ import type {
   SessionHomeWorkQueryVariables,
   SessionReportQuery,
   SessionReportQueryVariables,
+  StudentHomeworkHistoryQuery,
+  StudentHomeworkHistoryQueryVariables,
   SubmitSessionReportMutation,
   SubmitSessionReportMutationVariables,
 } from "@/frontend/graphql/generated/gql/graphql";
 import {
   sessionHomeworkQueryDocument as sessionHomeworkViaRootBarrel,
   sessionReportQueryDocument as sessionReportViaRootBarrel,
+  studentHomeworkHistoryQueryDocument as studentHomeworkHistoryViaRootBarrel,
   submitSessionReportMutationDocument as submitSessionReportViaRootBarrel,
 } from "@/frontend/graphql/sharedDocuments";
 import {
   sessionHomeworkQueryDocument as sessionHomeworkViaSchedulingBarrel,
   sessionReportQueryDocument as sessionReportViaSchedulingBarrel,
+  studentHomeworkHistoryQueryDocument as studentHomeworkHistoryViaSchedulingBarrel,
   submitSessionReportMutationDocument as submitSessionReportViaSchedulingBarrel,
 } from "@/frontend/graphql/sharedDocuments/scheduling";
 import {
   sessionHomeworkQueryDocument as sessionHomeworkViaHub,
   sessionReportQueryDocument as sessionReportViaHub,
+  studentHomeworkHistoryQueryDocument as studentHomeworkHistoryViaHub,
   submitSessionReportMutationDocument as submitSessionReportViaHub,
 } from "@/frontend/graphql/sharedDocuments/scheduling/session.documents";
 import {
   sessionHomeworkQueryDocument,
   sessionReportQueryDocument,
+  studentHomeworkHistoryQueryDocument,
   submitSessionReportMutationDocument,
 } from "@/frontend/graphql/sharedDocuments/scheduling/session-report.documents";
 
@@ -158,6 +164,9 @@ const SESSION_HOMEWORK_ROW: readonly string[] = [
   "updatedAt",
 ];
 
+/** The plan §8.E `StudentHomeworkPage` envelope contract — four fields, `items` first. */
+const STUDENT_HOMEWORK_PAGE_ENVELOPE: readonly string[] = ["items", "totalCount", "page", "pageSize"];
+
 interface SessionReportDocumentRow {
   readonly document: DocumentNode;
   readonly operationName: string;
@@ -195,6 +204,35 @@ const SESSION_REPORT_DOCUMENT_TABLE: readonly SessionReportDocumentRow[] = [
     variables: ["sessionId"],
     rootField: "sessionHomework",
     payloadRow: SESSION_HOMEWORK_ROW,
+  },
+];
+
+/**
+ * The `StudentHomeworkHistory` query contract — separate table because the
+ * root field carries an id-less pagination envelope (not a nullable row),
+ * so its variable surface and payload shape diverge from the rows above.
+ */
+interface StudentHomeworkHistoryDocumentRow {
+  readonly document: DocumentNode;
+  readonly operationName: string;
+  readonly channel: "mutation" | "query";
+  readonly variables: readonly string[];
+  readonly rootField: string;
+  /** The envelope payload row (the id-less wrapper, plan §8.E). */
+  readonly envelopeRow: readonly string[];
+  /** The `items` selection row inside the envelope (the canonical `SessionHomeWork` 12-field row). */
+  readonly itemsRow: readonly string[];
+}
+
+const STUDENT_HOMEWORK_HISTORY_DOCUMENT_TABLE: readonly StudentHomeworkHistoryDocumentRow[] = [
+  {
+    document: studentHomeworkHistoryQueryDocument,
+    operationName: "StudentHomeworkHistory",
+    channel: "query",
+    variables: ["studentId", "page", "pageSize"],
+    rootField: "studentHomeworkHistory",
+    envelopeRow: STUDENT_HOMEWORK_PAGE_ENVELOPE,
+    itemsRow: SESSION_HOMEWORK_ROW,
   },
 ];
 
@@ -287,22 +325,97 @@ describe("session-report documents — codegen binding + barrel parity", () => {
     const typedReport: TypedDocumentNode<SessionReportQuery, SessionReportQueryVariables> = sessionReportQueryDocument;
     const typedHomework: TypedDocumentNode<SessionHomeWorkQuery, SessionHomeWorkQueryVariables> =
       sessionHomeworkQueryDocument;
+    const typedHistory: TypedDocumentNode<StudentHomeworkHistoryQuery, StudentHomeworkHistoryQueryVariables> =
+      studentHomeworkHistoryQueryDocument;
 
     // Runtime uses keep the bindings from being flagged as unused.
     expect(typedSubmit.loc).toBeDefined();
     expect(typedReport.loc).toBeDefined();
     expect(typedHomework.loc).toBeDefined();
+    expect(typedHistory.loc).toBeDefined();
   });
 
   test("root barrel + scheduling barrel + hub re-export the SAME document instances (cache-key safety)", () => {
     expect(submitSessionReportViaRootBarrel).toBe(submitSessionReportMutationDocument);
     expect(sessionReportViaRootBarrel).toBe(sessionReportQueryDocument);
     expect(sessionHomeworkViaRootBarrel).toBe(sessionHomeworkQueryDocument);
+    expect(studentHomeworkHistoryViaRootBarrel).toBe(studentHomeworkHistoryQueryDocument);
     expect(submitSessionReportViaSchedulingBarrel).toBe(submitSessionReportMutationDocument);
     expect(sessionReportViaSchedulingBarrel).toBe(sessionReportQueryDocument);
     expect(sessionHomeworkViaSchedulingBarrel).toBe(sessionHomeworkQueryDocument);
+    expect(studentHomeworkHistoryViaSchedulingBarrel).toBe(studentHomeworkHistoryQueryDocument);
     expect(submitSessionReportViaHub).toBe(submitSessionReportMutationDocument);
     expect(sessionReportViaHub).toBe(sessionReportQueryDocument);
     expect(sessionHomeworkViaHub).toBe(sessionHomeworkQueryDocument);
+    expect(studentHomeworkHistoryViaHub).toBe(studentHomeworkHistoryQueryDocument);
+  });
+});
+
+describe("student-homework-history document — envelope contract (plan §8.E)", () => {
+  for (const row of STUDENT_HOMEWORK_HISTORY_DOCUMENT_TABLE) {
+    test(`${row.operationName} is a single named ${row.channel} operation`, () => {
+      const operation = operationOrThrow(row.document);
+      expect(operation.name?.value).toBe(row.operationName);
+      expect(operation.name?.value ?? "").not.toBe("");
+      expect(operation.operation).toBe(row.channel);
+      expect(variableNames(operation)).toEqual([...row.variables]);
+    });
+  }
+
+  test("every declared variable is wired into its root-field argument (no dead variables, no literal arguments)", () => {
+    for (const row of STUDENT_HOMEWORK_HISTORY_DOCUMENT_TABLE) {
+      const operation = operationOrThrow(row.document);
+      const root = selectionPath(operation, row.rootField);
+      expect(argumentVariableNames(root)).toEqual([...row.variables]);
+    }
+  });
+
+  test("the operation selects exactly its one root field (no sibling surface)", () => {
+    for (const row of STUDENT_HOMEWORK_HISTORY_DOCUMENT_TABLE) {
+      const operation = operationOrThrow(row.document);
+      expect(fieldNames(operation)).toEqual([row.rootField]);
+    }
+  });
+
+  test("the envelope payload selects EXACTLY the four envelope fields (items + totalCount + page + pageSize)", () => {
+    for (const row of STUDENT_HOMEWORK_HISTORY_DOCUMENT_TABLE) {
+      const operation = operationOrThrow(row.document);
+      const payload = selectionPath(operation, row.rootField);
+      // Source-order assertion (NOT sorted) — pins the field ORDER the
+      // server contract pins (`items` first, then the metadata trio).
+      expect(fieldNames(payload)).toEqual([...row.envelopeRow]);
+    }
+  });
+
+  test("the `items` selection carries the EXACT canonical 12-field SessionHomeWork row with id FIRST", () => {
+    for (const row of STUDENT_HOMEWORK_HISTORY_DOCUMENT_TABLE) {
+      const operation = operationOrThrow(row.document);
+      const envelope = selectionPath(operation, row.rootField);
+      const items = subField(envelope, "items");
+      if (items === undefined) {
+        throw new Error("expected items selection");
+      }
+      const itemFields = subFields(items);
+      expect(itemFields.map(field => field.name.value)).toEqual([...row.itemsRow]);
+      expect(itemFields[0]?.name.value).toBe("id");
+    }
+  });
+
+  test("the homework enum legs inside the items selection are plain SurahJuzRef leaves (no sub-selection)", () => {
+    for (const row of STUDENT_HOMEWORK_HISTORY_DOCUMENT_TABLE) {
+      const operation = operationOrThrow(row.document);
+      const envelope = selectionPath(operation, row.rootField);
+      const items = subField(envelope, "items");
+      if (items === undefined) {
+        throw new Error("expected items selection");
+      }
+      for (const name of ["currentSurahJuz", "revisionSurahJuz"]) {
+        const leg = subField(items, name);
+        if (leg === undefined) {
+          throw new Error(`expected ${name} selection`);
+        }
+        expect(leg.selectionSet).toBeUndefined();
+      }
+    }
   });
 });

@@ -127,4 +127,118 @@ export const sessionsAr: SessionsLabels = {
   adminDisputeAnalyticsOpen: "بانتظار التحكيم",
   adminDisputeAnalyticsResolved: "إجمالي المحسوم",
   adminDisputeAnalyticsOutcomes: "النتائج",
+
+  // ─── Session Report Submission (Jadid & Madi) ───────────────────────────────
+  sessionReportAction: "تقرير الجلسة",
+  viewHomeworkAction: "الواجب",
+  reportDialogPrepareTitle: "مراجعة الواجب السابق",
+  reportDialogSubmitTitle: "إرسال تقرير الجلسة",
+  reportDialogReviewTitle: "تقرير الجلسة",
+  reportNotesLabel: "ملاحظات",
+  reportNotesPlaceholder: "دوّن ملاحظاتك عن أداء الطالب في هذه الجلسة (مطلوب، حتى ٢٠٠٠ حرف).",
+  reportNotesRequiredMessage: "الملاحظات مطلوبة.",
+  reportNotesTooLongMessage: "لا يجوز أن تتجاوز الملاحظات ٢٠٠٠ حرف.",
+  reportRatingLabel: "تقييم الطالب",
+  reportRatingRequiredMessage: "التقييم مطلوب.",
+  reportSubmitLabel: "إرسال التقرير",
+  reportCancelLabel: "إلغاء",
+  reportSubmitSuccessNotice: "تم إرسال تقرير الجلسة.",
+  reportAlreadySubmittedNotice: "تم إرسال تقرير لهذه الجلسة من قبل.",
+  reportBlocksRequiredMessage: "يجب إدخال واجب واحد على الأقل (جديد أو مراجعة).",
+  reportAyahRangeMessage: "يجب أن تكون الآية من أصغر من أو تساوي الآية إلى.",
+  reportGradeRangeMessage: "يجب أن تكون الدرجة بين ٠ و ١٠٠.",
+  reportSurahJuzRequiredMessage: "السورة/الجزء مطلوبة لكتلة غير فارغة.",
+  jadidSectionTitle: "الحفظ الجديد (جديد)",
+  madiSectionTitle: "المراجعة (ماضٍ)",
+  fromAyahLabel: "من آية",
+  toAyahLabel: "إلى آية",
+  surahJuzPickerLabel: "السورة / الجزء",
+  gradePreviousSectionTitle: "تقييم الواجب السابق",
+  reportFirstSessionHint: "هذه أول جلسة للطالب — لا يوجد واجب سابق لتقييمه.",
+  reportAlreadyGradedLabel: "تم التقييم",
+  reportGradeJadidLabel: "درجة الجديد",
+  reportGradeMadiLabel: "درجة المراجعة",
+  reportTrackEmptyLabel: "لا يوجد واجب لهذا المسار.",
+  reportHistorySectionTitle: "سجل الواجب",
+  reportHistoryEmptyMessage: "لا يوجد واجب سابق لهذا الطالب بعد.",
+  reportSessionDateLabel: "تاريخ الجلسة",
+  reportReviewedNotesLabel: "ملاحظات المعلم",
+  reportReviewedRatingLabel: "تقييم الطالب",
+  surahJuzLabel: (ref: string): string => {
+    // Five surah legs as equality-guard early returns (the function-size
+    // lint ceiling forbids 35 two-line cases in one switch body); the juz
+    // legs ride a switch below. The trailing default is the fail-closed
+    // fallback for an unknown ref.
+    if (ref === "surah_al_fatihah") return "سورة الفاتحة";
+    if (ref === "surah_al_baqarah") return "سورة البقرة";
+    if (ref === "surah_aal_imran") return "سورة آل عمران";
+    if (ref === "surah_an_nisa") return "سورة النساء";
+    if (ref === "surah_al_maidah") return "سورة المائدة";
+    switch (ref) {
+      case "juz_1":
+        return "الجزء ١";
+      case "juz_2":
+        return "الجزء ٢";
+      case "juz_3":
+        return "الجزء ٣";
+      case "juz_4":
+        return "الجزء ٤";
+      case "juz_5":
+        return "الجزء ٥";
+      case "juz_6":
+        return "الجزء ٦";
+      case "juz_7":
+        return "الجزء ٧";
+      case "juz_8":
+        return "الجزء ٨";
+      case "juz_9":
+        return "الجزء ٩";
+      case "juz_10":
+        return "الجزء ١٠";
+      case "juz_11":
+        return "الجزء ١١";
+      case "juz_12":
+        return "الجزء ١٢";
+      case "juz_13":
+        return "الجزء ١٣";
+      case "juz_14":
+        return "الجزء ١٤";
+      case "juz_15":
+        return "الجزء ١٥";
+      case "juz_16":
+        return "الجزء ١٦";
+      case "juz_17":
+        return "الجزء ١٧";
+      case "juz_18":
+        return "الجزء ١٨";
+      case "juz_19":
+        return "الجزء ١٩";
+      case "juz_20":
+        return "الجزء ٢٠";
+      case "juz_21":
+        return "الجزء ٢١";
+      case "juz_22":
+        return "الجزء ٢٢";
+      case "juz_23":
+        return "الجزء ٢٣";
+      case "juz_24":
+        return "الجزء ٢٤";
+      case "juz_25":
+        return "الجزء ٢٥";
+      case "juz_26":
+        return "الجزء ٢٦";
+      case "juz_27":
+        return "الجزء ٢٧";
+      case "juz_28":
+        return "الجزء ٢٨";
+      case "juz_29":
+        return "الجزء ٢٩";
+      case "juz_30":
+        return "الجزء ٣٠";
+      default:
+        // Fail-closed: an unknown ref rides the raw value verbatim so the
+        // UI never renders an empty string and the bug surfaces visibly.
+        return ref;
+    }
+  },
 };
