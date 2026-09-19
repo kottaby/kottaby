@@ -130,13 +130,13 @@
 
 ## Phase 7 — Frontend drawer surface
 
-- [ ] **10. Drawer UI: documents, hooks, section, dialogs, i18n namespace**
+- [x] **10. Drawer UI: documents, hooks, section, dialogs, i18n namespace**
   - Documents: NEW `frontend/graphql/sharedDocuments/admin/admin-subscriptions.documents.ts` (+ `.documents.test.ts` contract) with `adminStudentSubscriptionsQueryDocument` and four mutation documents, each with `id` in every selection set; exported via `sharedDocuments/admin/index.ts`.
   - Hooks: `frontend/views/admin/students/subscriptions/hooks/useSubscriptionAdminActions.ts` — four `useMutation` wrappers, Apollo cache refresh via refetch of the drawer query.
   - UI: `SubscriptionAdminSection.tsx` + `dialogs/{Extend,Renew,Cancel,ChangePlan}SubscriptionDialog.tsx` — MUI v9 `sx` only; dir under `frontend/views/admin/students/`; mobile-friendly (existing card layout of the drawer).
   - Mount: edit `AdminStudentDetailDrawer.tsx` to include the section (READ THE FILE FIRST; place below balances).
   - i18n: NEW `subscriptionAdmin` namespace — the five-step registration per REQ-0.5 + parity test; drawer renders via `useAppTranslation(<handle>)`.
-  - [ ] 10.QL / 10.TE (rls of dialogs: stub-Apollo or contract tests; follow existing dialogs' test precedent in `frontend/views/admin/plans/`) / 10.SEC (actions only render for admin — page is admin-gated; confirm no student-facing leak) / 10.SR / 10.IV.
+  - [x] 10.QL / 10.TE (rls of dialogs: stub-Apollo or contract tests; follow existing dialogs' test precedent in `frontend/views/admin/plans/`) / 10.SEC (actions only render for admin — page is admin-gated; confirm no student-facing leak) / 10.SR / 10.IV.
   - _Requirements: REQ-8, REQ-0.5_
 
 ---
