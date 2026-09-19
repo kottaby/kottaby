@@ -96,7 +96,7 @@
 
 ## Phase 3 — GraphQL read surface + schema regen
 
-- [ ] **6. Admin query `adminStudentSubscriptions` + schema regeneration**
+- [x] **6. Admin query `adminStudentSubscriptions` + schema regeneration**
   - NEW `backend/graphql/query/billing/subscription-admin.query.ts` — `adminStudentSubscriptions(userId: ID!)` → `[StudentSubscription!]!` with `adminOnlyAuthScopes` + `requireAdminUser`; delegates to `SubscriptionAdminService.listForAdmin` (reuses `SubscriptionRepository.listByUserId`; verify its behavior at `subscription.repository.ts:169`).
   - Hard rule from `backend/graphql/query/AGENTS.md`: side-effect registration in `backend/graphql/query/billing/index.ts` + docblock update.
   - Run `bun run generate:gqlSchema` then `bun codegen` — frontend generated types refresh; verify SDL diff ONLY contains the 5 new fields + new input/payload types + the enum.

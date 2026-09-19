@@ -58,6 +58,16 @@
  * total (the target plan's full session count plus the computed carry on
  * the upgrade leg; the downgrade forfeits the remainder), opens the fresh
  * period, and writes exactly ONE `Override` audit row on the NEW row.
+ *
+ * List semantics: the admin read surface is READ-ONLY — one owner-scoped
+ * query (`user_id` = the addressed id, newest first by the repository's
+ * own `created_at DESC` ordering) mapped onto the canonical ReturnType;
+ * no writes, no audit rows. The acting admin is re-asserted against the
+ * `users` table BEFORE any read (defense in depth behind the GraphQL
+ * role scope — zero reads on denial), the owner id is re-validated
+ * through the strict numeric coercion (a malformed id is the canonical
+ * localized VALIDATION denial, never a silent mis-target), and a
+ * well-formed but unknown id is the indistinguishable empty list.
  */
 
 import { SubscriptionRepository } from "@/backend/db/repo/billing/subscription.repository";
@@ -83,6 +93,7 @@ import {
   toSubscriptionAdminDomainError,
   toSubscriptionAdminReturnType,
 } from "@/backend/services/billing/subscription-admin.helpers";
+import { coerceUserId } from "@/backend/services/billing/subscription-admin-read.helpers";
 import { changeSubscriptionPlanFlow } from "@/backend/services/billing/subscription-plan-change.helpers";
 import type {
   CancelSubscriptionSubmitInput,
@@ -468,5 +479,55 @@ export namespace SubscriptionAdminService {
     tx?: DBTransaction
   ): Promise<ChangeSubscriptionPlanResult> {
     return changeSubscriptionPlanFlow(input, actorId, locale, tx);
+  }
+
+  /**
+   * Lists one student-owner's subscriptions for the admin read surface —
+   * READ-ONLY: no writes, no audit rows, one owner-scoped query.
+   *
+   * Fail-closed sequence: the admin gate re-asserts the actor's role
+   * BEFORE any read (the GraphQL scope already enforced admin-only — the
+   * gate is the defense in depth; a denial costs zero target reads and
+   * zero audit rows), the owner id is re-validated through the strict
+   * numeric coercion (the wire string was already decimal-coerced at the
+   * resolver boundary through the same helper; direct service callers —
+   * SSR, sibling services — bypass the resolver, so the boundary never
+   * trusts its numeric parameter), and the read delegates to the
+   * repository's owner-scoped listing: the `user_id` predicate IS the
+   * BOLA boundary (only the addressed owner's rows come back — a
+   * well-formed but unknown id is the indistinguishable empty list),
+   * newest first by the repository's own `created_at DESC` ordering,
+   * mapped onto the canonical ReturnType through the shared fail-closed
+   * enum certification.
+   *
+   * @param userId  The addressed student-owner's user id (the only
+   *     client material on this surface).
+   * @param actorId  The acting admin's user id (never client input).
+   * @param locale  Locale for the localized denial messages.
+   * @param tx  Optional caller transaction to join (test path:
+   *     SAVEPOINT) — the gate's actor read and the owner-scoped read
+   *     share the caller's unit so they observe one snapshot.
+   * @returns The owner's rows, newest first, in the canonical read
+   *     shape; empty when the owner has none.
+   */
+  export async function listForAdmin(
+    userId: number,
+    actorId: number,
+    locale: string,
+    tx?: DBTransaction
+  ): Promise<SubscriptionReturnType[]> {
+    const tErrors = getServerTranslations(locale).errorsTranslations;
+
+    // Defense-in-depth BFLA gate — re-asserts the actor's role BEFORE
+    // any read, joining the caller's transaction when one is supplied so
+    // the gate and the read observe the same snapshot.
+    await assertActorAdmin(actorId, locale, tx);
+
+    // Strict owner-id validation — a malformed id is the canonical
+    // localized VALIDATION denial, never a 500.
+    const ownerId = coerceUserId(userId, tErrors);
+
+    const rows = await SubscriptionRepository.listByUserId(ownerId, tx);
+    return rows.map(row => toSubscriptionAdminReturnType(row, tErrors));
   }
 }

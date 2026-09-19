@@ -2418,3 +2418,108 @@ describe("SubscriptionAdminService.changeSubscriptionPlan — replay + chaos (Ti
     }
   );
 });
+
+// ─── listForAdmin (admin read surface) ─────────────────────────────────────
+
+describe("SubscriptionAdminService.listForAdmin — admin read surface", () => {
+  test("returns the addressed owner's rows newest-first and never another owner's (BOLA boundary)", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const owner = await createTestUser(tx, { role: "student" });
+      const stranger = await createTestUser(tx, { role: "student" });
+      const plan = await createTestPlan(tx);
+      const base = new Date();
+      const oldest = await createTestSubscription(tx, owner.id, plan.id, {
+        createdAt: new Date(base.getTime() - 2 * MS_PER_DAY),
+      });
+      const newest = await createTestSubscription(tx, owner.id, plan.id, {
+        createdAt: new Date(base.getTime() - 1 * MS_PER_DAY),
+      });
+      const strangerRow = await createTestSubscription(tx, stranger.id, plan.id, {
+        createdAt: base,
+      });
+
+      const rows = await SubscriptionAdminService.listForAdmin(owner.id, adminId, "en", tx);
+
+      // Newest first, and ONLY the addressed owner's rows — the read
+      // predicate itself is the BOLA boundary (a foreign row is absent,
+      // not an error).
+      expect(rows.map(row => row.id)).toEqual([newest.id, oldest.id]);
+      expect(rows.map(row => row.id)).not.toContain(strangerRow.id);
+      // The canonical ReturnType mapping rides along: statuses arrive as
+      // their canonical enum members, never raw pg-enum strings.
+      for (const row of rows) {
+        expect(row.userId).toBe(owner.id);
+        expect(row.status).toBe(SubscriptionStatus.Active);
+      }
+    });
+  });
+
+  test("answers a well-formed unknown owner id with the indistinguishable empty list", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+
+      const rows = await SubscriptionAdminService.listForAdmin(99999999, adminId, "en", tx);
+
+      expect(rows).toEqual([]);
+    });
+  });
+
+  test("denies a malformed owner id with the canonical VALIDATION denial", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+
+      const nanError = await expectServiceError(() =>
+        SubscriptionAdminService.listForAdmin(Number.NaN, adminId, "en", tx)
+      );
+      expect(nanError).toBeInstanceOf(ValidationError);
+      expectDomainDenial(nanError, "VALIDATION", t().badRequest);
+
+      const zeroError = await expectServiceError(() => SubscriptionAdminService.listForAdmin(0, adminId, "en", tx));
+      expect(zeroError).toBeInstanceOf(ValidationError);
+      expectDomainDenial(zeroError, "VALIDATION", t().badRequest);
+
+      const fractionalError = await expectServiceError(() =>
+        SubscriptionAdminService.listForAdmin(2.5, adminId, "en", tx)
+      );
+      expect(fractionalError).toBeInstanceOf(ValidationError);
+      expectDomainDenial(fractionalError, "VALIDATION", t().badRequest);
+    });
+  });
+
+  test("denies a non-admin actor before ANY read (zero-touch) with zero audit rows", async () => {
+    await runInRollback(async tx => {
+      const student = await createTestUser(tx, { role: "student" });
+      const owner = await createTestUser(tx, { role: "student" });
+      const plan = await createTestPlan(tx);
+      await createTestSubscription(tx, owner.id, plan.id);
+
+      const listSpy = trackSpy(spyOn(SubscriptionRepository, "listByUserId"));
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.listForAdmin(owner.id, student.id, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ForbiddenError);
+      expectDomainDenial(error, "FORBIDDEN", t().forbidden);
+      // Zero-touch: the owner-scoped read never ran for the denied caller.
+      expect(listSpy).not.toHaveBeenCalled();
+      expect(await countAuditsForActor(tx, student.id)).toBe(0);
+    });
+  });
+
+  test("denies an anonymous actor with UNAUTHORIZED", async () => {
+    await runInRollback(async tx => {
+      const owner = await createTestUser(tx, { role: "student" });
+      const plan = await createTestPlan(tx);
+      await createTestSubscription(tx, owner.id, plan.id);
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.listForAdmin(owner.id, ANONYMOUS_ACTOR_ID, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(UnauthorizedError);
+      expectDomainDenial(error, "UNAUTHORIZED", t().unauthorized);
+    });
+  });
+});
