@@ -153,16 +153,16 @@
 - [x] 4.2.SR **Semantic Review**: links resolve; line refs current at write time.
 - [x] 4.2.IV **Instruction Verification**: n/a beyond root `AGENTS.md` doc conventions.
 
-### - [ ] 4.3 Final Gate & Definition-of-Done Audit
+### - [x] 4.3 Final Gate & Definition-of-Done Audit
 - `bun quality-gate` green; re-record tsgo/biome/lint counts against the 0.1 baseline (no regressions attributable to this plan).
 - Full relevant suites green: both repo files' tests, the service suite, the journey, the wire suite (`test:graphql`).
 - DoD sweep against `specs.md` §5; close the ledger (D1–D4 statuses updated); final checkbox sweep.
 - _Requirements: REQ-001, REQ-011, all others transitively_
-- [ ] 4.3.QL **Quality Loop**: `bun quality-gate` exit 0.
-- [ ] 4.3.TE **Test Engineering**: suite table pasted into the outcome with counts.
-- [ ] 4.3.SEC **Security & Tenancy Audit**: REQ-009 matrix re-run once, end to end.
-- [ ] 4.3.SR **Semantic Review**: every REQ id from `specs.md` appears in this file (traceability command below).
-- [ ] 4.3.IV **Instruction Verification**: sweep — every edited file's printed rule set was read (attest in outcome).
+- [x] 4.3.QL **Quality Loop**: `bun quality-gate` exit 0.
+- [x] 4.3.TE **Test Engineering**: suite table pasted into the outcome with counts.
+- [x] 4.3.SEC **Security & Tenancy Audit**: REQ-009 matrix re-run once, end to end.
+- [x] 4.3.SR **Semantic Review**: every REQ id from `specs.md` appears in this file (traceability command below).
+- [x] 4.3.IV **Instruction Verification**: sweep — every edited file's printed rule set was read (attest in outcome).
 
 ## Traceability Command (run at 4.3)
 
