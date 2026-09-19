@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { withPageAuth } from "@/frontend/lib/auth/withPageAuth";
 import { DashboardView } from "@/frontend/views/dashboard";
+import { ParentUpNextCard } from "@/frontend/views/parent/dashboard";
 import {
   HandshakeCodeCard,
   PendingParentLinkRequestsCard,
@@ -44,6 +45,13 @@ import { getLocaleFromCookie } from "@/shared/locale/server-cookies";
  *       degrades per-block on its own query failures. The hooks live
  *       INSIDE each card component — composition here is plain JSX, so no
  *       conditional-hook surface exists.
+ *     - Parent → `<ParentUpNextCard />` — the same additive pattern, the
+ *       third role card on the shared Up Next primitives: a zero-prop
+ *       client component whose identity-scoped `myChildrenUpcomingSessions`
+ *       read answers one glance block per confirmed-linked child
+ *       server-side (no new parent route, no `DashboardView` contract
+ *       change, and the page guard above stays the only authorization
+ *       boundary).
  *     - Other roles → nothing (slot empty; their dashboards unchanged).
  *
  * Extracted to eliminate jscpd duplicates across the 4 role dashboard pages
@@ -76,6 +84,8 @@ function resolveStatusSlot(role: UserRole): React.ReactNode {
           <StudentUpNextCard />
         </Stack>
       );
+    case UserRole.Parent:
+      return <ParentUpNextCard />;
     default:
       return undefined;
   }

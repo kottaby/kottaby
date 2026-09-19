@@ -52,6 +52,8 @@ import type {
   ParentAttendanceEntryReturnType,
   ParentAttendancePageReturnType,
   ParentChildProgressReturnType,
+  ParentChildUpcomingBlockReturnType,
+  ParentChildUpcomingSessionReturnType,
   ParentHomeworkEntryReturnType,
   ParentHomeworkPageReturnType,
   ParentHomeworkPositionReturnType,
@@ -358,5 +360,65 @@ export const ParentSessionTargetPothosObject = gqlSchemaBuilder
       // The linked child who owns the session — `Int!` (the landing
       // route's student segment).
       studentId: t.exposeInt("studentId"),
+    }),
+  });
+
+/**
+ * The canonical `ParentChildUpcomingSession` GraphQL object — one
+ * upcoming-session glance row for a linked child (the parent dashboard's
+ * "What's next" card row). A value object keyed by the owning session id
+ * with no `id` field of its own (the `ParentSessionTarget` precedent) —
+ * registered with `keyFields: false` in `apolloCache.ts` and read back
+ * embedded under its block. `fee` passes through verbatim (nullable —
+ * the money discipline: no arithmetic, no re-formatting); `createdAt`
+ * is the booking stamp the row renders. Only `scheduled` rows are ever
+ * projected, so no status column crosses this boundary.
+ */
+export const ParentChildUpcomingSessionPothosObject = gqlSchemaBuilder
+  .objectRef<ParentChildUpcomingSessionReturnType>("ParentChildUpcomingSession")
+  .implement({
+    fields: t => ({
+      // The owning session's id — `Int!` (the glance row's stable key
+      // for the list rendering).
+      sessionId: t.exposeInt("sessionId"),
+      // The platform-set session fee — nullable `String` (the decimal's
+      // wire string form). NEVER coerced: a session booked without a fee
+      // stays null (the UI renders the honest dash).
+      fee: t.exposeString("fee", { nullable: true }),
+      // Row creation (booking) timestamp — NOT NULL column, non-nullable
+      // `DateTime!`.
+      createdAt: t.expose("createdAt", { type: "DateTime" }),
+    }),
+  });
+
+/**
+ * The canonical `ParentChildUpcomingBlock` GraphQL object — one per-child
+ * block of the parent dashboard's upcoming-sessions glance read: the
+ * confirmed-linked child echo plus that child's glance window of
+ * scheduled sessions and the honest scheduled total. A composite value
+ * object with no row id (`keyFields: false` — the normalizable entity is
+ * the embedded `ParentLinkedChild`), replaced wholesale on refetch.
+ */
+export const ParentChildUpcomingBlockPothosObject = gqlSchemaBuilder
+  .objectRef<ParentChildUpcomingBlockReturnType>("ParentChildUpcomingBlock")
+  .implement({
+    fields: t => ({
+      // The confirmed-linked child echo — non-null `ParentLinkedChild!`
+      // (id first on the embedded entity, so the block group's hop target
+      // and the children surface share one normalized cache entry).
+      child: t.field({
+        type: ParentLinkedChildPothosObject,
+        resolve: parent => parent.child,
+      }),
+      // The child's glance window of scheduled sessions — the service
+      // caps it; the card derives its tail from the count difference.
+      upcomingSessions: t.field({
+        type: [ParentChildUpcomingSessionPothosObject],
+        resolve: parent => parent.upcomingSessions,
+      }),
+      // The child's TRUE scheduled-session count under the same filter
+      // the window was read with — non-null `Int!` (the honest tail's
+      // source; never a fabricated estimate).
+      scheduledTotalCount: t.exposeInt("scheduledTotalCount"),
     }),
   });

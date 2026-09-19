@@ -822,6 +822,18 @@ type ParentChildProgress {
   progressRowCount: Int!
 }
 
+type ParentChildUpcomingBlock {
+  child: ParentLinkedChild!
+  scheduledTotalCount: Int!
+  upcomingSessions: [ParentChildUpcomingSession!]!
+}
+
+type ParentChildUpcomingSession {
+  createdAt: DateTime!
+  fee: String
+  sessionId: Int!
+}
+
 type ParentHomeworkEntry {
   createdAt: DateTime!
   id: ID!
@@ -1121,6 +1133,11 @@ type Query {
   """
   me: User
   myApplicantProfile: ApplicantProfile
+
+  """
+  One upcoming-sessions glance block per confirmed-linked child: the child echo plus that child's capped scheduled-session window (newest-booked first) plus the honest scheduled total under the same filter. Resolved in one transaction snapshot; a parent with no linked children yields an empty list.
+  """
+  myChildrenUpcomingSessions: [ParentChildUpcomingBlock!]!
   myHandshakeCode: String!
 
   """

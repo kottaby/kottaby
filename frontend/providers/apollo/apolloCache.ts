@@ -117,6 +117,12 @@ const apolloCacheTypePolicies: NonNullable<InMemoryCacheConfig["typePolicies"]> 
   ParentHomeworkPosition: { keyFields: false },
   ParentChildProgress: { keyFields: false },
   ParentSessionTarget: { keyFields: false },
+  // Parent "What's next" glance-card value family (no `id` by design — the
+  // normalizable entity is the embedded `ParentLinkedChild` echo inside
+  // each block): the per-child block and its slim session rows are cached
+  // inline under the root field and replaced wholesale on refetch.
+  ParentChildUpcomingBlock: { keyFields: false },
+  ParentChildUpcomingSession: { keyFields: false },
   OnlineMeetingInfo: {
     keyFields: false,
   },

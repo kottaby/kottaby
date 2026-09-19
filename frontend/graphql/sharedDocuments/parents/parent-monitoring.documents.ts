@@ -1,5 +1,6 @@
 import { gql, type TypedDocumentNode } from "@apollo/client";
 import type {
+  MyChildrenUpcomingSessionsQuery,
   MyLinkedChildrenQuery,
   ParentChildHomeworkQuery,
   ParentChildHomeworkQueryVariables,
@@ -66,6 +67,44 @@ export const myLinkedChildrenQueryDocument: TypedDocumentNode<MyLinkedChildrenQu
       id
       fullName
       createdAt
+    }
+  }
+`;
+
+/**
+ * `myChildrenUpcomingSessions` query — the parent dashboard's "What's
+ * next" glance read: one block per confirmed-linked child, each carrying
+ * the child echo (the SAME `ParentLinkedChild` selection as the list, id
+ * FIRST so the block group and the children surface share one normalized
+ * cache entry), that child's capped scheduled-session window
+ * (`upcomingSessions` — the slim `ParentChildUpcomingSession` value rows:
+ * `sessionId` / verbatim nullable `fee` / booking `createdAt`), and the
+ * HONEST scheduled total (`scheduledTotalCount`) the card's "N more" tail
+ * is derived from.
+ *
+ * Zero-argument: the parent id is derived server-side from the verified
+ * context; the children list IS the read scope (BOLA: no parent identity
+ * argument exists). A parent with no linked children yields an empty
+ * list — the card renders its link-child empty arm; a child with zero
+ * scheduled sessions yields an empty window next to the honest `0`.
+ * `ParentChildUpcomingBlock` and `ParentChildUpcomingSession` are
+ * embedded value types (`keyFields: false` in `apolloCache.ts`) replaced
+ * wholesale on refetch.
+ */
+export const myChildrenUpcomingSessionsQueryDocument: TypedDocumentNode<MyChildrenUpcomingSessionsQuery> = gql`
+  query MyChildrenUpcomingSessions {
+    myChildrenUpcomingSessions {
+      child {
+        id
+        fullName
+        createdAt
+      }
+      upcomingSessions {
+        sessionId
+        fee
+        createdAt
+      }
+      scheduledTotalCount
     }
   }
 `;

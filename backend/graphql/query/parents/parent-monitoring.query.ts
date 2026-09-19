@@ -1,5 +1,5 @@
 /**
- * Parent-monitoring portal queries — the six parent-only read surfaces.
+ * Parent-monitoring portal queries — the seven parent-only read surfaces.
  *
  * Per `backend/graphql/query/AGENTS.md`:
  *  - NO named exports — the root fields register at import time via
@@ -37,6 +37,9 @@
  *    session id from the notification row's pointer; a missing or
  *    foreign session collapses to the same constant denial — existence
  *    non-disclosure for session-id probing.
+ *  - `myChildrenUpcomingSessions` — one glance block per linked child
+ *    (child echo + scheduled-session glance window + honest scheduled
+ *    total), the parent dashboard's "What's next" card read.
  *
  * authScopes 401/403 split (verified against @pothos/plugin-scope-auth):
  *  - Every field carries the EXPLICIT `$all` conjunction (the proven
@@ -88,6 +91,7 @@ import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
 import {
   ParentAttendancePagePothosObject,
   ParentChildProgressPothosObject,
+  ParentChildUpcomingBlockPothosObject,
   ParentHomeworkPagePothosObject,
   ParentLinkedChildPothosObject,
   ParentReportPagePothosObject,
@@ -243,6 +247,24 @@ gqlSchemaBuilder.queryField("parentChildHomework", t =>
         { page: args.page ?? undefined, pageSize: args.pageSize ?? undefined },
         ctx.locale
       );
+    },
+  })
+);
+
+// Side-effect: register the `myChildrenUpcomingSessions` query field.
+gqlSchemaBuilder.queryField("myChildrenUpcomingSessions", t =>
+  t.field({
+    type: [ParentChildUpcomingBlockPothosObject],
+    description:
+      "One upcoming-sessions glance block per confirmed-linked child: the child echo plus that child's capped scheduled-session window (newest-booked first) plus the honest scheduled total under the same filter. Resolved in one transaction snapshot; a parent with no linked children yields an empty list.",
+    authScopes: parentOnlyAuthScopes,
+    resolve: async (_root, _args, ctx) => {
+      // TypeScript narrowing only — see the `myLinkedChildren` note.
+      if (!ctx.user) {
+        const tErrors = await ctx.t("errorsTranslations");
+        throw new UnauthorizedError(tErrors.unauthorized);
+      }
+      return ParentMonitoringService.listChildrenUpcomingSessions(ctx.user.id, ctx.locale);
     },
   })
 );
