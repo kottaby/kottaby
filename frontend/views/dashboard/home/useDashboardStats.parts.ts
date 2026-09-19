@@ -53,55 +53,58 @@ export function useParentChildAggregates(childIds: readonly number[] | undefined
         : PARENT_AGGREGATE_RUNNING;
 
   useEffect(() => {
-    if (childKey === undefined || childKey.length === 0) return;
-    // Already settled for exactly this family — a re-fired effect (the
-    // deps are stable in practice) must not re-run the per-child loop.
-    if (settled !== null && settled.key === childKey) return;
-
+    // Single exit: the only return is the cancel-cleanup, so the effect
+    // keeps a consistent return shape. A family that is unknown, empty,
+    // or already settled just skips the loop below — unknown/empty keys
+    // are DERIVED in `aggregate` above, never re-run here.
     let cancelled = false;
-    const ids = childKey.split(",").map(Number);
+    const needsRun = childKey !== undefined && childKey.length > 0 && (settled === null || settled.key !== childKey);
 
     // One concurrent envelope pair per child (the reads are independent —
     // network-only, pageSize 1), settled once for the whole family: any
     // transport/GraphQL failure (errorPolicy "none" throws) degrades the
     // aggregate instead of summing a partial family.
-    void (async () => {
-      try {
-        const perChild = await Promise.all(
-          ids.map(async studentId => {
-            const [reportsPage, sessionsPage] = await Promise.all([
-              client.query<ParentChildReportsQuery, ParentChildReportsQueryVariables>({
-                query: parentChildReportsQueryDocument,
-                variables: { studentId, page: 1, pageSize: COUNT_PAGE_SIZE },
-                fetchPolicy: "network-only",
-              }),
-              client.query<ParentChildSessionsQuery, ParentChildSessionsQueryVariables>({
-                query: parentChildSessionsQueryDocument,
-                variables: { studentId, page: 1, pageSize: COUNT_PAGE_SIZE },
-                fetchPolicy: "network-only",
-              }),
-            ]);
-            return {
-              reportsCount: reportsPage.data?.parentChildReports?.totalCount,
-              sessionsCount: sessionsPage.data?.parentChildSessions?.totalCount,
-            };
-          })
-        );
-        const complete = perChild.every(
-          (row): row is { reportsCount: number; sessionsCount: number } =>
-            row.reportsCount !== undefined && row.sessionsCount !== undefined
-        );
-        const value: ParentAggregateState = complete
-          ? {
-              reportsTotal: perChild.reduce((sum, row) => sum + row.reportsCount, 0),
-              sessionsTotal: perChild.reduce((sum, row) => sum + row.sessionsCount, 0),
-            }
-          : PARENT_AGGREGATE_FAILED;
-        if (!cancelled) setSettled({ key: childKey, value });
-      } catch {
-        if (!cancelled) setSettled({ key: childKey, value: PARENT_AGGREGATE_FAILED });
-      }
-    })();
+    if (needsRun) {
+      const ids = (childKey ?? "").split(",").map(Number);
+
+      void (async () => {
+        try {
+          const perChild = await Promise.all(
+            ids.map(async studentId => {
+              const [reportsPage, sessionsPage] = await Promise.all([
+                client.query<ParentChildReportsQuery, ParentChildReportsQueryVariables>({
+                  query: parentChildReportsQueryDocument,
+                  variables: { studentId, page: 1, pageSize: COUNT_PAGE_SIZE },
+                  fetchPolicy: "network-only",
+                }),
+                client.query<ParentChildSessionsQuery, ParentChildSessionsQueryVariables>({
+                  query: parentChildSessionsQueryDocument,
+                  variables: { studentId, page: 1, pageSize: COUNT_PAGE_SIZE },
+                  fetchPolicy: "network-only",
+                }),
+              ]);
+              return {
+                reportsCount: reportsPage.data?.parentChildReports?.totalCount,
+                sessionsCount: sessionsPage.data?.parentChildSessions?.totalCount,
+              };
+            })
+          );
+          const complete = perChild.every(
+            (row): row is { reportsCount: number; sessionsCount: number } =>
+              row.reportsCount !== undefined && row.sessionsCount !== undefined
+          );
+          const value: ParentAggregateState = complete
+            ? {
+                reportsTotal: perChild.reduce((sum, row) => sum + row.reportsCount, 0),
+                sessionsTotal: perChild.reduce((sum, row) => sum + row.sessionsCount, 0),
+              }
+            : PARENT_AGGREGATE_FAILED;
+          if (!cancelled) setSettled({ key: childKey, value });
+        } catch {
+          if (!cancelled) setSettled({ key: childKey, value: PARENT_AGGREGATE_FAILED });
+        }
+      })();
+    }
 
     return () => {
       cancelled = true;
