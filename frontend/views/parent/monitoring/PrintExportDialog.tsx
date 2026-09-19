@@ -4,7 +4,7 @@ import { CloseOutlined, DownloadOutlined, PrintOutlined } from "@mui/icons-mater
 import { Box, Button, Dialog, DialogContent, DialogTitle, IconButton, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
-import { ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
+import { Common, ParentMonitoring, useAppLocale, useAppTranslation } from "@/shared/locale";
 
 export interface PrintableRow {
   readonly date: string;
@@ -49,6 +49,7 @@ export function PrintExportDialog({
   filePrefix: string;
 }>): ReactNode {
   const t = useAppTranslation(ParentMonitoring);
+  const commonT = useAppTranslation(Common);
   const locale = useAppLocale();
   const handlePrint = () => {
     onClose();
@@ -77,7 +78,7 @@ export function PrintExportDialog({
         <Typography variant="h6" component="span" sx={{ fontWeight: 700 }}>
           {title}
         </Typography>
-        <IconButton aria-label="close" onClick={onClose} size="small">
+        <IconButton aria-label={commonT.close} onClick={onClose} size="small">
           <CloseOutlined />
         </IconButton>
       </DialogTitle>
