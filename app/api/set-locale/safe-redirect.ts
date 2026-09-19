@@ -33,14 +33,32 @@ export function safeRedirectPath(raw: string | null, fallback = "/"): string {
   if (!raw || typeof raw !== "string") {
     return fallback;
   }
-  // Backslash or ASCII control characters (tab, newline, CR, etc.) anywhere → fail closed.
-  if (!raw.startsWith("/") || hasControlOrBackslashChar(raw)) {
+
+  let decoded = raw;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
     return fallback;
   }
+
+  // Backslash or ASCII control characters (tab, newline, CR, etc.) anywhere (raw or decoded) → fail closed.
+  if (
+    !raw.startsWith("/") ||
+    !decoded.startsWith("/") ||
+    hasControlOrBackslashChar(raw) ||
+    hasControlOrBackslashChar(decoded)
+  ) {
+    return fallback;
+  }
+
   try {
     const dummyBase = "http://localhost:3000";
     const parsed = new URL(raw, dummyBase);
     if (parsed.origin !== dummyBase || !parsed.pathname.startsWith("/")) {
+      return fallback;
+    }
+    const decodedParsed = new URL(decoded, dummyBase);
+    if (decodedParsed.origin !== dummyBase || !decodedParsed.pathname.startsWith("/")) {
       return fallback;
     }
     return parsed.pathname + parsed.search + parsed.hash;

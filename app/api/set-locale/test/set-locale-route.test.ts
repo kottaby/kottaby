@@ -314,10 +314,18 @@ describe("set-locale route envelope adoption", () => {
       await expectHostileRedirectFallsBackToRoot("/\\evil.example/x");
       await expectHostileRedirectFallsBackToRoot("/\\/evil.example/x");
 
-      // Control character / whitespace bypasses: MUST fall back to root.
+      // URL-encoded backslashes and double-slashes MUST fall back to root.
+      await expectHostileRedirectFallsBackToRoot("/%5C/evil.example/x");
+      await expectHostileRedirectFallsBackToRoot("/%5cevil.example/x");
+      await expectHostileRedirectFallsBackToRoot("/%2f%2fevil.example/x");
+      await expectHostileRedirectFallsBackToRoot("/%2f/evil.example/x");
+
+      // Control character / whitespace / CRLF bypasses: MUST fall back to root.
       await expectHostileRedirectFallsBackToRoot("/\t/evil.example");
       await expectHostileRedirectFallsBackToRoot("/\n/evil.example");
       await expectHostileRedirectFallsBackToRoot("/\r/evil.example");
+      await expectHostileRedirectFallsBackToRoot("/%0d/evil.example");
+      await expectHostileRedirectFallsBackToRoot("/foo%0d%0aSet-Cookie:bad");
     });
 
     test("host header injection / x-forwarded-host injection is rejected and falls back to safe origin", async () => {
