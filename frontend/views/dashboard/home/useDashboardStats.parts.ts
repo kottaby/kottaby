@@ -24,6 +24,24 @@ export const PARENT_AGGREGATE_FAILED: ParentAggregateState = { reportsTotal: nul
 export const PARENT_AGGREGATE_RUNNING: ParentAggregateState = { reportsTotal: undefined, sessionsTotal: undefined };
 
 /**
+ * Per-key aggregate resolution: an EMPTY family has honest zeros (no
+ * per-child network round-trip is needed to know that), a settled family
+ * key replays its outcome, and anything else reads as running.
+ */
+function resolveAggregateState(
+  childKey: string | undefined,
+  settled: Readonly<{ key: string; value: ParentAggregateState }> | null
+): ParentAggregateState {
+  if (childKey !== undefined && childKey.length === 0) {
+    return { reportsTotal: 0, sessionsTotal: 0 };
+  }
+  if (settled !== null && settled.key === childKey) {
+    return settled.value;
+  }
+  return PARENT_AGGREGATE_RUNNING;
+}
+
+/**
  * Parent per-child aggregate runner — one cancel-checked `client.query`
  * pair per linked child, summed once EVERY envelope has resolved.
  *
@@ -43,14 +61,7 @@ export function useParentChildAggregates(childIds: readonly number[] | undefined
 
   const childKey = childIds === undefined ? undefined : childIds.join(",");
 
-  const aggregate: ParentAggregateState =
-    childKey !== undefined && childKey.length === 0
-      ? // A parent with zero linked children has honest zero aggregates —
-        // no per-child network round-trip is needed to know that.
-        { reportsTotal: 0, sessionsTotal: 0 }
-      : settled !== null && settled.key === childKey
-        ? settled.value
-        : PARENT_AGGREGATE_RUNNING;
+  const aggregate = resolveAggregateState(childKey, settled);
 
   useEffect(() => {
     // Single exit: the only return is the cancel-cleanup, so the effect
