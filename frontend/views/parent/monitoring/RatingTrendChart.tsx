@@ -70,7 +70,18 @@ export function RatingTrendChart({
   locale: string;
 }>): ReactNode {
   const theme = useTheme();
-  const data = buildRatingData(items, locale);
+  const chronological = buildRatingData(items, locale);
+
+  // RTL mirror: Arabic reads right-to-left, so the timeline flows right →
+  // left — the newest session plots at the LEFT end of the axis and the
+  // value axis moves to the right edge, matching the reading direction of
+  // every other localized surface. Reversing the chronological points is
+  // the whole mirror: recharts plots categories in data order, so the
+  // reversed array puts the latest rating at index 0 (the left end), where
+  // the latest-point emphasis lands for RTL instead of the LTR right end.
+  const isRtl = locale === "ar";
+  const data = isRtl ? chronological.toReversed() : chronological;
+  const latestIndex = isRtl ? 0 : chronological.length - 1;
 
   if (data.length === 0) {
     return (
@@ -92,6 +103,11 @@ export function RatingTrendChart({
   // Reference into the <defs> gradient below — the URL carries no color; the
   // gradient stops themselves are theme-palette tokens.
   const trendFillUrl = "url(#parent-rating-trend-fill)";
+  // Chart gutters mirror with the reading direction: the negative value-
+  // axis gutter hugs the axis's own side (left in LTR, right in RTL).
+  const chartMargin = isRtl
+    ? { top: 5, right: -20, bottom: 16, left: 10 }
+    : { top: 5, right: 10, bottom: 16, left: -20 };
 
   return (
     <Box sx={t => ({ p: 2, borderRadius: 2, bgcolor: t.palette.action.hover })}>
@@ -101,7 +117,7 @@ export function RatingTrendChart({
       {/* role="img" + aria-label gives the SVG chart an accessible name for screen readers. */}
       <Box role="img" aria-label={labels.ratingTrendHeading} sx={{ width: "100%", height: 200 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={[...data]} margin={{ top: 5, right: 10, bottom: 16, left: -20 }}>
+          <AreaChart data={[...data]} margin={chartMargin}>
             <defs>
               <linearGradient id="parent-rating-trend-fill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={lineStroke} stopOpacity={0.2} />
@@ -110,7 +126,12 @@ export function RatingTrendChart({
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
             <XAxis dataKey="session" tick={{ fontSize: 12 }} interval="preserveStartEnd" />
-            <YAxis domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} tick={{ fontSize: 12, verticalAnchor: "middle" }} />
+            <YAxis
+              orientation={isRtl ? "right" : "left"}
+              domain={[0, 5]}
+              ticks={[0, 1, 2, 3, 4, 5]}
+              tick={{ fontSize: 12, verticalAnchor: "middle" }}
+            />
             <Tooltip
               contentStyle={{
                 borderRadius: 8,
@@ -128,7 +149,7 @@ export function RatingTrendChart({
               stroke={lineStroke}
               strokeWidth={2}
               fill={trendFillUrl}
-              dot={renderTrendDot(data.length - 1, lineStroke, tooltipBg)}
+              dot={renderTrendDot(latestIndex, lineStroke, tooltipBg)}
               activeDot={{ r: 6 }}
             />
           </AreaChart>
