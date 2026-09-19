@@ -27,7 +27,11 @@ export const walletEn: WalletLabels = {
   statusCompleted: "Completed",
   statusFailed: "Failed",
   createdAt: "Date",
+  ledgerColumnTransaction: "Transaction",
+  ledgerColumnStatus: "Status",
+  ledgerColumnAmount: "Amount",
   ledgerEmptyTitle: "No transactions yet",
   ledgerEmptyBody: "Your session earnings and payout requests will appear here.",
   pendingTeacherTitle: "Wallet pending approval",
+  ledgerShownAll: (count: number, total: number) => `Showing all transactions — ${count} of ${total}`,
 };

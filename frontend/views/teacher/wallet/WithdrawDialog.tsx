@@ -10,6 +10,7 @@
  * snackbar.
  */
 
+import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import {
   Button,
   CircularProgress,
@@ -18,6 +19,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  IconButton,
   Stack,
   TextField,
   Typography,
@@ -67,7 +69,23 @@ export function WithdrawDialog({
       maxWidth="xs"
       slotProps={{ paper: { sx: { borderRadius: 3 } } }}
     >
-      <DialogTitle sx={{ fontWeight: 700 }}>{t.withdrawDialogTitle}</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 700, paddingInlineEnd: 6 }}>{t.withdrawDialogTitle}</DialogTitle>
+      <IconButton
+        data-testid="wallet-withdraw-dialog-close"
+        aria-label={tc.close}
+        onClick={onClose}
+        disabled={inFlight}
+        sx={theme => ({
+          position: "absolute",
+          top: 8,
+          // Logical inline-end pin: the button rides the dialog's end edge and
+          // mirrors to the correct physical side under RTL on its own.
+          insetInlineEnd: 8,
+          color: theme.palette.onSurfaceVariant,
+        })}
+      >
+        <CloseOutlined fontSize="small" />
+      </IconButton>
       <DialogContent>
         <DialogContentText sx={{ mb: 2 }}>{t.withdrawDialogBody}</DialogContentText>
         <TextField
@@ -99,7 +117,19 @@ export function WithdrawDialog({
         ) : null}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5 }}>
-        <Button onClick={onClose} disabled={inFlight} sx={{ minHeight: 44 }}>
+        <Button
+          onClick={onClose}
+          disabled={inFlight}
+          variant="outlined"
+          sx={theme => ({
+            minHeight: 44,
+            // Neutral outlined cancel: text.primary on the dark paper holds AA
+            // (the branded primary lane measured ~3.2:1 here); the border rides
+            // the shared outline token so the control reads quiet but solid.
+            color: theme.palette.text.primary,
+            borderColor: theme.palette.outline,
+          })}
+        >
           {tc.cancel}
         </Button>
         <Button
@@ -107,7 +137,12 @@ export function WithdrawDialog({
           onClick={handleSubmit}
           disabled={submitDisabled}
           variant="contained"
-          sx={{ minHeight: 44 }}
+          sx={theme => ({
+            minHeight: 44,
+            // Full-contrast M3 on-primary label; scoped to the enabled state
+            // so MUI's disabled token still owns the in-flight look.
+            "&:not(.Mui-disabled)": { color: theme.palette.onPrimary },
+          })}
         >
           {t.withdrawSubmit}
         </Button>

@@ -59,6 +59,14 @@ export interface WalletLabels {
   readonly statusFailed: string;
   /** Ledger column label — row timestamp. */
   readonly createdAt: string;
+  /** Ledger desktop column header — the type + description column. */
+  readonly ledgerColumnTransaction: string;
+  /** Ledger desktop column header — the row status column. */
+  readonly ledgerColumnStatus: string;
+  /** Ledger desktop column header — the signed-amount column. */
+  readonly ledgerColumnAmount: string;
+  /** Ledger card footer — every fetched row is on screen (count of visible, total fetched). */
+  readonly ledgerShownAll: (visibleCount: number, fetchedCount: number) => string;
   /** Empty-ledger title. */
   readonly ledgerEmptyTitle: string;
   /** Empty-ledger body. */

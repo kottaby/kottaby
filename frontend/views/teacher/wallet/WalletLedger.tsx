@@ -5,7 +5,10 @@
  * verbatim from `TeacherWalletContainer`'s `WalletBody` (the max-lines
  * split: the list was the bulk of the body's line count). Rows carry the
  * tinted type avatar, the signed amount (a string PREFIX — never math),
- * the status chip, and the description · date secondary line.
+ * the status chip, and the description + date-time secondary pair.
+ * The card is a flex-grow item of the page column, so on `sm+` viewports
+ * it stretches to the remaining viewport height instead of stranding a
+ * bare band of background under it (mobile keeps its natural height).
  *
  * Filter chips (CR-4): the header carries a client-side type filter —
  * `All` plus one chip per type PRESENT in the fetched page (a type with
@@ -22,7 +25,8 @@ import {
   TransactionType as WireTransactionType,
 } from "@/frontend/graphql/generated/gql/graphql";
 import { SessionsEmptyState } from "@/frontend/views/student/sessions/SessionsEmptyState";
-import { WalletLedgerFilterBar, WalletLedgerRows } from "@/frontend/views/teacher/wallet/WalletLedger.parts";
+import { WalletLedgerFilterBar } from "@/frontend/views/teacher/wallet/WalletLedger.parts";
+import { WalletLedgerRows } from "@/frontend/views/teacher/wallet/WalletLedgerRows";
 import { ledgerRowVisual, ledgerTypeLabel } from "@/frontend/views/teacher/wallet/walletLedgerVisuals";
 import type { WalletLabels } from "@/shared/locale/types/wallet";
 
@@ -72,7 +76,10 @@ export function WalletLedger({ transactions, locale, t }: Readonly<WalletLedgerP
   ];
 
   return (
-    <Paper variant="outlined" sx={{ borderRadius: 3, overflow: "hidden" }}>
+    <Paper
+      variant="outlined"
+      sx={{ borderRadius: 3, overflow: "hidden", flexGrow: 1, display: "flex", flexDirection: "column" }}
+    >
       <Stack
         direction="row"
         spacing={1}
@@ -105,6 +112,25 @@ export function WalletLedger({ transactions, locale, t }: Readonly<WalletLedgerP
       ) : (
         <WalletLedgerRows rows={visible} locale={locale} t={t} />
       )}
+      {/* The stretch footer: on tall viewports the card grows, and this line
+          (pinned to its end) absorbs the remainder deliberately instead of
+          leaving an unstructured void under the last row. */}
+      <Typography
+        variant="caption"
+        sx={theme => ({
+          mt: "auto",
+          px: 2.5,
+          py: 1.25,
+          borderTop: "1px solid",
+          borderColor: theme.palette.divider,
+          bgcolor: theme.palette.surfaceContainerLow,
+          color: theme.palette.onSurfaceVariant,
+          textAlign: "center",
+          fontVariantNumeric: "tabular-nums",
+        })}
+      >
+        {t.ledgerShownAll(visible.length, transactions.length)}
+      </Typography>
     </Paper>
   );
 }

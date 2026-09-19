@@ -26,7 +26,11 @@ export const walletAr: WalletLabels = {
   statusCompleted: "مكتمل",
   statusFailed: "فاشل",
   createdAt: "التاريخ",
+  ledgerColumnTransaction: "العملية",
+  ledgerColumnStatus: "الحالة",
+  ledgerColumnAmount: "المبلغ",
   ledgerEmptyTitle: "لا توجد عمليات بعد",
   ledgerEmptyBody: "ستظهر هنا أرباح جلساتك وطلبات السحب.",
   pendingTeacherTitle: "المحفظة بانتظار الاعتماد",
+  ledgerShownAll: (count: number, total: number) => `عرض كل العمليات — ${count} من ${total}`,
 };

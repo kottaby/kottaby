@@ -41,7 +41,7 @@
 import { useQuery } from "@apollo/client/react";
 import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
 import SavingsOutlinedIcon from "@mui/icons-material/SavingsOutlined";
-import { Button, Stack } from "@mui/material";
+import { Box, Button, Stack } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
 import { NoticeSnackbar } from "@/frontend/components/ui/NoticeSnackbar";
 import { myWalletQueryDocument } from "@/frontend/graphql/sharedDocuments";
@@ -75,7 +75,20 @@ export function TeacherWalletContainer(): ReactNode {
   const walletRow = data?.myWallet;
 
   return (
-    <Stack data-testid="wallet-page" spacing={3} sx={{ p: { xs: 2, sm: 3 }, width: "100%" }}>
+    <Stack
+      data-testid="wallet-page"
+      spacing={3}
+      sx={{
+        p: { xs: 2, sm: 3 },
+        width: "100%",
+        // Measured chrome above this column: the sticky app bar (64px toolbar
+        // + 1px border) plus the shell Container's vertical padding (24px per
+        // side at `sm`, 32px at `md`). Sizing the column to that remainder on
+        // `sm+` lets the ledger card stretch to the viewport's bottom edge;
+        // mobile keeps its natural, content-driven height.
+        minHeight: { sm: "calc(100dvh - 113px)", md: "calc(100dvh - 129px)" },
+      }}
+    >
       {/* ── Balance header ─────────────────────────────────────────────── */}
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ alignItems: "stretch" }}>
         <WalletBalanceCard
@@ -110,7 +123,9 @@ export function TeacherWalletContainer(): ReactNode {
       </Button>
 
       {/* ── Swapping body ──────────────────────────────────────────────── */}
-      <WalletBody error={error} loading={loading} data={data} locale={locale} t={t} />
+      <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <WalletBody error={error} loading={loading} data={data} locale={locale} t={t} />
+      </Box>
 
       {/* ── Withdrawal dialog (single slot) ────────────────────────────── */}
       {withdraw.withdrawDialogOpen && walletRow !== undefined ? (
