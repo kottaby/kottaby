@@ -1,21 +1,20 @@
 "use client";
 
 /**
- * WithdrawDialog — the withdrawal-request dialog, extracted verbatim from
+ * WithdrawDialog — the withdrawal-request dialog, extracted from
  * `TeacherWalletContainer` (the max-lines split). The amount field is a
  * plain controlled TextField (inputMode decimal); the live hint renders the
  * available balance; the submit CTA disables while the input fails the
  * client mirror OR the request is in flight. Failure arms keep the dialog
  * open (honest retry surface) and surface the denial through the container
- * snackbar.
+ * snackbar. The preview chip + actions row live in `WithdrawDialogParts`
+ * (the function-size split).
  */
 
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import {
-  Button,
   CircularProgress,
   Dialog,
-  DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
@@ -26,6 +25,10 @@ import {
 } from "@mui/material";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { isClientValidAmount } from "@/frontend/views/teacher/wallet/teacherWalletShared";
+import {
+  WithdrawBalanceAfterPreview,
+  WithdrawDialogActions,
+} from "@/frontend/views/teacher/wallet/WithdrawDialogParts";
 import { WithdrawQuickAmounts } from "@/frontend/views/teacher/wallet/WithdrawQuickAmounts";
 import type { CommonLabels } from "@/shared/locale/types/common";
 import type { WalletLabels } from "@/shared/locale/types/wallet";
@@ -122,56 +125,18 @@ export function WithdrawDialog({
         />
         <WithdrawQuickAmounts balance={balance} disabled={inFlight} label={t.quickAmountsAria} onPick={setAmount} />
         {remainingAfterRequest !== null ? (
-          <Typography
-            data-testid="wallet-balance-after"
-            variant="caption"
-            sx={theme => ({
-              mt: 1.5,
-              display: "inline-block",
-              px: 1.25,
-              py: 0.5,
-              borderRadius: 1.5,
-              fontVariantNumeric: "tabular-nums",
-              bgcolor: theme.palette.surfaceContainerLow,
-              color: theme.palette.onSurfaceVariant,
-            })}
-          >
-            {t.balanceAfterRequest(remainingAfterRequest)}
-          </Typography>
+          <WithdrawBalanceAfterPreview remaining={remainingAfterRequest} t={t} />
         ) : null}
         {inFlight ? <WithdrawInFlight label={t.withdrawSubmit} /> : null}
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2.5 }}>
-        <Button
-          onClick={onClose}
-          disabled={inFlight}
-          variant="outlined"
-          sx={theme => ({
-            minHeight: 44,
-            // Neutral outlined cancel: text.primary on the dark paper holds AA
-            // (the branded primary lane measured ~3.2:1 here); the border rides
-            // the shared outline token so the control reads quiet but solid.
-            color: theme.palette.text.primary,
-            borderColor: theme.palette.outline,
-          })}
-        >
-          {tc.cancel}
-        </Button>
-        <Button
-          data-testid="wallet-withdraw-submit"
-          onClick={handleSubmit}
-          disabled={submitDisabled}
-          variant="contained"
-          sx={theme => ({
-            minHeight: 44,
-            // Full-contrast M3 on-primary label; scoped to the enabled state
-            // so MUI's disabled token still owns the in-flight look.
-            "&:not(.Mui-disabled)": { color: theme.palette.onPrimary },
-          })}
-        >
-          {t.withdrawSubmit}
-        </Button>
-      </DialogActions>
+      <WithdrawDialogActions
+        inFlight={inFlight}
+        submitDisabled={submitDisabled}
+        onClose={onClose}
+        onSubmit={handleSubmit}
+        t={t}
+        tc={tc}
+      />
     </Dialog>
   );
 }

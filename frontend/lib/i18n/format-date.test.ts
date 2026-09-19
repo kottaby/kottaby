@@ -161,10 +161,7 @@ describe("formatLedgerStamp — financial-table numeric stamp contract", () => {
   });
 
   test("contains no bidi controls and no locale punctuation (RLM/LRM/isolates)", () => {
-    const stamps = [
-      formatLedgerStamp("2026-08-27T13:00:00.000Z"),
-      formatLedgerStamp("2026-12-31T23:59:00.000Z"),
-    ];
+    const stamps = [formatLedgerStamp("2026-08-27T13:00:00.000Z"), formatLedgerStamp("2026-12-31T23:59:00.000Z")];
     for (const stamp of stamps) {
       expect(stamp).not.toMatch(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/);
       expect(stamp).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/);

@@ -24,7 +24,7 @@ import { formatApplicantDate, formatLedgerStamp } from "@/frontend/lib/i18n/form
 import { formatMoneyAmount } from "@/frontend/views/admin/analytics/platform-analytics-display";
 import { directoryPanelCardSx } from "@/frontend/views/admin/directory-shared/directory-skins";
 import { WITHDRAWALS_SKELETON_KEYS } from "@/frontend/views/admin/finances/adminFinanceSkeletonKeys";
-import { QueueSettleButtons } from "@/frontend/views/admin/finances/WithdrawalQueueRows";
+import { QueueSettleButtons } from "@/frontend/views/admin/finances/WithdrawalQueueSettleButtons";
 import { withdrawalStatusLabel, withdrawalStatusTone } from "@/frontend/views/admin/finances/withdrawalStatusDisplay";
 import { TonalChip } from "@/frontend/views/admin/users/ui";
 import { useAppTranslation } from "@/shared/locale/client";

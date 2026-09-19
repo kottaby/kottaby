@@ -78,10 +78,11 @@ async function main() {
   );
 
   const balance = earned - 200 - 300;
-  await pg.query(
-    "UPDATE wallet SET balance = $2, total_earning = $3, updated_at = now() WHERE id = $1",
-    [walletId, balance.toFixed(2), earned.toFixed(2)]
-  );
+  await pg.query("UPDATE wallet SET balance = $2, total_earning = $3, updated_at = now() WHERE id = $1", [
+    walletId,
+    balance.toFixed(2),
+    earned.toFixed(2),
+  ]);
 
   const final = await pg.query(
     "SELECT type, status, amount FROM teacher_transaction WHERE wallet_id = $1 ORDER BY created_at DESC",
