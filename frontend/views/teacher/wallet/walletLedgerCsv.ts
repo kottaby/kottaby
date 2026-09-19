@@ -18,7 +18,7 @@ function csvCell(value: string): string {
 }
 
 /** Builds the spreadsheet body from the ledger rows, in display order. */
-export function buildLedgerCsv(
+function buildLedgerCsv(
   rows: readonly MyWalletQuery_myWallet_transactions[],
   labels: {
     readonly type: (type: MyWalletQuery_myWallet_transactions["type"]) => string;
@@ -35,7 +35,7 @@ export function buildLedgerCsv(
 }
 
 /** Triggers a client-side download of the CSV text with a dated filename. */
-export function downloadLedgerCsv(csv: string): void {
+function downloadLedgerCsv(csv: string): void {
   const stamp = new Date().toISOString().slice(0, 10);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -49,7 +49,10 @@ export function downloadLedgerCsv(csv: string): void {
 /** Builds the CSV from the fetched rows and triggers the download in one call. */
 export function exportLedgerCsv(
   rows: readonly MyWalletQuery_myWallet_transactions[],
-  labels: { readonly type: (type: MyWalletQuery_myWallet_transactions["type"]) => string; readonly status: (status: MyWalletQuery_myWallet_transactions["status"]) => string }
+  labels: {
+    readonly type: (type: MyWalletQuery_myWallet_transactions["type"]) => string;
+    readonly status: (status: MyWalletQuery_myWallet_transactions["status"]) => string;
+  }
 ): void {
   downloadLedgerCsv(buildLedgerCsv(rows, labels));
 }
