@@ -39,6 +39,7 @@ import { DirectoryDrawerSection } from "@/frontend/views/admin/directory-shared/
 import { DirectoryFeedbackSnackbar } from "@/frontend/views/admin/directory-shared/DirectoryFeedbackSnackbar";
 import { SubscriptionActionDialogs } from "@/frontend/views/admin/students/subscriptions/dialogs";
 import {
+  type OpenSubscriptionDialogKind,
   useSubscriptionAdminActions,
   useSubscriptionDialogController,
 } from "@/frontend/views/admin/students/subscriptions/hooks";
@@ -46,6 +47,8 @@ import { SubscriptionRowsView } from "@/frontend/views/admin/students/subscripti
 import {
   countByStatus,
   filterByStatus,
+  nextExpiryBound,
+  type SubscriptionRow,
   type SubscriptionStatusFilter,
   sortNewestFirst,
 } from "@/frontend/views/admin/students/subscriptions/subscriptionAdmin.helpers";
@@ -108,11 +111,23 @@ export function SubscriptionAdminSection({ userId }: SubscriptionAdminSectionPro
   // row, plus the shared submit pipeline every dialog flows through.
   const dialogs = useSubscriptionDialogController();
 
+  // Opening the change-plan dialog re-streams the plan catalog first —
+  // the selector must never offer a plan deactivated (or miss one
+  // created) since the section mounted, and the in-flight refetch keeps
+  // the select disabled instead of falsely claiming an empty lane.
+  const openDialogFor = (kind: OpenSubscriptionDialogKind, row: SubscriptionRow): void => {
+    if (kind === "changePlan") {
+      void refetchPlans();
+    }
+    dialogs.openDialogFor(kind, row);
+  };
+
   // `errorPolicy: "none"` (the default) drops `data` on a failed refetch;
   // `previousData` keeps the last good list visible beside the alert.
   const rows = sortNewestFirst((data ?? previousData)?.adminStudentSubscriptions ?? []);
   const counts = countByStatus(rows);
   const filteredRows = filterByStatus(rows, statusFilter);
+  const nextBound = nextExpiryBound(rows);
 
   const retryQuery = (): void => {
     void refetch();
@@ -129,12 +144,13 @@ export function SubscriptionAdminSection({ userId }: SubscriptionAdminSectionPro
         filteredRows={filteredRows}
         statusFilter={statusFilter}
         counts={counts}
+        nextBound={nextBound}
         loading={loading}
         hasQueryError={Boolean(queryError)}
         errorCode={queryError ? extractErrorCode(queryError) : null}
         labels={labels}
         locale={locale}
-        onOpenDialog={dialogs.openDialogFor}
+        onOpenDialog={openDialogFor}
         onSelectFilter={setStatusFilter}
         onRetry={retryQuery}
       />

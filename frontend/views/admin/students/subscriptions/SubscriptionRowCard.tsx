@@ -4,11 +4,16 @@
  * SubscriptionRowCard — one subscription row of the admin student drawer's
  * subscription-management section: the plan header (tinted glyph, snapshot
  * title, the `#<id>` seam identifier + the copy-id quick action), the
- * status chip beside the relative expiry-window badge, the start/end
+ * status chip beside the relative expiry-window badge (the badge rides
+ * only the statuses whose window can actually end — active/expired/
+ * pending — a CANCELLED row's bound is a would-have-been value, so the
+ * countdown is withheld and the status chip speaks alone), the start/end
  * label-value rows (the drawer's `DirectoryLabelValueRow` recipe, honest
  * em-dash while a period bound is pending), the per-status lifecycle
  * action buttons (active → extend/cancel/change plan; expired → renew;
- * pending/cancelled → none), and the audit-trail deep link footer.
+ * pending/cancelled → none), and the audit-trail deep link footer. The
+ * card's inline-start edge carries a status-tone accent bar — the per-row
+ * lifecycle lane reads at a glance, in both reading directions.
  *
  * Presentational: the row data arrives via props; every label resolves in
  * the owning section through the `subscriptionAdmin` namespace; the badge
@@ -18,7 +23,7 @@
  */
 import { Box, Chip, Divider, Stack } from "@mui/material";
 import type { ReactNode } from "react";
-import type { SubscriptionStatus } from "@/frontend/graphql/generated/gql/graphql";
+import { SubscriptionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import {
   DirectoryEmptyValue,
@@ -83,24 +88,30 @@ export function SubscriptionRowCard({
 }: SubscriptionRowCardProps): ReactNode {
   return (
     <Box
-      sx={theme => ({
-        borderRadius: "12px",
-        border: `1px solid ${theme.palette.border.light}`,
-        p: 1.5,
-        transition: theme.transitions.create(["border-color", "box-shadow"], {
-          duration: theme.transitions.duration.shorter,
-        }),
-        "&:hover": {
-          borderColor: theme.palette.outlineVariant,
-          boxShadow: theme.shadows[2],
-        },
-      })}
+      sx={theme => {
+        const accent = toneColors(theme, STATUS_TONE[row.status]).dot;
+        return {
+          borderRadius: "12px",
+          border: `1px solid ${theme.palette.border.light}`,
+          borderInlineStartWidth: 3,
+          borderInlineStartStyle: "solid",
+          borderInlineStartColor: accent,
+          p: 1.5,
+          transition: theme.transitions.create(["border-color", "box-shadow"], {
+            duration: theme.transitions.duration.shorter,
+          }),
+          "&:hover": {
+            borderColor: theme.palette.outlineVariant,
+            boxShadow: theme.shadows[2],
+          },
+        };
+      }}
     >
       <SubscriptionRowCardHeader row={row} copyIdLabels={labels.copyId} />
       <DirectoryLabelValueRow label={labels.fields.status}>
         <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap", gap: 0.75 }}>
           <StatusChip status={row.status} labels={statusLabels} />
-          {row.endDate !== null && (
+          {row.status !== SubscriptionStatus.Cancelled && row.endDate !== null && (
             <SubscriptionExpiryBadge endDate={row.endDate} locale={locale} labels={labels.expiryBadge} />
           )}
         </Stack>

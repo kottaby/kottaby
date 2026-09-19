@@ -1,6 +1,7 @@
 /**
  * Pure view helpers of the admin student drawer's subscription-management
- * section. Extracted so the per-status action matrix, the extend-days
+ * section. Extracted so the per-status action matrix, the status-lens math
+ * (counts + filtering + the next-expiry scan), the extend-days
  * validation, the cancel-reason normalization, the change-plan eligibility
  * filter, and the newest-first ordering stay testable without rendering
  * (the rateTeacherMutationError test precedent: pure logic tier).
@@ -89,6 +90,25 @@ export function filterByStatus(rows: readonly SubscriptionRow[], filter: Subscri
   return rows.filter(row => row.status === filter);
 }
 
+/**
+ * The soonest period bound among the ACTIVE rows — the summary strip's
+ * "next expiry" value — or `null` when no active row carries a bound
+ * (pending rows never count: they have no open window to end). The wire
+ * format flows through verbatim; the badge/banner day math parses it.
+ */
+export function nextExpiryBound(rows: readonly SubscriptionRow[]): string | null {
+  const bounds: string[] = [];
+  for (const row of rows) {
+    if (row.status === SubscriptionStatus.Active && row.endDate !== null) {
+      bounds.push(row.endDate);
+    }
+  }
+  if (bounds.length === 0) {
+    return null;
+  }
+  return bounds.toSorted((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
+}
+
 // ---------------------------------------------------------------------------
 // Expiry-window badge — relative day math for the row cards
 
@@ -105,7 +125,7 @@ export function daysUntil(date: string, now: Date = new Date()): number {
   return Math.floor((new Date(date).getTime() - now.getTime()) / MS_PER_DAY);
 }
 
-/** Which copy arm the expiry badge renders: the open window or the elapsed one. */
+/** Which copy arm the relative-window badge renders: the open window or the elapsed one. */
 export type ExpiryBadgeKind = "upcoming" | "past";
 
 /**

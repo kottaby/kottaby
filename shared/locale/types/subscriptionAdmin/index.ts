@@ -90,6 +90,18 @@ export interface SubscriptionAdminLabels {
   };
 
   /**
+   * The summary strip's copy (the mini-cards above the chip row — the
+   * per-status counts reuse the `status` slots; the value line of the
+   * next-expiry card reuses the `expiryBadge` counted forms).
+   */
+  readonly summary: {
+    /** The next-expiry card's caption. */
+    readonly nextExpiry: string;
+    /** The next-expiry card's value when no active row carries a bound. */
+    readonly nextExpiryNone: string;
+  };
+
+  /**
    * The per-row relative expiry-window badge — the counted CLDR day forms
    * (the final day reads as the zero arm of `upcoming`); `past` only ever
    * receives a strictly positive elapsed count.

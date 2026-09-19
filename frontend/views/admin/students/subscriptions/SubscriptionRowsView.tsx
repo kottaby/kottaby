@@ -12,7 +12,9 @@
  * mounts above the cards only while the student HAS rows — the empty
  * state owns the zero-rows case — and the rendered cards pass through the
  * selected lens; a lens that matches nothing while rows exist renders the
- * filter's own empty line instead of the section's zero-rows state.
+ * filter's own empty line instead of the section's zero-rows state. The
+ * summary strip (the `SubscriptionSummaryStats` mini-cards) mounts
+ * above the chip row and shares its lens selection.
  *
  * Presentational: rows arrive pre-sorted; the status-label table resolves
  * here once per render from the namespace's per-enum slots (keyed by the
@@ -29,6 +31,7 @@ import { DirectoryErrorAlert } from "@/frontend/views/admin/directory-shared/Dir
 import type { OpenSubscriptionDialogKind } from "@/frontend/views/admin/students/subscriptions/hooks";
 import { SubscriptionRowCard } from "@/frontend/views/admin/students/subscriptions/SubscriptionRowCard";
 import { SubscriptionStatusFilterChips } from "@/frontend/views/admin/students/subscriptions/SubscriptionStatusFilterChips";
+import { SubscriptionSummaryStats } from "@/frontend/views/admin/students/subscriptions/SubscriptionSummaryStats";
 import {
   actionsForStatus,
   type SubscriptionRow,
@@ -46,6 +49,8 @@ interface SubscriptionRowsViewProps {
   readonly statusFilter: SubscriptionStatusFilter;
   /** Per-status tallies for the chip counts (the pure helper's table). */
   readonly counts: Record<SubscriptionStatus, number>;
+  /** The soonest active-row bound (the summary banner), or `null`. */
+  readonly nextBound: string | null;
   readonly loading: boolean;
   readonly hasQueryError: boolean;
   readonly errorCode: string | null;
@@ -66,6 +71,7 @@ export function SubscriptionRowsView({
   filteredRows,
   statusFilter,
   counts,
+  nextBound,
   loading,
   hasQueryError,
   errorCode,
@@ -103,6 +109,14 @@ export function SubscriptionRowsView({
   } else {
     body = (
       <Stack sx={{ gap: 1.5 }}>
+        <SubscriptionSummaryStats
+          counts={counts}
+          nextBound={nextBound}
+          selected={statusFilter}
+          onSelect={onSelectFilter}
+          labels={labels}
+          locale={locale}
+        />
         <SubscriptionStatusFilterChips
           labels={labels}
           counts={counts}
@@ -162,11 +176,7 @@ function SubscriptionSectionSkeleton(): ReactNode {
       {[0, 1].map(index => (
         <Box
           key={`subscription-skeleton-${String(index)}`}
-          sx={theme => ({
-            borderRadius: "12px",
-            border: `1px solid ${theme.palette.border.light}`,
-            p: 1,
-          })}
+          sx={theme => ({ borderRadius: "12px", border: `1px solid ${theme.palette.border.light}`, p: 1 })}
         >
           <Skeleton variant="text" height={28} sx={{ mb: 1 }} />
           <Skeleton variant="text" height={22} />

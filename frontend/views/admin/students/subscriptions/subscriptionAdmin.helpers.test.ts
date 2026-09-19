@@ -47,6 +47,7 @@ import {
   actionsForStatus,
   eligibleChangePlanTargets,
   MAX_CANCEL_REASON_LENGTH,
+  nextExpiryBound,
   normalizeCancelReason,
   parseExtendDays,
   prorationCopyKind,
@@ -210,6 +211,31 @@ describe("sortNewestFirst — newest-first ordering without input mutation", () 
 
     expect(sorted.map(row => row.id)).toEqual(["3", "2", "1"]);
     expect(rows.map(row => row.id)).toEqual(["3", "1", "2"]);
+  });
+});
+
+// ===========================================================================
+describe("nextExpiryBound — the summary strip's soonest active bound", () => {
+  test("returns the soonest bound among ACTIVE rows only (pending/expired/cancelled never count)", () => {
+    const rows = [
+      subscriptionRow({ id: "1", status: SubscriptionStatus.Active, endDate: "2026-03-20T00:00:00.000Z" }),
+      subscriptionRow({ id: "2", status: SubscriptionStatus.Active, endDate: "2026-03-05T00:00:00.000Z" }),
+      subscriptionRow({ id: "3", status: SubscriptionStatus.Expired, endDate: "2026-02-01T00:00:00.000Z" }),
+      subscriptionRow({ id: "4", status: SubscriptionStatus.Cancelled, endDate: "2026-01-15T00:00:00.000Z" }),
+      subscriptionRow({ id: "5", status: SubscriptionStatus.Pending, endDate: null }),
+    ];
+    expect(nextExpiryBound(rows)).toBe("2026-03-05T00:00:00.000Z");
+  });
+
+  test("active rows without a bound are skipped; an all-empty scan resolves null", () => {
+    expect(nextExpiryBound([subscriptionRow({ id: "1", endDate: null })])).toBeNull();
+    expect(nextExpiryBound([subscriptionRow({ id: "2", status: SubscriptionStatus.Expired })])).toBeNull();
+    expect(nextExpiryBound([])).toBeNull();
+  });
+
+  test("the wire format flows through verbatim (no re-serialization)", () => {
+    const rows = [subscriptionRow({ id: "1", endDate: "2026-11-13T14:27:00" })];
+    expect(nextExpiryBound(rows)).toBe("2026-11-13T14:27:00");
   });
 });
 

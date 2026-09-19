@@ -32,6 +32,10 @@ export const subscriptionAdminAr: SubscriptionAdminLabels = {
     all: "الكل",
     empty: "لا توجد اشتراكات بهذه الحالة.",
   },
+  summary: {
+    nextExpiry: "أقرب انتهاء",
+    nextExpiryNone: "لا توجد فترة نشطة",
+  },
   expiryBadge: {
     upcoming: days => {
       if (days === 0) return "ينتهي اليوم";

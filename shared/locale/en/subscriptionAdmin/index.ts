@@ -32,6 +32,10 @@ export const subscriptionAdminEn: SubscriptionAdminLabels = {
     all: "All",
     empty: "No subscriptions with this status.",
   },
+  summary: {
+    nextExpiry: "Next expiry",
+    nextExpiryNone: "No active window",
+  },
   expiryBadge: {
     upcoming: days => (days === 0 ? "Ends today" : days === 1 ? "Ends in 1 day" : `Ends in ${days} days`),
     past: days => (days === 1 ? "Expired 1 day ago" : `Expired ${days} days ago`),
