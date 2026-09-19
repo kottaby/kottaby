@@ -5,7 +5,6 @@ import { Box, IconButton, Typography } from "@mui/material";
 import { type ReactNode, useState } from "react";
 import type { ParentChildSessionsQuery_parentChildSessions_items } from "@/frontend/graphql/generated/gql/graphql";
 import { CalendarDayCell } from "@/frontend/views/parent/monitoring/AttendanceCalendar.helpers";
-import { Common, useAppTranslation } from "@/shared/locale";
 import {
   buildCalendarGrid,
   type CalendarMonth,
@@ -13,6 +12,7 @@ import {
   isCurrentMonth,
   shiftMonth,
 } from "@/frontend/views/parent/monitoring/AttendanceCalendar.logic";
+import { Common, useAppTranslation } from "@/shared/locale";
 
 const WEEKDAY_LABELS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const WEEKDAY_LABELS_AR = ["أحد", "إثن", "ثلا", "أرب", "خمي", "جمع", "سبت"];
