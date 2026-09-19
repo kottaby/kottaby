@@ -13,9 +13,12 @@
  *
  * Presentational: counts + the next bound arrive pre-computed (the pure
  * `countByStatus`/`nextExpiryBound` helpers run in the owning section).
- * MUI v9 `sx`-only styling, theme tokens only; RTL/LTR discipline is
- * inherited from the drawer (the grid/stack reading order does the
- * mirroring).
+ * The banner reads the urgency lanes: an overdue bound rides the error
+ * lane and a bound inside the final week rides the warning lane — the
+ * same tone language the row badges speak — while a calm window stays
+ * neutral. MUI v9 `sx`-only styling, theme tokens only; RTL/LTR
+ * discipline is inherited from the drawer (the grid/stack reading order
+ * does the mirroring).
  */
 
 import { EventAvailableOutlined as NextExpiryIcon } from "@mui/icons-material";
@@ -29,6 +32,7 @@ import {
   expiryBadgeKind,
   type SubscriptionStatusFilter,
 } from "@/frontend/views/admin/students/subscriptions/subscriptionAdmin.helpers";
+import { toneColors, type DirectoryTone } from "@/frontend/views/admin/users/utils";
 import type { AppLocale } from "@/shared/locale";
 import type { SubscriptionAdminLabels } from "@/shared/locale/types/subscriptionAdmin";
 
@@ -49,6 +53,9 @@ const STRIP_STATUSES: readonly SubscriptionStatus[] = [
   SubscriptionStatus.Expired,
   SubscriptionStatus.Cancelled,
 ];
+
+/** Bounds within this many days ride the banner's warning lane (the badges' rule). */
+const NEXT_EXPIRY_WARNING_DAYS = 7;
 
 /** The strip: three count cards + the next-expiry banner. */
 export function SubscriptionSummaryStats({
@@ -74,10 +81,20 @@ export function SubscriptionSummaryStats({
     boundValue = kind === "past" ? labels.expiryBadge.past(Math.abs(days)) : labels.expiryBadge.upcoming(days);
   }
 
+  // The banner's urgency lane — the row-badge tone language: an overdue
+  // bound is an error, the final week is a warning, a calm window stays
+  // neutral (statement form — no nested conditionals).
+  let urgency: DirectoryTone | null = null;
+  if (kind === "past") {
+    urgency = "error";
+  } else if (kind === "upcoming" && days !== null && days <= NEXT_EXPIRY_WARNING_DAYS) {
+    urgency = "warning";
+  }
+
   return (
     <Stack sx={{ gap: 1, mb: 1.5 }}>
       <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 1 }}>
-        {STRIP_STATUSES.map(status => (
+        {STRIP_STATUSES.map((status, index) => (
           <SubscriptionSummaryStatCard
             key={status}
             status={status}
@@ -85,29 +102,40 @@ export function SubscriptionSummaryStats({
             label={statusLabels[status]}
             selected={selected === status}
             onSelect={onSelect}
+            entranceIndex={index}
           />
         ))}
       </Box>
       <Tooltip title={nextBound === null ? "" : formatApplicantDate(nextBound, locale)} placement="top">
         <Stack
           direction="row"
-          sx={theme => ({
-            alignItems: "center",
-            gap: 1,
-            px: 1.25,
-            py: 0.75,
-            borderRadius: "10px",
-            bgcolor: theme.palette.action.hover,
-            border: `1px solid ${theme.palette.border.light}`,
-          })}
+          sx={theme => {
+            const lane = urgency === null ? null : toneColors(theme, urgency);
+            return {
+              alignItems: "center",
+              gap: 1,
+              px: 1.25,
+              py: 0.75,
+              borderRadius: "10px",
+              bgcolor: lane === null ? theme.palette.action.hover : lane.bg,
+              border: `1px solid ${lane === null ? theme.palette.border.light : lane.dot}`,
+              "& .subscription-banner-icon": {
+                color: lane === null ? theme.palette.text.secondary : lane.dot,
+              },
+              "& .subscription-banner-value": {
+                color: lane === null ? theme.palette.text.primary : lane.fg,
+              },
+            };
+          }}
         >
-          <NextExpiryIcon sx={theme => ({ fontSize: 18, color: theme.palette.text.secondary })} />
+          <NextExpiryIcon className="subscription-banner-icon" sx={{ fontSize: 18 }} />
           <Typography variant="caption" sx={theme => ({ color: theme.palette.text.secondary })}>
             {labels.summary.nextExpiry}
           </Typography>
           <Box sx={{ flex: 1 }} />
           <Typography
             variant="caption"
+            className="subscription-banner-value"
             sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}
             data-testid="subscription-next-expiry-value"
           >

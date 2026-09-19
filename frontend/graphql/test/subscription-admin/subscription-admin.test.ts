@@ -81,10 +81,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import type { TypedDocumentNode } from "@apollo/client";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { parse } from "graphql";
 
 import { db } from "@/backend/db";
+import { auditLogs } from "@/backend/db/schema/audit/audit-logs";
 import { plans } from "@/backend/db/schema/billing/plans";
 import { subscriptions } from "@/backend/db/schema/billing/subscriptions";
 import { students } from "@/backend/db/schema/students/students";
@@ -110,6 +111,12 @@ import {
 
 /** One day in milliseconds — the extend window's arithmetic unit. */
 const MS_PER_DAY = 86_400_000;
+
+/** Counts ALL audit rows in the table (denial-no-audit delta assertion). */
+async function countAllAuditRows(): Promise<number> {
+  const result = await db.select({ count: sql<number>`count(*)::int` }).from(auditLogs);
+  return result[0]?.count ?? 0;
+}
 
 /** The renew/extend fixture window length in days (the plans' interval). */
 const PLAN_INTERVAL_DAYS = 30;
@@ -533,43 +540,53 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
   // ─── Tier 1: anonymous → each operation → UNAUTHORIZED ─────────────
   describe("Tier 1 — anonymous caller denied across every operation", () => {
     test("adminStudentSubscriptions → UNAUTHORIZED", async () => {
+      const auditBefore = await countAllAuditRows();
       const result = await testClient.query({
         query: adminStudentSubscriptionsQuery,
         variables: { userId: "1" },
       });
       expectMutationError(result.error, "UNAUTHORIZED");
+      expect(await countAllAuditRows()).toBe(auditBefore);
     });
 
     test("adminExtendSubscription → UNAUTHORIZED", async () => {
+      const auditBefore = await countAllAuditRows();
       const result = await testClient.mutate({
         mutation: adminExtendSubscriptionMutation,
         variables: { input: { subscriptionId: "1", days: 5 } },
       });
       expectMutationError(result.error, "UNAUTHORIZED");
+      expect(await countAllAuditRows()).toBe(auditBefore);
     });
 
     test("adminRenewSubscription → UNAUTHORIZED", async () => {
+      const auditBefore = await countAllAuditRows();
       const result = await testClient.mutate({
         mutation: adminRenewSubscriptionMutation,
         variables: { input: { subscriptionId: "1" } },
       });
       expectMutationError(result.error, "UNAUTHORIZED");
+      expect(await countAllAuditRows()).toBe(auditBefore);
     });
 
     test("adminCancelSubscription → UNAUTHORIZED", async () => {
+      const auditBefore = await countAllAuditRows();
       const result = await testClient.mutate({
         mutation: adminCancelSubscriptionMutation,
         variables: { input: { subscriptionId: "1", reason: null } },
       });
       expectMutationError(result.error, "UNAUTHORIZED");
+      expect(await countAllAuditRows()).toBe(auditBefore);
     });
 
     test("adminChangeSubscriptionPlan → UNAUTHORIZED", async () => {
+      const auditBefore = await countAllAuditRows();
       const result = await testClient.mutate({
         mutation: adminChangeSubscriptionPlanMutation,
         variables: { input: { subscriptionId: "1", newPlanId: "1" } },
       });
       expectMutationError(result.error, "UNAUTHORIZED");
+      expect(await countAllAuditRows()).toBe(auditBefore);
     });
   });
 
@@ -830,12 +847,14 @@ describeGraphqlSuite("Admin subscription-management GraphQL integration", () => 
 
     test("malformed owner id → VALIDATION on extensions.code", async () => {
       if (admin === undefined) throw new Error("admin fixture missing");
+      const auditBefore = await countAllAuditRows();
       const result = await testClient.query({
         query: adminStudentSubscriptionsQuery,
         variables: { userId: "not-a-number" },
         context: bearer(admin.accessToken),
       });
       expectMutationError(result.error, "VALIDATION");
+      expect(await countAllAuditRows()).toBe(auditBefore);
     });
 
     test("unknown well-formed owner id → the honest empty list", async () => {

@@ -14,7 +14,9 @@
  * selected lens; a lens that matches nothing while rows exist renders the
  * filter's own empty line instead of the section's zero-rows state. The
  * summary strip (the `SubscriptionSummaryStats` mini-cards) mounts
- * above the chip row and shares its lens selection.
+ * above the chip row and shares its lens selection. The strip, the chip
+ * row, and each card ride a staggered fade-and-rise entrance (the
+ * `subscriptionMotion` rhythm; skipped under reduced motion).
  *
  * Presentational: rows arrive pre-sorted; the status-label table resolves
  * here once per render from the namespace's per-enum slots (keyed by the
@@ -37,6 +39,10 @@ import {
   type SubscriptionRow,
   type SubscriptionStatusFilter,
 } from "@/frontend/views/admin/students/subscriptions/subscriptionAdmin.helpers";
+import {
+  entranceStyles,
+  usePrefersReducedMotion,
+} from "@/frontend/views/admin/students/subscriptions/subscriptionMotion";
 import type { AppLocale } from "@/shared/locale";
 import type { SubscriptionAdminLabels } from "@/shared/locale/types/subscriptionAdmin";
 
@@ -81,6 +87,8 @@ export function SubscriptionRowsView({
   onSelectFilter,
   onRetry,
 }: SubscriptionRowsViewProps): ReactNode {
+  const reducedMotion = usePrefersReducedMotion();
+
   const statusLabels: Record<SubscriptionStatus, string> = {
     [SubscriptionStatus.Active]: labels.status.active,
     [SubscriptionStatus.Expired]: labels.status.expired,
@@ -109,21 +117,25 @@ export function SubscriptionRowsView({
   } else {
     body = (
       <Stack sx={{ gap: 1.5 }}>
-        <SubscriptionSummaryStats
-          counts={counts}
-          nextBound={nextBound}
-          selected={statusFilter}
-          onSelect={onSelectFilter}
-          labels={labels}
-          locale={locale}
-        />
-        <SubscriptionStatusFilterChips
-          labels={labels}
-          counts={counts}
-          total={rows.length}
-          selected={statusFilter}
-          onSelect={onSelectFilter}
-        />
+        <Box sx={() => entranceStyles(0, reducedMotion)}>
+          <SubscriptionSummaryStats
+            counts={counts}
+            nextBound={nextBound}
+            selected={statusFilter}
+            onSelect={onSelectFilter}
+            labels={labels}
+            locale={locale}
+          />
+        </Box>
+        <Box sx={() => entranceStyles(1, reducedMotion)}>
+          <SubscriptionStatusFilterChips
+            labels={labels}
+            counts={counts}
+            total={rows.length}
+            selected={statusFilter}
+            onSelect={onSelectFilter}
+          />
+        </Box>
         {filteredRows.length === 0 ? (
           <Typography
             variant="body2"
@@ -132,25 +144,26 @@ export function SubscriptionRowsView({
             {labels.filter.empty}
           </Typography>
         ) : (
-          filteredRows.map(row => (
-            <SubscriptionRowCard
-              key={row.id}
-              row={row}
-              actions={actionsForStatus(row.status)}
-              statusLabels={statusLabels}
-              labels={{
-                fields: labels.fields,
-                actions: labels.actions,
-                expiryBadge: labels.expiryBadge,
-                copyId: labels.copyId,
-                auditLink: labels.auditLink,
-              }}
-              locale={locale}
-              onExtend={target => onOpenDialog("extend", target)}
-              onRenew={target => onOpenDialog("renew", target)}
-              onCancel={target => onOpenDialog("cancel", target)}
-              onChangePlan={target => onOpenDialog("changePlan", target)}
-            />
+          filteredRows.map((row, index) => (
+            <Box key={row.id} sx={() => entranceStyles(2 + index, reducedMotion)}>
+              <SubscriptionRowCard
+                row={row}
+                actions={actionsForStatus(row.status)}
+                statusLabels={statusLabels}
+                labels={{
+                  fields: labels.fields,
+                  actions: labels.actions,
+                  expiryBadge: labels.expiryBadge,
+                  copyId: labels.copyId,
+                  auditLink: labels.auditLink,
+                }}
+                locale={locale}
+                onExtend={target => onOpenDialog("extend", target)}
+                onRenew={target => onOpenDialog("renew", target)}
+                onCancel={target => onOpenDialog("cancel", target)}
+                onChangePlan={target => onOpenDialog("changePlan", target)}
+              />
+            </Box>
           ))
         )}
       </Stack>

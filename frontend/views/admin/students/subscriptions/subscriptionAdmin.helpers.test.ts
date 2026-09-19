@@ -58,10 +58,14 @@ import {
 // ---------------------------------------------------------------------------
 // Fixtures — wire-shaped literals of the two query row types
 
+/** Technical fixture plan titles — never rendered UI copy. */
+const FIXTURE_PLAN_A_TITLE = "Plan A";
+const FIXTURE_PLAN_B_TITLE = "Plan B";
+
 function planRow(overrides: Partial<AdminPlanItem> = {}): AdminPlanItem {
   return {
     id: "2",
-    title: "Plan B",
+    title: FIXTURE_PLAN_B_TITLE,
     sessionCount: 20,
     price: "200.00",
     currency: "EGP",
@@ -86,7 +90,7 @@ function subscriptionRow(overrides: Partial<SubscriptionRow> = {}): Subscription
     updatedAt: "2026-01-01T00:00:00.000Z",
     plan: {
       id: "1",
-      title: "Plan A",
+      title: FIXTURE_PLAN_A_TITLE,
       sessionCount: 10,
       intervalDays: 30,
       price: "100.00",

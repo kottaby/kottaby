@@ -15,8 +15,7 @@
 
 import { CheckOutlined as CopiedIcon, ContentCopyOutlined as CopyIcon } from "@mui/icons-material";
 import { IconButton, Tooltip } from "@mui/material";
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 
 interface SubscriptionCopyIdButtonProps {
