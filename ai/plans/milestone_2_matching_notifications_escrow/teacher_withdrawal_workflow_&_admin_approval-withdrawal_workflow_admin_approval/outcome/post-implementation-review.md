@@ -89,3 +89,13 @@
 **Cumulative round ledger:** R1 — 2 LOW; R2 — 3 (1 LOW + 2 INFO); R3 — 0; R4 — 2 (1 LOW + 1 INFO); R5 — 6 (5 LOW + 1 INFO); R6 — 0; R7 — 1 LOW; R8 — 1 LOW; R9 — 0; R10 — 4 LOW + 1 INFO; R11 — 0; R12 — 1 INFO (ledger-housekeeping only) → zero code/test/docs-behavior findings in R11-R12.
 
 **Next:** round 13 (independent) follows.
+
+## Rounds 13-14 — stop condition certified
+
+**Wave:** R13 (independent combined 5-hat wave at tip `a72c1f0`): NEW FINDINGS: **0** — full pass; all prior fixes held; gates green (sub-loop exit 0; journey 8/0 ×2 bracketed; row-gate 0; traceability silent; mermaid 19/39).
+
+**Wave:** R14 (independent combined 5-hat wave at tip `a72c1f0`): NEW FINDINGS: **1 INFO** — solely this ledger's own trailing entry lag (fixed by this section); zero code/test/docs-behavior findings; all R1-R12 fixes held.
+
+**Stop condition CERTIFIED:** rounds R13 and R14 recorded ZERO substance findings (code/test/docs-behavior). The R14 INFO is the ledger's self-referential recording artifact (each round finds the prior round's entry missing until the series terminates) — resolved by this final append.
+
+**Cumulative ledger R1-R14:** R1: 2 LOW · R2: 3 · R3: 0 · R4: 2 · R5: 6 · R6: 0 · R7: 1 · R8: 1 · R9: 0 · R10: 4+INFO · R11: 0 · R12: 1 INFO (ledger) · R13: 0 · R14: 1 INFO (ledger) — every substance finding fixed and re-verified; review series CLOSED.
