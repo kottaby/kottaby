@@ -51,9 +51,12 @@
  *    ceiling, CONFLICT not-active/replay) propagate uncaught to the
  *    masking boundary — no try/catch here.
  *
- * authScopes (`adminOnlyAuthScopes` — the MANDATORY `$all` conjunction):
- *  - `{ $all: { authenticated: true, role: [Admin] } }` from the shared
- *    admin prelude. Anonymous → `UNAUTHORIZED` (401); authenticated
+ * authScopes (the MANDATORY `$all` conjunction, written INLINE on every
+ * field — the static admin-mutation census scanner resolves literal gates
+ * only, never a shared constant):
+ *  - `{ $all: { authenticated: true, role: [UserRole.Admin] } }` — the same
+ *    conjunction the shared admin prelude centralizes for surfaces outside
+ *    the census corpus. Anonymous → `UNAUTHORIZED` (401); authenticated
  *    non-admin → `FORBIDDEN` (403) — both BEFORE the resolver body runs.
  *    `requireAdminUser(ctx)` is the TypeScript-narrowing belt only.
  *
@@ -66,6 +69,7 @@
  *    no business logic inline. Top-level static imports only.
  */
 
+import { UserRole } from "@/backend/enum/users/user-role.enum";
 import { SubscriptionPothosObject } from "@/backend/graphql/pothos/billing/subscription.pothos";
 import {
   CancelSubscriptionInput,
@@ -75,7 +79,7 @@ import {
   RenewSubscriptionInput,
 } from "@/backend/graphql/pothos/billing/subscription-admin.pothos";
 import { gqlSchemaBuilder } from "@/backend/graphql/pothos/builder";
-import { adminOnlyAuthScopes, requireAdminUser } from "@/backend/graphql/shared";
+import { requireAdminUser } from "@/backend/graphql/shared";
 import { PlanCatalogService } from "@/backend/services/billing/plan-catalog.service";
 import { coerceSubscriptionId } from "@/backend/services/billing/subscription-admin.helpers";
 import { SubscriptionAdminService } from "@/backend/services/billing/subscription-admin.service";
@@ -86,7 +90,12 @@ gqlSchemaBuilder.mutationField("adminExtendSubscription", t =>
     type: SubscriptionPothosObject,
     description:
       "Extends an active subscription's validity window by a whole number of days. Admin-only; the new window end is derived server-side from the row's current end date.",
-    authScopes: adminOnlyAuthScopes,
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Admin],
+      },
+    },
     args: {
       input: t.arg({
         type: ExtendSubscriptionInput,
@@ -115,7 +124,12 @@ gqlSchemaBuilder.mutationField("adminRenewSubscription", t =>
     type: SubscriptionPothosObject,
     description:
       "Renews an expired subscription into a fresh active period: a new row (same owner, fresh plan snapshot), the owner's lane credited the plan's full session count, and the student junction row. Admin-only; a duplicate renew replays the first result.",
-    authScopes: adminOnlyAuthScopes,
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Admin],
+      },
+    },
     args: {
       input: t.arg({
         type: RenewSubscriptionInput,
@@ -141,7 +155,12 @@ gqlSchemaBuilder.mutationField("adminCancelSubscription", t =>
     type: SubscriptionPothosObject,
     description:
       "Cancels an active subscription while preserving its balance lanes untouched. Admin-only; a replay of an already-applied cancel surfaces an idempotent conflict instead of a second write.",
-    authScopes: adminOnlyAuthScopes,
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Admin],
+      },
+    },
     args: {
       input: t.arg({
         type: CancelSubscriptionInput,
@@ -170,7 +189,12 @@ gqlSchemaBuilder.mutationField("adminChangeSubscriptionPlan", t =>
     type: ChangeSubscriptionPlanPayload,
     description:
       "Changes an active subscription onto a different active plan in the same balance lane with prorated settlement: the old row is cancelled, the owner's lane is settled to the prepared exact total (target plan's session count plus the computed carry on upgrades; the remainder forfeited on downgrades), and a fresh period opens on the target plan. Admin-only; a duplicate change replays the first result.",
-    authScopes: adminOnlyAuthScopes,
+    authScopes: {
+      $all: {
+        authenticated: true,
+        role: [UserRole.Admin],
+      },
+    },
     args: {
       input: t.arg({
         type: ChangeSubscriptionPlanInput,

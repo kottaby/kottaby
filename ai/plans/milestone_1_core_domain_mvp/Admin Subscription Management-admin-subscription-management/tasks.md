@@ -120,10 +120,10 @@
 
 ## Phase 6 — Audit-completeness census upgrade
 
-- [ ] **9. Replace the deferred D-001 row**
+- [x] **9. Replace the deferred D-001 row**
   - Edit `test/workflows/admin/audit-completeness.catalog.ts`: replace the deferred `(future) adminExtendSubscription / adminCancelSubscription` row with wired rows for the four mutations per plan.md §5.2; keep `DEFERRED_ADMIN_ACTION_IDS` entries otherwise intact.
   - Extend the audit-completeness journey (`test/workflows/admin/audit-completeness*.journey.test.ts`) with legs executing the new mutations through the real service path and asserting audit shapes.
-  - [ ] 9.QL / 9.TE / 9.SEC / 9.SR / 9.IV.
+  - [x] 9.QL / 9.TE / 9.SEC / 9.SR / 9.IV.
   - _Requirements: REQ-6_
 
 ---
