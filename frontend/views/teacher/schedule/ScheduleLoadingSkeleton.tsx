@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
  */
 export function ScheduleLoadingSkeleton({ loadingLabel }: Readonly<{ loadingLabel: string }>): ReactNode {
   return (
-    <Box role="status" aria-busy aria-label={loadingLabel} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+    <Box component="output" aria-busy aria-label={loadingLabel} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
       <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
         <Skeleton width={180} height={40} />
         <Box sx={{ flex: 1 }} />

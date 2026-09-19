@@ -67,10 +67,11 @@ export function ScheduleDayCard({
   return (
     <Paper
       elevation={0}
-      role="group"
+      component="fieldset"
       aria-label={scheduleT.dayColumnAria(weekdayName(day.startsAt, locale), dayMonthStamp(day.startsAt, locale))}
       sx={theme => ({
         p: 1.5,
+        margin: 0,
         borderRadius: 3,
         border: "1px solid",
         borderColor: isToday ? theme.palette.primary.main : theme.palette.outlineVariant,
