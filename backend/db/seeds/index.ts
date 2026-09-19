@@ -6,6 +6,7 @@ import {
   type SeedConfig,
   type SeedStepResult,
 } from "@/backend/db/seeds/lib";
+import { seedOrGetParentLinkage } from "@/backend/db/seeds/parents";
 import { seedOrGetStudents } from "@/backend/db/seeds/students";
 import { getDemoAdminActorId, seedOrGetUsers } from "@/backend/db/seeds/users";
 import { logger } from "@/backend/lib/logger";
@@ -37,6 +38,14 @@ export async function runAllSeeds(config?: SeedConfig): Promise<void> {
   // production grant entry point only to rows whose trial marker is still null.
   const studentsStep = await runSeedStep("students", () => seedOrGetStudents(usersStep.value ?? []));
   stepResults.push(studentsStep);
+
+  // Step 4: Demo linkage (teacher cold-start certification + parent↔student
+  // handshake link). Runs the production admin-certification and parent-link
+  // entry points so the seeded trio can exercise teacher booking and the
+  // linked-child parent portal out of the box. Idempotent — both arms skip
+  // when their target state already holds.
+  const linkageStep = await runSeedStep("demo-linkage", () => seedOrGetParentLinkage(adminActorId));
+  stepResults.push(linkageStep);
 
   logFailedSeedSteps(stepResults);
 
