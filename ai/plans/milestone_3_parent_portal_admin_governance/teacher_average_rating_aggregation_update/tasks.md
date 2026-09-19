@@ -133,14 +133,14 @@
 
 ## Phase 4 — Review Wave & Knowledge Propagation
 
-### - [ ] 4.1 Post-Implementation Review Wave (parallel subagents)
+### - [x] 4.1 Post-Implementation Review Wave (parallel subagents)
 - Dispatch scoped reviewers (types / backend / security — no frontend reviewer: zero frontend files change in this plan) over the plan's file set only: `backend/types/teachers/evaluation.types.ts`, `backend/db/repo/teachers/evaluation.repository.ts`, `backend/db/repo/teachers/teacher.repository.ts`, `backend/services/teachers/student-evaluation.service.ts`, `backend/db/test/repo/teachers/{evaluation,teacher}.repository.test.ts`, `backend/services/teachers/student-evaluation.service.test.ts`, `test/workflows/teachers/student-teacher-rating.journey.test.ts`, `docs/teachers/teacher-average-rating.md`. Aggregate findings CRITICAL→LOW; fix per-file with sub-loop verification; repeat until zero feature-specific findings. Record verdicts in `outcome/4.1-review-wave-outcome.md`.
 - _Requirements: REQ-001, REQ-009, REQ-010_
-- [ ] 4.1.QL **Quality Loop**: sub-loop exit 0 on every file touched by fixes.
-- [ ] 4.1.TE **Test Engineering**: every fix re-runs its owning suite from `plan.md` §7.
-- [ ] 4.1.SEC **Security & Tenancy Audit**: reviewers reproduce the REQ-009 matrix from the service tests + wire suite.
-- [ ] 4.1.SR **Semantic Review**: zero deferred items created without a `deferred-items.md` entry.
-- [ ] 4.1.IV **Instruction Verification**: reviewers read each file's printed rule set.
+- [x] 4.1.QL **Quality Loop**: sub-loop exit 0 on every file touched by fixes.
+- [x] 4.1.TE **Test Engineering**: every fix re-runs its owning suite from `plan.md` §7.
+- [x] 4.1.SEC **Security & Tenancy Audit**: reviewers reproduce the REQ-009 matrix from the service tests + wire suite.
+- [x] 4.1.SR **Semantic Review**: zero deferred items created without a `deferred-items.md` entry.
+- [x] 4.1.IV **Instruction Verification**: reviewers read each file's printed rule set.
 
 ### - [x] 4.2 Knowledge Propagation — `docs/teachers/teacher-average-rating.md` (NEW) + `docs/teachers/student-evaluation-submission.md` (pointer)
 - Author the canonical doc per the propagation template: aggregation trigger (inside the submission tx — single-writer discipline), formula + row-selection contract (`ROUND(AVG(score)/20, 2)`, `session_id IS NOT NULL`, soft-deleted excluded — citing the DEV2-016 forward contract at `docs/teachers/student-evaluation-submission.md:65-68` as the origin), honest-null ruling vs the ticket's literal "default 0" (ledger D1), concurrency model (recompute-from-source, READ COMMITTED convergence), ranking forward contract (ledger D2), and what-NOT-to-do (no incremental updates, no separate tx/event/trigger, no SQL-side rounding duplicating the 20 constant, no second writer, no conflation with platform-analytics' live 0–100 AVG).
