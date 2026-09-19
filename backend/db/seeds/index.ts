@@ -6,7 +6,7 @@ import {
   type SeedConfig,
   type SeedStepResult,
 } from "@/backend/db/seeds/lib";
-import { seedOrGetParentLinkage } from "@/backend/db/seeds/parents";
+import { seedOrGetDemoSessionFlow, seedOrGetParentLinkage } from "@/backend/db/seeds/parents";
 import { seedOrGetStudents } from "@/backend/db/seeds/students";
 import { getDemoAdminActorId, seedOrGetUsers } from "@/backend/db/seeds/users";
 import { logger } from "@/backend/lib/logger";
@@ -46,6 +46,14 @@ export async function runAllSeeds(config?: SeedConfig): Promise<void> {
   // when their target state already holds.
   const linkageStep = await runSeedStep("demo-linkage", () => seedOrGetParentLinkage(adminActorId));
   stepResults.push(linkageStep);
+
+  // Step 5: Demo session flow (book → start → complete → report with the
+  // demo homework assignment). Depends on Step 4: the booking path denies
+  // an uncertified demo teacher. Reconciles partial runs (drains in-flight
+  // sessions, reports stranded completed ones) and soft-skips the booking
+  // arm when the demo student's balance lanes are exhausted.
+  const sessionFlowStep = await runSeedStep("demo-session-flow", () => seedOrGetDemoSessionFlow());
+  stepResults.push(sessionFlowStep);
 
   logFailedSeedSteps(stepResults);
 

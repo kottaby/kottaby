@@ -20,7 +20,7 @@ export interface DemoLinkageState {
   parentLinked: boolean;
 }
 
-async function resolveDemoUserId(role: "teacher" | "parent" | "student"): Promise<number> {
+export async function resolveDemoUserId(role: "teacher" | "parent" | "student"): Promise<number> {
   const spec = INITIAL_DEMO_USERS.find(candidate => candidate.role === role);
   if (!spec) {
     throw new Error(`seed-parent-linkage: INITIAL_DEMO_USERS carries no ${role} spec`);
