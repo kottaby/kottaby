@@ -20,7 +20,7 @@ import { focusVisibleRingSx } from "@/frontend/components/ui/focusRing";
 export const UP_NEXT_WINDOW_SIZE = 2;
 
 /** Row metrics — comfortable ≥44px touch target + shared focus ring. */
-export const upNextRowSx = {
+const upNextRowSx = {
   ...focusVisibleRingSx,
   minHeight: 44,
   width: "100%",

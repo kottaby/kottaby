@@ -20,7 +20,7 @@ export interface ParentAggregateState {
   readonly sessionsTotal: number | null | undefined;
 }
 
-export const PARENT_AGGREGATE_FAILED: ParentAggregateState = { reportsTotal: null, sessionsTotal: null };
+const PARENT_AGGREGATE_FAILED: ParentAggregateState = { reportsTotal: null, sessionsTotal: null };
 const PARENT_AGGREGATE_RUNNING: ParentAggregateState = { reportsTotal: undefined, sessionsTotal: undefined };
 
 /**
