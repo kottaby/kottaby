@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useAuth } from "@/frontend/hooks/auth";
 import type { DashboardStatDraft } from "@/frontend/views/dashboard/home/useDashboardStats.helpers";
 import { resolveStatDrafts } from "@/frontend/views/dashboard/home/useDashboardStats.helpers";
-import { buildStatsData } from "@/frontend/views/dashboard/home/useDashboardStats.parts";
+import { buildStatsData } from "@/frontend/views/dashboard/home/useDashboardStats.roleData";
 import { useRoleStatQueries } from "@/frontend/views/dashboard/home/useDashboardStats.queries";
 
 /**
@@ -28,8 +28,9 @@ import { useRoleStatQueries } from "@/frontend/views/dashboard/home/useDashboard
  *  - Admin → `adminUserStats` (the platform account mix) + the unread count.
  *
  * Query wiring lives in `useDashboardStats.queries` (role-scoped
- * observers); the aggregate runner, the value resolvers, and the per-role
- * payload builder live in `useDashboardStats.parts`.
+ * observers); the aggregate runner and value resolvers live in
+ * `useDashboardStats.parts`; the per-role payload builder lives in
+ * `useDashboardStats.roleData`.
  *
  * Cache posture: every value observes the same cache fields the feature
  * views write (badge socket, mark-read actions, wallet payouts), so a stat
