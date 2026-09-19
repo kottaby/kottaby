@@ -43,7 +43,7 @@ export interface ScheduleDay {
 export const WEEK_STARTS_ON: Record<AppLocale, number> = { en: 0, ar: 6 };
 
 /** Weekend weekdays per locale (UTC day-of-week set) — drives the day tint. */
-export const WEEKEND_DAYS: Record<AppLocale, readonly number[]> = { en: [0, 6], ar: [5, 6] };
+const WEEKEND_DAYS: Record<AppLocale, readonly number[]> = { en: [0, 6], ar: [5, 6] };
 
 /**
  * The week summary strip's honest counts. `disputed` sessions surface in
