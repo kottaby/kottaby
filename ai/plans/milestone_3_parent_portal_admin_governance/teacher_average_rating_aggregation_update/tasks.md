@@ -80,7 +80,7 @@
 - [x] 2.1.SR **Semantic Review**: no SELECT-then-UPDATE guardlessness (identity-guarded update is the sanctioned form); `tx` unoptional on both writes; no prepared statements; no `inArray`; no business logic.
 - [x] 2.1.IV **Instruction Verification**: read `backend/db/repo/AGENTS.md`, `backend/AGENTS.md` + printed instructions.
 
-### - [ ] 2.2 Journey Test Extension (test-first, RED) — `test/workflows/teachers/student-teacher-rating.journey.test.ts` (EXTEND)
+### - [x] 2.2 Journey Test Extension (test-first, RED) — `test/workflows/teachers/student-teacher-rating.journey.test.ts` (EXTEND)
 - Extend the EXISTING journey (same describe, same cast, same registry) with the aggregation legs BEFORE the service step exists (RED by failure). NO new file, NO new cast, NO registry changes (`evaluations` + `teacher` are already tracked — `journey-fixture-registry.ts:81,102`; the teacher row is a fixture created by `buildSessionJourneyCast` and already registered for teardown).
 - New steps (append after the existing step-9 read-back, renumber-free — insert as steps 9a/9b/9c or extend step bodies; keep the existing 10 steps' behavior byte-equivalent):
   1. after the existing 4★ submission: read the teacher row directly (`TeacherRepository.findById` or a raw `db` select on `teacher`) ⇒ `averageRating === "4.00"` (one live row, score 80 ⇒ 80/20).
@@ -92,11 +92,11 @@
 - NO `runInRollback` (`test/workflows/AGENTS.md:8-11`); committed fixtures + `registry.track` every new row (the second + third sessions, their idempotency claims, the new rating rows, the applicant evaluation); run twice to prove idempotent teardown.
 - Run (RED expected pre-2.3): `bun run test/scripts/run-test.ts test/workflows/teachers/student-teacher-rating.journey.test.ts`.
 - _Requirements: REQ-J1, REQ-J2, REQ-J3, REQ-011.3_
-- [ ] 2.2.QL **Quality Loop**: sub-loop on the journey file (exit 0; the file may fail tests — type/lint must pass).
-- [ ] 2.2.TE **Test Engineering**: this IS the journey deliverable (Tier 1-4 legs: recompute, convergence, exclusion, denial purity, bounds).
-- [ ] 2.2.SEC **Security & Tenancy Audit**: cross-actor visibility asserted (student acts, admin-observation leg sees the value; denials leave the teacher row byte-identical).
-- [ ] 2.2.SR **Semantic Review**: fixtures committed + tracked; no seed rows; existing steps not weakened (diff-check step bodies).
-- [ ] 2.2.IV **Instruction Verification**: read `test/workflows/AGENTS.md` + tests instructions.
+- [x] 2.2.QL **Quality Loop**: sub-loop on the journey file (exit 0; the file may fail tests — type/lint must pass).
+- [x] 2.2.TE **Test Engineering**: this IS the journey deliverable (Tier 1-4 legs: recompute, convergence, exclusion, denial purity, bounds).
+- [x] 2.2.SEC **Security & Tenancy Audit**: cross-actor visibility asserted (student acts, admin-observation leg sees the value; denials leave the teacher row byte-identical).
+- [x] 2.2.SR **Semantic Review**: fixtures committed + tracked; no seed rows; existing steps not weakened (diff-check step bodies).
+- [x] 2.2.IV **Instruction Verification**: read `test/workflows/AGENTS.md` + tests instructions.
 
 ### - [ ] 2.3 Service: Atomic Aggregation Step — `backend/services/teachers/student-evaluation.service.ts` (EXTEND)
 - Implement the pipeline exactly per `plan.md` §4.1: inside `submitWithinTransaction` (`:122-175`), after `EvaluationRepository.insertOnce` (`:165-173`): (a) `aggregateLiveRatings(probe.teacherId, tx)`; (b) honest-null skip when `averageScore === null`; (c) `const averageRating = (aggregate.averageScore / SCORE_POINTS_PER_STAR).toFixed(2)` (reuse the existing constant `:74` — no second constant); (d) `TeacherRepository.updateAverageRating(probe.teacherId, averageRating, tx)`; (e) on `null` return — one bounded `logDenial(... "TEACHER_PROFILE_MISSING", "teacher", probe.teacherId, locale)` then `throw new Error(...)` (plain internal error, NOT a DomainError — D8).
