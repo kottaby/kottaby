@@ -2,23 +2,23 @@
 
 import { useQuery } from "@apollo/client/react";
 import { useMemo } from "react";
-import type {
-  AdminUserStatsQuery,
-  AdminUserStatsQueryVariables,
-  MyLinkedChildrenQuery,
-  MyLinkedChildrenQueryVariables,
-  MyStudentSessionsQuery,
-  MyStudentSessionsQueryVariables,
-  MySubscriptionsQuery,
-  MySubscriptionsQueryVariables,
-  MyTeacherSessionsQuery,
-  MyTeacherSessionsQueryVariables,
-  MyUnreadNotificationCountQuery,
-  MyUnreadNotificationCountQueryVariables,
-  MyWalletQuery,
-  MyWalletQueryVariables,
+import {
+  type AdminUserStatsQuery,
+  type AdminUserStatsQueryVariables,
+  type MyLinkedChildrenQuery,
+  type MyLinkedChildrenQueryVariables,
+  type MyStudentSessionsQuery,
+  type MyStudentSessionsQueryVariables,
+  type MySubscriptionsQuery,
+  type MySubscriptionsQueryVariables,
+  type MyTeacherSessionsQuery,
+  type MyTeacherSessionsQueryVariables,
+  type MyUnreadNotificationCountQuery,
+  type MyUnreadNotificationCountQueryVariables,
+  type MyWalletQuery,
+  type MyWalletQueryVariables,
+  SessionStatus,
 } from "@/frontend/graphql/generated/gql/graphql";
-import { SessionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import {
   adminUserStatsQueryDocument,
   myLinkedChildrenQueryDocument,

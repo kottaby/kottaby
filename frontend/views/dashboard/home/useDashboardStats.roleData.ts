@@ -1,7 +1,6 @@
 "use client";
 
-import type { DashboardStatsData } from "@/frontend/views/dashboard/home/useDashboardStats.helpers";
-import { countActiveSubscriptions } from "@/frontend/views/dashboard/home/useDashboardStats.helpers";
+import { countActiveSubscriptions, type DashboardStatsData } from "@/frontend/views/dashboard/home/useDashboardStats.helpers";
 import { resolveOptional, type ParentAggregateState } from "@/frontend/views/dashboard/home/useDashboardStats.parts";
 import type { RoleStatQueries } from "@/frontend/views/dashboard/home/useDashboardStats.queries";
 

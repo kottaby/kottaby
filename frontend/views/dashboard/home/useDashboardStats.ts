@@ -2,8 +2,7 @@
 
 import { useMemo } from "react";
 import { useAuth } from "@/frontend/hooks/auth";
-import type { DashboardStatDraft } from "@/frontend/views/dashboard/home/useDashboardStats.helpers";
-import { resolveStatDrafts } from "@/frontend/views/dashboard/home/useDashboardStats.helpers";
+import { resolveStatDrafts, type DashboardStatDraft } from "@/frontend/views/dashboard/home/useDashboardStats.helpers";
 import { buildStatsData } from "@/frontend/views/dashboard/home/useDashboardStats.roleData";
 import { useRoleStatQueries } from "@/frontend/views/dashboard/home/useDashboardStats.queries";
 
