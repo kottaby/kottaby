@@ -19,6 +19,9 @@ export const parentMonitoringEn: ParentMonitoringLabels = {
   detailPageTitle: (childName: string) => `${childName}'s progress`,
   detailPageSubtitle: "Read-only monitoring of attendance, reports, homework, evaluations, and progress.",
 
+  // ─── Session deep-link row chip ────────────────────────────────────────
+  deepLinkChip: "From session notification",
+
   // ─── Tab labels ─────────────────────────────────────────────────────────
   tabAttendance: "Attendance",
   tabReports: "Reports",

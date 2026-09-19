@@ -22,6 +22,9 @@ export const parentMonitoringAr: ParentMonitoringLabels = {
   detailPageTitle: (childName: string) => `تقدّم ${childName}`,
   detailPageSubtitle: "مراقبة للحضور والتقارير والواجبات والتقييمات والتقدّم — للقراءة فقط.",
 
+  // ─── Session deep-link row chip ────────────────────────────────────────
+  deepLinkChip: "من إشعار الجلسة",
+
   // ─── Tab labels ─────────────────────────────────────────────────────────
   tabAttendance: "الحضور",
   tabReports: "التقارير",

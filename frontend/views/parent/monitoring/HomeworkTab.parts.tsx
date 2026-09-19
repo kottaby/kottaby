@@ -5,6 +5,7 @@ import { Card, Skeleton, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import type { ParentChildHomeworkQuery_parentChildHomework_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
+import { DeepLinkTargetChip } from "@/frontend/views/parent/monitoring/DeepLinkTargetChip";
 import { HomeworkTrackBlock } from "@/frontend/views/parent/monitoring/HomeworkTab.parts.helpers";
 import {
   deepLinkRowSx,
@@ -59,6 +60,7 @@ export function HomeworkRow({
       aria-current={isDeepLinkTarget ? "true" : undefined}
       sx={deepLinkRowSx(isDeepLinkTarget)}
     >
+      {isDeepLinkTarget ? <DeepLinkTargetChip labels={labels} /> : null}
       <Typography variant="body2" dir="auto" sx={theme => ({ color: theme.palette.text.secondary })}>
         {formatApplicantDate(row.createdAt, locale)}
       </Typography>

@@ -3,7 +3,16 @@
 import { ShowChartOutlined } from "@mui/icons-material";
 import { Box, Stack, Typography, useTheme } from "@mui/material";
 import type { ReactNode } from "react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  type DotItemDotProps,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type { ParentChildReportsQuery_parentChildReports_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import type { ParentMonitoringLabels } from "@/shared/locale/types/parentMonitoring";
@@ -25,6 +34,30 @@ function buildRatingData(
     }
   }
   return points.toReversed();
+}
+
+/**
+ * Per-point dot renderer: earlier points stay small primary dots; the
+ * LATEST point pops larger (r 5) with a background-paper stroke ring so
+ * the "where we are now" end of the trend reads at a glance. SVG paint
+ * order keeps the stroked curve on top of the gradient fill beneath it.
+ */
+function renderTrendDot(latestIndex: number, dotFill: string, ringStroke: string) {
+  function TrendDot(dotProps: DotItemDotProps): ReactNode {
+    const { cx, cy, index } = dotProps;
+    const isLatest = index === latestIndex;
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={isLatest ? 5 : 3}
+        fill={dotFill}
+        stroke={isLatest ? ringStroke : dotFill}
+        strokeWidth={isLatest ? 2 : 0}
+      />
+    );
+  }
+  return TrendDot;
 }
 
 export function RatingTrendChart({
@@ -56,15 +89,25 @@ export function RatingTrendChart({
   const lineStroke = theme.palette.primary.main;
   const tooltipBorder = theme.palette.divider;
   const tooltipBg = theme.palette.background.paper;
+  // Reference into the <defs> gradient below — the URL carries no color; the
+  // gradient stops themselves are theme-palette tokens.
+  const trendFillUrl = "url(#parent-rating-trend-fill)";
 
   return (
     <Box sx={t => ({ p: 2, borderRadius: 2, bgcolor: t.palette.action.hover })}>
       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
         {labels.ratingTrendHeading}
       </Typography>
-      <Box sx={{ width: "100%", height: 200 }}>
+      {/* role="img" + aria-label gives the SVG chart an accessible name for screen readers. */}
+      <Box role="img" aria-label={labels.ratingTrendHeading} sx={{ width: "100%", height: 200 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={[...data]} margin={{ top: 5, right: 10, bottom: 16, left: -20 }}>
+          <AreaChart data={[...data]} margin={{ top: 5, right: 10, bottom: 16, left: -20 }}>
+            <defs>
+              <linearGradient id="parent-rating-trend-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={lineStroke} stopOpacity={0.2} />
+                <stop offset="100%" stopColor={lineStroke} stopOpacity={0} />
+              </linearGradient>
+            </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
             <XAxis dataKey="session" tick={{ fontSize: 12 }} interval="preserveStartEnd" />
             <YAxis domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} tick={{ fontSize: 12, verticalAnchor: "middle" }} />
@@ -72,20 +115,23 @@ export function RatingTrendChart({
               contentStyle={{
                 borderRadius: 8,
                 border: "1px solid " + tooltipBorder,
+                boxShadow: theme.shadows[3],
                 fontSize: 12,
                 backgroundColor: tooltipBg,
               }}
               labelStyle={{ fontWeight: 700 }}
+              itemStyle={{ fontWeight: 600 }}
             />
-            <Line
+            <Area
               type="monotone"
               dataKey="rating"
               stroke={lineStroke}
               strokeWidth={2}
-              dot={{ r: 4 }}
+              fill={trendFillUrl}
+              dot={renderTrendDot(data.length - 1, lineStroke, tooltipBg)}
               activeDot={{ r: 6 }}
             />
-          </LineChart>
+          </AreaChart>
         </ResponsiveContainer>
       </Box>
     </Box>

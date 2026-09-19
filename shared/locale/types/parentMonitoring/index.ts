@@ -77,6 +77,14 @@ export interface ParentMonitoringLabels {
   /** Detail page subtitle / context line under the heading. */
   readonly detailPageSubtitle: string;
 
+  // ─── Session deep-link row chip ────────────────────────────────────────
+  /**
+   * Chip label on the row a `?session=` deep link points at (rendered at
+   * the row's top-start corner on the reports / homework / evaluations
+   * tabs to explain why that row is highlighted).
+   */
+  readonly deepLinkChip: string;
+
   // ─── Tab labels ─────────────────────────────────────────────────────────
   /** Attendance tab label (session-status-derived history). */
   readonly tabAttendance: string;

@@ -64,7 +64,7 @@ import { ParentMonitoring } from "@/shared/locale/namespaces/parentMonitoring";
 
 // ─── Mandated key inventory (the parent-monitoring surface ground truth) ───
 
-/** Every key the parentMonitoring UI namespace must carry (117 slots). */
+/** Every key the parentMonitoring UI namespace must carry (118 slots). */
 const MANDATED_KEYS = [
   // Portal root / linked-children list
   "portalPageTitle",
@@ -78,6 +78,8 @@ const MANDATED_KEYS = [
   // Detail page header
   "detailPageTitle",
   "detailPageSubtitle",
+  // Session deep-link row chip
+  "deepLinkChip",
   // Tab labels
   "tabAttendance",
   "tabReports",
@@ -293,7 +295,7 @@ describe("compile-time parity mirror — ar/en key sets agree", () => {
     expect(Object.hasOwn(parentMonitoringEn, key)).toBe(true);
   });
 
-  test("the mandated inventory is exhaustive (no silent key minting beyond the 117 slots)", () => {
+  test("the mandated inventory is exhaustive (no silent key minting beyond the 118 slots)", () => {
     const mandated = new Set<string>(MANDATED_KEYS);
     for (const key of Object.keys(parentMonitoringAr)) {
       expect(mandated.has(key)).toBe(true);
