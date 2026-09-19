@@ -54,7 +54,10 @@
  *    second insert, no double credit) while a pointer-less claim
  *    conflicts with the localized already-renewed copy; two concurrent
  *    renews partition across the claim's unique index — both fulfill
- *    with the SAME first result.
+ *    with the SAME first result; a client-style squatted key
+ *    (`renew:<id>`) can no longer collide (the admin claim rides the
+ *    reserved `subscription-admin:` namespace) and a source plan past the
+ *    interval ceiling fails closed with the localized overflow copy.
  *  - Cancel: the active row flips to `cancelled` with the lane balances
  *    BYTE-IDENTICAL before and after (balance-preserving — the sweep
  *    zeroes, cancel never does); exactly ONE `Suspend` audit row carries
@@ -79,8 +82,10 @@
  *    and a lane-less source plan deny with zero writes, the non-active
  *    source ladder (pending/expired/suspended → notActive, cancelled →
  *    idempotent replay, vanished row → not-found) denies zero-write, a
- *    committed claim replays the FIRST result (no double settlement), two
- *    concurrent changes partition across the claim's unique index, a
+ *    committed claim replays the FIRST result (no double settlement —
+ *    including the serialized post-commit duplicate whose source row is
+ *    already cancelled), two concurrent changes partition across the
+ *    claim's unique index, a
  *    balance CHECK violation maps to the localized conflict, and the
  *    non-admin/anonymous gates deny before any write.
  */
@@ -119,7 +124,8 @@ import {
   ValidationError,
 } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
-import { MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
+import { MAX_INTERVAL_DAYS, MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
+import { SUBSCRIPTION_ADMIN_CLAIM_PREFIXES } from "@/backend/services/billing/subscription-admin.helpers";
 import { SubscriptionAdminService } from "@/backend/services/billing/subscription-admin.service";
 import type {
   CancelSubscriptionSubmitInput,
@@ -367,6 +373,15 @@ async function readClaim(tx: DBTransaction, key: string) {
   return row ?? null;
 }
 
+/**
+ * The idempotency claim key the renew flow constructs for one source row —
+ * derived from the service's own prefix constant so the tests can never
+ * drift from the reserved admin namespace.
+ */
+function renewClaimKey(sourceSubscriptionId: number): string {
+  return `${SUBSCRIPTION_ADMIN_CLAIM_PREFIXES.renew}:${sourceSubscriptionId}`;
+}
+
 /** Junction rows tying one subscription to any student. */
 async function countJunctionRows(tx: DBTransaction, subscriptionId: number): Promise<number> {
   return tx.$count(studentSubscriptions, eq(studentSubscriptions.subscriptionId, subscriptionId));
@@ -385,7 +400,7 @@ async function expectRenewDeniedForStatus(tx: DBTransaction, adminId: number, fi
   expect(error).toBeInstanceOf(ConflictError);
   expectDomainDenial(error, "CONFLICT", t().subscriptionAdmin.notExpired);
   expect(await countSubscriptionsForOwner(tx, fixture.owner.id)).toBe(1);
-  expect(await readClaim(tx, `renew:${fixture.source.id}`)).toBeNull();
+  expect(await readClaim(tx, renewClaimKey(fixture.source.id))).toBeNull();
   expect(await readHifzBalance(tx, fixture.owner.id)).toBe(0);
   expect(await readAuditsForSubscription(tx, fixture.source.id)).toHaveLength(0);
 }
@@ -890,7 +905,7 @@ describe("SubscriptionAdminService.renewSubscription — branches (Tier 1)", () 
       expect(await countJunctionRows(tx, result.id)).toBe(1);
 
       // The claim was created and backfilled to the fresh row.
-      const claim = await readClaim(tx, `renew:${source.id}`);
+      const claim = await readClaim(tx, renewClaimKey(source.id));
       expect(claim?.userId).toBe(owner.id);
       expect(claim?.subscriptionId).toBe(result.id);
 
@@ -992,7 +1007,29 @@ describe("SubscriptionAdminService.renewSubscription — branches (Tier 1)", () 
       // read rolled back with the transaction: the deny leaves no
       // idempotency residue.
       expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(1);
-      expect(await readClaim(tx, `renew:${source.id}`)).toBeNull();
+      expect(await readClaim(tx, renewClaimKey(source.id))).toBeNull();
+      expect(await readHifzBalance(tx, owner.id)).toBe(0);
+      expect(await readAuditsForSubscription(tx, source.id)).toHaveLength(0);
+    });
+  });
+
+  test("fail-closed: a source plan past the interval ceiling denies with the localized overflow copy and zero writes", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, source } = await createExpiredFixture(tx, {
+        planOverrides: { intervalDays: MAX_INTERVAL_DAYS + 1 },
+      });
+
+      const error = await expectServiceError(() =>
+        SubscriptionAdminService.renewSubscription(renewInput(source.id), adminId, "en", tx)
+      );
+
+      expect(error).toBeInstanceOf(ValidationError);
+      expectDomainDenial(error, "VALIDATION", t().subscriptionAdmin.prorationOverflow);
+      // Zero writes — and no claim residue: the ceiling guard rolls the
+      // just-inserted claim back with the transaction.
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(1);
+      expect(await readClaim(tx, renewClaimKey(source.id))).toBeNull();
       expect(await readHifzBalance(tx, owner.id)).toBe(0);
       expect(await readAuditsForSubscription(tx, source.id)).toHaveLength(0);
     });
@@ -1014,7 +1051,7 @@ describe("SubscriptionAdminService.renewSubscription — branches (Tier 1)", () 
       expect(reread.endDate).toEqual(source.endDate);
       expect(reread.updatedAt).toEqual(source.updatedAt);
       expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(1);
-      expect(await readClaim(tx, `renew:${source.id}`)).toBeNull();
+      expect(await readClaim(tx, renewClaimKey(source.id))).toBeNull();
       expect(await countAuditsForActor(tx, student.id)).toBe(0);
     });
   });
@@ -1064,7 +1101,7 @@ describe("SubscriptionAdminService.renewSubscription — boundaries, replay, cha
         endDate: new Date(Date.now() + 28 * MS_PER_DAY),
       });
       const claim = await SubscriptionPurchaseIdempotencyRepository.insertClaim(
-        { idempotencyKey: `renew:${source.id}`, userId: owner.id },
+        { idempotencyKey: renewClaimKey(source.id), userId: owner.id },
         tx
       );
       await SubscriptionPurchaseIdempotencyRepository.updateClaimSubscriptionId(claim.id, priorResult.id, tx);
@@ -1082,7 +1119,7 @@ describe("SubscriptionAdminService.renewSubscription — boundaries, replay, cha
       // No audit row was minted for the replay, and the claim pointer is
       // untouched.
       expect(await readAuditsForSubscription(tx, priorResult.id)).toHaveLength(0);
-      expect((await readClaim(tx, `renew:${source.id}`))?.subscriptionId).toBe(priorResult.id);
+      expect((await readClaim(tx, renewClaimKey(source.id)))?.subscriptionId).toBe(priorResult.id);
     });
   });
 
@@ -1094,7 +1131,7 @@ describe("SubscriptionAdminService.renewSubscription — boundaries, replay, cha
       // the set-null FK after the result row's deletion (the aborted-
       // original shape): the replay cannot resolve to any row.
       await SubscriptionPurchaseIdempotencyRepository.insertClaim(
-        { idempotencyKey: `renew:${source.id}`, userId: owner.id },
+        { idempotencyKey: renewClaimKey(source.id), userId: owner.id },
         tx
       );
 
@@ -1109,6 +1146,34 @@ describe("SubscriptionAdminService.renewSubscription — boundaries, replay, cha
       expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(1);
       expect(await readHifzBalance(tx, owner.id)).toBe(0);
       expect(await readAuditsForSubscription(tx, source.id)).toHaveLength(0);
+    });
+  });
+
+  test("a client-style squatted claim key can no longer collide: the admin claim rides the reserved namespace", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, plan, source } = await createExpiredFixture(tx);
+      // The key-space-squat probe: a claim row shaped exactly like the
+      // admin flow's OLD unreserved key (`renew:<sourceId>` — the shape a
+      // raw client-supplied purchase header could pre-claim in the shared,
+      // global-unique claim store) is committed BEFORE the admin call.
+      await SubscriptionPurchaseIdempotencyRepository.insertClaim(
+        { idempotencyKey: `renew:${source.id}`, userId: owner.id },
+        tx
+      );
+
+      const result = await SubscriptionAdminService.renewSubscription(renewInput(source.id), adminId, "en", tx);
+
+      // The renewal SUCCEEDED: the flow's claim key is the reserved
+      // `subscription-admin:renew:<sourceId>` namespace, untouched by the
+      // squat — and the fresh claim is backfilled to the new row.
+      expect(result.status).toBe(SubscriptionStatus.Active);
+      expect((await readClaim(tx, renewClaimKey(source.id)))?.subscriptionId).toBe(result.id);
+      // The squatted client-style row stays pointer-less, and the owner
+      // holds exactly one fresh period with its single lane credit.
+      expect((await readClaim(tx, `renew:${source.id}`))?.subscriptionId).toBeNull();
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(2);
+      expect(await readHifzBalance(tx, owner.id)).toBe(plan.sessionCount);
     });
   });
 
@@ -1174,7 +1239,7 @@ describe("SubscriptionAdminService.renewSubscription — boundaries, replay, cha
         const [claimRow] = await db
           .select()
           .from(subscriptionPurchaseIdempotency)
-          .where(eq(subscriptionPurchaseIdempotency.idempotencyKey, `renew:${fixture.sourceId}`))
+          .where(eq(subscriptionPurchaseIdempotency.idempotencyKey, renewClaimKey(fixture.sourceId)))
           .limit(1);
         expect(claimRow?.subscriptionId).toBe(first.value.id);
         const audits = await db
@@ -1487,9 +1552,9 @@ function planChangeInput(subscriptionId: number, newPlanId: number): ChangeSubsc
   return { subscriptionId, newPlanId };
 }
 
-/** The idempotency claim key the plan-change flow constructs for one pair. */
+/** The idempotency claim key the plan-change flow constructs for one pair (the reserved admin namespace). */
 function planChangeClaimKey(subscriptionId: number, newPlanId: number): string {
-  return `planChange:${subscriptionId}:${newPlanId}`;
+  return `${SUBSCRIPTION_ADMIN_CLAIM_PREFIXES.planChange}:${subscriptionId}:${newPlanId}`;
 }
 
 /**
@@ -2099,6 +2164,54 @@ describe("SubscriptionAdminService.changeSubscriptionPlan — replay + chaos (Ti
       // settlement would have overwritten it with the prepared total), no
       // audit row about the first result, and the claim pointer is
       // untouched.
+      expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(2);
+      expect(await readHifzBalance(tx, owner.id)).toBe(2);
+      expect(await readAuditsForSubscription(tx, priorResult.id)).toHaveLength(0);
+      expect((await readClaim(tx, planChangeClaimKey(source.id, targetPlan.id)))?.subscriptionId).toBe(priorResult.id);
+    });
+  });
+
+  test("a serialized duplicate (post-commit: the source row is already cancelled) replays the FIRST result", async () => {
+    await runInRollback(async tx => {
+      const adminId = await createAdmin(tx);
+      const { owner, targetPlan, source } = await createPlanChangeFixture(tx, {
+        sourcePlanOverrides: { sessionCount: 10, price: "100.00" },
+        targetPlanOverrides: { sessionCount: 20, price: "400.00" },
+      });
+      await StudentRepository.creditLaneBalance(owner.id, SubscriptionCreditLane.Hifz, 2, tx);
+      // The first change already committed AND terminated the source: the
+      // old row is cancelled, the fresh period is active on the target
+      // plan, and the claim points at it — the duplicate arrives with its
+      // source no longer active, so the cancelled-source ladder must not
+      // deny before the claim lookup.
+      const priorResult = await createTestSubscription(tx, owner.id, targetPlan.id, {
+        status: SubscriptionStatus.Active,
+        startDate: new Date(Date.now() - MS_PER_DAY),
+        endDate: new Date(Date.now() + 29 * MS_PER_DAY),
+      });
+      const claim = await SubscriptionPurchaseIdempotencyRepository.insertClaim(
+        { idempotencyKey: planChangeClaimKey(source.id, targetPlan.id), userId: owner.id },
+        tx
+      );
+      await SubscriptionPurchaseIdempotencyRepository.updateClaimSubscriptionId(claim.id, priorResult.id, tx);
+      expect(await SubscriptionRepository.cancelActiveOnce(source.id, tx)).not.toBeNull();
+
+      const result = await SubscriptionAdminService.changeSubscriptionPlan(
+        planChangeInput(source.id, targetPlan.id),
+        adminId,
+        "en",
+        tx
+      );
+
+      // The FIRST result is returned — this call moved nothing, so the
+      // carry/forfeit integers report zero while the plan-pair direction
+      // is re-derived.
+      expect(result.subscription.id).toBe(priorResult.id);
+      expect(result.direction).toBe(ProrationDirection.Upgrade);
+      expect(result.carrySessions).toBe(0);
+      expect(result.forfeitedSessions).toBe(0);
+      // No second change: still exactly two rows, the lane untouched, no
+      // audit row minted by the duplicate.
       expect(await countSubscriptionsForOwner(tx, owner.id)).toBe(2);
       expect(await readHifzBalance(tx, owner.id)).toBe(2);
       expect(await readAuditsForSubscription(tx, priorResult.id)).toHaveLength(0);

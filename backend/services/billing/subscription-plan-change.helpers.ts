@@ -2,7 +2,10 @@
  * SubscriptionAdmin plan-change flow — the upgrade/downgrade lifecycle
  * writer, split into its own module (the sibling-helpers file convention)
  * so the `SubscriptionAdminService` namespace stays focused on
- * orchestration-sized flows.
+ * orchestration-sized flows. The duplicate-claim REPLAY half (the
+ * claim-key builder, the serialized-probe resolver, and the 23505 race
+ * resolver) lives in the sibling `subscription-plan-change.replay.helpers.ts`
+ * module — same extraction convention.
  *
  * Semantics: the source row must be `active` (a missing row denies with
  * the canonical not-found error, an already-cancelled row surfaces the
@@ -11,16 +14,22 @@
  * the TARGET plan must be active, different from the source plan, and
  * credit the SAME balance lane (cross-lane migration is out of scope).
  * The proration is computed from the student's CURRENT lane balance read
- * inside the transaction — flat lanes, with the stale-read race resolved
- * downstream by the EXACT-value lane settlement (a concurrent booking
- * debit that lands between the read and the write is superseded by the
- * prepared total, never raced by a relative increment).
+ * inside the transaction under the owner row's `FOR UPDATE` lock — the
+ * lock (held to the transaction's end) serializes the read→settle pair
+ * with concurrent lane debits, so a booking can never commit between the
+ * balance read and the EXACT-value lane settlement (which still lands one
+ * prepared total, never a relative increment).
  *
- * The idempotency claim `planChange:<sourceId>:<targetPlanId>` is
- * inserted (savepoint-bracketed) BEFORE any result write — the flow's
- * atomicity point: a duplicate claim (23505) REPLAYS the first result
- * through the claim's subscription pointer instead of re-crediting, while
- * a committed claim that cannot resolve to a same-owner row surfaces the
+ * The idempotency claim
+ * `subscription-admin:planChange:<sourceId>:<targetPlanId>` (minted under
+ * the reserved server-owned namespace the purchase boundary refuses to
+ * carry) is inserted (savepoint-bracketed) BEFORE any result write — the
+ * flow's atomicity point. A duplicate REPLAYS the first result through
+ * the claim's subscription pointer instead of re-crediting: the
+ * serialized probe resolves a claim committed by an EARLIER call (its
+ * source row is already `cancelled`) before the source-status guard, and
+ * the savepoint-bracketed 23505 handler covers the concurrent window; a
+ * committed claim that cannot resolve to a same-owner row surfaces the
  * localized already-plan-changed conflict. On the winning path the old
  * row is guarded-flipped to `cancelled` (fail closed on a zero-row
  * result — no disambiguation: the opening read already certified the
@@ -37,11 +46,13 @@
  * `backend/types/` and is imported through `@/backend/types`.
  */
 
+import { eq } from "drizzle-orm";
 import { PlanRepository } from "@/backend/db/repo/billing/plan.repository";
 import { SubscriptionRepository } from "@/backend/db/repo/billing/subscription.repository";
 import { SubscriptionPurchaseIdempotencyRepository } from "@/backend/db/repo/billing/subscription-purchase-idempotency.repository";
 import { StudentRepository } from "@/backend/db/repo/students/student.repository";
 import { studentSubscriptions } from "@/backend/db/schema/billing/student-subscriptions";
+import { students } from "@/backend/db/schema/students/students";
 import { AuditActionType } from "@/backend/enum/audit/audit-action-type.enum";
 import { ProrationDirection } from "@/backend/enum/billing/proration-direction.enum";
 import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-credit-lane.enum";
@@ -55,16 +66,16 @@ import {
   buildSubscriptionAuditContract,
   MS_PER_DAY,
   resolveCancelDenial,
-  SUBSCRIPTION_ADMIN_CLAIM_PREFIXES,
   subscriptionCreditLaneMemberOf,
   toSubscriptionAdminDomainError,
   toSubscriptionAdminReturnType,
 } from "@/backend/services/billing/subscription-admin.helpers";
 import {
-  computeProration,
-  prorationDirectionMemberOf,
-  prorationDirectionOf,
-} from "@/backend/services/billing/subscription-proration.helpers";
+  planChangeClaimKey,
+  replaySerializedPlanChange,
+  resolvePlanChangeReplayRow,
+} from "@/backend/services/billing/subscription-plan-change.replay.helpers";
+import { computeProration } from "@/backend/services/billing/subscription-proration.helpers";
 import type {
   ChangeSubscriptionPlanResult,
   ChangeSubscriptionPlanSubmitInput,
@@ -186,7 +197,7 @@ async function insertPlanChangeClaim(
   targetPlanId: number,
   scopedTx: DBTransaction
 ): Promise<SubscriptionPurchaseIdempotencySelectType | null> {
-  const claimKey = `${SUBSCRIPTION_ADMIN_CLAIM_PREFIXES.planChange}:${sourceSubscriptionId}:${targetPlanId}`;
+  const claimKey = planChangeClaimKey(sourceSubscriptionId, targetPlanId);
   try {
     return await scopedTx.transaction(claimTx =>
       SubscriptionPurchaseIdempotencyRepository.insertClaim({ idempotencyKey: claimKey, userId }, claimTx)
@@ -197,59 +208,6 @@ async function insertPlanChangeClaim(
     }
     return null;
   }
-}
-
-/**
- * One bounded `already-plan-changed` denial (the localized default-code
- * conflict) for a committed claim that cannot resolve to a same-owner
- * result row — `detail` names the unresolvable shape, ids only in the log.
- */
-function replayConflict(sourceSubscriptionId: number, detail: string, tErrors: ErrorsLabels): never {
-  logger.logDomainError(`Subscription plan change denied: ${detail}`, {
-    code: "CONFLICT",
-    entity: "subscriptions",
-    entityId: sourceSubscriptionId,
-  });
-  throw new ConflictError(tErrors.subscriptionAdmin.alreadyPlanChanged);
-}
-
-/**
- * Resolves a duplicate plan-change claim to its REPLAYED first result:
- * the claim's subscription pointer is loaded and returned with the
- * plan-pair-derived direction — THIS call moved nothing, so the carry and
- * forfeit report zero (the original arithmetic lives in the committed
- * audit row). A pointer that resolves to nothing (the set-null FK after
- * the result row's deletion) or to a foreign owner cannot be replayed:
- * the localized already-plan-changed conflict denies instead.
- */
-async function resolvePlanChangeReplayRow(
-  source: { subscription: SubscriptionSelectType; plan: PlanSelectType },
-  target: PlanSelectType,
-  scopedTx: DBTransaction,
-  tErrors: ErrorsLabels
-): Promise<ChangeSubscriptionPlanResult> {
-  const claimKey = `${SUBSCRIPTION_ADMIN_CLAIM_PREFIXES.planChange}:${source.subscription.id}:${target.id}`;
-  const priorClaim = await SubscriptionPurchaseIdempotencyRepository.findByKey(claimKey, scopedTx);
-  const replayedId = priorClaim?.subscriptionId ?? null;
-  if (replayedId === null) {
-    replayConflict(source.subscription.id, "claim exists without a subscription pointer", tErrors);
-  }
-  const replayed = await SubscriptionRepository.findById(replayedId, scopedTx);
-  if (replayed === null) {
-    replayConflict(source.subscription.id, "claim pointer resolves to no subscription row", tErrors);
-  }
-  if (replayed.userId !== source.subscription.userId) {
-    // The key space is server-constructed here, but the shared claim
-    // store also carries client-supplied purchase keys — a foreign-owner
-    // pointer is never replayed to this caller.
-    replayConflict(source.subscription.id, "claim's first result belongs to another owner", tErrors);
-  }
-  return {
-    subscription: toSubscriptionAdminReturnType(replayed, tErrors),
-    direction: prorationDirectionOf(source.plan, target, tErrors),
-    carrySessions: 0,
-    forfeitedSessions: 0,
-  };
 }
 
 /**
@@ -282,8 +240,9 @@ async function insertChangedSubscription(
 
 /**
  * Settles the plan change's balance side effects in order: the owner's
- * lane is set to the prepared EXACT total (a concurrent booking debit is
- * superseded, never raced — zero rows means the owner's student row
+ * lane is set to the prepared EXACT total (the owner row's `FOR UPDATE`
+ * lock from the proration read holds to this transaction's end, so no
+ * debit can interleave — zero rows means the owner's student row
  * vanished, unreachable through the FK restrict, and fails closed rather
  * than committing a period without its settlement), the
  * student↔subscription junction row is inserted, and the claim's
@@ -317,17 +276,30 @@ async function settlePlanChangeSideEffects(
 
 /**
  * Reads the change's owner `students` row — the proration's
- * remaining-sessions source — fail-closed: a vanished owner (unreachable
- * through the FK restrict while the subscription exists) denies with the
- * localized conflict instead of committing a change without its settlement.
+ * remaining-sessions source — under a `FOR UPDATE` row lock on the SAME
+ * transaction that later settles: the lock is held to the transaction's
+ * end, so the balance read and the exact-value lane settlement serialize
+ * against concurrent lane debits (a booking either lands BEFORE this read
+ * and is honestly reflected in the proration, or blocks until after the
+ * settlement commits — it can never commit in between and be silently
+ * superseded by the prepared total). `tx` is always supplied here (the
+ * flow's transaction): a locking read without a transaction would release
+ * its lock as soon as the statement finished. Fail-closed: a vanished
+ * owner (unreachable through the FK restrict while the subscription
+ * exists) denies with the localized conflict instead of committing a
+ * change without its settlement.
  */
 async function readPlanChangeOwner(
   source: { subscription: SubscriptionSelectType },
   tErrors: ErrorsLabels,
   scopedTx: DBTransaction
 ): Promise<StudentSelectType> {
-  const student = await StudentRepository.findById(source.subscription.userId, scopedTx);
-  if (student === null) {
+  const [student] = await scopedTx
+    .select()
+    .from(students)
+    .where(eq(students.id, source.subscription.userId))
+    .for("update");
+  if (!student) {
     logger.logDomainError("Subscription plan change denied: owner student row missing", {
       code: "CONFLICT",
       entity: "subscriptions",
@@ -376,6 +348,22 @@ async function changeSubscriptionPlanTx(
   tErrors: ErrorsLabels,
   scopedTx: DBTransaction
 ): Promise<ChangeSubscriptionPlanResult> {
+  // The serialized-replay probe: a duplicate that arrives AFTER the first
+  // change committed finds its source row already `cancelled` — the
+  // guarded-cancel ladder below would deny before the race-path claim
+  // lookup ever ran. A committed claim for this (source row, target plan)
+  // pair is therefore resolved FIRST (REPLAY, or the localized
+  // already-plan-changed conflict); with no committed claim the flow
+  // proceeds, and the savepoint-bracketed 23505 handler below keeps
+  // covering the concurrent window.
+  const priorClaim = await SubscriptionPurchaseIdempotencyRepository.findByKey(
+    planChangeClaimKey(input.subscriptionId, input.newPlanId),
+    scopedTx
+  );
+  if (priorClaim !== null) {
+    return replaySerializedPlanChange(input, priorClaim, scopedTx, tErrors);
+  }
+
   const source = await SubscriptionRepository.findActiveWithPlan(input.subscriptionId, scopedTx);
   if (source === null) {
     // Missing, cancelled, or moved-on source: the fresh read
@@ -403,7 +391,7 @@ async function changeSubscriptionPlanTx(
   // The credit: the target plan's full session count, plus the computed
   // carry on the upgrade leg — the downgrade forfeits the remainder
   // (carrySessions arrives zero from the proration).
-  const direction = prorationDirectionMemberOf(proration.direction, tErrors);
+  const direction = proration.direction;
   const creditedSessions =
     direction === ProrationDirection.Upgrade ? target.sessionCount + proration.carrySessions : target.sessionCount;
 

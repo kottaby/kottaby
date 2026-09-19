@@ -1,6 +1,6 @@
 /**
  * SubscriptionAdmin proration helpers — the exact plan-change carry
- * arithmetic and its closed-vocabulary direction mapping.
+ * arithmetic and its direction derivation.
  *
  * Split into a dedicated module (the sibling `subscription-admin.helpers.ts`
  * file convention) because the plan-change flow is arithmetic-heavy: every
@@ -31,7 +31,7 @@
  */
 
 import { ProrationDirection } from "@/backend/enum/billing/proration-direction.enum";
-import { ConflictError, ValidationError } from "@/backend/lib/errors";
+import { ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
 import { MAX_INTERVAL_DAYS, MAX_SESSION_COUNT } from "@/backend/services/billing/plan-catalog.helpers";
 import type { PlanSelectType, ProrationComputation } from "@/backend/types";
@@ -44,9 +44,6 @@ import type { ErrorsLabels } from "@/shared/locale/types/errors";
  * interpreted without guessing scale, so it rejects instead.
  */
 const PLAN_PRICE_CANONICAL = /^\d{1,8}\.\d{2}$/;
-
-/** The `ProrationDirection` members as a closed runtime vocabulary. */
-const PRORATION_DIRECTION_MEMBERS = Object.values(ProrationDirection);
 
 /**
  * Parses a plan's price string into EXACT minor units (BigInt). A
@@ -125,26 +122,6 @@ export function prorationDirectionOf(
     parsePlanPriceMinor(newPlan, tErrors),
     newPlan.sessionCount
   );
-}
-
-/**
- * Resolves a computed proration direction onto its canonical
- * `ProrationDirection` member — the total, fail-closed vocabulary lookup
- * (the `ProrationComputation.direction` union mirrors the enum's values;
- * the mapping makes the enum contract explicit instead of casting).
- */
-export function prorationDirectionMemberOf(
-  direction: ProrationComputation["direction"],
-  tErrors: ErrorsLabels
-): ProrationDirection {
-  const member = PRORATION_DIRECTION_MEMBERS.find(value => (value as string) === direction);
-  if (member === undefined) {
-    logger.error("Subscription admin proration mapping aborted: direction is not a closed-vocabulary member", {
-      storedDirection: direction,
-    });
-    throw new ConflictError(tErrors.conflict);
-  }
-  return member;
 }
 
 /**

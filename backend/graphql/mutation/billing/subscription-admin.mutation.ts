@@ -14,7 +14,9 @@
  *    StudentSubscription!` — admin-only; the expired-source selector is
  *    the only client material. The renewal's plan snapshot, window
  *    arithmetic, lane credit, and the server-constructed
- *    `renew:<sourceId>` idempotency claim are all derived server-side. A
+ *    `subscription-admin:renew:<sourceId>` idempotency claim (minted
+ *    under the reserved server-owned namespace the purchase boundary
+ *    refuses to carry) are all derived server-side. A
  *    duplicate renew REPLAYS the first result through the claim's
  *    subscription pointer (no error, no second period, no second
  *    credit); a claim that cannot resolve to a same-owner row surfaces
@@ -26,13 +28,14 @@
  *    the selector and an optional free-text reason that the service trims
  *    and bounds before the audit trail). An already-applied cancel
  *    surfaces the localized idempotent conflict instead of a second write.
- * *  - `adminChangeSubscriptionPlan(input: ChangeSubscriptionPlanInput!):
+ *  - `adminChangeSubscriptionPlan(input: ChangeSubscriptionPlanInput!):
  *    ChangeSubscriptionPlanPayload!` — admin-only; moves an `active` row
  *    onto a different ACTIVE plan crediting the SAME balance lane with
  *    prorated settlement: the direction is derived server-side from the
  *    two plans' unit values (a unit-value tie breaks on session count),
- *    the `planChange:<sourceId>:<targetPlanId>` claim makes a duplicate
- *    REPLAY the first result, and the payload reports the NEW row plus the
+ *    the `subscription-admin:planChange:<sourceId>:<targetPlanId>` claim
+ *    makes a duplicate REPLAY the first result, and the payload reports
+ *    the NEW row plus the
  *    applied carry/forfeit (zeros on a replay — the replayed call moved
  *    nothing). Cross-lane targets, inactive targets, same-plan targets,
  *    and non-active sources all surface localized conflicts.

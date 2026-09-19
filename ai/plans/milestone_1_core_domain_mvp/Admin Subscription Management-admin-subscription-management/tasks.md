@@ -86,7 +86,7 @@
 
 ## Phase 2.5 — Mid-Point Review Gate (MANDATORY: plan has >15 subtasks and distinct backend/frontend phases)
 
-- [ ] **5.5 Backend architecture review checkpoint**
+- [x] **5.5 Backend architecture review checkpoint**
   - Dispatch read-only review agents over all backend files touched in Phases 2-5 (service+repo+types+pothos+mutation files).
   - Fix findings per-file via sub-loop; re-review until zero backend-specific findings.
   - Record `outcome/5.5-midpoint-review-R1.md`.

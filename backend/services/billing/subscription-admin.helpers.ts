@@ -37,6 +37,7 @@ import { SubscriptionCreditLane } from "@/backend/enum/billing/subscription-cred
 import { SubscriptionStatus } from "@/backend/enum/billing/subscription-status.enum";
 import { ConflictError, isPgUniqueViolation, NotFoundError, ValidationError } from "@/backend/lib/errors";
 import { logger } from "@/backend/lib/logger";
+import { MAX_INTERVAL_DAYS } from "@/backend/services/billing/plan-catalog.helpers";
 import type {
   AuditLogWriteContract,
   DBTransaction,
@@ -52,17 +53,31 @@ import type { ErrorsLabels } from "@/shared/locale/types/errors";
 export const SUBSCRIPTION_AUDIT_ENTITY_TYPE = "subscription";
 
 /**
+ * The RESERVED server-owned namespace every admin subscription claim key
+ * lives under. The shared `subscription_purchase_idempotency` store also
+ * carries RAW client-supplied purchase `x-idempotency-key` headers, so an
+ * unreserved, predictably-shaped admin key (`renew:<id>`) could be
+ * pre-claimed by a student and permanently block the admin renew /
+ * plan-change flows for that row. Both ends keep the space server-owned:
+ * the admin flows mint every claim key under this prefix (the builders
+ * below), and the purchase boundary rejects client-supplied keys that
+ * start with it (see `purchase-guards.helpers.ts`).
+ */
+export const SUBSCRIPTION_ADMIN_CLAIM_KEY_PREFIX = "subscription-admin";
+
+/**
  * Server-constructed idempotency-claim key prefixes for the admin
- * subscription flows. The caller never supplies claim material on this
- * surface — the claim identity is derived from the targeted row's id, so
- * the shared claim store's key space stays server-owned (the purchase
- * surface's client-header keys are a different, client-supplied space).
+ * subscription flows, composed under the reserved server prefix. The
+ * caller never supplies claim material on this surface — the claim
+ * identity is derived from the targeted row's id, so the shared claim
+ * store's key space stays server-owned (the purchase surface's
+ * client-header keys are a different, client-supplied space).
  */
 export const SUBSCRIPTION_ADMIN_CLAIM_PREFIXES = {
-  /** `renew:<sourceSubscriptionId>` — one fresh period per expired source row. */
-  renew: "renew",
-  /** `planChange:<sourceSubscriptionId>:<targetPlanId>` — one plan change per (source row, target plan) pair; a different target on the same source row is a genuinely new change, not a replay. */
-  planChange: "planChange",
+  /** `subscription-admin:renew:<sourceSubscriptionId>` — one fresh period per expired source row. */
+  renew: `${SUBSCRIPTION_ADMIN_CLAIM_KEY_PREFIX}:renew`,
+  /** `subscription-admin:planChange:<sourceSubscriptionId>:<targetPlanId>` — one plan change per (source row, target plan) pair; a different target on the same source row is a genuinely new change, not a replay. */
+  planChange: `${SUBSCRIPTION_ADMIN_CLAIM_KEY_PREFIX}:planChange`,
 } as const;
 
 /** Milliseconds per day — the subscription window arithmetic unit shared by the extend, renew, and plan-change flows. */
@@ -121,10 +136,11 @@ export async function resolveRenewalReplayRow(
  * The renewal's fresh plan read with its fail-closed guards: the
  * snapshot is the plan row's CURRENT content (activity is a
  * purchase-time property; the credit lane is not), and a missing row or
- * an unconfigured lane aborts the renewal — the caller's transaction
- * rolls the just-inserted claim back with it. The stored lane resolves
- * to its canonical credit-lane member here, so the caller receives a
- * certified lane instead of a nullable column.
+ * an unconfigured lane or an interval past the catalog's ceiling aborts
+ * the renewal — the caller's transaction rolls the just-inserted claim
+ * back with it. The stored lane resolves to its canonical credit-lane
+ * member here, so the caller receives a certified lane instead of a
+ * nullable column.
  */
 export async function readRenewalPlan(
   source: SubscriptionSelectType,
@@ -139,6 +155,17 @@ export async function readRenewalPlan(
       entityId: source.planId,
     });
     throw new ConflictError(tErrors.conflict);
+  }
+  // The renewal opens a fresh one-interval window — a plan row past the
+  // catalog's interval ceiling (purchasable copy until this read) can
+  // never anchor one, so it fails closed before any arithmetic.
+  if (plan.intervalDays > MAX_INTERVAL_DAYS) {
+    logger.logDomainError("Subscription renew denied: plan interval days exceeds the catalog ceiling", {
+      code: "VALIDATION",
+      entity: "plans",
+      entityId: plan.id,
+    });
+    throw new ValidationError(tErrors.subscriptionAdmin.prorationOverflow);
   }
   if (plan.balanceLane === null) {
     logger.logDomainError("Subscription renew denied: plan balance lane is not configured", {

@@ -62,13 +62,13 @@ export interface ChangeSubscriptionPlanSubmitInput {
  * old and new plan's per-session unit prices during a plan change.
  *
  * `direction` is derived server-side from the unit-price comparison and
- * mirrors the `ProrationDirection` enum values. An upgrade carries the
+ * carries the canonical `ProrationDirection` member. An upgrade carries the
  * converted remainder on top of the new plan's full session count; a
  * downgrade credits only the new plan's full session count and reports
  * the discarded remainder as `forfeitedSessions`.
  */
 export interface ProrationComputation {
-  readonly direction: "upgrade" | "downgrade";
+  readonly direction: ProrationDirection;
   readonly carrySessions: number;
   readonly forfeitedSessions: number;
   readonly newSessionCount: number;

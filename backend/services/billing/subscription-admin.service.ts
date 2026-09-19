@@ -25,7 +25,9 @@
  * payment-owned). A fresh plan read supplies the period arithmetic and
  * the credit lane (fail-closed when the lane is not configured), the new
  * row opens at the renewal instant, and the owner's lane is credited the
- * plan's full session count. The idempotency claim `renew:<sourceId>` is
+ * plan's full session count. The idempotency claim
+ * `subscription-admin:renew:<sourceId>` (minted under the reserved
+ * server-owned namespace the purchase boundary refuses to carry) is
  * inserted before any result write — the flow's atomicity point: a
  * duplicate renew replays the first result through the claim's
  * subscription pointer instead of creating a second period, while a
@@ -46,10 +48,11 @@
  * Plan-change semantics: the source row must be `active` and its TARGET
  * plan active, different, and same-lane (cross-lane migration is out of
  * scope). The proration is computed in exact BigInt minor units from the
- * student's CURRENT lane balance for the old lane (read inside the
- * transaction; the stale-read race is resolved by the EXACT-value lane
- * settlement downstream). The `planChange:<sourceId>:<targetPlanId>`
- * claim is the flow's atomicity point — a duplicate REPLAYS the first
+ * student's CURRENT lane balance for the old lane (read under the owner
+ * row's `FOR UPDATE` lock so the read→settle pair serializes with
+ * concurrent lane debits). The
+ * `subscription-admin:planChange:<sourceId>:<targetPlanId>` claim is the
+ * flow's atomicity point — a duplicate REPLAYS the first
  * result — and the winning path flips the old row to `cancelled` through
  * the guarded transition, settles the owner's lane to the prepared exact
  * total (the target plan's full session count plus the computed carry on
@@ -154,6 +157,20 @@ export namespace SubscriptionAdminService {
         entityId: input.subscriptionId,
       });
       throw new ValidationError(tErrors.badRequest);
+    }
+
+    // Pre-arithmetic bounds — the window math multiplies this value into
+    // Date milliseconds, so a non-finite count or one already past the
+    // catalog's interval ceiling is rejected BEFORE the arithmetic (the
+    // resulting-window guard below re-asserts the ceiling against the
+    // row's actual anchor).
+    if (!Number.isFinite(input.days) || input.days > MAX_INTERVAL_DAYS) {
+      logger.logDomainError("Subscription extend denied: day count is non-finite or exceeds the interval ceiling", {
+        code: "VALIDATION",
+        entity: "subscriptions",
+        entityId: input.subscriptionId,
+      });
+      throw new ValidationError(tErrors.subscriptionAdmin.prorationOverflow);
     }
 
     // Defense-in-depth BFLA gate — zero writes, zero audit rows on denial.
@@ -284,8 +301,10 @@ export namespace SubscriptionAdminService {
         // The idempotency claim — savepoint-bracketed so a duplicate key
         // poisons only the savepoint, keeping this transaction readable
         // for the replay lookup (the purchase flow's claim idiom). The
-        // key is SERVER-CONSTRUCTED from the source row's id — the caller
-        // never supplies claim material on this surface.
+        // key is SERVER-CONSTRUCTED under the reserved `subscription-admin:`
+        // namespace from the source row's id — the caller never supplies
+        // claim material on this surface, and the purchase boundary
+        // rejects client keys under the same prefix (no squatting).
         const claimKey = `${SUBSCRIPTION_ADMIN_CLAIM_PREFIXES.renew}:${source.id}`;
         let claim: SubscriptionPurchaseIdempotencySelectType;
         try {
@@ -420,8 +439,9 @@ export namespace SubscriptionAdminService {
    * guarded-cancel disambiguation ladder); the TARGET plan must be
    * active, different, and same-lane; the proration is computed in exact
    * BigInt minor units from the student's CURRENT lane balance read
-   * inside the transaction; the `planChange:<sourceId>:<targetPlanId>`
-   * claim is the flow's atomicity point (a duplicate REPLAYS the first
+   * inside the transaction; the
+   * `subscription-admin:planChange:<sourceId>:<targetPlanId>` claim is
+   * the flow's atomicity point (a duplicate REPLAYS the first
    * result through its subscription pointer); and the winning path flips
    * the old row to `cancelled` (guarded), settles the owner's lane to the
    * prepared exact total, opens the fresh period on the target plan,
