@@ -111,7 +111,13 @@ function compareDates(
 ): number {
   const aDate = a.sessionStartedAt ?? a.createdAt;
   const bDate = b.sessionStartedAt ?? b.createdAt;
-  return aDate < bDate ? -1 : aDate > bDate ? 1 : 0;
+  if (aDate < bDate) {
+    return -1;
+  }
+  if (aDate > bDate) {
+    return 1;
+  }
+  return 0;
 }
 
 function ratingValue(row: {

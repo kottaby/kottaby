@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { filterHomeworkRows, filterReportRows, type SearchFilterState } from "./SearchFilterBar.helpers";
+import {
+  filterHomeworkRows,
+  filterReportRows,
+  type SearchFilterState,
+} from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
 
 describe("SearchFilterBar.helpers", () => {
   it("filters report rows correctly and short-circuits dateMatcher when notes match", () => {
