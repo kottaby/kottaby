@@ -142,16 +142,16 @@
 - [ ] 4.1.SR **Semantic Review**: zero deferred items created without a `deferred-items.md` entry.
 - [ ] 4.1.IV **Instruction Verification**: reviewers read each file's printed rule set.
 
-### - [ ] 4.2 Knowledge Propagation — `docs/teachers/teacher-average-rating.md` (NEW) + `docs/teachers/student-evaluation-submission.md` (pointer)
+### - [x] 4.2 Knowledge Propagation — `docs/teachers/teacher-average-rating.md` (NEW) + `docs/teachers/student-evaluation-submission.md` (pointer)
 - Author the canonical doc per the propagation template: aggregation trigger (inside the submission tx — single-writer discipline), formula + row-selection contract (`ROUND(AVG(score)/20, 2)`, `session_id IS NOT NULL`, soft-deleted excluded — citing the DEV2-016 forward contract at `docs/teachers/student-evaluation-submission.md:65-68` as the origin), honest-null ruling vs the ticket's literal "default 0" (ledger D1), concurrency model (recompute-from-source, READ COMMITTED convergence), ranking forward contract (ledger D2), and what-NOT-to-do (no incremental updates, no separate tx/event/trigger, no SQL-side rounding duplicating the 20 constant, no second writer, no conflation with platform-analytics' live 0–100 AVG).
 - Append a shipped-status pointer in `docs/teachers/student-evaluation-submission.md` §3's forward-contract block (`:65-74` — link only; the DEV2-016 contract text stays as history).
 - Do NOT touch AGENTS.md / `.agents/instructions/` (hand-curated).
 - _Requirements: REQ-012_
-- [ ] 4.2.QL **Quality Loop**: docs-only; run the markdown surface checks available in sub-loop and record the rest as n/a with evidence.
-- [ ] 4.2.TE **Test Engineering**: n/a (documentation).
-- [ ] 4.2.SEC **Security & Tenancy Audit**: doc discloses the contract accurately (no new denials, no new surfaces).
-- [ ] 4.2.SR **Semantic Review**: links resolve; line refs current at write time.
-- [ ] 4.2.IV **Instruction Verification**: n/a beyond root `AGENTS.md` doc conventions.
+- [x] 4.2.QL **Quality Loop**: docs-only; run the markdown surface checks available in sub-loop and record the rest as n/a with evidence.
+- [x] 4.2.TE **Test Engineering**: n/a (documentation).
+- [x] 4.2.SEC **Security & Tenancy Audit**: doc discloses the contract accurately (no new denials, no new surfaces).
+- [x] 4.2.SR **Semantic Review**: links resolve; line refs current at write time.
+- [x] 4.2.IV **Instruction Verification**: n/a beyond root `AGENTS.md` doc conventions.
 
 ### - [ ] 4.3 Final Gate & Definition-of-Done Audit
 - `bun quality-gate` green; re-record tsgo/biome/lint counts against the 0.1 baseline (no regressions attributable to this plan).
