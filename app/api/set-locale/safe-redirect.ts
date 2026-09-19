@@ -34,7 +34,7 @@ export function safeRedirectPath(raw: string | null, fallback = "/"): string {
     return fallback;
   }
 
-  let decoded = raw;
+  let decoded: string;
   try {
     decoded = decodeURIComponent(raw);
   } catch {
