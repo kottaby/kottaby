@@ -19,10 +19,10 @@
  *    to `genericError` only when no message can be extracted.
  *
  * Scope: chrome copy only — plan titles render verbatim; dates render
- * through the shared locale-aware formatter. The only interpolated values
- * are the client-computed action copy (added days, carried/forfeited
- * session counts from the mutation payload); no raw server identifiers
- * ever flow through these labels.
+ * through the shared locale-aware formatter. The interpolated values are
+ * the client-computed action copy (added days, carried/forfeited session
+ * counts from the mutation payload, relative expiry-window days); no raw
+ * server identifiers ever flow through these labels.
  *
  * All keys MUST have both `en` and `ar` implementations with EXACT key-set
  * parity (compile-typed on both leaves — the primary parity gate is the
@@ -80,6 +80,37 @@ export interface SubscriptionAdminLabels {
     /** Change plan within the lane (active rows). */
     readonly changePlan: string;
   };
+
+  /** The status filter-chip row's copy (the per-status labels reuse `status`). */
+  readonly filter: {
+    /** The unfiltered lens chip (carries the total count). */
+    readonly all: string;
+    /** The filtered lens matched zero rows while rows exist. */
+    readonly empty: string;
+  };
+
+  /**
+   * The per-row relative expiry-window badge — the counted CLDR day forms
+   * (the final day reads as the zero arm of `upcoming`); `past` only ever
+   * receives a strictly positive elapsed count.
+   */
+  readonly expiryBadge: {
+    /** The open-window arm ("ends in n days"; n = 0 renders the today form). */
+    readonly upcoming: (days: number) => string;
+    /** The elapsed arm ("expired n days ago"). */
+    readonly past: (days: number) => string;
+  };
+
+  /** The per-row copy-id quick action (tooltip/aria + the copied state). */
+  readonly copyId: {
+    /** The copy tooltip/aria label. */
+    readonly copy: string;
+    /** The transient post-copy tooltip label. */
+    readonly copied: string;
+  };
+
+  /** The per-row deep link into the admin audit trail (the row's entries). */
+  readonly auditLink: string;
 
   readonly extend: {
     /** Dialog title. */

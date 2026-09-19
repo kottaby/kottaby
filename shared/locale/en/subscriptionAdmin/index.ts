@@ -28,6 +28,19 @@ export const subscriptionAdminEn: SubscriptionAdminLabels = {
     cancel: "Cancel",
     changePlan: "Change plan",
   },
+  filter: {
+    all: "All",
+    empty: "No subscriptions with this status.",
+  },
+  expiryBadge: {
+    upcoming: days => (days === 0 ? "Ends today" : days === 1 ? "Ends in 1 day" : `Ends in ${days} days`),
+    past: days => (days === 1 ? "Expired 1 day ago" : `Expired ${days} days ago`),
+  },
+  copyId: {
+    copy: "Copy subscription ID",
+    copied: "Copied",
+  },
+  auditLink: "View in audit trail",
   extend: {
     title: "Extend subscription",
     daysLabel: "Days to add",

@@ -8,6 +8,12 @@
  * owns the list presentation (the directory label-value recipe plus the
  * per-status action buttons).
  *
+ * The status filter-chip row (the `SubscriptionStatusFilterChips` lens)
+ * mounts above the cards only while the student HAS rows — the empty
+ * state owns the zero-rows case — and the rendered cards pass through the
+ * selected lens; a lens that matches nothing while rows exist renders the
+ * filter's own empty line instead of the section's zero-rows state.
+ *
  * Presentational: rows arrive pre-sorted; the status-label table resolves
  * here once per render from the namespace's per-enum slots (keyed by the
  * wire enum — never runtime string literals). Every visible string flows
@@ -15,44 +21,58 @@
  * theme tokens only.
  */
 import { CardMembershipOutlined as CardMembershipIcon } from "@mui/icons-material";
-import { Box, Skeleton, Stack } from "@mui/material";
+import { Box, Skeleton, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { IconCircleEmptyState } from "@/frontend/components/ui/IconCircleEmptyState";
 import { SubscriptionStatus } from "@/frontend/graphql/generated/gql/graphql";
 import { DirectoryErrorAlert } from "@/frontend/views/admin/directory-shared/DirectoryErrorAlert";
 import type { OpenSubscriptionDialogKind } from "@/frontend/views/admin/students/subscriptions/hooks";
 import { SubscriptionRowCard } from "@/frontend/views/admin/students/subscriptions/SubscriptionRowCard";
+import { SubscriptionStatusFilterChips } from "@/frontend/views/admin/students/subscriptions/SubscriptionStatusFilterChips";
 import {
   actionsForStatus,
   type SubscriptionRow,
+  type SubscriptionStatusFilter,
 } from "@/frontend/views/admin/students/subscriptions/subscriptionAdmin.helpers";
 import type { AppLocale } from "@/shared/locale";
 import type { SubscriptionAdminLabels } from "@/shared/locale/types/subscriptionAdmin";
 
 interface SubscriptionRowsViewProps {
+  /** All fetched rows, newest-first (the unfiltered lens). */
   readonly rows: readonly SubscriptionRow[];
+  /** The rows passing the selected status lens (pre-filtered by the section). */
+  readonly filteredRows: readonly SubscriptionRow[];
+  /** The currently selected status lens. */
+  readonly statusFilter: SubscriptionStatusFilter;
+  /** Per-status tallies for the chip counts (the pure helper's table). */
+  readonly counts: Record<SubscriptionStatus, number>;
   readonly loading: boolean;
   readonly hasQueryError: boolean;
   readonly errorCode: string | null;
   readonly labels: SubscriptionAdminLabels;
   readonly locale: AppLocale;
   readonly onOpenDialog: (kind: OpenSubscriptionDialogKind, row: SubscriptionRow) => void;
+  readonly onSelectFilter: (filter: SubscriptionStatusFilter) => void;
   readonly onRetry: () => void;
 }
 
 /**
  * The section's body: the query-failure alert, the loading skeleton, the
- * empty state, or the newest-first row cards (status labels resolved once
- * per render from the namespace's per-enum slots).
+ * empty state, or the filter-chip row + the newest-first row cards (status
+ * labels resolved once per render from the namespace's per-enum slots).
  */
 export function SubscriptionRowsView({
   rows,
+  filteredRows,
+  statusFilter,
+  counts,
   loading,
   hasQueryError,
   errorCode,
   labels,
   locale,
   onOpenDialog,
+  onSelectFilter,
   onRetry,
 }: SubscriptionRowsViewProps): ReactNode {
   const statusLabels: Record<SubscriptionStatus, string> = {
@@ -83,20 +103,42 @@ export function SubscriptionRowsView({
   } else {
     body = (
       <Stack sx={{ gap: 1.5 }}>
-        {rows.map(row => (
-          <SubscriptionRowCard
-            key={row.id}
-            row={row}
-            actions={actionsForStatus(row.status)}
-            statusLabels={statusLabels}
-            labels={{ fields: labels.fields, actions: labels.actions }}
-            locale={locale}
-            onExtend={target => onOpenDialog("extend", target)}
-            onRenew={target => onOpenDialog("renew", target)}
-            onCancel={target => onOpenDialog("cancel", target)}
-            onChangePlan={target => onOpenDialog("changePlan", target)}
-          />
-        ))}
+        <SubscriptionStatusFilterChips
+          labels={labels}
+          counts={counts}
+          total={rows.length}
+          selected={statusFilter}
+          onSelect={onSelectFilter}
+        />
+        {filteredRows.length === 0 ? (
+          <Typography
+            variant="body2"
+            sx={theme => ({ py: 2, textAlign: "center", color: theme.palette.text.secondary })}
+          >
+            {labels.filter.empty}
+          </Typography>
+        ) : (
+          filteredRows.map(row => (
+            <SubscriptionRowCard
+              key={row.id}
+              row={row}
+              actions={actionsForStatus(row.status)}
+              statusLabels={statusLabels}
+              labels={{
+                fields: labels.fields,
+                actions: labels.actions,
+                expiryBadge: labels.expiryBadge,
+                copyId: labels.copyId,
+                auditLink: labels.auditLink,
+              }}
+              locale={locale}
+              onExtend={target => onOpenDialog("extend", target)}
+              onRenew={target => onOpenDialog("renew", target)}
+              onCancel={target => onOpenDialog("cancel", target)}
+              onChangePlan={target => onOpenDialog("changePlan", target)}
+            />
+          ))
+        )}
       </Stack>
     );
   }

@@ -43,7 +43,12 @@ import {
   useSubscriptionDialogController,
 } from "@/frontend/views/admin/students/subscriptions/hooks";
 import { SubscriptionRowsView } from "@/frontend/views/admin/students/subscriptions/SubscriptionRowsView";
-import { sortNewestFirst } from "@/frontend/views/admin/students/subscriptions/subscriptionAdmin.helpers";
+import {
+  countByStatus,
+  filterByStatus,
+  type SubscriptionStatusFilter,
+  sortNewestFirst,
+} from "@/frontend/views/admin/students/subscriptions/subscriptionAdmin.helpers";
 import type { DirectorySnackbar } from "@/frontend/views/admin/users/directory";
 import { SubscriptionAdmin, useAppLocale, useAppTranslation } from "@/shared/locale";
 
@@ -56,6 +61,10 @@ export function SubscriptionAdminSection({ userId }: SubscriptionAdminSectionPro
   const labels = useAppTranslation(SubscriptionAdmin);
   const locale = useAppLocale();
   const [snackbar, setSnackbar] = useState<DirectorySnackbar | null>(null);
+  // The status filter lens — a pure view state (the fetched rows stay
+  // untouched; the chips' math rides the pure helpers) that resets
+  // naturally with the drawer's per-student remount.
+  const [statusFilter, setStatusFilter] = useState<SubscriptionStatusFilter>("all");
 
   const {
     data,
@@ -102,6 +111,8 @@ export function SubscriptionAdminSection({ userId }: SubscriptionAdminSectionPro
   // `errorPolicy: "none"` (the default) drops `data` on a failed refetch;
   // `previousData` keeps the last good list visible beside the alert.
   const rows = sortNewestFirst((data ?? previousData)?.adminStudentSubscriptions ?? []);
+  const counts = countByStatus(rows);
+  const filteredRows = filterByStatus(rows, statusFilter);
 
   const retryQuery = (): void => {
     void refetch();
@@ -115,12 +126,16 @@ export function SubscriptionAdminSection({ userId }: SubscriptionAdminSectionPro
     <DirectoryDrawerSection label={labels.title}>
       <SubscriptionRowsView
         rows={rows}
+        filteredRows={filteredRows}
+        statusFilter={statusFilter}
+        counts={counts}
         loading={loading}
         hasQueryError={Boolean(queryError)}
         errorCode={queryError ? extractErrorCode(queryError) : null}
         labels={labels}
         locale={locale}
         onOpenDialog={dialogs.openDialogFor}
+        onSelectFilter={setStatusFilter}
         onRetry={retryQuery}
       />
       <SubscriptionActionDialogs

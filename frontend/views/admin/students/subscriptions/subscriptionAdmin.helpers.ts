@@ -57,6 +57,67 @@ export const STATUS_TONE: Record<SubscriptionStatus, DirectoryTone> = {
 };
 
 // ---------------------------------------------------------------------------
+// Status filter lens — the chip row's pure math
+
+/** The chip row's selection: the unfiltered lens or one lifecycle status. */
+export type SubscriptionStatusFilter = "all" | SubscriptionStatus;
+
+/**
+ * Per-status tallies of the fetched rows, keyed by the wire enum (the
+ * suspended member always tallies 0 here — the enum-exhaustive record keeps
+ * the shape honest even though governance surfaces own that status).
+ */
+export function countByStatus(rows: readonly SubscriptionRow[]): Record<SubscriptionStatus, number> {
+  const counts: Record<SubscriptionStatus, number> = {
+    [SubscriptionStatus.Active]: 0,
+    [SubscriptionStatus.Expired]: 0,
+    [SubscriptionStatus.Pending]: 0,
+    [SubscriptionStatus.Cancelled]: 0,
+    [SubscriptionStatus.Suspended]: 0,
+  };
+  for (const row of rows) {
+    counts[row.status] += 1;
+  }
+  return counts;
+}
+
+/** The rows passing the selected lens (the unfiltered lens passes everything). */
+export function filterByStatus(rows: readonly SubscriptionRow[], filter: SubscriptionStatusFilter): SubscriptionRow[] {
+  if (filter === "all") {
+    return [...rows];
+  }
+  return rows.filter(row => row.status === filter);
+}
+
+// ---------------------------------------------------------------------------
+// Expiry-window badge — relative day math for the row cards
+
+/** One day in milliseconds (the badge's calendar-day unit). */
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Whole calendar days from `now` until the period bound — positive while
+ * the window is open, 0 on the final day, negative once elapsed. The
+ * fractional-day remainder floors away, so "ends in 30 days" stays stable
+ * across the day.
+ */
+export function daysUntil(date: string, now: Date = new Date()): number {
+  return Math.floor((new Date(date).getTime() - now.getTime()) / MS_PER_DAY);
+}
+
+/** Which copy arm the expiry badge renders: the open window or the elapsed one. */
+export type ExpiryBadgeKind = "upcoming" | "past";
+
+/**
+ * Resolves the badge arm for a period bound: the final day (0) still reads
+ * as the upcoming "ends today" arm — only a strictly negative count is
+ * past.
+ */
+export function expiryBadgeKind(date: string, now: Date = new Date()): ExpiryBadgeKind {
+  return daysUntil(date, now) < 0 ? "past" : "upcoming";
+}
+
+// ---------------------------------------------------------------------------
 // Per-status action matrix
 
 /** Which lifecycle actions a row's status affords. */

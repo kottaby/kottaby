@@ -18,6 +18,12 @@
  * directional CSS (the count pill follows the label in the reading order).
  */
 
+import {
+  CheckCircleOutlined as ActiveIcon,
+  CancelOutlined as CancelIcon,
+  EventBusyOutlined as ExpiredIcon,
+  ScheduleOutlined as PendingIcon,
+} from "@mui/icons-material";
 import { Box, Chip, Stack } from "@mui/material";
 import type { ReactNode } from "react";
 import { SubscriptionStatus } from "@/frontend/graphql/generated/gql/graphql";
@@ -51,7 +57,17 @@ interface FilterChipSlot {
   readonly label: string;
   readonly count: number;
   readonly tone: DirectoryTone;
+  /** Optional leading glyph (the lifecycle lens the chip filters by). */
+  readonly icon?: ReactNode;
 }
+
+/** Per-status chip glyphs — the lens each chip filters by at a glance. */
+const CHIP_ICONS: Partial<Record<SubscriptionStatus, ReactNode>> = {
+  [SubscriptionStatus.Active]: <ActiveIcon sx={{ fontSize: 16 }} />,
+  [SubscriptionStatus.Expired]: <ExpiredIcon sx={{ fontSize: 16 }} />,
+  [SubscriptionStatus.Cancelled]: <CancelIcon sx={{ fontSize: 16 }} />,
+  [SubscriptionStatus.Pending]: <PendingIcon sx={{ fontSize: 16 }} />,
+};
 
 /** One filter chip — filled on the tone lane when selected, outlined otherwise. */
 function FilterChip({
@@ -70,6 +86,7 @@ function FilterChip({
       aria-pressed={selected}
       label={
         <Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}>
+          {slot.icon}
           <Box component="span">{slot.label}</Box>
           <Box
             component="span"
@@ -93,9 +110,17 @@ function FilterChip({
           borderRadius: "999px",
           fontWeight: 600,
           flexShrink: 0,
+          transition: theme.transitions.create(["background-color", "border-color", "color", "box-shadow"], {
+            duration: theme.transitions.duration.shorter,
+          }),
           ...(selected
-            ? { bgcolor: colors.bg, color: colors.fg }
-            : { bgcolor: "transparent", border: `1px solid ${colors.dot}`, color: colors.dot }),
+            ? { bgcolor: colors.bg, color: colors.fg, boxShadow: theme.shadows[1] }
+            : {
+                bgcolor: "transparent",
+                border: `1px solid ${colors.dot}`,
+                color: colors.dot,
+                "&:hover": { bgcolor: colors.bg },
+              }),
         };
       }}
     />
@@ -124,6 +149,7 @@ export function SubscriptionStatusFilterChips({
       label: statusLabels[status],
       count: counts[status],
       tone: STATUS_TONE[status],
+      icon: CHIP_ICONS[status],
     })),
   ];
   return (

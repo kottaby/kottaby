@@ -28,6 +28,37 @@ export const subscriptionAdminAr: SubscriptionAdminLabels = {
     cancel: "إلغاء الاشتراك",
     changePlan: "تغيير الخطة",
   },
+  filter: {
+    all: "الكل",
+    empty: "لا توجد اشتراكات بهذه الحالة.",
+  },
+  expiryBadge: {
+    upcoming: days => {
+      if (days === 0) return "ينتهي اليوم";
+      if (days === 1) return "ينتهي خلال يوم واحد";
+      if (days === 2) return "ينتهي خلال يومين";
+      // CLDR Arabic classes mirror `success.extend`: one/two apply to
+      // n = 1/2 EXACTLY; few = 3–10 (counted plural أيام); many/other =
+      // 11–99 and the ×100 re-entries (tamyiz singular يوماً).
+      const cycle = days % 100;
+      if (cycle >= 3 && cycle <= 10) return `ينتهي خلال ${days} أيام`;
+      return `ينتهي خلال ${days} يوماً`;
+    },
+    past: days => {
+      if (days === 1) return "انتهى منذ يوم واحد";
+      if (days === 2) return "انتهى منذ يومين";
+      // Same CLDR class branches as `upcoming` (the elapsed count is
+      // strictly positive here, so no zero arm).
+      const cycle = days % 100;
+      if (cycle >= 3 && cycle <= 10) return `انتهى منذ ${days} أيام`;
+      return `انتهى منذ ${days} يوماً`;
+    },
+  },
+  copyId: {
+    copy: "نسخ معرّف الاشتراك",
+    copied: "تم النسخ",
+  },
+  auditLink: "عرض في سجل التدقيق",
   extend: {
     title: "تمديد الاشتراك",
     daysLabel: "عدد الأيام المضافة",

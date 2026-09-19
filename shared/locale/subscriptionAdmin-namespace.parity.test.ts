@@ -17,7 +17,8 @@
  *      is pinned under BOTH locales — a key dropped from both maps
  *      simultaneously still fails this suite.
  *   3. FUNCTION-LEAF INVENTORY — the count-bearing proration/success
- *      leaves plus the cancel reason counter are exactly the four declared
+ *      leaves, the relative expiry-badge day forms, plus the cancel
+ *      reason counter are exactly the six declared
  *      function slots (no silent minting, no downgrade into a plain
  *      string) and each renders non-empty output carrying its probe count
  *      in BOTH locales.
@@ -60,6 +61,8 @@ const ACTIONS_LEAF_PATHS = ["cancel", "changePlan", "extend", "renew"] as const;
 /** The EXACT function-leaf inventory (dotted paths — count-bearing copy). */
 const FUNCTION_LEAF_PATHS = [
   "cancel.reasonCounter",
+  "expiryBadge.past",
+  "expiryBadge.upcoming",
   "success.extend",
   "success.planChangeCarried",
   "success.planChangeForfeited",
@@ -210,7 +213,7 @@ describe("actions block — pinned under BOTH locales (four-action lifecycle inv
 });
 
 // ===========================================================================
-describe("function-leaf inventory — exactly the four count-bearing slots", () => {
+describe("function-leaf inventory — exactly the six count-bearing slots", () => {
   test("the function slots are EXACTLY the declared inventory (no minting, no downgrade)", () => {
     const functionPaths = sortedLeafPathsOf(subscriptionAdminAr).filter(path => {
       return typeof leafValueOf(subscriptionAdminAr, path, "ar") === "function";
@@ -233,17 +236,76 @@ describe("function-leaf inventory — exactly the four count-bearing slots", () 
         expect(arOutput.length).toBeGreaterThan(0);
         expect(enOutput.length).toBeGreaterThan(0);
         expect(enOutput).toContain(String(count));
-        // ar spells the CLDR one/two classes as words (جلسة واحدة / جلستين —
-        // exact-pinned by the plural-branch table below), so the ar digit
-        // carry applies from the counted-plural class upward (the
-        // adminBroadcasts placeholder-parity precedent: digit probes ride
-        // the numeric branches only).
+        // ar spells the CLDR one/two classes as words (يوماً واحداً / يومين
+        // / جلسة واحدة / جلستين — exact-pinned by the plural-branch tables
+        // below), so the ar digit carry applies from the counted-plural
+        // class upward (the adminBroadcasts placeholder-parity precedent:
+        // digit probes ride the numeric branches only).
         if (count > 2) {
           expect(arOutput).toContain(String(count));
         } else {
           expect(ARABIC_SCRIPT.test(arOutput)).toBe(true);
         }
       }
+    }
+  });
+});
+
+// ===========================================================================
+describe("expiry-badge branch pin — the relative-window day forms on BOTH maps", () => {
+  /** The badge's two arms (the past count is strictly positive). */
+  const EXPIRY_LEAF_PATHS = ["expiryBadge.past", "expiryBadge.upcoming"] as const;
+
+  /** The upcoming arm's fixed forms: [count, ar full form, en full form]. */
+  const UPCOMING_FORM_PROBES: ReadonlyArray<readonly [number, string, string]> = [
+    [0, "ينتهي اليوم", "Ends today"],
+    [1, "ينتهي خلال يوم واحد", "Ends in 1 day"],
+    [2, "ينتهي خلال يومين", "Ends in 2 days"],
+    [3, "ينتهي خلال 3 أيام", "Ends in 3 days"],
+    [10, "ينتهي خلال 10 أيام", "Ends in 10 days"],
+    [11, "ينتهي خلال 11 يوماً", "Ends in 11 days"],
+    [99, "ينتهي خلال 99 يوماً", "Ends in 99 days"],
+    [100, "ينتهي خلال 100 يوماً", "Ends in 100 days"],
+  ];
+
+  /** The past arm's fixed forms: [count, ar full form, en full form]. */
+  const PAST_FORM_PROBES: ReadonlyArray<readonly [number, string, string]> = [
+    [1, "انتهى منذ يوم واحد", "Expired 1 day ago"],
+    [2, "انتهى منذ يومين", "Expired 2 days ago"],
+    [3, "انتهى منذ 3 أيام", "Expired 3 days ago"],
+    [10, "انتهى منذ 10 أيام", "Expired 10 days ago"],
+    [11, "انتهى منذ 11 يوماً", "Expired 11 days ago"],
+    [99, "انتهى منذ 99 يوماً", "Expired 99 days ago"],
+    [100, "انتهى منذ 100 يوماً", "Expired 100 days ago"],
+  ];
+
+  test("the upcoming arm renders the exact today/one/two/few/other forms", () => {
+    const arLeaf = leafValueOf(subscriptionAdminAr, "expiryBadge.upcoming", "ar");
+    const enLeaf = leafValueOf(subscriptionAdminEn, "expiryBadge.upcoming", "en");
+    if (!isCountLeaf(arLeaf) || !isCountLeaf(enLeaf)) {
+      throw new Error("subscriptionAdmin.expiryBadge.upcoming must be a count-bearing function on BOTH maps");
+    }
+    for (const [count, ar, en] of UPCOMING_FORM_PROBES) {
+      expect(arLeaf(count)).toBe(ar);
+      expect(enLeaf(count)).toBe(en);
+    }
+  });
+
+  test("the past arm renders the exact one/two/few/other forms (strictly positive counts)", () => {
+    const arLeaf = leafValueOf(subscriptionAdminAr, "expiryBadge.past", "ar");
+    const enLeaf = leafValueOf(subscriptionAdminEn, "expiryBadge.past", "en");
+    if (!isCountLeaf(arLeaf) || !isCountLeaf(enLeaf)) {
+      throw new Error("subscriptionAdmin.expiryBadge.past must be a count-bearing function on BOTH maps");
+    }
+    for (const [count, ar, en] of PAST_FORM_PROBES) {
+      expect(arLeaf(count)).toBe(ar);
+      expect(enLeaf(count)).toBe(en);
+    }
+  });
+
+  test("both arms are declared function leaves (the inventory covers the badge)", () => {
+    for (const path of EXPIRY_LEAF_PATHS) {
+      expect(FUNCTION_LEAF_PATHS).toContain(path);
     }
   });
 });

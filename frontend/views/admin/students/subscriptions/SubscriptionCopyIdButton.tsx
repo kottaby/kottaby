@@ -39,11 +39,12 @@ export function SubscriptionCopyIdButton({
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (!copied) {
-      return;
-    }
-    const timer = setTimeout(() => setCopied(false), COPIED_RESET_MS);
-    return () => clearTimeout(timer);
+    const timer = copied ? setTimeout(() => setCopied(false), COPIED_RESET_MS) : null;
+    return () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
+    };
   }, [copied]);
 
   const handleCopy = (): void => {
