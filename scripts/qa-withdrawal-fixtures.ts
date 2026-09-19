@@ -57,7 +57,9 @@ async function main() {
   // Param layout: $1 = wallet id, then per earning a (desc, amount, ts)
   // triple at $[2+3i], $[3+3i], $[4+3i] — the ts placeholder is reused for
   // both created_at and updated_at.
-  const tuples = earnings.map((_, i) => `($1, $${2 + i * 3}, $${3 + i * 3}, 'earning', 'completed', $${4 + i * 3}, $${4 + i * 3})`);
+  const tuples = earnings.map(
+    (_, i) => `($1, $${2 + i * 3}, $${3 + i * 3}, 'earning', 'completed', $${4 + i * 3}, $${4 + i * 3})`
+  );
   const params: Array<string | number> = [walletId];
   for (const [desc, amount, minsAgo] of earnings) {
     params.push(desc, amount, iso(minsAgo));
