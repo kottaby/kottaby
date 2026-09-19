@@ -8,8 +8,12 @@ import type { MyHomeworkQuery_myHomework_items } from "@/frontend/graphql/genera
 import { DashboardStatCard } from "@/frontend/views/dashboard/home/DashboardStatCard";
 import { SearchFilterBar } from "@/frontend/views/parent/monitoring/SearchFilterBar";
 import { DEFAULT_SORT } from "@/frontend/views/parent/monitoring/SearchFilterBar.helpers";
-import { toggleHomeworkFilter, type HomeworkStatusFilter, type HomeworkSummary } from "@/frontend/views/student/homework/homework.helpers";
 import { HomeworkListBody } from "@/frontend/views/student/homework/HomeworkContainer.parts";
+import {
+  type HomeworkStatusFilter,
+  type HomeworkSummary,
+  toggleHomeworkFilter,
+} from "@/frontend/views/student/homework/homework.helpers";
 import type { HomeworkLabels } from "@/shared/locale/types/homework";
 
 /**
@@ -32,8 +36,20 @@ export function SummaryStrip({
 }>): ReactNode {
   const cards = [
     { key: "all", label: t.summaryTotalLabel, value: summary.total, Icon: AssignmentOutlined, aria: t.filterAllLabel },
-    { key: "graded", label: t.summaryGradedLabel, value: summary.graded, Icon: TaskAltOutlined, aria: t.filterGradedLabel },
-    { key: "pending", label: t.summaryPendingLabel, value: summary.pending, Icon: HourglassEmptyOutlined, aria: t.filterPendingLabel },
+    {
+      key: "graded",
+      label: t.summaryGradedLabel,
+      value: summary.graded,
+      Icon: TaskAltOutlined,
+      aria: t.filterGradedLabel,
+    },
+    {
+      key: "pending",
+      label: t.summaryPendingLabel,
+      value: summary.pending,
+      Icon: HourglassEmptyOutlined,
+      aria: t.filterPendingLabel,
+    },
   ] as const;
   return (
     <Box

@@ -1,18 +1,18 @@
 "use client";
 
-import { type ReactNode, useMemo } from "react";
 import { Skeleton, Stack, Typography } from "@mui/material";
+import { type ReactNode, useMemo } from "react";
 import { ErrorRetryAlert } from "@/frontend/components/ui/ErrorRetryAlert";
 import type { MyHomeworkQuery_myHomework_items } from "@/frontend/graphql/generated/gql/graphql";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
 import { type PrintableRow, PrintExportDialog } from "@/frontend/views/shared/print-export/PrintExportDialog";
+import { HomeworkListSection, SummaryStrip } from "@/frontend/views/student/homework/HomeworkContainer.chrome";
 import {
   computeHomeworkSummary,
   filterHomeworkByQuery,
   filterHomeworkByStatus,
   type HomeworkStatusFilter,
 } from "@/frontend/views/student/homework/homework.helpers";
-import { HomeworkListSection, SummaryStrip } from "@/frontend/views/student/homework/HomeworkContainer.chrome";
 import type { HomeworkLabels } from "@/shared/locale/types/homework";
 
 /** Linear skeleton (summary strip + three list rows) — `aria-busy` + label. */

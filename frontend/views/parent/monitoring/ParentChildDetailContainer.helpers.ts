@@ -74,9 +74,7 @@ export function deepLinkRowSx(isDeepLinkTarget: boolean) {
     // Soft glow ring keeps the 2px selection border legible on dark card backgrounds.
     // Conditional spread, not a ternary-to-undefined: sx style objects reject
     // explicitly-undefined property values under strict SystemStyleObject typing.
-    ...(isDeepLinkTarget
-      ? { boxShadow: `0 0 0 1px ${alpha(theme.palette.primary.main, 0.35)}` }
-      : {}),
+    ...(isDeepLinkTarget ? { boxShadow: `0 0 0 1px ${alpha(theme.palette.primary.main, 0.35)}` } : {}),
     transition: theme.transitions.create(["box-shadow", "border-color", "background-color"], {
       duration: theme.transitions.duration.shorter,
     }),

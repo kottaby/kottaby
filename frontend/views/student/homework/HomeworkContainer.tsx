@@ -1,11 +1,11 @@
 "use client";
 
-import { type ReactNode, useMemo, useState } from "react";
 import { Stack, Typography } from "@mui/material";
+import { type ReactNode, useMemo, useState } from "react";
 import { extractErrorCode } from "@/frontend/lib/graphql-error-utils";
 import { formatApplicantDate } from "@/frontend/lib/i18n/format-date";
-import { toPrintableRows, type HomeworkStatusFilter } from "@/frontend/views/student/homework/homework.helpers";
 import { HomeworkBody } from "@/frontend/views/student/homework/HomeworkContainer.body";
+import { type HomeworkStatusFilter, toPrintableRows } from "@/frontend/views/student/homework/homework.helpers";
 import { useAllMyHomeworkPages } from "@/frontend/views/student/homework/useAllMyHomeworkPages";
 import { Common, Errors, Homework, useAppLocale, useAppTranslation } from "@/shared/locale";
 

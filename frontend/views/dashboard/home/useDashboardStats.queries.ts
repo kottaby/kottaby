@@ -29,8 +29,8 @@ import {
   myWalletQueryDocument,
 } from "@/frontend/graphql/sharedDocuments";
 import {
-  useParentChildAggregates,
   type ParentAggregateState,
+  useParentChildAggregates,
 } from "@/frontend/views/dashboard/home/useDashboardStats.parts";
 
 /**

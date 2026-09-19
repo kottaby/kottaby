@@ -2,9 +2,9 @@
 
 import { useMemo } from "react";
 import { useAuth } from "@/frontend/hooks/auth";
-import { resolveStatDrafts, type DashboardStatDraft } from "@/frontend/views/dashboard/home/useDashboardStats.helpers";
-import { buildStatsData } from "@/frontend/views/dashboard/home/useDashboardStats.roleData";
+import { type DashboardStatDraft, resolveStatDrafts } from "@/frontend/views/dashboard/home/useDashboardStats.helpers";
 import { useRoleStatQueries } from "@/frontend/views/dashboard/home/useDashboardStats.queries";
+import { buildStatsData } from "@/frontend/views/dashboard/home/useDashboardStats.roleData";
 
 /**
  * The role-aware dashboard stats hook.

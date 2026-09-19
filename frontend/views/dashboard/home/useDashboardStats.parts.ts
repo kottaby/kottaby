@@ -8,10 +8,7 @@ import type {
   ParentChildSessionsQuery,
   ParentChildSessionsQueryVariables,
 } from "@/frontend/graphql/generated/gql/graphql";
-import {
-  parentChildReportsQueryDocument,
-  parentChildSessionsQueryDocument,
-} from "@/frontend/graphql/sharedDocuments";
+import { parentChildReportsQueryDocument, parentChildSessionsQueryDocument } from "@/frontend/graphql/sharedDocuments";
 import { COUNT_PAGE_SIZE } from "@/frontend/views/dashboard/home/useDashboardStats.queries";
 
 /** Per-child aggregate outcome — `undefined` running, `null` failed, number resolved. */

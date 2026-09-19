@@ -1,7 +1,10 @@
 "use client";
 
-import { countActiveSubscriptions, type DashboardStatsData } from "@/frontend/views/dashboard/home/useDashboardStats.helpers";
-import { resolveOptional, type ParentAggregateState } from "@/frontend/views/dashboard/home/useDashboardStats.parts";
+import {
+  countActiveSubscriptions,
+  type DashboardStatsData,
+} from "@/frontend/views/dashboard/home/useDashboardStats.helpers";
+import { type ParentAggregateState, resolveOptional } from "@/frontend/views/dashboard/home/useDashboardStats.parts";
 import type { RoleStatQueries } from "@/frontend/views/dashboard/home/useDashboardStats.queries";
 
 /**
@@ -39,7 +42,11 @@ function buildStudentStats(
  * Pure over the wired observers: no hook state, no fetching — the caller
  * passes the role's query bundle and the parent aggregate it resolved.
  */
-export function buildStatsData(role: string | null, queries: RoleStatQueries, aggregate: ParentAggregateState): DashboardStatsData {
+export function buildStatsData(
+  role: string | null,
+  queries: RoleStatQueries,
+  aggregate: ParentAggregateState
+): DashboardStatsData {
   const unreadNotificationsCount = resolveOptional(
     queries.unread.loading,
     queries.unread.error,
